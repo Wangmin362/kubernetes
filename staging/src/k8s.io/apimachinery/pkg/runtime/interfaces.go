@@ -300,7 +300,9 @@ type SelfLinker interface {
 // serializers to set the kind, version, and group the object is represented as. An Object may choose
 // to return a no-op ObjectKindAccessor in cases where it is not expected to be serialized.
 type Object interface {
+	// GetObjectKind 实际上所有的K8S资源对象都实现了这个接口，因为所有的资源对象都集成了metav1.TypeMeta
 	GetObjectKind() schema.ObjectKind
+	// DeepCopyObject 这个接口一般是有deepcopy-gen代码生成器工具自动生成的，也不需要关心
 	DeepCopyObject() Object
 }
 

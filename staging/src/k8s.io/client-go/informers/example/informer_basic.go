@@ -13,8 +13,9 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// 测试Informer的基本示例
 func main() {
-	kubeconfig := "staging/src/k8s.io/client-go/informers/example/config"
+	kubeconfig := "D:\\GO_WORKPLACE\\github\\kubernetes\\staging\\src\\k8s.io\\client-go\\informers\\example\\config"
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
 		panic(err)

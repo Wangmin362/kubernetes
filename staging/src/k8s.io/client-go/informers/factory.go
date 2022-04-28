@@ -52,6 +52,7 @@ import (
 // SharedInformerOption defines the functional option type for SharedInformerFactory.
 type SharedInformerOption func(*sharedInformerFactory) *sharedInformerFactory
 
+// sharedInformerFactory实际上可以理解为informer map,用户可以通过toType找到对应的Informer,其中gotype必然实现了runtime.Object接口
 type sharedInformerFactory struct {
 	client           kubernetes.Interface
 	namespace        string
@@ -183,7 +184,7 @@ func (f *sharedInformerFactory) InformerFor(obj runtime.Object, newFunc internal
 }
 
 // SharedInformerFactory provides shared informers for resources in all known
-// API group versions.
+// API group versions. 已经集成了所有K8S所有内建资源的Informer
 type SharedInformerFactory interface {
 	internalinterfaces.SharedInformerFactory
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)

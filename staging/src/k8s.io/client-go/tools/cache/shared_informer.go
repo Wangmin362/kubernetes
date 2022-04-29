@@ -285,18 +285,28 @@ func WaitForCacheSync(stopCh <-chan struct{}, cacheSyncs ...InformerSynced) bool
 // sharedProcessor, which is responsible for relaying those
 // notifications to each of the informer's clients.
 type sharedIndexInformer struct {
-	indexer    Indexer
+	// indexer就是所谓的LocalStorage,存储了当前K8S资源类型的所有实例，底层存储使用ThreadSafeMap存储，key通过KeyFunc计算出来，而Value就是缓存的K8S资源实例
+	indexer Indexer
+	// 每个Informer内部管理了一个Controller, 这个Controller中的Reflector负责执行ListWatch，把拿到的数据放入到DeltaFifo当中
+	// 于此同时Controller还会启动一个协程不断的从DeltaFifo当中Pop数据，Pop出来的数据会同时进行两个处理：其一就是把数据放入到indexer（也就是LocalStorage）中，
+	// 其二就是把数据分发给Listener，所谓的Listener其实就是用户通过Informer.AddEventHandler()函数注册的回调
 	controller Controller
 
-	processor             *sharedProcessor
+	// 通过调用AddEventHandler添加的事件回调处理器被封装为了Listener放入到Processor中，Informer使用Processor管理Listener
+	// 可以理解为这里是用户自定义逻辑的HOOK点
+	processor *sharedProcessor
+	// debug使用的，无需关心
 	cacheMutationDetector MutationDetector
 
+	// listerWatcher就是Informer的核心了，其实际上就是调用各个资源对象的List以及Watch方法，listerWatcher负责从apiServer中获取资源
+	// 对象的全量事件以及增量事件，这些事件到来之后会放入到DeltaFifo中，并最终存放到indexer（也就是LocalStorage）
 	listerWatcher ListerWatcher
 
 	// objectType is an example object of the type this informer is
 	// expected to handle.  Only the type needs to be right, except
 	// that when that is `unstructured.Unstructured` the object's
 	// `"apiVersion"` and `"kind"` must also be right.
+	// K8S资源对象，譬如Deployment, Pod, PVC等等，每个Informer只负责缓存一个K8S资源对象，
 	objectType runtime.Object
 
 	// resyncCheckPeriod is how often we want the reflector's resync timer to fire so it can call
@@ -309,6 +319,7 @@ type sharedIndexInformer struct {
 	// clock allows for testability
 	clock clock.Clock
 
+	// 当前Informer是否已经开启，或者已经停止
 	started, stopped bool
 	startedLock      sync.Mutex
 
@@ -368,6 +379,7 @@ func (s *sharedIndexInformer) SetWatchErrorHandler(handler WatchErrorHandler) er
 func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 
+	// informer已经启动过了就无需再启动了
 	if s.HasStarted() {
 		klog.Warningf("The sharedIndexInformer has started, run more than once is not allowed")
 		return
@@ -488,12 +500,14 @@ func (s *sharedIndexInformer) AddEventHandlerWithResyncPeriod(handler ResourceEv
 	s.startedLock.Lock()
 	defer s.startedLock.Unlock()
 
+	// Informer已经停止了，所以肯定不能再次添加事件处理器
 	if s.stopped {
 		klog.V(2).Infof("Handler %v was not added to shared informer because it has stopped already", handler)
 		return
 	}
 
 	if resyncPeriod > 0 {
+		// 用户指定的重新同步周期不得小于1秒中，应该是处于性能的考虑
 		if resyncPeriod < minimumResyncPeriod {
 			klog.Warningf("resyncPeriod %v is too small. Changing it to the minimum allowed value of %v", resyncPeriod, minimumResyncPeriod)
 			resyncPeriod = minimumResyncPeriod
@@ -588,6 +602,7 @@ func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 type sharedProcessor struct {
 	listenersStarted bool
 	listenersLock    sync.RWMutex
+	// 每一个Listeners其实就是一个EventHandler
 	listeners        []*processorListener
 	syncingListeners []*processorListener
 	clock            clock.Clock
@@ -691,6 +706,7 @@ type processorListener struct {
 	nextCh chan interface{}
 	addCh  chan interface{}
 
+	// 事件处理函数，controller-runtime其实也是在这里进行了一次封装，controller-runtime把拿到的事件放入到workqueue当中
 	handler ResourceEventHandler
 
 	// pendingNotifications is an unbounded ring buffer that holds all notifications not yet distributed.

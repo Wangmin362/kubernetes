@@ -54,12 +54,15 @@ type SharedInformerOption func(*sharedInformerFactory) *sharedInformerFactory
 
 // sharedInformerFactory实际上可以理解为informer map,用户可以通过toType找到对应的Informer,其中gotype必然实现了runtime.Object接口
 type sharedInformerFactory struct {
-	client           kubernetes.Interface
-	namespace        string
+	client    kubernetes.Interface
+	namespace string
+	// TODO 这个字段是干嘛的？
 	tweakListOptions internalinterfaces.TweakListOptionsFunc
 	lock             sync.Mutex
-	defaultResync    time.Duration
-	customResync     map[reflect.Type]time.Duration
+	// 默认执行List的周期，也就是全量数据同步周期
+	defaultResync time.Duration
+	// 用户可以自定义某个k8s资源对象List的周期
+	customResync map[reflect.Type]time.Duration
 
 	informers map[reflect.Type]cache.SharedIndexInformer
 	// startedInformers is used for tracking which informers have been started.
@@ -184,7 +187,7 @@ func (f *sharedInformerFactory) InformerFor(obj runtime.Object, newFunc internal
 }
 
 // SharedInformerFactory provides shared informers for resources in all known
-// API group versions. 已经集成了所有K8S所有内建资源的Informer
+// API group versions. 注册了所有K8S所有内建资源的Informer
 type SharedInformerFactory interface {
 	internalinterfaces.SharedInformerFactory
 	ForResource(resource schema.GroupVersionResource) (GenericInformer, error)

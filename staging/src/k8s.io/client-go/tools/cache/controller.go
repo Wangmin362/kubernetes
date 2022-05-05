@@ -40,12 +40,14 @@ type Config struct {
 	// The queue for your objects - has to be a DeltaFIFO due to
 	// assumptions in the implementation. Your Process() function
 	// should accept the output of this Queue's Pop() method.
+	// DeltaFifo实例
 	Queue
 
 	// Something that can list and watch your objects.
 	ListerWatcher
 
 	// Something that can process a popped Deltas.
+	// 用于处理从DeltaFifo中Pop出来的对象
 	Process ProcessFunc
 
 	// ObjectType is an example object of the type this controller is
@@ -130,6 +132,7 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 		<-stopCh
 		c.config.Queue.Close()
 	}()
+	// 创建Reflector
 	r := NewReflector(
 		c.config.ListerWatcher,
 		c.config.ObjectType,
@@ -149,8 +152,10 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 
 	var wg wait.Group
 
+	// 启动Reflector，Reflector负责通过ListerWatcher从apiServer中获取K8S资源事件并放入到DeltaFifo中
 	wg.StartWithChannel(stopCh, r.Run)
 
+	// 该函数负责从DeltaFifo中Pop出数据，然后通过Informer.HandleDeltas处理
 	wait.Until(c.processLoop, time.Second, stopCh)
 	wg.Wait()
 }

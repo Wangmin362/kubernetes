@@ -319,9 +319,10 @@ type sharedIndexInformer struct {
 	// clock allows for testability
 	clock clock.Clock
 
-	// 当前Informer是否已经开启，或者已经停止
-	started, stopped bool
-	startedLock      sync.Mutex
+	// 在创建好Controller之后该值就被设置为True
+	started     bool
+	stopped     bool
+	startedLock sync.Mutex
 
 	// blockDeltas gives a way to stop all event distribution so that a late event handler
 	// can safely join the shared informer.
@@ -384,6 +385,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		klog.Warningf("The sharedIndexInformer has started, run more than once is not allowed")
 		return
 	}
+	// 创建DeltaFifo
 	fifo := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
 		KnownObjects:          s.indexer,
 		EmitDeltaTypeReplaced: true,
@@ -396,7 +398,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		FullResyncPeriod: s.resyncCheckPeriod,
 		RetryOnError:     false,
 		ShouldResync:     s.processor.shouldResync,
-
+		// 处理从DeltaFifo中Pop出来的一个个Event对象
 		Process:           s.HandleDeltas,
 		WatchErrorHandler: s.watchErrorHandler,
 	}
@@ -404,7 +406,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	func() {
 		s.startedLock.Lock()
 		defer s.startedLock.Unlock()
-
+		// 创建Controller
 		s.controller = New(cfg)
 		s.controller.(*controller).clock = s.clock
 		s.started = true
@@ -413,8 +415,10 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	// Separate stop channel because Processor should be stopped strictly after controller
 	processorStopCh := make(chan struct{})
 	var wg wait.Group
+	// 即使Controller退出，这里也会等到Processor中的Listener处理完所有DeltaFifo中的所有数据才会结束
 	defer wg.Wait()              // Wait for Processor to stop
 	defer close(processorStopCh) // Tell Processor to stop
+	// debug使用，无需关心
 	wg.StartWithChannel(processorStopCh, s.cacheMutationDetector.Run)
 	wg.StartWithChannel(processorStopCh, s.processor.run)
 
@@ -423,6 +427,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 		defer s.startedLock.Unlock()
 		s.stopped = true // Don't want any new listeners
 	}()
+	// 运行Controller
 	s.controller.Run(stopCh)
 }
 
@@ -548,6 +553,7 @@ func (s *sharedIndexInformer) AddEventHandlerWithResyncPeriod(handler ResourceEv
 	}
 }
 
+// HandleDeltas 该函数用于处理从DeltaFifo中Pop出来的事件对象
 func (s *sharedIndexInformer) HandleDeltas(obj interface{}) error {
 	s.blockDeltas.Lock()
 	defer s.blockDeltas.Unlock()

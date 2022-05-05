@@ -42,6 +42,7 @@ type DeltaFIFOOptions struct {
 	// this queue "knows about". It is used to decide which items are missing
 	// when Replace() is called; 'Deleted' deltas are produced for the missing items.
 	// KnownObjects may be nil if you can tolerate missing deletions on Replace().
+	// 实际上就是indexer(也就是LocalStorage)
 	KnownObjects KeyListerGetter
 
 	// EmitDeltaTypeReplaced indicates that the queue consumer
@@ -101,11 +102,13 @@ type DeltaFIFO struct {
 
 	// `items` maps a key to a Deltas.
 	// Each such Deltas has at least one Delta.
+	// items就是用来保存事件对象，其Key就是用keyFunc计算出来的
 	items map[string]Deltas
 
 	// `queue` maintains FIFO order of keys for consumption in Pop().
 	// There are no duplicates in `queue`.
 	// A key is in `queue` if and only if it is in `items`.
+	// 用于保证items的有序性
 	queue []string
 
 	// populated is true if the first batch of items inserted by Replace() has been populated
@@ -221,7 +224,8 @@ func NewDeltaFIFOWithOptions(opts DeltaFIFOOptions) *DeltaFIFO {
 	}
 
 	f := &DeltaFIFO{
-		items:        map[string]Deltas{},
+		items: map[string]Deltas{},
+		// Queue中方的是元素的itmes的Key,用于保证items的有序性
 		queue:        []string{},
 		keyFunc:      opts.KeyFunction,
 		knownObjects: opts.KnownObjects,

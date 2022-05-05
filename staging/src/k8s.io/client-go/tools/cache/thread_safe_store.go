@@ -61,10 +61,12 @@ type ThreadSafeStore interface {
 
 // threadSafeMap implements ThreadSafeStore
 type threadSafeMap struct {
-	lock  sync.RWMutex
+	lock sync.RWMutex
+	// 底层存储
 	items map[string]interface{}
 
 	// indexers maps a name to an IndexFunc
+	// 对象索引键计算函数Map
 	indexers Indexers
 	// indices maps a name to an Index
 	indices Indices

@@ -102,7 +102,7 @@ type DeltaFIFO struct {
 
 	// `items` maps a key to a Deltas.
 	// Each such Deltas has at least one Delta.
-	// items就是用来保存事件对象，其Key就是用keyFunc计算出来的
+	// items就是用来保存事件对象，其Key就是用keyFunc计算出来的,Delta其实就是所谓的增量数据
 	items map[string]Deltas
 
 	// `queue` maintains FIFO order of keys for consumption in Pop().

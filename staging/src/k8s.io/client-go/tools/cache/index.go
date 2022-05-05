@@ -56,6 +56,7 @@ type Indexer interface {
 }
 
 // IndexFunc knows how to compute the set of indexed values for an object.
+// 对象的索引键函数，根据传入的对象计算出对象的索引键
 type IndexFunc func(obj interface{}) ([]string, error)
 
 // IndexFuncToKeyFuncAdapter adapts an indexFunc to a keyFunc.  This is only useful if your index function returns
@@ -83,7 +84,7 @@ const (
 )
 
 // MetaNamespaceIndexFunc is a default index function that indexes based on an object's namespace
-// indexer的key就是资源所在的名称空间
+// indexer的key就是资源所在的名称空间，一般都是使用名称空间划分，也就是LocalStorage先按照名称空间划分不同的资源
 func MetaNamespaceIndexFunc(obj interface{}) ([]string, error) {
 	meta, err := meta.Accessor(obj)
 	if err != nil {

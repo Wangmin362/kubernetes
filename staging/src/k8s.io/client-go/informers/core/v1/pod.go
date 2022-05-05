@@ -71,8 +71,11 @@ func NewFilteredPodInformer(client kubernetes.Interface, namespace string, resyn
 				return client.CoreV1().Pods(namespace).Watch(context.TODO(), options)
 			},
 		},
+		// 一个Informer只监听一个对象，Pod Informer当然只监听Pod对象相关的Event
 		&corev1.Pod{},
+		// 重新同步的周期
 		resyncPeriod,
+		// LocalStorage缓存索引分类器
 		indexers,
 	)
 }
@@ -82,6 +85,7 @@ func (f *podInformer) defaultInformer(client kubernetes.Interface, resyncPeriod 
 	return NewFilteredPodInformer(client, f.namespace, resyncPeriod, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, f.tweakListOptions)
 }
 
+// Informer 创建Pod Informer，主要是利用了Pod对象的List接口以及Watch接口
 func (f *podInformer) Informer() cache.SharedIndexInformer {
 	return f.factory.InformerFor(&corev1.Pod{}, f.defaultInformer)
 }

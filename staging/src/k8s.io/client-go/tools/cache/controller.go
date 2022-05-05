@@ -135,7 +135,9 @@ func (c *controller) Run(stopCh <-chan struct{}) {
 	// 创建Reflector
 	r := NewReflector(
 		c.config.ListerWatcher,
+		// 监听对象，譬如Pod, Ucwi
 		c.config.ObjectType,
+		// DeltaFifo
 		c.config.Queue,
 		c.config.FullResyncPeriod,
 	)

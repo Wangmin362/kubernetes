@@ -210,11 +210,18 @@ func NewSharedInformer(lw ListerWatcher, exampleObject runtime.Object, defaultEv
 func NewSharedIndexInformer(lw ListerWatcher, exampleObject runtime.Object, defaultEventHandlerResyncPeriod time.Duration, indexers Indexers) SharedIndexInformer {
 	realClock := &clock.RealClock{}
 	sharedIndexInformer := &sharedIndexInformer{
-		processor:                       &sharedProcessor{clock: realClock},
-		indexer:                         NewIndexer(DeletionHandlingMetaNamespaceKeyFunc, indexers),
-		listerWatcher:                   lw,
-		objectType:                      exampleObject,
-		resyncCheckPeriod:               defaultEventHandlerResyncPeriod,
+		// processor负责处理从DeltaFifo中Pop出来的资源对象事件，一个Processor中可以包含多个Listener,
+		//实际上一个Listener就是通过Informer.AddEventHandler添加的对象
+		processor: &sharedProcessor{clock: realClock},
+		// LocalStorage缓存，也就是Informer本地缓存
+		indexer: NewIndexer(DeletionHandlingMetaNamespaceKeyFunc, indexers),
+		// informer的核心，本地缓存的数据就是通过每个资源对象的list,watch接口实现的
+		listerWatcher: lw,
+		// 监听的对象
+		objectType: exampleObject,
+		// 重新同步时间的阈值，这个值似乎就是用来保证重新同步的时间设置的过小，从而导致apiServer压力过大
+		resyncCheckPeriod: defaultEventHandlerResyncPeriod,
+		// 默认重新同步的时间
 		defaultEventHandlerResyncPeriod: defaultEventHandlerResyncPeriod,
 		cacheMutationDetector:           NewCacheMutationDetector(fmt.Sprintf("%T", exampleObject)),
 		clock:                           realClock,
@@ -387,6 +394,7 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	}
 	// 创建DeltaFifo
 	fifo := NewDeltaFIFOWithOptions(DeltaFIFOOptions{
+		// s.indexer其实就是LocalStorage
 		KnownObjects:          s.indexer,
 		EmitDeltaTypeReplaced: true,
 	})
@@ -416,10 +424,12 @@ func (s *sharedIndexInformer) Run(stopCh <-chan struct{}) {
 	processorStopCh := make(chan struct{})
 	var wg wait.Group
 	// 即使Controller退出，这里也会等到Processor中的Listener处理完所有DeltaFifo中的所有数据才会结束
-	defer wg.Wait()              // Wait for Processor to stop
+	defer wg.Wait() // Wait for Processor to stop
+	// Controller运行结束的时候，就需要通知每个Listener准备停止工作
 	defer close(processorStopCh) // Tell Processor to stop
 	// debug使用，无需关心
 	wg.StartWithChannel(processorStopCh, s.cacheMutationDetector.Run)
+	// 启动Processor,Processor负责启动其中的每个Listener
 	wg.StartWithChannel(processorStopCh, s.processor.run)
 
 	defer func() {
@@ -656,6 +666,7 @@ func (p *sharedProcessor) run(stopCh <-chan struct{}) {
 		}
 		p.listenersStarted = true
 	}()
+	// Informer中Controller停止之后stopCh就会被关闭，此时channel就会返回
 	<-stopCh
 	p.listenersLock.RLock()
 	defer p.listenersLock.RUnlock()
@@ -713,6 +724,7 @@ type processorListener struct {
 	addCh  chan interface{}
 
 	// 事件处理函数，controller-runtime其实也是在这里进行了一次封装，controller-runtime把拿到的事件放入到workqueue当中
+	// 对于直接使用的用户来说，这里实际上就是通过Informer.AddEventHandler添加的对象
 	handler ResourceEventHandler
 
 	// pendingNotifications is an unbounded ring buffer that holds all notifications not yet distributed.
@@ -720,6 +732,7 @@ type processorListener struct {
 	// added until we OOM.
 	// TODO: This is no worse than before, since reflectors were backed by unbounded DeltaFIFOs, but
 	// we should try to do something better.
+	// TODO 这玩意是用来干嘛的，暂时没有看懂
 	pendingNotifications buffer.RingGrowing
 
 	// requestedResyncPeriod is how frequently the listener wants a
@@ -772,6 +785,7 @@ func (p *processorListener) pop() {
 	var notification interface{}
 	for {
 		select {
+		// 刚开始这个Case肯定是无法被执行的，因为nextCh没有被初始化，此时为Nil，因此这个case会一直被阻塞
 		case nextCh <- notification:
 			// Notification dispatched
 			var ok bool

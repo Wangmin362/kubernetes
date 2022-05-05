@@ -71,6 +71,7 @@ type Store interface {
 }
 
 // KeyFunc knows how to make a key from an object. Implementations should be deterministic.
+// TODO 对象键（KeyFunc）和索引键（IndexFunc）到底有何区别，分别用在什么场景当中？
 type KeyFunc func(obj interface{}) (string, error)
 
 // KeyError will be returned any time a KeyFunc gives an error; it includes the object

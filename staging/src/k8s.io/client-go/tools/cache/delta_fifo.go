@@ -36,6 +36,7 @@ type DeltaFIFOOptions struct {
 	// exposed in the returned DeltaFIFO's KeyOf() method, with additional
 	// handling around deleted objects and queue state).
 	// Optional, the default is MetaNamespaceKeyFunc.
+	// 索引键计算函数
 	KeyFunction KeyFunc
 
 	// KnownObjects is expected to return a list of keys that the consumer of

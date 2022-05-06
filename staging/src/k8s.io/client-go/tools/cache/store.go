@@ -39,29 +39,37 @@ import (
 type Store interface {
 
 	// Add adds the given object to the accumulator associated with the given object's key
+	// 向缓存中添加对象
 	Add(obj interface{}) error
 
 	// Update updates the given object in the accumulator associated with the given object's key
+	// 更新对象
 	Update(obj interface{}) error
 
 	// Delete deletes the given object from the accumulator associated with the given object's key
+	// 删除缓存中的对象
 	Delete(obj interface{}) error
 
 	// List returns a list of all the currently non-empty accumulators
+	// 获取所有对象
 	List() []interface{}
 
 	// ListKeys returns a list of all the keys currently associated with non-empty accumulators
+	// 获取缓存中所有对象的对象键
 	ListKeys() []string
 
 	// Get returns the accumulator associated with the given object's key
+	// 根据obj对象的对象键获取缓存中的对象
 	Get(obj interface{}) (item interface{}, exists bool, err error)
 
 	// GetByKey returns the accumulator associated with the given key
+	// 根据对象键获取对象
 	GetByKey(key string) (item interface{}, exists bool, err error)
 
 	// Replace will delete the contents of the store, using instead the
 	// given list. Store takes ownership of the list, you should not reference
 	// it after calling this function.
+	// 利用传入的对象全量替换缓存中的数据
 	Replace([]interface{}, string) error
 
 	// Resync is meaningless in the terms appearing here but has
@@ -71,7 +79,8 @@ type Store interface {
 }
 
 // KeyFunc knows how to make a key from an object. Implementations should be deterministic.
-// TODO 对象键（KeyFunc）和索引键（IndexFunc）到底有何区别，分别用在什么场景当中？
+// 对象键计算函数, 对象键是用来真正存储数据用的, LocalStorage底层存储数据使用的是map, 其中的key就是对象键,而value就是对象
+// 而索引键则是用来建立索引的,索引键建立的目的主要是为了按照不同的维度进行查找可以更加的快速
 type KeyFunc func(obj interface{}) (string, error)
 
 // KeyError will be returned any time a KeyFunc gives an error; it includes the object
@@ -139,10 +148,11 @@ func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 // associated KeyFunc.
 type cache struct {
 	// cacheStorage bears the burden of thread safety for the cache
-	// 实际上就是一个map
+	// 实际上就是一个map, 并且自带了索引分类
 	cacheStorage ThreadSafeStore
 	// keyFunc is used to make the key for objects stored in and retrieved from items, and
 	// should be deterministic.
+	// 对象键计算函数
 	keyFunc KeyFunc
 }
 
@@ -150,10 +160,12 @@ var _ Store = &cache{}
 
 // Add inserts an item into the cache.
 func (c *cache) Add(obj interface{}) error {
+	// 计算对象键
 	key, err := c.keyFunc(obj)
 	if err != nil {
 		return KeyError{obj, err}
 	}
+	// 通过对象键向缓存中添加对象,并建立索引
 	c.cacheStorage.Add(key, obj)
 	return nil
 }

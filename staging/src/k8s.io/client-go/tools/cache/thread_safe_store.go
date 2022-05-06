@@ -39,21 +39,40 @@ import (
 // to a re-index. So it's not a good idea to directly modify the objects returned by
 // Get/List, in general.
 type ThreadSafeStore interface {
+	// Add key为obj的对象键，obj为要存储的对象，底层存储是一个map，key就是这里的对象键, value为obj对象
 	Add(key string, obj interface{})
+	// Update 更新索引键为key的value为obj
 	Update(key string, obj interface{})
+	// Delete 根据索引键删除KV键值对
 	Delete(key string)
+	// Get 根据索引键获取对象
 	Get(key string) (item interface{}, exists bool)
+	// List 获取所有存储的对象
 	List() []interface{}
+	// ListKeys 获取所有存储对象的索引键
 	ListKeys() []string
+	// Replace 用传入的map直接替换全量的数据，必然，替换之后势必要重建索引，实际ThreadSafeStore中的所有对于对象的新增、删除、修改操作都需要重建索引
 	Replace(map[string]interface{}, string)
+	// Index 获取obj对象所在的IndexName维度下的所有资源对象
+	// 譬如indexName=namespace,如果obj.metadata.namespace=gator-cloud，那么该函数就是获取gator-cloud中所有K8S资源对象
+	// 对于indexName=node来说，如果obj.spec.nodeName=node5，那么就是在获取node5上所有的K8S资源对象
 	Index(indexName string, obj interface{}) ([]interface{}, error)
+	// IndexKeys 获取indexName维度下的indexValue分类的所有K8S资源对象
+	// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有对象的对象键
+	// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源的对象键
 	IndexKeys(indexName, indexKey string) ([]string, error)
+	// ListIndexFuncValues 获取indexName维度下的所有分类
+	// 譬如indexName=namespace, 那么这里就是在获取namesapce维度下的所有分类，譬如有default, gator-cloud, kube-system, gator-ucss分类
 	ListIndexFuncValues(name string) []string
+	// ByIndex 获取indexName维度下的indexValue分类的所有K8S资源对象
+	// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有资源对象
+	// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源对象
 	ByIndex(indexName, indexKey string) ([]interface{}, error)
+	// GetIndexers 获取分类维度，譬如以namespace, node维度进行划分
 	GetIndexers() Indexers
 
-	// AddIndexers adds more indexers to this store.  If you call this after you already have data
-	// in the store, the results are undefined.
+	// AddIndexers adds more indexers to this store.  If you call this after you already have data in the store, the results are undefined.
+	// 添加索引划分维度
 	AddIndexers(newIndexers Indexers) error
 	// Resync is a no-op and is deprecated
 	Resync() error
@@ -99,7 +118,9 @@ func (c *threadSafeMap) Delete(key string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 	if obj, exists := c.items[key]; exists {
+		// 删除索引
 		c.updateIndices(obj, nil, key)
+		// 删除存储
 		delete(c.items, key)
 	}
 }
@@ -111,6 +132,7 @@ func (c *threadSafeMap) Get(key string) (item interface{}, exists bool) {
 	return item, exists
 }
 
+// List 获取LocalStorage中的所有对象
 func (c *threadSafeMap) List() []interface{} {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -121,8 +143,8 @@ func (c *threadSafeMap) List() []interface{} {
 	return list
 }
 
-// ListKeys returns a list of all the keys of the objects currently
-// in the threadSafeMap.
+// ListKeys returns a list of all the keys of the objects currently in the threadSafeMap.
+// 获取LocalStorage中的所有对象键
 func (c *threadSafeMap) ListKeys() []string {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -133,6 +155,7 @@ func (c *threadSafeMap) ListKeys() []string {
 	return list
 }
 
+// Replace 根据传入的items全量替换数据，然后重建索引
 func (c *threadSafeMap) Replace(items map[string]interface{}, resourceVersion string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -147,25 +170,38 @@ func (c *threadSafeMap) Replace(items map[string]interface{}, resourceVersion st
 
 // Index returns a list of items that match the given object on the index function.
 // Index is thread-safe so long as you treat all items as immutable.
+// 获取obj对象所在的IndexName维度下的所有资源对象
+// 譬如indexName=namespace,如果obj.metadata.namespace=gator-cloud，那么该函数就是获取gator-cloud中所有K8S资源对象
+// 对于indexName=node来说，如果obj.spec.nodeName=node5，那么就是在获取node5上所有的K8S资源对象
 func (c *threadSafeMap) Index(indexName string, obj interface{}) ([]interface{}, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
+	// 根据索引的划分维度，拿到需要的那个分类维度，譬如是namespace
 	indexFunc := c.indexers[indexName]
 	if indexFunc == nil {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
 	}
 
+	// 计算obj对象在当前indexFunc划分维度下的的索引分类，这里的索引分类可以理解为具体某个划分为度下的具体分类
+	// 譬如对于namespace维度，那么这里计算出来的indexValues(索引分类)可能就是gator-cloud分类，
+	// 对于node维度来说，这里的indexValues(索引分类)可能就是node6
 	indexedValues, err := indexFunc(obj)
 	if err != nil {
 		return nil, err
 	}
+	// 获取当前索引分类的所有对象，譬如对于indexName=namespace来说，就是获取名称空间维度的所有Pod资源，即default空间中有哪些资源，gator-cloud中有哪些资源
+	// 对于indexName=Node来说，就是获取Node维度的所有Pod资源，即node1上有哪些资源，node2上有哪些资源
 	index := c.indices[indexName]
 
 	var storeKeySet sets.String
 	if len(indexedValues) == 1 {
 		// In majority of cases, there is exactly one value matching.
 		// Optimize the most common path - deduping is not needed here.
+		// 实际上大多上情况下，对象在某个维度下的分类只能是确定的一个，譬如对象只能属于某个namespace，而不能同时属于多个namespace,
+		// 有或者K8S对象只能在某个Node上，而不能同时在多个Node上同时存在
+		// 获取具体的某个分类集合，譬如对于namesapce来说，这里就是在获取gator-cloud名称空间下的所有资源
+		// 或者对于node维度来说就是在获取node6上的所有资源
 		storeKeySet = index[indexedValues[0]]
 	} else {
 		// Need to de-dupe the return list.
@@ -180,12 +216,16 @@ func (c *threadSafeMap) Index(indexName string, obj interface{}) ([]interface{},
 
 	list := make([]interface{}, 0, storeKeySet.Len())
 	for storeKey := range storeKeySet {
+		// sortKey其实就是对象键
 		list = append(list, c.items[storeKey])
 	}
 	return list, nil
 }
 
 // ByIndex returns a list of the items whose indexed values in the given index include the given indexed value
+// 获取indexName维度下的indexValue分类的所有K8S资源对象
+// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有资源对象
+// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源对象
 func (c *threadSafeMap) ByIndex(indexName, indexedValue string) ([]interface{}, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -208,21 +248,29 @@ func (c *threadSafeMap) ByIndex(indexName, indexedValue string) ([]interface{}, 
 
 // IndexKeys returns a list of the Store keys of the objects whose indexed values in the given index include the given indexed value.
 // IndexKeys is thread-safe so long as you treat all items as immutable.
+// 获取indexName维度下的indexValue分类的所有K8S资源对象的对象键
+// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有对象的对象键
+// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源的对象键
 func (c *threadSafeMap) IndexKeys(indexName, indexedValue string) ([]string, error) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
+	// 获取分类函数
 	indexFunc := c.indexers[indexName]
 	if indexFunc == nil {
 		return nil, fmt.Errorf("Index with name %s does not exist", indexName)
 	}
 
+	// 譬如indexName=namespace
 	index := c.indices[indexName]
 
+	// 譬如indexValue=gator-cloud
 	set := index[indexedValue]
 	return set.List(), nil
 }
 
+// ListIndexFuncValues 获取indexName维度下的所有分类
+// 譬如indexName=namespace, 那么这里就是在获取namesapce维度下的所有分类，譬如有default, gator-cloud, kube-system, gator-ucss分类
 func (c *threadSafeMap) ListIndexFuncValues(indexName string) []string {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
@@ -239,10 +287,12 @@ func (c *threadSafeMap) GetIndexers() Indexers {
 	return c.indexers
 }
 
+// AddIndexers 添加索引划分维度
 func (c *threadSafeMap) AddIndexers(newIndexers Indexers) error {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	// 如果Informer已经跑起来了，并且缓存中已经放入了数据，就不能再次添加划分维度了
 	if len(c.items) > 0 {
 		return fmt.Errorf("cannot add indexers to running index")
 	}
@@ -294,6 +344,8 @@ func (c *threadSafeMap) updateIndices(oldObj interface{}, newObj interface{}, ke
 			panic(fmt.Errorf("unable to calculate an index entry for key %q on index %q: %v", key, name, err))
 		}
 
+		// name为索引键函数的名，即索引会为不同的索引函数都建立索引，譬如以namespace的维度建立索引，相同名称空间的资源会放在一个Index中
+		// 或者以node的维度建立索引，相同node的资源也会放在同一个Index中
 		index := c.indices[name]
 		if index == nil {
 			index = Index{}

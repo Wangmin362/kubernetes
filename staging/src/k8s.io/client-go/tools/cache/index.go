@@ -38,21 +38,33 @@ type Indexer interface {
 	// Index returns the stored objects whose set of indexed values
 	// intersects the set of indexed values of the given object, for
 	// the named index
+	// 获取obj对象所在的IndexName维度下的所有资源对象
+	// 譬如indexName=namespace,如果obj.metadata.namespace=gator-cloud，那么该函数就是获取gator-cloud中所有K8S资源对象
+	// 对于indexName=node来说，如果obj.spec.nodeName=node5，那么就是在获取node5上所有的K8S资源对象
 	Index(indexName string, obj interface{}) ([]interface{}, error)
 	// IndexKeys returns the storage keys of the stored objects whose
 	// set of indexed values for the named index includes the given
 	// indexed value
+	// 获取indexName维度下的indexValue分类的所有K8S资源对象
+	// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有对象的对象键
+	// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源的对象键
 	IndexKeys(indexName, indexedValue string) ([]string, error)
 	// ListIndexFuncValues returns all the indexed values of the given index
+	// 譬如indexName=namespace, 那么这里就是在获取namesapce维度下的所有分类，譬如有default, gator-cloud, kube-system, gator-ucss分类
 	ListIndexFuncValues(indexName string) []string
 	// ByIndex returns the stored objects whose set of indexed values
 	// for the named index includes the given indexed value
+	// ByIndex 获取indexName维度下的indexValue分类的所有K8S资源对象
+	// 譬如这里的indexName=namespace, 如果indexValues=gator-cloud,那么就是在获取gator-cloud空间下所有资源对象
+	// 如果indexName=node, 并且indexValue=node5,那么这里就是在获取node5上的所有资源对象
 	ByIndex(indexName, indexedValue string) ([]interface{}, error)
-	// GetIndexer return the indexers
+	// GetIndexers return the indexers
+	// 获取分类维度，譬如以namespace, node维度进行划分
 	GetIndexers() Indexers
 
 	// AddIndexers adds more indexers to this store.  If you call this after you already have data
 	// in the store, the results are undefined.
+	// 添加索引划分维度
 	AddIndexers(newIndexers Indexers) error
 }
 
@@ -96,13 +108,28 @@ func MetaNamespaceIndexFunc(obj interface{}) ([]string, error) {
 
 // Index maps the indexed value to a set of keys in the store that match on that value
 // key为索引键， value为对象键，这里为什么对象键是一个数组呢？原因是因为不同对象的索引键可能是相同的，而这里是
-// 根据对象键找到对象的索引键
+// 根据对象键找到对象的索引键; Index的Key可以理解为不同的维度中的具体的分类，譬如以namespace进行划分，那么这里的Key就是default,
+// kube-system, gator-cloud, ops, gator-ucss等名称空间，value就是这些名称空间下的Pod对象
 type Index map[string]sets.String
 
 // Indexers maps a name to an IndexFunc
-// 计算索引函数可以有多个，使用名字进行分类，一般是使用名称空间
+// 计算索引函数可以有多个，使用名字进行分类，一般是使用名称空间，实际上可以理解为一个分类函数，我们需要把K8S中的资源按照不同的分类函数进行分类。
+// 试想一下如下的使用场景：1、获取kube-system名称空间下所有的pod  2、获取node1上所有的Pod
+// 我们当然可以直接调用apiServer提供的API，但是既然本地都有缓存了，当然需要缓存支持按照不同的分类维度获取相同维度的所有资源，这种操作在K8S当中
+// 是非常常见的。
+// map[string]IndexFunc{"namespace": getObjNamespace, "node": getObjNode}
 type Indexers map[string]IndexFunc
 
 // Indices maps a name to an Index
-// key就是索引函数的分类，也就是Indexers的key,
+// Indices实际上就是我们所谓的索引，这里的索引就是根据不同的分类维度建立索引的，譬如如上的两个需求：
+//                                                 Indices
+//                             /                                         \
+//                           /                                            \
+//                     namespace                                         node                 这里就是Indexers，其实就是各个维度，以及各个维度的计算函数
+//            /      |     \           \                         /      /    \      \
+//          /        |       \           \                     /       /      \      \
+//    default  kube-system gator-cloud    ops                node1   node2   node3    node4
+//    /  |  \       |   \        |  \      \  \               |       |      |  \       \  \     这里就是Index, key为上层不同的分类维度
+//   /   |   \      |    \       |   \      \  \              |       |      |   \       \   \     value为下层的pod
+//	pod pod pod    pop  pod     pod pod     pod pod           pod    pod     pod  pod   pod   pod
 type Indices map[string]Index

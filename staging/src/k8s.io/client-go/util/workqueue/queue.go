@@ -24,12 +24,19 @@ import (
 )
 
 type Interface interface {
+	// Add 像队列当中添加元素
 	Add(item interface{})
+	// Len 队列的长度
 	Len() int
+	// Get 从队列中获取一个元素，该元素并不会从队列中删除，只有在执行Done(item)方法之后，队列中的item元素才会删除
+	// 获取元素的时候可能会被阻塞，因为队列可能为空
 	Get() (item interface{}, shutdown bool)
+	// Done 告诉队列item元素已经处理完毕
 	Done(item interface{})
+	// ShutDown 关闭队列
 	ShutDown()
 	ShutDownWithDrain()
+	// ShuttingDown 查询队列是否正在关闭
 	ShuttingDown() bool
 }
 
@@ -71,21 +78,25 @@ const defaultUnfinishedWorkUpdatePeriod = 500 * time.Millisecond
 // Type is a work queue (see the package comment).
 type Type struct {
 	// queue defines the order in which we will work on items. Every
-	// element of queue should be in the dirty set and not in the
-	// processing set.
+	// element of queue should be in the dirty set and not in the processing set.
+	// 队列中的元素，底层为切片，说明元素的取出是有序的
 	queue []t
 
 	// dirty defines all of the items that need to be processed.
+	// dirty元素集合
 	dirty set
 
 	// Things that are currently being processed are in the processing set.
 	// These things may be simultaneously in the dirty set. When we finish
 	// processing something and remove it from this set, we'll check if
 	// it's in the dirty set, and if so, add it to the queue.
+	// 正在处理的元素集合
 	processing set
 
+	// 条件同步，如果在获取元素的时候，队列为空，显然该协程就应该被阻塞
 	cond *sync.Cond
 
+	// 队列已经被关闭的标记
 	shuttingDown bool
 	drain        bool
 
@@ -120,21 +131,26 @@ func (s set) len() int {
 func (q *Type) Add(item interface{}) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
+	// 若队列已经关闭，则不再允许添加数据
 	if q.shuttingDown {
 		return
 	}
+	// 若dirty集合中已经存在了，也是直接返回
 	if q.dirty.has(item) {
 		return
 	}
-
+	// 通知metrics添加了新的元素，这个是用来做监控的
 	q.metrics.add(item)
 
 	q.dirty.insert(item)
+	// 元素正在被处理，则直接返回  TODO 被处理的元素是如何拿到的？ 似乎不是直接从queue中拿到的
 	if q.processing.has(item) {
 		return
 	}
 
+	// 把新元素添加到队列尾部
 	q.queue = append(q.queue, item)
+	// 通知有新元素到了，此时被阻塞的协程就会被唤醒，而且有且仅有一个协程被唤醒
 	q.cond.Signal()
 }
 
@@ -154,6 +170,7 @@ func (q *Type) Get() (item interface{}, shutdown bool) {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 	for len(q.queue) == 0 && !q.shuttingDown {
+		// 如果队列中没有元素，那么当前协程就进入阻塞状态，此时协程会释放自己的锁
 		q.cond.Wait()
 	}
 	if len(q.queue) == 0 {
@@ -161,8 +178,10 @@ func (q *Type) Get() (item interface{}, shutdown bool) {
 		return nil, true
 	}
 
+	// go语言中传递的是值，因此item是q.queue[0]的一份拷贝
 	item = q.queue[0]
 	// The underlying array still exists and reference this object, so the object will not be garbage collected.
+	// 这里底层数组确实需要手动释放q.queue[0]的空间，否则该元素不会被gc
 	q.queue[0] = nil
 	q.queue = q.queue[1:]
 

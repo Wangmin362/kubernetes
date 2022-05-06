@@ -62,21 +62,28 @@ type ThreadSafeStore interface {
 // threadSafeMap implements ThreadSafeStore
 type threadSafeMap struct {
 	lock sync.RWMutex
-	// 底层存储
+	// 底层存储, key为对象键， value就是资源对象；对象键可以通过索引键快速找到，然后再从这里的Map中获取对象
 	items map[string]interface{}
 
 	// indexers maps a name to an IndexFunc
 	// 对象索引键计算函数Map
 	indexers Indexers
 	// indices maps a name to an Index
+	// 这个就是所谓的索引，维护了索引键  <---->  对象键集合的映射关系
+	// 多个不同的对象计算出来的索引键可能是相同的，因此是一个对象键集合，而items中的key就是对象键，对象键是对象的
+	// 唯一标识，每个对象都是不一样的
 	indices Indices
 }
 
+// Add 根据对象的对象键添加对象，这里的key就是对象键，而obj就是map中的value
 func (c *threadSafeMap) Add(key string, obj interface{}) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	// 根据对象键获取老对象
 	oldObject := c.items[key]
+	// 直接更新底层存储
 	c.items[key] = obj
+	// 建立索引映射关系，实际上就是维护索引键  <---> 对象键的映射关系
 	c.updateIndices(oldObject, obj, key)
 }
 
@@ -258,11 +265,17 @@ func (c *threadSafeMap) AddIndexers(newIndexers Indexers) error {
 // - for update you must provide both the oldObj and the newObj
 // - for delete you must provide only the oldObj
 // updateIndices must be called from a function that already has a lock on the cache
+// updateIndices 实际上就是在维护索引，把老对象的索引关系移除，添加新对象的索引映射
 func (c *threadSafeMap) updateIndices(oldObj interface{}, newObj interface{}, key string) {
-	var oldIndexValues, indexValues []string
+	// 旧的索引键
+	var oldIndexValues []string
+	// 新的索引键
+	var indexValues []string
 	var err error
+	// 遍历索引键计算map
 	for name, indexFunc := range c.indexers {
 		if oldObj != nil {
+			// 计算老对象的索引键，这个值一般为对象的名称空间
 			oldIndexValues, err = indexFunc(oldObj)
 		} else {
 			oldIndexValues = oldIndexValues[:0]
@@ -272,6 +285,7 @@ func (c *threadSafeMap) updateIndices(oldObj interface{}, newObj interface{}, ke
 		}
 
 		if newObj != nil {
+			// 计算新对象的索引键，这个值一般为对象的名称空间
 			indexValues, err = indexFunc(newObj)
 		} else {
 			indexValues = indexValues[:0]
@@ -292,20 +306,25 @@ func (c *threadSafeMap) updateIndices(oldObj interface{}, newObj interface{}, ke
 		}
 
 		for _, value := range oldIndexValues {
+			// key为对象键，value为索引键， index为对象键和索引键集合的映射map
 			c.deleteKeyFromIndex(key, value, index)
 		}
 		for _, value := range indexValues {
+			// key为对象键，value为索引键， index为对象键和索引键集合的映射map
 			c.addKeyToIndex(key, value, index)
 		}
 	}
 }
 
 func (c *threadSafeMap) addKeyToIndex(key, indexValue string, index Index) {
+	// 根据对象键取出索引键集合
 	set := index[indexValue]
+	// 初始化
 	if set == nil {
 		set = sets.String{}
 		index[indexValue] = set
 	}
+	// 维护对象键 <--->索引键集合的映射map
 	set.Insert(key)
 }
 

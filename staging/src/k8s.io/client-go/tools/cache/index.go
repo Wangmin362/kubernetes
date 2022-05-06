@@ -32,6 +32,7 @@ import (
 // 2. a name of an index, and
 // 3. an "indexed value", which is produced by an IndexFunc and
 //    can be a field value or any other string computed from the object.
+// 索引器的底层实际上就是一个存储器，也就是索引器在存储的基础上增加了索引的功能，使得查询速度加快
 type Indexer interface {
 	Store
 	// Index returns the stored objects whose set of indexed values
@@ -94,10 +95,14 @@ func MetaNamespaceIndexFunc(obj interface{}) ([]string, error) {
 }
 
 // Index maps the indexed value to a set of keys in the store that match on that value
+// key为索引键， value为对象键，这里为什么对象键是一个数组呢？原因是因为不同对象的索引键可能是相同的，而这里是
+// 根据对象键找到对象的索引键
 type Index map[string]sets.String
 
 // Indexers maps a name to an IndexFunc
+// 计算索引函数可以有多个，使用名字进行分类，一般是使用名称空间
 type Indexers map[string]IndexFunc
 
 // Indices maps a name to an Index
+// key就是索引函数的分类，也就是Indexers的key,
 type Indices map[string]Index

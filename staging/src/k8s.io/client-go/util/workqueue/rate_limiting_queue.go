@@ -17,6 +17,7 @@ limitations under the License.
 package workqueue
 
 // RateLimitingInterface is an interface that rate limits items being added to the queue.
+// 限速队列的抽线，可以有多种实现，既然是限速队列，那么必然有一个限速策略
 type RateLimitingInterface interface {
 	DelayingInterface
 
@@ -52,6 +53,7 @@ func NewNamedRateLimitingQueue(rateLimiter RateLimiter, name string) RateLimitin
 type rateLimitingType struct {
 	DelayingInterface
 
+	// 限速队列使用的限速器
 	rateLimiter RateLimiter
 }
 

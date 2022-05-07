@@ -98,7 +98,9 @@ type DeltaFIFOOptions struct {
 // different versions of the same object.
 type DeltaFIFO struct {
 	// lock/cond protects access to 'items' and 'queue'.
+	// 读写互斥锁
 	lock sync.RWMutex
+	// 条件同步
 	cond sync.Cond
 
 	// `items` maps a key to a Deltas.
@@ -120,10 +122,12 @@ type DeltaFIFO struct {
 
 	// keyFunc is used to make the key used for queued item
 	// insertion and retrieval, and should be deterministic.
+	// 用于计算对象键
 	keyFunc KeyFunc
 
 	// knownObjects list keys that are "known" --- affecting Delete(),
 	// Replace(), and Resync()
+	// TODO 这里的实现应该就是Cache(也就是LocalStorage)
 	knownObjects KeyListerGetter
 
 	// Used to indicate a queue is closed so a control loop can exit when a queue is empty.

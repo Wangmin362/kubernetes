@@ -83,7 +83,9 @@ type Type struct {
 	queue []t
 
 	// dirty defines all of the items that need to be processed.
-	// dirty元素集合
+	// dirty元素集合,元素放入队列当中的同时也会放在dirty集合当中，为什么需要这么设计呢？
+	// 原因是判断一个元素是否已经放入到对且当中怎么判断呢？ 如果是数组必须要使用O(n)的时间复杂度
+	// 去判断，而通过集合可以在O(1)的时间复杂度就知道元素是否已经添加进入到队列当中了
 	dirty set
 
 	// Things that are currently being processed are in the processing set.
@@ -135,7 +137,7 @@ func (q *Type) Add(item interface{}) {
 	if q.shuttingDown {
 		return
 	}
-	// 若dirty集合中已经存在了，也是直接返回
+	// 若dirty集合中已经存在了，也是直接返回，其实就是队列中已经添加该元素了
 	if q.dirty.has(item) {
 		return
 	}
@@ -143,7 +145,10 @@ func (q *Type) Add(item interface{}) {
 	q.metrics.add(item)
 
 	q.dirty.insert(item)
-	// 元素正在被处理，则直接返回  TODO 被处理的元素是如何拿到的？ 似乎不是直接从queue中拿到的
+	// 元素正在被处理，则直接返回
+	// 被处理的元素是如何拿到的？ 似乎不是直接从queue中拿到的  什么情况下一个元素还未被添加到queue中，就直接能在processing中获取到
+	// 有一种情况可能会进入到这里，那就是某个协程调用了Get方法，但是改写成还未调用Done方法，此时另外一个协程调用了Add方法，此时就会进入这个分支
+	// 只有之前的item元素被处理完成之后，也就是协程调用了Done方法，新的item元素才会被正常入队重新处理
 	if q.processing.has(item) {
 		return
 	}
@@ -173,6 +178,7 @@ func (q *Type) Get() (item interface{}, shutdown bool) {
 		// 如果队列中没有元素，那么当前协程就进入阻塞状态，此时协程会释放自己的锁
 		q.cond.Wait()
 	}
+	// 协程被唤醒，但是没有数据，说明队列已经被关闭了
 	if len(q.queue) == 0 {
 		// We must be shutting down.
 		return nil, true
@@ -183,11 +189,14 @@ func (q *Type) Get() (item interface{}, shutdown bool) {
 	// The underlying array still exists and reference this object, so the object will not be garbage collected.
 	// 这里底层数组确实需要手动释放q.queue[0]的空间，否则该元素不会被gc
 	q.queue[0] = nil
+	// 移除元素
 	q.queue = q.queue[1:]
 
 	q.metrics.get(item)
 
+	// 从队列中去除的元素会被添加到processing集合当中
 	q.processing.insert(item)
+	// 从dirty集合中删除
 	q.dirty.delete(item)
 
 	return item, false
@@ -202,9 +211,14 @@ func (q *Type) Done(item interface{}) {
 
 	q.metrics.done(item)
 
+	// item已经被处理完毕，因此需要从processing中删除
 	q.processing.delete(item)
+	// 如果dirty中还存在item元素，所以在一个协程处理item元素的过程中，另外一个协程调用了Add方法添加元素
+	// 因此dirty集合当中存在该元素
 	if q.dirty.has(item) {
+		// 如果dirty中存在item元素，那么就需要把item元素重新入队，可以理解为
 		q.queue = append(q.queue, item)
+		// 唤醒阻塞的某个协程
 		q.cond.Signal()
 	} else if q.processing.len() == 0 {
 		q.cond.Signal()
@@ -274,6 +288,7 @@ func (q *Type) shutdown() {
 	q.cond.L.Lock()
 	defer q.cond.L.Unlock()
 	q.shuttingDown = true
+	// 唤醒所有被阻塞的协程
 	q.cond.Broadcast()
 }
 

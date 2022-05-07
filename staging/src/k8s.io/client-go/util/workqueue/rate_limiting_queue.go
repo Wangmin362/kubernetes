@@ -18,6 +18,8 @@ package workqueue
 
 // RateLimitingInterface is an interface that rate limits items being added to the queue.
 // 限速队列的抽线，可以有多种实现，既然是限速队列，那么必然有一个限速策略
+// 限速队列应用非常广泛，比如我们做某些操作失败时希望重试几次，但是立刻重试很有可能还会失败，
+// 我们希望延迟一段时间在重试，而且失败次数越多延迟时间越长，这个时候就有限速的概念在里面了
 type RateLimitingInterface interface {
 	DelayingInterface
 

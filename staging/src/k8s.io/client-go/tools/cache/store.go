@@ -51,7 +51,7 @@ type Store interface {
 	Delete(obj interface{}) error
 
 	// List returns a list of all the currently non-empty accumulators
-	// 获取所有对象
+	// 获取存储中的所有对象
 	List() []interface{}
 
 	// ListKeys returns a list of all the keys currently associated with non-empty accumulators

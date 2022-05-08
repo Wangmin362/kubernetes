@@ -62,11 +62,14 @@ type Queue interface {
 	// return that (key, accumulator) association to the Queue as part
 	// of the atomic processing and (b) return the inner error from
 	// Pop.
+	// 从队列当中弹出一个元素，符合队列的名字，一般来说就是先进先出或者先进后出
 	Pop(PopProcessFunc) (interface{}, error)
 
 	// AddIfNotPresent puts the given accumulator into the Queue (in
 	// association with the accumulator's key) if and only if that key
 	// is not already associated with a non-empty accumulator.
+	// 这个接口的实现，显然需要判断是否已经存在该元素，而判断的标准就是_,exist :=map[key],
+	// exist是否为false,只有当为false的时候才会添加元素，其中的key肯定是对象的唯一键
 	AddIfNotPresent(interface{}) error
 
 	// HasSynced returns true if the first batch of keys have all been
@@ -109,20 +112,26 @@ func Pop(queue Queue) interface{} {
 //  * You do not want to periodically reprocess objects.
 // Compare with DeltaFIFO for other use cases.
 type FIFO struct {
+	// 读写互斥锁
 	lock sync.RWMutex
+	// 条件同步
 	cond sync.Cond
 	// We depend on the property that every key in `items` is also in `queue`
+	// 用map来存储元素
 	items map[string]interface{}
+	// 用queue来保证元素的顺序，显然，保存的内容是每个元素的Key，key通过keyFunc计算出来
 	queue []string
 
 	// populated is true if the first batch of items inserted by Replace() has been populated
 	// or Delete/Add/Update was called first.
+	// TODO 这玩意到底是用来干啥的？
 	populated bool
 	// initialPopulationCount is the number of items inserted by the first call of Replace()
 	initialPopulationCount int
 
 	// keyFunc is used to make the key used for queued item insertion and retrieval, and
 	// should be deterministic.
+	// 用于计算对象键
 	keyFunc KeyFunc
 
 	// Indication the queue is closed.
@@ -140,6 +149,7 @@ func (f *FIFO) Close() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.closed = true
+	// 唤醒所有阻塞的协程，队列已经被关闭
 	f.cond.Broadcast()
 }
 
@@ -154,6 +164,7 @@ func (f *FIFO) HasSynced() bool {
 // Add inserts an item, and puts it in the queue. The item is only enqueued
 // if it doesn't already exist in the set.
 func (f *FIFO) Add(obj interface{}) error {
+	// 获取对象键
 	id, err := f.keyFunc(obj)
 	if err != nil {
 		return KeyError{obj, err}
@@ -162,9 +173,12 @@ func (f *FIFO) Add(obj interface{}) error {
 	defer f.lock.Unlock()
 	f.populated = true
 	if _, exists := f.items[id]; !exists {
+		// 队列中不存在该元素，直接入队
 		f.queue = append(f.queue, id)
 	}
+	// 这里是幂等的，不管元素存不存在，都是直接替换
 	f.items[id] = obj
+	// TODO 这里为什么是唤醒所有的协程，而不是使用f.cond.Signal()唤醒其中的一个协程
 	f.cond.Broadcast()
 	return nil
 }
@@ -176,6 +190,7 @@ func (f *FIFO) Add(obj interface{}) error {
 // safely retry items without contending with the producer and potentially enqueueing
 // stale items.
 func (f *FIFO) AddIfNotPresent(obj interface{}) error {
+	// 获取对象键
 	id, err := f.keyFunc(obj)
 	if err != nil {
 		return KeyError{obj, err}
@@ -188,14 +203,19 @@ func (f *FIFO) AddIfNotPresent(obj interface{}) error {
 
 // addIfNotPresent assumes the fifo lock is already held and adds the provided
 // item to the queue under id if it does not already exist.
+// id就是obj的对象键
 func (f *FIFO) addIfNotPresent(id string, obj interface{}) {
 	f.populated = true
 	if _, exists := f.items[id]; exists {
+		// 已经存在，则直接返回
 		return
 	}
 
+	// 不存在，直接append到队列当中，记录入队顺序
 	f.queue = append(f.queue, id)
+	// Map保存数据
 	f.items[id] = obj
+	// TODO 这里为什么是唤醒所有的协程，而不是使用f.cond.Signal()唤醒其中的一个协程
 	f.cond.Broadcast()
 }
 
@@ -220,6 +240,7 @@ func (f *FIFO) Delete(obj interface{}) error {
 }
 
 // List returns a list of all the items.
+// 获取队列的所有元素
 func (f *FIFO) List() []interface{} {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
@@ -232,6 +253,7 @@ func (f *FIFO) List() []interface{} {
 
 // ListKeys returns a list of all the keys of the objects currently
 // in the FIFO.
+// 获取存储数据的所有对象的对象键，对于KV存储来说就是获取Key值
 func (f *FIFO) ListKeys() []string {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
@@ -283,22 +305,26 @@ func (f *FIFO) Pop(process PopProcessFunc) (interface{}, error) {
 			if f.closed {
 				return nil, ErrFIFOClosed
 			}
-
+			// 队列中没有元素，所以当前协程被阻塞，并释放锁
 			f.cond.Wait()
 		}
 		id := f.queue[0]
+		// TODO 这里为什么不考虑内存泄露？ 为什么不使用 f.queue[0] = nil 释放空间
 		f.queue = f.queue[1:]
 		if f.initialPopulationCount > 0 {
 			f.initialPopulationCount--
 		}
 		item, ok := f.items[id]
 		if !ok {
+			// fixme 卧槽，这里的并发控制真牛逼，什么场景会进入到这里呢？
 			// Item may have been deleted subsequently.
 			continue
 		}
 		delete(f.items, id)
+		// 处理获取到的元素
 		err := process(item)
 		if e, ok := err.(ErrRequeue); ok {
+			// 如果是重新入队的错误，那么入队
 			f.addIfNotPresent(id, item)
 			err = e.Err
 		}
@@ -334,6 +360,7 @@ func (f *FIFO) Replace(list []interface{}, resourceVersion string) error {
 		f.queue = append(f.queue, id)
 	}
 	if len(f.queue) > 0 {
+		// 队列中有元素了，唤醒所有协程
 		f.cond.Broadcast()
 	}
 	return nil
@@ -363,6 +390,7 @@ func (f *FIFO) Resync() error {
 // NewFIFO returns a Store which can be used to queue up items to
 // process.
 func NewFIFO(keyFunc KeyFunc) *FIFO {
+	// TODO 这里为什么不给一个默认的初始值大小
 	f := &FIFO{
 		items:   map[string]interface{}{},
 		queue:   []string{},

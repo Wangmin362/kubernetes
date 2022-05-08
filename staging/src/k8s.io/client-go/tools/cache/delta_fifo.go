@@ -106,6 +106,7 @@ type DeltaFIFO struct {
 	// `items` maps a key to a Deltas.
 	// Each such Deltas has at least one Delta.
 	// items就是用来保存事件对象，其Key就是用keyFunc计算出来的,Delta其实就是所谓的增量数据
+	// 这里items的key就是用keyFunc计算出来的，Deltas就是变化的对象
 	items map[string]Deltas
 
 	// `queue` maintains FIFO order of keys for consumption in Pop().
@@ -127,7 +128,8 @@ type DeltaFIFO struct {
 
 	// knownObjects list keys that are "known" --- affecting Delete(),
 	// Replace(), and Resync()
-	// TODO 这里的实现应该就是Cache(也就是LocalStorage)
+	// 这里的实现就是Cache(也就是LocalStorage)，原因是DeltaFifo中只有增量的数据
+	// 而knowObjects必须要获取到全量的数据，所以必须要有LocalStorage的引用
 	knownObjects KeyListerGetter
 
 	// Used to indicate a queue is closed so a control loop can exit when a queue is empty.
@@ -165,7 +167,9 @@ const (
 // [*] Unless the change is a deletion, and then you'll get the final
 // state of the object before it was deleted.
 type Delta struct {
-	Type   DeltaType
+	// 对象的变化的类型，譬如add, update, delete, replace, resync
+	Type DeltaType
+	// 实际的对象
 	Object interface{}
 }
 
@@ -257,18 +261,21 @@ func (f *DeltaFIFO) Close() {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	f.closed = true
+	// 队列被关闭之后，唤醒所有的协程
 	f.cond.Broadcast()
 }
 
 // KeyOf exposes f's keyFunc, but also detects the key of a Deltas object or
 // DeletedFinalStateUnknown objects.
 func (f *DeltaFIFO) KeyOf(obj interface{}) (string, error) {
+	// 对象可能会被重复添加进来，而第二次添加进来的对象就是Deltas对象
 	if d, ok := obj.(Deltas); ok {
 		if len(d) == 0 {
 			return "", KeyError{obj, ErrZeroLengthDeltasObject}
 		}
 		obj = d.Newest().Object
 	}
+	// obj对象如果是DeletedFinalStateUnknown，那么就自带对象键，直接返回
 	if d, ok := obj.(DeletedFinalStateUnknown); ok {
 		return d.Key, nil
 	}
@@ -314,6 +321,7 @@ func (f *DeltaFIFO) Delete(obj interface{}) error {
 	defer f.lock.Unlock()
 	f.populated = true
 	if f.knownObjects == nil {
+		// indexer还未做初始化，此时只能查询自己缓存的对象
 		if _, exists := f.items[id]; !exists {
 			// Presumably, this was deleted when a relist happened.
 			// Don't provide a second report of the same deletion.
@@ -326,6 +334,7 @@ func (f *DeltaFIFO) Delete(obj interface{}) error {
 		// because it will be deduped automatically in "queueActionLocked"
 		_, exists, err := f.knownObjects.GetByKey(id)
 		_, itemsExist := f.items[id]
+		// indexer中和自己当中只要有一个存在就认为是存在的
 		if err == nil && !exists && !itemsExist {
 			// Presumably, this was deleted when a relist happened.
 			// Don't provide a second report of the same deletion.
@@ -416,12 +425,14 @@ func isDeletionDup(a, b *Delta) *Delta {
 // queueActionLocked appends to the delta list for the object.
 // Caller must lock first.
 func (f *DeltaFIFO) queueActionLocked(actionType DeltaType, obj interface{}) error {
+	// 获取对象键
 	id, err := f.KeyOf(obj)
 	if err != nil {
 		return KeyError{obj, err}
 	}
 	oldDeltas := f.items[id]
 	newDeltas := append(oldDeltas, Delta{actionType, obj})
+	// 去重
 	newDeltas = dedupDeltas(newDeltas)
 
 	if len(newDeltas) > 0 {
@@ -429,6 +440,7 @@ func (f *DeltaFIFO) queueActionLocked(actionType DeltaType, obj interface{}) err
 			f.queue = append(f.queue, id)
 		}
 		f.items[id] = newDeltas
+		// DeltaFifo中新添加进来一个数据，唤醒所有协程
 		f.cond.Broadcast()
 	} else {
 		// This never happens, because dedupDeltas never returns an empty list
@@ -477,6 +489,8 @@ func (f *DeltaFIFO) ListKeys() []string {
 // Get returns the complete list of deltas for the requested item,
 // or sets exists=false.
 // You should treat the items returned inside the deltas as immutable.
+// 获取对象接口，这个有意思哈，用对象获取对象？如果说用Service对象获取Pod对象是不是就能接受了
+// 因为他们的对象键是相同的
 func (f *DeltaFIFO) Get(obj interface{}) (item interface{}, exists bool, err error) {
 	key, err := f.KeyOf(obj)
 	if err != nil {
@@ -532,10 +546,11 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 			if f.closed {
 				return nil, ErrFIFOClosed
 			}
-
+			// 队列中没有元素，当前协程进入阻塞状态，并释放持有的锁
 			f.cond.Wait()
 		}
 		id := f.queue[0]
+		// fixme 这里为什么不考虑f.queue[0]的gc?
 		f.queue = f.queue[1:]
 		depth := len(f.queue)
 		if f.initialPopulationCount > 0 {
@@ -562,6 +577,7 @@ func (f *DeltaFIFO) Pop(process PopProcessFunc) (interface{}, error) {
 		}
 		err := process(item)
 		if e, ok := err.(ErrRequeue); ok {
+			// 元素处理失败，重新入队
 			f.addIfNotPresent(id, item)
 			err = e.Err
 		}

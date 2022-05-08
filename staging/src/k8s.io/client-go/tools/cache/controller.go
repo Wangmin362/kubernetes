@@ -54,9 +54,11 @@ type Config struct {
 	// expected to handle.  Only the type needs to be right, except
 	// that when that is `unstructured.Unstructured` the object's
 	// `"apiVersion"` and `"kind"` must also be right.
+	// 监听的对象类型
 	ObjectType runtime.Object
 
 	// FullResyncPeriod is the period at which ShouldResync is considered.
+	// 全量数据的同步周期
 	FullResyncPeriod time.Duration
 
 	// ShouldResync is periodically used by the reflector to determine
@@ -107,10 +109,12 @@ type Controller interface {
 	Run(stopCh <-chan struct{})
 
 	// HasSynced delegates to the Config's Queue
+	// apiServer中的对象是否已经同步到了DeltaFifo当中
 	HasSynced() bool
 
 	// LastSyncResourceVersion delegates to the Reflector when there
 	// is one, otherwise returns the empty string
+	// 最新的资源版本
 	LastSyncResourceVersion() string
 }
 
@@ -118,7 +122,8 @@ type Controller interface {
 func New(c *Config) Controller {
 	ctlr := &controller{
 		config: *c,
-		clock:  &clock.RealClock{},
+		// 时钟
+		clock: &clock.RealClock{},
 	}
 	return ctlr
 }
@@ -129,6 +134,7 @@ func New(c *Config) Controller {
 func (c *controller) Run(stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	go func() {
+		// 一旦收到推出信号，就推出协程
 		<-stopCh
 		c.config.Queue.Close()
 	}()

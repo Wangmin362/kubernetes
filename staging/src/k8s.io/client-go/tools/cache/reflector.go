@@ -81,7 +81,7 @@ type Reflector struct {
 	// 重新同步的周期
 	resyncPeriod time.Duration
 	// ShouldResync is invoked periodically and whenever it returns `true` the Store's Resync operation is invoked
-	// 是否应该重新同步
+	// 如果需要同步，调用这个函数问一下，当然前提是该函数指针不为空
 	ShouldResync func() bool
 	// clock allows tests to manipulate time
 	clock clock.Clock
@@ -379,6 +379,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 	defer close(cancelCh)
 	// 后台协程同步函数
 	go func() {
+		// 设置一个定时器，定时时间就是resyncPeriod时间
 		resyncCh, cleanup := r.resyncChan()
 		defer func() {
 			cleanup() // Call the last one written into cleanup
@@ -396,16 +397,20 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			// 重新同步的时间到了
 			if r.ShouldResync == nil || r.ShouldResync() {
 				klog.V(4).Infof("%s: forcing resync", r.name)
+				// Resync实际上就是把indexer存在，但是在DeltaFIFO中不存在的元素执行一遍Sync动作
+				// 就在这里实现了我们前面提到的同步，从这里看所谓的同步就是以全量对象同步事件的方式通知使用者
 				if err := r.store.Resync(); err != nil {
 					resyncerrc <- err
 					return
 				}
 			}
 			cleanup()
+			// 重新定时
 			resyncCh, cleanup = r.resyncChan()
 		}
 	}()
 
+	// 下面就是从apiServer中获取增量数据
 	for {
 		// give the stopCh a chance to stop the loop, even in case of continue statements further down on errors
 		select {
@@ -414,6 +419,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 		default:
 		}
 
+		// 设置watch接口超时时间
 		timeoutSeconds := int64(minWatchTimeout.Seconds() * (rand.Float64() + 1.0))
 		options = metav1.ListOptions{
 			ResourceVersion: resourceVersion,
@@ -428,6 +434,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 
 		// start the clock before sending the request, since some proxies won't flush headers until after the first watch event is sent
 		start := r.clock.Now()
+		// 获取增量数据
 		w, err := r.listerWatcher.Watch(options)
 		if err != nil {
 			// If this is "connection refused" error, it means that most likely apiserver is not responsive.
@@ -469,6 +476,7 @@ func (r *Reflector) syncWith(items []runtime.Object, resourceVersion string) err
 	for _, item := range items {
 		found = append(found, item)
 	}
+	// 把List到的所有数据都放入到DeltaFIFO中，这些数据的动作值Sync或者Replace
 	return r.store.Replace(found, resourceVersion)
 }
 
@@ -488,19 +496,23 @@ loop:
 		case err := <-errc:
 			return err
 		case event, ok := <-w.ResultChan():
+			// 获取到对象的某个事件
 			if !ok {
+				// 当前watch到的数据已经被取完了，跳出循环
 				break loop
 			}
 			if event.Type == watch.Error {
 				return apierrors.FromObject(event.Object)
 			}
 			if r.expectedType != nil {
+				// 接收到的资源对象并不是我们关心的资源对象，直接跳过
 				if e, a := r.expectedType, reflect.TypeOf(event.Object); e != a {
 					utilruntime.HandleError(fmt.Errorf("%s: expected type %v, but watch event object had type %v", r.name, e, a))
 					continue
 				}
 			}
 			if r.expectedGVK != nil {
+				// 接收到的资源对象并不是我们关心的资源对象，直接跳过
 				if e, a := *r.expectedGVK, event.Object.GetObjectKind().GroupVersionKind(); e != a {
 					utilruntime.HandleError(fmt.Errorf("%s: expected gvk %v, but watch event object had gvk %v", r.name, e, a))
 					continue
@@ -537,6 +549,7 @@ loop:
 				utilruntime.HandleError(fmt.Errorf("%s: unable to understand watch event %#v", r.name, event))
 			}
 			*resourceVersion = newResourceVersion
+			// 设置最新的资源版本
 			r.setLastSyncResourceVersion(newResourceVersion)
 			if rvu, ok := r.store.(ResourceVersionUpdater); ok {
 				rvu.UpdateResourceVersion(newResourceVersion)

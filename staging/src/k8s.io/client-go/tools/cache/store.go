@@ -111,6 +111,7 @@ type ExplicitKey string
 //
 // TODO: replace key-as-string with a key-as-struct so that this
 // packing/unpacking won't be necessary.
+// 获取K8S资源对象的对象键，其结果为资源对象的 metadata.namespace + "/" + metadata.name
 func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
 	if key, ok := obj.(ExplicitKey); ok {
 		return string(key), nil
@@ -130,6 +131,7 @@ func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
 //
 // TODO: replace key-as-string with a key-as-struct so that this
 // packing/unpacking won't be necessary.
+// 根据K8S资源对象的对象键获取资源名与资源所在的名称空间
 func SplitMetaNamespaceKey(key string) (namespace, name string, err error) {
 	parts := strings.Split(key, "/")
 	switch len(parts) {

@@ -48,24 +48,29 @@ const defaultExpectedTypeName = "<unspecified>"
 // Reflector watches a specified resource and causes all changes to be reflected in the given store.
 type Reflector struct {
 	// name identifies this reflector. By default it will be a file:line if possible.
+	// 反射器的名字
 	name string
 
 	// The name of the type we expect to place in the store. The name
 	// will be the stringification of expectedGVK if provided, and the
 	// stringification of expectedType otherwise. It is for display
 	// only, and should not be used for parsing or comparison.
+	// 要监听的对象类型名字，譬如Pod, Deployment, Service对象等等
 	expectedTypeName string
 	// An example object of the type we expect to place in the store.
 	// Only the type needs to be right, except that when that is
 	// `unstructured.Unstructured` the object's `"apiVersion"` and
 	// `"kind"` must also be right.
+	// 要监听的对象类型，譬如Pod, Deployment, Service对象等等
 	expectedType reflect.Type
 	// The GVK of the object we expect to place in the store if unstructured.
+	// 监听类型的GVK
 	expectedGVK *schema.GroupVersionKind
 	// The destination to sync up with the watch source
 	// DeltaFifo实例
 	store Store
 	// listerWatcher is used to perform lists and watches.
+	// 监听对象的ListerWatcher，这里很关键，Reflactor就是通过ListerWatcher从apiServer获取到对象的
 	listerWatcher ListerWatcher
 
 	// backoff manages backoff of ListWatch
@@ -73,8 +78,10 @@ type Reflector struct {
 	// initConnBackoffManager manages backoff the initial connection with the Watch call of ListAndWatch.
 	initConnBackoffManager wait.BackoffManager
 
+	// 重新同步的周期
 	resyncPeriod time.Duration
 	// ShouldResync is invoked periodically and whenever it returns `true` the Store's Resync operation is invoked
+	// 是否应该重新同步
 	ShouldResync func() bool
 	// clock allows tests to manipulate time
 	clock clock.Clock
@@ -84,6 +91,7 @@ type Reflector struct {
 	// lastSyncResourceVersion is the resource version token last
 	// observed when doing a sync with the underlying store
 	// it is thread safe, but not synchronized with the underlying store
+	// 最后一次同步资源的版本，Reflactor根据资源版本判断资源是否是最新的
 	lastSyncResourceVersion string
 	// isLastSyncResourceVersionUnavailable is true if the previous list or watch request with
 	// lastSyncResourceVersion failed with an "expired" or "too large resource version" error.
@@ -218,6 +226,7 @@ var internalPackages = []string{"client-go/tools/cache/"}
 // Run will exit when stopCh is closed.
 func (r *Reflector) Run(stopCh <-chan struct{}) {
 	klog.V(3).Infof("Starting reflector %s (%s) from %s", r.expectedTypeName, r.resyncPeriod, r.name)
+	// 周期性的重新执行ListWatch
 	wait.BackoffUntil(func() {
 		if err := r.ListAndWatch(stopCh); err != nil {
 			r.watchErrorHandler(r, err)
@@ -300,6 +309,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 				pager.PageSize = 0
 			}
 
+			// list监听资源的全量数据，该全量数据是版本比lastSyncResourceVersion大的全量数据
 			list, paginatedResult, err = pager.List(context.Background(), options)
 			if isExpiredError(err) || isTooLargeResourceVersionError(err) {
 				r.setIsLastSyncResourceVersionUnavailable(true)
@@ -367,12 +377,15 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 	resyncerrc := make(chan error, 1)
 	cancelCh := make(chan struct{})
 	defer close(cancelCh)
+	// 后台协程同步函数
 	go func() {
 		resyncCh, cleanup := r.resyncChan()
 		defer func() {
 			cleanup() // Call the last one written into cleanup
 		}()
+		// 死循环等待各种信号
 		for {
+			// 只有当定时器的时间到了才会往下走，否则协程会一直阻塞在这里
 			select {
 			case <-resyncCh:
 			case <-stopCh:
@@ -380,6 +393,7 @@ func (r *Reflector) ListAndWatch(stopCh <-chan struct{}) error {
 			case <-cancelCh:
 				return
 			}
+			// 重新同步的时间到了
 			if r.ShouldResync == nil || r.ShouldResync() {
 				klog.V(4).Infof("%s: forcing resync", r.name)
 				if err := r.store.Resync(); err != nil {

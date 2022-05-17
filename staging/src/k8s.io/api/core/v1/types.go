@@ -5665,41 +5665,50 @@ type Event struct {
 	metav1.ObjectMeta `json:"metadata" protobuf:"bytes,1,opt,name=metadata"`
 
 	// The object that this event is about.
+	// 产生事件的资源对象，譬如Deployment, Pod, Node, Service 等等
 	InvolvedObject ObjectReference `json:"involvedObject" protobuf:"bytes,2,opt,name=involvedObject"`
 
 	// This should be a short, machine understandable string that gives the reason
 	// for the transition into the object's current status.
 	// TODO: provide exact specification for format.
 	// +optional
+	// 事件的原因，机器可读，一般设计为枚举，譬如：NodeNotReady，NodeReady，RegisteredNode等等
 	Reason string `json:"reason,omitempty" protobuf:"bytes,3,opt,name=reason"`
 
 	// A human-readable description of the status of this operation.
 	// TODO: decide on maximum length.
 	// +optional
+	// 事件产生的详细信息，人可读
 	Message string `json:"message,omitempty" protobuf:"bytes,4,opt,name=message"`
 
 	// The component reporting this event. Should be a short machine understandable string.
 	// +optional
+	// 事件源，是有谁记录的该事件信息
 	Source EventSource `json:"source,omitempty" protobuf:"bytes,5,opt,name=source"`
 
 	// The time at which the event was first recorded. (Time of server receipt is in TypeMeta.)
 	// +optional
+	// 该事件第一次出现的时间
 	FirstTimestamp metav1.Time `json:"firstTimestamp,omitempty" protobuf:"bytes,6,opt,name=firstTimestamp"`
 
 	// The time at which the most recent occurrence of this event was recorded.
 	// +optional
+	// 该事件最后一次出现的时间
 	LastTimestamp metav1.Time `json:"lastTimestamp,omitempty" protobuf:"bytes,7,opt,name=lastTimestamp"`
 
 	// The number of times this event has occurred.
 	// +optional
+	// 用于压缩事件信息，相同的事件在这里进行累加
 	Count int32 `json:"count,omitempty" protobuf:"varint,8,opt,name=count"`
 
 	// Type of this event (Normal, Warning), new types could be added in the future
 	// +optional
+	// 事件类型，只有两种类型：Normal, Warning
 	Type string `json:"type,omitempty" protobuf:"bytes,9,opt,name=type"`
 
 	// Time when this Event was first observed.
 	// +optional
+	// 该事件第一次被观察到的时间
 	EventTime metav1.MicroTime `json:"eventTime,omitempty" protobuf:"bytes,10,opt,name=eventTime"`
 
 	// Data about the Event series this event represents or nil if it's a singleton Event.

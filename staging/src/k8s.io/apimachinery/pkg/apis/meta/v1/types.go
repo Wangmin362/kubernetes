@@ -38,6 +38,7 @@ import (
 // Structures that are versioned or persisted should inline TypeMeta.
 //
 // +k8s:deepcopy-gen=false
+// 用于定义资源对象的类型,实际上就是常说的GVK (Group Version Kind)
 type TypeMeta struct {
 	// Kind is a string value representing the REST resource this object represents.
 	// Servers may infer this from the endpoint the client submits requests to.
@@ -113,6 +114,7 @@ const (
 
 // ObjectMeta is metadata that all persisted resources must have, which includes all objects
 // users must create.
+// 用于定义每个K8S资源对象的特有属性
 type ObjectMeta struct {
 	// Name must be unique within a namespace. Is required when creating resources, although
 	// some resources may allow a client to request the generation of an appropriate name
@@ -150,6 +152,8 @@ type ObjectMeta struct {
 	// Cannot be updated.
 	// More info: http://kubernetes.io/docs/user-guide/namespaces
 	// +optional
+	// 在K8S中,从资源的作用域来看,主要有两种,一种是cluster,另外一种就是namespace, cluster级别的资源
+	// 的Namespace属性是没有意义的,而namespace资源的Namespace属性则是一个必填的字段,不填的话默认就是default名称空间
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,3,opt,name=namespace"`
 
 	// SelfLink is a URL representing this object.
@@ -183,6 +187,7 @@ type ObjectMeta struct {
 	// Value must be treated as opaque by clients and .
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
 	// +optional
+	// 对象的资源版本
 	ResourceVersion string `json:"resourceVersion,omitempty" protobuf:"bytes,6,opt,name=resourceVersion"`
 
 	// A sequence number representing a specific generation of the desired state.

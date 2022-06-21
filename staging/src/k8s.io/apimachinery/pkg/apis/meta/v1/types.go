@@ -84,6 +84,9 @@ type ListMeta struct {
 	// minutes have passed. The resourceVersion field returned when using this continue value will be
 	// identical to the value in the first response, unless you have received this token from an error
 	// message.
+	// 在列举对象的时候可能会有非常多的对象，kubernetes支持分页获取，类似于SQL的limit，当对象总量
+	// 多于单页的总量的时候，这个变量就会被设置。它用来告知用户需要继续获取，并且它包含了下次获取的
+	// 起始位置。
 	Continue string `json:"continue,omitempty" protobuf:"bytes,3,opt,name=continue"`
 
 	// remainingItemCount is the number of subsequent items in the list which are not included in this
@@ -96,6 +99,8 @@ type ListMeta struct {
 	// The intended use of the remainingItemCount is *estimating* the size of a collection. Clients
 	// should not rely on the remainingItemCount to be set or to be exact.
 	// +optional
+	// 从字面意思也能理解，就是还剩多少个对象，这个和Continue是配合使用的，当Continue被设置了
+	// 这个变量就不会为空，用来告诉用户还有多少对象没有获取。
 	RemainingItemCount *int64 `json:"remainingItemCount,omitempty" protobuf:"bytes,4,opt,name=remainingItemCount"`
 }
 

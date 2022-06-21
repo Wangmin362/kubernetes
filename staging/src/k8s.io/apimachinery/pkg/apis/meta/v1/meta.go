@@ -85,6 +85,7 @@ type Common interface {
 // internal API objects. Attempting to set or retrieve a field on an object that does
 // not support that field will be a no-op and return a default value.
 // TODO: move this, and TypeMeta and ListMeta, to a different package
+// K8S资源对象的数组操作
 type ListInterface interface {
 	GetResourceVersion() string
 	SetResourceVersion(version string)

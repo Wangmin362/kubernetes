@@ -726,6 +726,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			utilfeature.DefaultFeatureGate.Enabled(features.PodAndContainerStatsFromCRI))
 	}
 
+	// Pod Lifecycle Event Generator 非常重要的一个模块
 	klet.pleg = pleg.NewGenericPLEG(klet.containerRuntime, plegChannelCapacity, plegRelistPeriod, klet.podCache, clock.RealClock{})
 	klet.runtimeState = newRuntimeState(maxWaitForContainerRuntime)
 	klet.runtimeState.addHealthCheck("PLEG", klet.pleg.Healthy)
@@ -762,6 +763,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}
 	}
 
+	// probeManager
 	klet.probeManager = prober.NewManager(
 		klet.statusManager,
 		klet.livenessManager,
@@ -770,6 +772,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		klet.runner,
 		kubeDeps.Recorder)
 
+	// 创建TokenManager
 	tokenManager := token.NewManager(kubeDeps.KubeClient)
 
 	// NewInitializedVolumePluginMgr initializes some storageErrors on the Kubelet runtimeState (in csi_plugin.go init)
@@ -794,7 +797,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		klet.dnsConfigurer.SetupDNSinContainerizedMounter(experimentalMounterPath)
 	}
 
-	// setup volumeManager
+	// setup volumeManager 创建VolumeManager
 	klet.volumeManager = volumemanager.NewVolumeManager(
 		kubeCfg.EnableControllerAttachDetach,
 		nodeName,
@@ -1374,7 +1377,7 @@ func (kl *Kubelet) initializeModules() error {
 	metrics.SetNodeName(kl.nodeName)
 	servermetrics.Register()
 
-	// Setup filesystem directories.
+	// Setup filesystem directories.创建目录文件
 	if err := kl.setupDataDirs(); err != nil {
 		return err
 	}
@@ -1386,7 +1389,7 @@ func (kl *Kubelet) initializeModules() error {
 		}
 	}
 
-	// Start the image manager.
+	// Start the image manager. 实际上启动的是RealImageGcManager
 	kl.imageManager.Start()
 
 	// Start the certificate manager if it was enabled.
@@ -1401,7 +1404,7 @@ func (kl *Kubelet) initializeModules() error {
 		}
 	}
 
-	// Start resource analyzer
+	// Start resource analyzer 启动ResourceAnalyzer, 刷新Volume Stats到缓存中
 	kl.resourceAnalyzer.Start()
 
 	return nil
@@ -1409,6 +1412,7 @@ func (kl *Kubelet) initializeModules() error {
 
 // initializeRuntimeDependentModules will initialize internal modules that require the container runtime to be up.
 func (kl *Kubelet) initializeRuntimeDependentModules() {
+	// 启动cAdvisor
 	if err := kl.cadvisor.Start(); err != nil {
 		// Fail kubelet and rely on the babysitter to retry starting kubelet.
 		klog.ErrorS(err, "Failed to start cAdvisor")
@@ -1454,6 +1458,7 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 
 // Run starts the kubelet reacting to config updates
 func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
+	// 注册logServer
 	if kl.logServer == nil {
 		kl.logServer = http.StripPrefix("/logs/", http.FileServer(http.Dir("/var/log/")))
 	}
@@ -1461,11 +1466,12 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		klog.InfoS("No API server defined - no node status update will be sent")
 	}
 
-	// Start the cloud provider sync manager
+	// Start the cloud provider sync manager Cloud Provider 扩展相关：https://kubernetes.feisky.xyz/extension/cloud-provider
 	if kl.cloudResourceSyncManager != nil {
 		go kl.cloudResourceSyncManager.Run(wait.NeverStop)
 	}
 
+	// 首先启动不依赖 container runtime的一些模块
 	if err := kl.initializeModules(); err != nil {
 		kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.KubeletSetupFailed, err.Error())
 		klog.ErrorS(err, "Failed to initialize internal modules")
@@ -1479,15 +1485,19 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		// Introduce some small jittering to ensure that over time the requests won't start
 		// accumulating at approximately the same time from the set of nodes due to priority and
 		// fairness effect.
+		// 定时同步node状态
 		go wait.JitterUntil(kl.syncNodeStatus, kl.nodeStatusUpdateFrequency, 0.04, true, wait.NeverStop)
+		// 更新容器运行时启动时间以及执行首次状态同步
 		go kl.fastStatusUpdateOnce()
 
-		// start syncing lease
+		// start syncing lease NodeLease机制
+		// NodeLease机制是一种上报心跳的方式，可以通过更加轻量化节约资源的方式，并提升性能上报node的心跳信息，具体看：https://kubernetes.io/docs/concepts/architecture/nodes/#heartbeats
 		go kl.nodeLeaseController.Run(wait.NeverStop)
 	}
+	// 更新runtime状态
 	go wait.Until(kl.updateRuntimeUp, 5*time.Second, wait.NeverStop)
 
-	// Set up iptables util rules
+	// Set up iptables util rules 定时同步iptables规则
 	if kl.makeIPTablesUtilChains {
 		kl.initNetworkUtil()
 	}
@@ -1501,6 +1511,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 
 	// Start the pod lifecycle event generator.
+	// 启动pleg模块，该模块用于周期性的向 container runtime刷新当前所有容器的状态
 	kl.pleg.Start()
 	kl.syncLoop(updates, kl)
 }
@@ -2088,6 +2099,7 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 //                     containers have failed health checks
 func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handler SyncHandler,
 	syncCh <-chan time.Time, housekeepingCh <-chan time.Time, plegCh <-chan *pleg.PodLifecycleEvent) bool {
+	// 监听多个channel, 当发现任何一个channel有数据就交给handler去处理，在handler中通过调用dispatchWork分发任务
 	select {
 	case u, open := <-configCh:
 		// Update from a config source; dispatch it to the right handler
@@ -2370,6 +2382,7 @@ func (kl *Kubelet) updateRuntimeUp() {
 	kl.updateRuntimeMux.Lock()
 	defer kl.updateRuntimeMux.Unlock()
 
+	// 获取容器运行时的状态
 	s, err := kl.containerRuntime.Status()
 	if err != nil {
 		klog.ErrorS(err, "Container runtime sanity check failed")
@@ -2381,6 +2394,7 @@ func (kl *Kubelet) updateRuntimeUp() {
 	}
 	// Periodically log the whole runtime status for debugging.
 	klog.V(4).InfoS("Container runtime status", "status", s)
+	// 检查network是否处于Ready状态
 	networkReady := s.GetRuntimeCondition(kubecontainer.NetworkReady)
 	if networkReady == nil || !networkReady.Status {
 		klog.ErrorS(nil, "Container runtime network not ready", "networkReady", networkReady)
@@ -2390,6 +2404,7 @@ func (kl *Kubelet) updateRuntimeUp() {
 		kl.runtimeState.setNetworkState(nil)
 	}
 	// information in RuntimeReady condition will be propagated to NodeReady condition.
+	// 获取容器Ready状态
 	runtimeReady := s.GetRuntimeCondition(kubecontainer.RuntimeReady)
 	// If RuntimeReady is not set or is false, report an error.
 	if runtimeReady == nil || !runtimeReady.Status {
@@ -2398,6 +2413,7 @@ func (kl *Kubelet) updateRuntimeUp() {
 		return
 	}
 	kl.runtimeState.setRuntimeState(nil)
+	// 启动容器运行时的依赖模块
 	kl.oneTimeInitializer.Do(kl.initializeRuntimeDependentModules)
 	kl.runtimeState.setRuntimeSync(kl.clock.Now())
 }
@@ -2467,7 +2483,9 @@ func (kl *Kubelet) fastStatusUpdateOnce() {
 				klog.ErrorS(err, "Pod CIDR update failed", "CIDR", podCIDRs)
 				continue
 			}
+			// 更新Runtime状态
 			kl.updateRuntimeUp()
+			// 更新节点状态
 			kl.syncNodeStatus()
 			return
 		}

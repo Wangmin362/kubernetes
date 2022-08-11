@@ -36,7 +36,9 @@ import (
 	"k8s.io/kubernetes/cmd/kubelet/app"
 )
 
+// main kubelet组件的入口
 func main() {
+	// 生成kubelet实例
 	command := app.NewKubeletCommand()
 
 	// kubelet uses a config file and does its own special

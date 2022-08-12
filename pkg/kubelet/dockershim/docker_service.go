@@ -197,6 +197,7 @@ func NewDockerClientFromConfig(config *ClientConfig) libdocker.Interface {
 func NewDockerService(config *ClientConfig, podSandboxImage string, streamingConfig *streaming.Config, pluginSettings *NetworkPluginSettings,
 	cgroupsName string, kubeCgroupDriver string, dockershimRootDir string) (DockerService, error) {
 
+	// docker client的初始化
 	client := NewDockerClientFromConfig(config)
 
 	c := libdocker.NewInstrumentedInterface(client)
@@ -228,6 +229,7 @@ func NewDockerService(config *ClientConfig, podSandboxImage string, streamingCon
 	// create streaming server if configured.
 	if streamingConfig != nil {
 		var err error
+		// 初始化流式server，提供exec, attach, portForward功能
 		ds.streamingServer, err = streaming.NewServer(*streamingConfig, ds.streamingRuntime)
 		if err != nil {
 			return nil, err
@@ -243,7 +245,9 @@ func NewDockerService(config *ClientConfig, podSandboxImage string, streamingCon
 	klog.InfoS("Hairpin mode is set", "hairpinMode", pluginSettings.HairpinMode)
 
 	// dockershim currently only supports CNI plugins.
+	// 初始化CNI Plugin
 	pluginSettings.PluginBinDirs = cni.SplitDirs(pluginSettings.PluginBinDirString)
+	// todo 这里的探测网络插件时如何设计的？ 需要完成什么样的功能？
 	cniPlugins := cni.ProbeNetworkPlugins(pluginSettings.PluginConfDir, pluginSettings.PluginCacheDir, pluginSettings.PluginBinDirs)
 	cniPlugins = append(cniPlugins, kubenet.NewPlugin(pluginSettings.PluginBinDirs, pluginSettings.PluginCacheDir))
 	netHost := &dockerNetworkHost{
@@ -254,6 +258,7 @@ func NewDockerService(config *ClientConfig, podSandboxImage string, streamingCon
 	if err != nil {
 		return nil, fmt.Errorf("didn't find compatible CNI plugin with given settings %+v: %v", pluginSettings, err)
 	}
+	// 将network plugin相关的数据放入到dockerservice的network中
 	ds.network = network.NewPluginManager(plug)
 	klog.InfoS("Docker cri networking managed by the network plugin", "networkPluginName", plug.Name())
 

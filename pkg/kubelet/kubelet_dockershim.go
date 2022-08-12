@@ -35,6 +35,7 @@ func runDockershim(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	remoteRuntimeEndpoint string,
 	remoteImageEndpoint string,
 	nonMasqueradeCIDR string) error {
+	// 初始化network plugin, 这种模式调用的是dockershim的CNI
 	pluginSettings := dockershim.NetworkPluginSettings{
 		HairpinMode:        kubeletconfiginternal.HairpinMode(kubeCfg.HairpinMode),
 		NonMasqueradeCIDR:  nonMasqueradeCIDR,
@@ -47,6 +48,7 @@ func runDockershim(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	// Create and start the CRI shim running as a grpc server.
 	streamingConfig := getStreamingConfig(kubeCfg, kubeDeps, crOptions)
+	// 初始化docker service, 提供grpc client服务，电泳后面的dockerServer提供grpc服务，用来创建pod
 	dockerClientConfig := &dockershim.ClientConfig{
 		DockerEndpoint:            kubeDeps.DockerOptions.DockerEndpoint,
 		RuntimeRequestTimeout:     kubeDeps.DockerOptions.RuntimeRequestTimeout,

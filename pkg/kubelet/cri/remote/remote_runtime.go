@@ -73,12 +73,14 @@ func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration) (
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
 	defer cancel()
 
+	// 建立grpc连接
 	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure(), grpc.WithContextDialer(dialer), grpc.WithDefaultCallOptions(grpc.MaxCallRecvMsgSize(maxMsgSize)))
 	if err != nil {
 		klog.ErrorS(err, "Connect remote runtime failed", "address", addr)
 		return nil, err
 	}
 
+	// 初始化RemoteRuntimeService结构，这里是grpc的client的部分
 	service := &remoteRuntimeService{
 		timeout:      connectionTimeout,
 		logReduction: logreduction.NewLogReduction(identicalErrorDelay),

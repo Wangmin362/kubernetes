@@ -271,9 +271,11 @@ func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, ku
 	}
 
 	// source of all configuration
+	// 该函数非常重要，内部通过一层层的newPodStorage将Pod的配置放到内存中存储，它的Merge方法用于计算Pod最终体现出来到底是添加、删除还是更改或者恢复
 	cfg := config.NewPodConfig(config.PodConfigNotificationIncremental, kubeDeps.Recorder)
 
 	// define file config source
+	// 通过Kubelet配置参数的不同，分别初始化三种Config关注的源头
 	if kubeCfg.StaticPodPath != "" {
 		klog.InfoS("Adding static pod path", "path", kubeCfg.StaticPodPath)
 		config.NewSourceFile(kubeCfg.StaticPodPath, nodeName, kubeCfg.FileCheckFrequency.Duration, cfg.Channel(kubetypes.FileSource))
@@ -428,6 +430,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	if kubeDeps.PodConfig == nil {
 		var err error
+		// 配置Pod的源，主要有三个，分别是：SourceFile(一般来自于/etc/kubernetes/manifest目录，用于创建static pod), SourceUrl, SourceApiserver(来自于api-server)
 		kubeDeps.PodConfig, err = makePodSourceConfig(kubeCfg, kubeDeps, nodeName, nodeHasSynced)
 		if err != nil {
 			return nil, err

@@ -273,6 +273,7 @@ func NewKubeGenericRuntimeManager(
 	}
 	kubeRuntimeManager.keyring = credentialprovider.NewDockerKeyring()
 
+	// 实例化ImageManager
 	kubeRuntimeManager.imagePuller = images.NewImageManager(
 		kubecontainer.FilterEventRecorder(recorder),
 		kubeRuntimeManager,

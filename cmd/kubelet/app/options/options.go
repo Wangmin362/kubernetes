@@ -73,6 +73,7 @@ type KubeletFlags struct {
 
 	// cloudProvider is the provider for cloud services.
 	// +optional
+	// todo CloudProvider具体提供了什么功能？ 是对于什么东西的抽象？ 什么情况下需要使用这个东西
 	CloudProvider string
 
 	// cloudConfigFile is the path to the cloud provider configuration file.

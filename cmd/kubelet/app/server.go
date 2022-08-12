@@ -200,6 +200,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				os.Exit(1)
 			}
 
+			// todo 如何理解运行时容器为remote
 			if kubeletFlags.ContainerRuntime == "remote" && cleanFlagSet.Changed("pod-infra-container-image") {
 				klog.InfoS("Warning: For remote container runtime, --pod-infra-container-image is ignored in kubelet, which should be set in that remote runtime instead")
 			}
@@ -213,7 +214,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				}
 				// We must enforce flag precedence by re-parsing the command line into the new object.
 				// This is necessary to preserve backwards-compatibility across binary upgrades.
-				// See issue #56171 for more details.
+				// See issue #56171 for more details. 这里是在解决命令行参数和配置文件中的参数优先级覆盖问题
 				if err := kubeletConfigFlagPrecedence(kubeletConfig, args); err != nil {
 					klog.ErrorS(err, "Failed to precedence kubeletConfigFlag")
 					os.Exit(1)
@@ -238,6 +239,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// use dynamic kubelet config, if enabled
+			// todo dynamic kubelet config 是怎么玩的？
 			var kubeletConfigController *dynamickubeletconfig.Controller
 			if dynamicConfigDir := kubeletFlags.DynamicConfigDir.Value(); len(dynamicConfigDir) > 0 {
 				var dynamicKubeletConfig *kubeletconfiginternal.KubeletConfiguration
@@ -275,14 +277,14 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			cliflag.PrintFlags(cleanFlagSet)
 
 			// construct a KubeletServer from kubeletFlags and kubeletConfig
-			// 实例化KubeletServer, 净是些各种配置参数
+			// 实例化KubeletServer, 净是些各种配置参数，估计得有上百个
 			kubeletServer := &options.KubeletServer{
 				KubeletFlags:         *kubeletFlags,
 				KubeletConfiguration: *kubeletConfig,
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
-			// 创建KubeletDeps, 譬如 cAdivsor, AuthN, AuthZ
+			// todo kubeletDeps 有哪些？ 目前看来有：cAdvisor, cloudProvider, containerManager, OOMAdjuster, VolumePlugins
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				klog.ErrorS(err, "Failed to construct kubelet dependencies")
@@ -290,8 +292,10 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// add the kubelet config controller to kubeletDeps
+			// todo kubelet配置文件动态加载组件？
 			kubeletDeps.KubeletConfigController = kubeletConfigController
 
+			// 检测kubelet是否有足够的权限运行  todo kubelet需要哪些权限才可以正常的运行？
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
@@ -307,7 +311,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			// log the kubelet's config for inspection
 			klog.V(5).InfoS("KubeletConfiguration", "configuration", config)
 
-			// run the kubelet, kubelet真正就从这里开始运行了
+			// run the kubelet, kubelet真正就从这里开始运行了, 运行的时候同时附带了新特性的开关
 			if err := Run(ctx, kubeletServer, kubeletDeps, utilfeature.DefaultFeatureGate); err != nil {
 				klog.ErrorS(err, "Failed to run kubelet")
 				os.Exit(1)
@@ -424,6 +428,7 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 		}
 	}
 
+	// todo 思考一下，volume探针插件是怎么工作的，这些大牛们是如何设计的？ 一个Volume探针插件因该需要具备什么功能？
 	plugins, err := ProbeVolumePlugins(featureGate)
 	if err != nil {
 		return nil, err
@@ -437,7 +442,7 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 		KubeClient:          nil,
 		HeartbeatClient:     nil,
 		EventClient:         nil,
-		HostUtil:            hu,
+		HostUtil:            hu, // 这个报错应该只会发生在windows平台当中，linux平台是没有问题的
 		Mounter:             mounter,
 		Subpather:           subpather,
 		OOMAdjuster:         oom.NewOOMAdjuster(),
@@ -543,12 +548,11 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// Warn if MemoryQoS enabled with cgroups v1
-	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
-		!isCgroup2UnifiedMode() {
+	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) && !isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
 	// Obtain Kubelet Lock File
-	// todo kubelet lock file是个什么鬼？
+	// todo kubelet lock file是个什么鬼？看起来似乎是用于在多个Kubelet之间同步某种状态使用的
 	if s.ExitOnLockContention && s.LockFilePath == "" {
 		return errors.New("cannot exit on lock file contention: no lock file specified")
 	}
@@ -590,6 +594,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// TODO cloudprovider是用来干嘛的？ 具体提供了什么功能？
 	if kubeDeps.Cloud == nil {
 		if !cloudprovider.IsExternal(s.CloudProvider) {
 			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
@@ -683,6 +688,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		cgroupRoots = append(cgroupRoots, kubeletCgroup)
 	}
 
+	// fixme 根据注释，这里主要是为了获取运行时容器的 CGroup, 感觉这里取得名字有问题，字面意思不就是获取运行时容器嘛
 	runtimeCgroup, err := cm.GetRuntimeContainer(s.ContainerRuntime, s.RuntimeCgroups)
 	if err != nil {
 		klog.InfoS("Failed to get the container runtime's cgroup. Runtime system container metrics may be missing.", "err", err)
@@ -705,9 +711,10 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// Setup event recorder if required.
+	// 实例化事件记录器，用以记录kubelet在运行过程中产生的事件，可以通过kubelet get event获取事件
 	makeEventRecorder(kubeDeps, nodeName)
 
-	// 创建ContainerManager
+	// 创建ContainerManager, 譬如Containerd, cri-o, isular
 	if kubeDeps.ContainerManager == nil {
 		if s.CgroupsPerQOS && s.CgroupRoot == "" {
 			klog.InfoS("--cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /")
@@ -1163,9 +1170,10 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	}
 	hostnameOverridden := len(kubeServer.HostnameOverride) > 0
 	// Setup event recorder if required.
-	makeEventRecorder(kubeDeps, nodeName)
+	makeEventRecorder(kubeDeps, nodeName) // 一般来说，到了这里应该会直接退出，因为上一步已经实例化了EventRecorder
 
 	// 设置kubeServer.NodeIP
+	// todo 为啥下面这将近二十行不抽为一个方法？,其目的就是为了设置NodeIPs, 以及检测嘛
 	var nodeIPs []net.IP
 	if kubeServer.NodeIP != "" {
 		for _, ip := range strings.Split(kubeServer.NodeIP, ",") {
@@ -1194,7 +1202,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	credentialprovider.SetPreferredDockercfgPath(kubeServer.RootDirectory)
 	klog.V(2).InfoS("Using root directory", "path", kubeServer.RootDirectory)
 
-	if kubeDeps.OSInterface == nil {
+	if kubeDeps.OSInterface == nil { // 到了这里应该不会为nil，在创建KubeDeps已经实例化了OSInterface
 		kubeDeps.OSInterface = kubecontainer.RealOS{}
 	}
 
@@ -1212,7 +1220,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		nodeName,
 		nodeIPs,
 		kubeServer.ProviderID,
-		kubeServer.CloudProvider,
+		kubeServer.CloudProvider, // 用于提供LB， 路由等功能
 		kubeServer.CertDirectory,
 		kubeServer.RootDirectory,
 		kubeServer.ImageCredentialProviderConfigFile,
@@ -1348,8 +1356,11 @@ func createAndInitKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		return nil, err
 	}
 
+	// 这些人取名字真TM牛逼，不过是真的形象，大神就是大神，这个方法的函数名是真的合适，也非常形象
+	// 这里实际上就是记录了一个事件，表示kubelet开始运行了
 	k.BirthCry()
 
+	// todo 开启 container gc (每一分钟进行一次container回收)以及 image gc(每五分钟进行一次image gc)
 	k.StartGarbageCollection()
 
 	return k, nil

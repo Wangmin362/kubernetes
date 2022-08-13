@@ -393,9 +393,10 @@ func (cgc *containerGC) evictPodLogsDirectories(allSourcesReady bool) error {
 // not ready and containing no containers.
 //
 // GarbageCollect consists of the following steps:
-// * gets evictable containers which are not active and created more than gcPolicy.MinAge ago.
-// * removes oldest dead containers for each pod by enforcing gcPolicy.MaxPerPodContainer.
-// * removes oldest dead containers by enforcing gcPolicy.MaxContainers.
+// * gets evictable containers which are not active and created more than gcPolicy.MinAge ago. 获取可以驱逐的容器（主要是非活动的容器以及容器的最小生存时间超过gcPolicy策略的容器）
+// 		gcPolicy.MinAge ago的意思时容器结束多久时候开始回收，譬如：300ms, 10m ,2h45m
+// * removes oldest dead containers for each pod by enforcing gcPolicy.MaxPerPodContainer. 基于容器为单位，指每个容器最大可以保存多少个已结束的容器，默认是1，负数表示不限制，这些容器会浪费磁盘空间
+// * removes oldest dead containers by enforcing gcPolicy.MaxContainers. 基于节点为单位，指节点上最多允许保留多少个已结束的容器，默认是-1，表示不做限制
 // * gets evictable sandboxes which are not ready and contains no containers.
 // * removes evictable sandboxes.
 func (cgc *containerGC) GarbageCollect(gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
@@ -414,5 +415,6 @@ func (cgc *containerGC) GarbageCollect(gcPolicy kubecontainer.GCPolicy, allSourc
 	if err := cgc.evictPodLogsDirectories(allSourcesReady); err != nil {
 		errors = append(errors, err)
 	}
+	// 聚合错误
 	return utilerrors.NewAggregate(errors)
 }

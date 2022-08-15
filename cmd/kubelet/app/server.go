@@ -154,10 +154,11 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 		// so we do all our parsing manually in Run, below.
 		// DisableFlagParsing=true provides the full set of flags passed to the kubelet in the
 		// `args` arg to Run, without Cobra's interference.
+		// kubelet具有特殊的flag解析要求来强制执行flag优先级规则，因此我们在下面的Run中手动完成所有的解析
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// initial flag parse, since we disable cobra's flag parsing
-			// 解析命令行参数
+			// 解析命令行参数，因为上面已经仅用了Cobra的flag解析
 			if err := cleanFlagSet.Parse(args); err != nil {
 				klog.ErrorS(err, "Failed to parse kubelet flag")
 				cmd.Usage()

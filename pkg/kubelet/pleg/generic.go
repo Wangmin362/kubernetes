@@ -128,6 +128,7 @@ func (g *GenericPLEG) Watch() chan *PodLifecycleEvent {
 
 // Start spawns a goroutine to relist periodically.
 func (g *GenericPLEG) Start() {
+	// 默认一秒钟执行一次
 	go wait.Until(g.relist, g.relistPeriod, wait.NeverStop)
 }
 

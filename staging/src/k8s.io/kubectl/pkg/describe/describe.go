@@ -706,9 +706,12 @@ type PodDescriber struct {
 	clientset.Interface
 }
 
+// Describe 执行kubectl describe pod -n gator-cloud sk-service-controller-84bf789cbf-5fw9t命令的回调函数
 func (d *PodDescriber) Describe(namespace, name string, describerSettings DescriberSettings) (string, error) {
+	// 调用apiServer查询Pod示例
 	pod, err := d.CoreV1().Pods(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
+		// 如果查询pod出错，并且要求返回事件，那么查询事件
 		if describerSettings.ShowEvents {
 			eventsInterface := d.CoreV1().Events(namespace)
 			selector := eventsInterface.GetFieldSelector(&name, &namespace, nil, nil)
@@ -736,6 +739,7 @@ func (d *PodDescriber) Describe(namespace, name string, describerSettings Descri
 				})
 			}
 		}
+		// 如果pod查询出错，并且不要求显示事件，那么直接返回错误
 		return "", err
 	}
 
@@ -5537,6 +5541,7 @@ func searchEvents(client corev1client.EventsGetter, objOrRef runtime.Object, lim
 	}
 
 	e := client.Events(ref.Namespace)
+	// 利用FieldSelector筛选查询pod对象所发生的事件对象
 	fieldSelector := e.GetFieldSelector(&ref.Name, &ref.Namespace, refKind, refUID)
 	initialOpts := metav1.ListOptions{FieldSelector: fieldSelector.String(), Limit: limit}
 	eventList := &corev1.EventList{}

@@ -299,10 +299,12 @@ type SelfLinker interface {
 // expected to be serialized to the wire, the interface an Object must provide to the Scheme allows
 // serializers to set the kind, version, and group the object is represented as. An Object may choose
 // to return a no-op ObjectKindAccessor in cases where it is not expected to be serialized.
+// runtime.Object 是所有K8S资源对象的基类,任何一个资源对象都实现了该接口
 type Object interface {
 	// GetObjectKind 实际上所有的K8S资源对象都实现了这个接口，因为所有的资源对象都集成了metav1.TypeMeta
 	GetObjectKind() schema.ObjectKind
 	// DeepCopyObject 这个接口一般是有deepcopy-gen代码生成器工具自动生成的，也不需要关心
+	// TODO 为什么每个资源对象都需要实现该方法呢? 这个方法使用在什么场景当中?
 	DeepCopyObject() Object
 }
 

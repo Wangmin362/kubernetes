@@ -30,6 +30,7 @@ import (
 // with a given Reason reflecting a consistent underlying trigger, or the
 // continued existence of events with that Reason.  Events should be
 // treated as informative, best-effort, supplemental data.
+// 事件对象定义, 一个事件只能是Normal或者Warning两种类型
 type Event struct {
 	metav1.TypeMeta `json:",inline"`
 

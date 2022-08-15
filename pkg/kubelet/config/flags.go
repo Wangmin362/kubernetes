@@ -28,6 +28,7 @@ type ContainerRuntimeOptions struct {
 	// General Options.
 
 	// ContainerRuntime is the container runtime to use.
+	// todo 目前可选的参数是不是只有docker, containerd, cri-o, isular, 看源码的注释，似乎有remote, 这里如何理解remote运行时容器
 	ContainerRuntime string
 	// RuntimeCgroups that container runtime is expected to be isolated in.
 	RuntimeCgroups string

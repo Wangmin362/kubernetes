@@ -45,10 +45,10 @@ func NewContainerRuntimeOptions() *config.ContainerRuntimeOptions {
 	}
 
 	return &config.ContainerRuntimeOptions{
-		ContainerRuntime:          kubetypes.DockerContainerRuntime,
-		DockerEndpoint:            dockerEndpoint,
+		ContainerRuntime:          kubetypes.DockerContainerRuntime, // 默认容器运行时就是docker
+		DockerEndpoint:            dockerEndpoint,                   // docker的socket
 		DockershimRootDirectory:   "/var/lib/dockershim",
-		PodSandboxImage:           defaultPodSandboxImage,
+		PodSandboxImage:           defaultPodSandboxImage, // 沙箱的镜像，其实就是Pause镜像的位置，可以通过--pod-infra-container-image参数修改
 		ImagePullProgressDeadline: metav1.Duration{Duration: 1 * time.Minute},
 
 		CNIBinDir:   "/opt/cni/bin",

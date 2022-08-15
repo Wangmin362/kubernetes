@@ -73,6 +73,7 @@ type KubeletFlags struct {
 
 	// cloudProvider is the provider for cloud services.
 	// +optional
+	// todo CloudProvider具体提供了什么功能？ 是对于什么东西的抽象？ 什么情况下需要使用这个东西
 	CloudProvider string
 
 	// cloudConfigFile is the path to the cloud provider configuration file.
@@ -88,11 +89,13 @@ type KubeletFlags struct {
 	// The path may be absolute or relative; relative paths are under the Kubelet's current working directory.
 	// Providing this flag enables dynamic kubelet configuration.
 	// To use this flag, the DynamicKubeletConfig feature gate must be enabled.
+	// kubelet动态配置文件位置
 	DynamicConfigDir cliflag.StringFlag
 
 	// The Kubelet will load its initial configuration from this file.
 	// The path may be absolute or relative; relative paths are under the Kubelet's current working directory.
 	// Omit this flag to use the combination of built-in default configuration values and flags.
+	// kubelet静态配置文件
 	KubeletConfigFile string
 
 	// WindowsService should be set to true if kubelet is running as a service on Windows.
@@ -161,13 +164,16 @@ type KubeletFlags struct {
 func NewKubeletFlags() *KubeletFlags {
 	remoteRuntimeEndpoint := ""
 	if runtime.GOOS == "linux" {
+		// TODO dockershim.sock he docker.sock有啥不同，如何理解socket文件？
 		remoteRuntimeEndpoint = "unix:///var/run/dockershim.sock"
 	} else if runtime.GOOS == "windows" {
 		remoteRuntimeEndpoint = "npipe:////./pipe/dockershim"
 	}
 
 	return &KubeletFlags{
+		// 容器运行时参数
 		ContainerRuntimeOptions: *NewContainerRuntimeOptions(),
+		// kubelet证书目录
 		CertDirectory:           "/var/lib/kubelet/pki",
 		RootDirectory:           defaultRootDir,
 		MasterServiceNamespace:  metav1.NamespaceDefault,

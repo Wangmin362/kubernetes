@@ -115,7 +115,10 @@ const (
 func NewKubeletCommand() *cobra.Command {
 	cleanFlagSet := pflag.NewFlagSet(componentKubelet, pflag.ContinueOnError)
 	cleanFlagSet.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
+	// kubelet包含两部分配置，如下：
+	// kubeletFlags是不能再运行时修改的配置或不再node间共享的配置
 	kubeletFlags := options.NewKubeletFlags()
+	// kubeletConfig是可以在Node之间共享的配置，可以动态配置
 	kubeletConfig, err := options.NewKubeletConfiguration()
 	// programmer error
 	if err != nil {
@@ -154,6 +157,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 		DisableFlagParsing: true,
 		Run: func(cmd *cobra.Command, args []string) {
 			// initial flag parse, since we disable cobra's flag parsing
+			// 解析命令行参数
 			if err := cleanFlagSet.Parse(args); err != nil {
 				klog.ErrorS(err, "Failed to parse kubelet flag")
 				cmd.Usage()
@@ -161,6 +165,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// check if there are non-flag arguments in the command line
+			// 校验命令行参数
 			cmds := cleanFlagSet.Args()
 			if len(cmds) > 0 {
 				klog.ErrorS(nil, "Unknown command", "command", cmds[0])
@@ -169,6 +174,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// short-circuit on help
+			// help的短路逻辑处理，只要发现命令行中由help，那么都打印help帮助文档
 			help, err := cleanFlagSet.GetBool("help")
 			if err != nil {
 				klog.InfoS(`"help" flag is non-bool, programmer error, please correct`)
@@ -194,11 +200,12 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				os.Exit(1)
 			}
 
+			// todo 如何理解运行时容器为remote
 			if kubeletFlags.ContainerRuntime == "remote" && cleanFlagSet.Changed("pod-infra-container-image") {
 				klog.InfoS("Warning: For remote container runtime, --pod-infra-container-image is ignored in kubelet, which should be set in that remote runtime instead")
 			}
 
-			// load kubelet config file, if provided
+			// load kubelet config file, if provided 加载kubelet配置文件
 			if configFile := kubeletFlags.KubeletConfigFile; len(configFile) > 0 {
 				kubeletConfig, err = loadConfigFile(configFile)
 				if err != nil {
@@ -207,7 +214,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				}
 				// We must enforce flag precedence by re-parsing the command line into the new object.
 				// This is necessary to preserve backwards-compatibility across binary upgrades.
-				// See issue #56171 for more details.
+				// See issue #56171 for more details. 这里是在解决命令行参数和配置文件中的参数优先级覆盖问题
 				if err := kubeletConfigFlagPrecedence(kubeletConfig, args); err != nil {
 					klog.ErrorS(err, "Failed to precedence kubeletConfigFlag")
 					os.Exit(1)
@@ -221,6 +228,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 
 			// We always validate the local configuration (command line + config file).
 			// This is the default "last-known-good" config for dynamic config, and must always remain valid.
+			// 校验Kubelet配置文件
 			if err := kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig); err != nil {
 				klog.ErrorS(err, "Failed to validate kubelet configuration", "path", kubeletConfig)
 				os.Exit(1)
@@ -231,6 +239,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// use dynamic kubelet config, if enabled
+			// todo dynamic kubelet config 是怎么玩的？
 			var kubeletConfigController *dynamickubeletconfig.Controller
 			if dynamicConfigDir := kubeletFlags.DynamicConfigDir.Value(); len(dynamicConfigDir) > 0 {
 				var dynamicKubeletConfig *kubeletconfiginternal.KubeletConfiguration
@@ -268,12 +277,14 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			cliflag.PrintFlags(cleanFlagSet)
 
 			// construct a KubeletServer from kubeletFlags and kubeletConfig
+			// 实例化KubeletServer, 净是些各种配置参数，估计得有上百个
 			kubeletServer := &options.KubeletServer{
 				KubeletFlags:         *kubeletFlags,
 				KubeletConfiguration: *kubeletConfig,
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
+			// todo kubeletDeps 有哪些？ 目前看来有：cAdvisor, cloudProvider, containerManager, OOMAdjuster, VolumePlugins
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				klog.ErrorS(err, "Failed to construct kubelet dependencies")
@@ -281,12 +292,15 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			}
 
 			// add the kubelet config controller to kubeletDeps
+			// todo kubelet配置文件动态加载组件？
 			kubeletDeps.KubeletConfigController = kubeletConfigController
 
+			// 检测kubelet是否有足够的权限运行  todo kubelet需要哪些权限才可以正常的运行？
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
 			// set up signal context here in order to be reused by kubelet and docker shim
+			// 设置处理信号，可以理解为处理 SegInt信号
 			ctx := genericapiserver.SetupSignalContext()
 
 			// make the kubelet's config safe for logging
@@ -297,7 +311,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			// log the kubelet's config for inspection
 			klog.V(5).InfoS("KubeletConfiguration", "configuration", config)
 
-			// run the kubelet
+			// run the kubelet, kubelet真正就从这里开始运行了, 运行的时候同时附带了新特性的开关
 			if err := Run(ctx, kubeletServer, kubeletDeps, utilfeature.DefaultFeatureGate); err != nil {
 				klog.ErrorS(err, "Failed to run kubelet")
 				os.Exit(1)
@@ -395,18 +409,19 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 // is not valid.  It will not start any background processes, and does not include authentication/authorization
 func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.FeatureGate) (*kubelet.Dependencies, error) {
 	// Initialize the TLS Options
+	// todo 建立TLS连接使用的证书是啥子证书？ api-server的证书么？
 	tlsOptions, err := InitializeTLS(&s.KubeletFlags, &s.KubeletConfiguration)
 	if err != nil {
 		return nil, err
 	}
 
-	mounter := mount.New(s.ExperimentalMounterPath)
+	mounter := mount.New(s.ExperimentalMounterPath) // 应该是用来挂载volume和卸载volume使用的
 	subpather := subpath.New(mounter)
 	hu := hostutil.NewHostUtil()
 	var pluginRunner = exec.New()
 
 	var dockerOptions *kubelet.DockerOptions
-	if s.ContainerRuntime == kubetypes.DockerContainerRuntime {
+	if s.ContainerRuntime == kubetypes.DockerContainerRuntime { // 容器运行时目前就两种，一种是docker,另外一种是remote，我猜这个应该是cri吧
 		dockerOptions = &kubelet.DockerOptions{
 			DockerEndpoint:            s.DockerEndpoint,
 			RuntimeRequestTimeout:     s.RuntimeRequestTimeout.Duration,
@@ -414,6 +429,7 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 		}
 	}
 
+	// todo 思考一下，volume探针插件是怎么工作的，这些大牛们是如何设计的？ 一个Volume探针插件因该需要具备什么功能？
 	plugins, err := ProbeVolumePlugins(featureGate)
 	if err != nil {
 		return nil, err
@@ -427,7 +443,7 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 		KubeClient:          nil,
 		HeartbeatClient:     nil,
 		EventClient:         nil,
-		HostUtil:            hu,
+		HostUtil:            hu, // 这个报错应该只会发生在windows平台当中，linux平台是没有问题的
 		Mounter:             mounter,
 		Subpather:           subpather,
 		OOMAdjuster:         oom.NewOOMAdjuster(),
@@ -517,6 +533,9 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 	return reservedCPUSet, nil
 }
 
+// kubelet的核心逻辑  run 主要执行配置检查与初始化工作
+// 1、KubeletServer参数验证 2、KubeDependencies中各种clientset初始化 3、ContainerManager创建初始化
+// 4、启动dockershim、创建runtimeService、runtimeImageService
 func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
 	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
@@ -524,16 +543,17 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 	// validate the initial KubeletServer (we set feature gates first, because this validation depends on feature gates)
+	// 校验kubeletServer中的flags, configs参数
 	if err := options.ValidateKubeletServer(s); err != nil {
 		return err
 	}
 
-	// Warn if MemoryQoS enabled with cgroups v1
-	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
-		!isCgroup2UnifiedMode() {
+	// Warn if MemoryQoS enabled with cgroups v1  检查cGroup的配置
+	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) && !isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
 	// Obtain Kubelet Lock File
+	// todo kubelet lock file是个什么鬼？看起来似乎是用于在多个Kubelet之间同步某种状态使用的
 	if s.ExitOnLockContention && s.LockFilePath == "" {
 		return errors.New("cannot exit on lock file contention: no lock file specified")
 	}
@@ -552,32 +572,36 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// Register current configuration with /configz endpoint
+	// todo 将当前配置注册到 http server/ configz url
 	err = initConfigz(&s.KubeletConfiguration)
 	if err != nil {
 		klog.ErrorS(err, "Failed to register kubelet configuration with configz")
 	}
 
 	if len(s.ShowHiddenMetricsForVersion) > 0 {
+		// 不同的kubelet的版本，暴露的metric指标不一样
 		metrics.SetShowHidden()
 	}
 
 	// About to get clients and such, detect standaloneMode
 	standaloneMode := true
-	if len(s.KubeConfig) > 0 {
+	if len(s.KubeConfig) > 0 { // 若在启动kubelet之时，没有指定配置文件，就认为是standalone模式
 		standaloneMode = false
 	}
 
 	if kubeDeps == nil {
+		// 初始化kubelet的依赖，譬如cAdvisor, CloudProvider, ContainerManager等等
 		kubeDeps, err = UnsecuredDependencies(s, featureGate)
 		if err != nil {
 			return err
 		}
 	}
 
+	// TODO cloudprovider是用来干嘛的？ 具体提供了什么功能？
 	if kubeDeps.Cloud == nil {
-		if !cloudprovider.IsExternal(s.CloudProvider) {
-			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
-			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
+		if !cloudprovider.IsExternal(s.CloudProvider) { // 如果不是external类型的cloudprovider
+			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)                      // 字面意思好像是不打印warning消息
+			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile) // 初始化cloudprovider
 			if err != nil {
 				return err
 			}
@@ -599,12 +623,13 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// if in standalone mode, indicate as much by setting all clients to nil
 	switch {
-	case standaloneMode:
+	case standaloneMode: // 如果是standalone模式，那么将所有的client设置为none
 		kubeDeps.KubeClient = nil
 		kubeDeps.EventClient = nil
 		kubeDeps.HeartbeatClient = nil
 		klog.InfoS("Standalone mode, no API client")
 
+		// 根据传进来的各种配置，初始化各个client
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
 		clientConfig, closeAllConns, err := buildKubeletClientConfig(ctx, s, nodeName)
 		if err != nil {
@@ -645,6 +670,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// 初始化auth
 	if kubeDeps.Auth == nil {
 		auth, runAuthenticatorCAReload, err := BuildAuth(nodeName, kubeDeps.KubeClient, s.KubeletConfiguration)
 		if err != nil {
@@ -654,6 +680,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		runAuthenticatorCAReload(ctx.Done())
 	}
 
+	// 设置cgroupRoot
 	var cgroupRoots []string
 	nodeAllocatableRoot := cm.NodeAllocatableRoot(s.CgroupRoot, s.CgroupsPerQOS, s.CgroupDriver)
 	cgroupRoots = append(cgroupRoots, nodeAllocatableRoot)
@@ -664,6 +691,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		cgroupRoots = append(cgroupRoots, kubeletCgroup)
 	}
 
+	// fixme 根据注释，这里主要是为了获取运行时容器的 CGroup, 感觉这里取得名字有问题，字面意思不就是获取运行时容器嘛
 	runtimeCgroup, err := cm.GetRuntimeContainer(s.ContainerRuntime, s.RuntimeCgroups)
 	if err != nil {
 		klog.InfoS("Failed to get the container runtime's cgroup. Runtime system container metrics may be missing.", "err", err)
@@ -686,8 +714,10 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// Setup event recorder if required.
+	// 实例化事件记录器，用以记录kubelet在运行过程中产生的事件，可以通过kubelet get event获取事件
 	makeEventRecorder(kubeDeps, nodeName)
 
+	// 创建ContainerManager, 譬如Containerd, cri-o, isular
 	if kubeDeps.ContainerManager == nil {
 		if s.CgroupsPerQOS && s.CgroupRoot == "" {
 			klog.InfoS("--cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /")
@@ -794,11 +824,13 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	utilruntime.ReallyCrash = s.ReallyCrashForTesting
 
 	// TODO(vmarmol): Do this through container config.
+	// kubelet oom分数设置
 	oomAdjuster := kubeDeps.OOMAdjuster
 	if err := oomAdjuster.ApplyOOMScoreAdj(0, int(s.OOMScoreAdj)); err != nil {
 		klog.InfoS("Failed to ApplyOOMScoreAdj", "err", err)
 	}
 
+	// 初始化runtime service
 	err = kubelet.PreInitRuntimeService(&s.KubeletConfiguration,
 		kubeDeps, &s.ContainerRuntimeOptions,
 		s.ContainerRuntime,
@@ -810,6 +842,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 
+	// 这里为kubelet的核心逻辑
 	if err := RunKubelet(s, kubeDeps, s.RunOnce); err != nil {
 		return err
 	}
@@ -822,6 +855,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// kubelet健康检测
 	if s.HealthzPort > 0 {
 		mux := http.NewServeMux()
 		healthz.InstallHandler(mux)
@@ -838,6 +872,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// If systemd is used, notify it that we have started
+	// 通知systemd
 	go daemon.SdNotify(false, "READY=1")
 
 	select {
@@ -1125,6 +1160,8 @@ func setContentTypeForClient(cfg *restclient.Config, contentType string) {
 //   2 Kubelet binary
 //   3 Standalone 'kubernetes' binary
 // Eventually, #2 will be replaced with instances of #3
+//
+// RunKubelet 创建Kubelet关键结构体，执行startKubelet，其最终通过goroutine进入Kubelet.Run
 func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencies, runOnce bool) error {
 	hostname, err := nodeutil.GetHostname(kubeServer.HostnameOverride)
 	if err != nil {
@@ -1137,8 +1174,10 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	}
 	hostnameOverridden := len(kubeServer.HostnameOverride) > 0
 	// Setup event recorder if required.
-	makeEventRecorder(kubeDeps, nodeName)
+	makeEventRecorder(kubeDeps, nodeName) // 一般来说，到了这里应该会直接退出，因为上一步已经实例化了EventRecorder
 
+	// 设置kubeServer.NodeIP
+	// todo 为啥下面这将近二十行不抽为一个方法？,其目的就是为了设置NodeIPs, 以及检测嘛
 	var nodeIPs []net.IP
 	if kubeServer.NodeIP != "" {
 		for _, ip := range strings.Split(kubeServer.NodeIP, ",") {
@@ -1159,6 +1198,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return fmt.Errorf("dual-stack --node-ip %q cannot include '0.0.0.0' or '::'", kubeServer.NodeIP)
 	}
 
+	// kubelet以特权模式启动
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: true,
 	})
@@ -1166,7 +1206,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	credentialprovider.SetPreferredDockercfgPath(kubeServer.RootDirectory)
 	klog.V(2).InfoS("Using root directory", "path", kubeServer.RootDirectory)
 
-	if kubeDeps.OSInterface == nil {
+	if kubeDeps.OSInterface == nil { // 到了这里应该不会为nil，在创建KubeDeps已经实例化了OSInterface
 		kubeDeps.OSInterface = kubecontainer.RealOS{}
 	}
 
@@ -1174,6 +1214,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return fmt.Errorf("the SeccompDefault feature gate must be enabled in order to use the SeccompDefault configuration")
 	}
 
+	// 创建kubelet实例化
 	k, err := createAndInitKubelet(&kubeServer.KubeletConfiguration,
 		kubeDeps,
 		&kubeServer.ContainerRuntimeOptions,
@@ -1183,7 +1224,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		nodeName,
 		nodeIPs,
 		kubeServer.ProviderID,
-		kubeServer.CloudProvider,
+		kubeServer.CloudProvider, // 用于提供LB， 路由等功能
 		kubeServer.CertDirectory,
 		kubeServer.RootDirectory,
 		kubeServer.ImageCredentialProviderConfigFile,
@@ -1227,6 +1268,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		}
 		klog.InfoS("Started kubelet as runonce")
 	} else {
+		// 启动kubelet
 		startKubelet(k, podCfg, &kubeServer.KubeletConfiguration, kubeDeps, kubeServer.EnableServer)
 		klog.InfoS("Started kubelet")
 	}
@@ -1318,8 +1360,11 @@ func createAndInitKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		return nil, err
 	}
 
+	// 这些人取名字真TM牛逼，不过是真的形象，大神就是大神，这个方法的函数名是真的合适，也非常形象
+	// 这里实际上就是记录了一个事件，表示kubelet开始运行了
 	k.BirthCry()
 
+	// todo 开启 container gc (每一分钟进行一次container回收)以及 image gc(每五分钟进行一次image gc)
 	k.StartGarbageCollection()
 
 	return k, nil

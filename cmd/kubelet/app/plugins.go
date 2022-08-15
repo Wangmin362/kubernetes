@@ -77,6 +77,7 @@ func ProbeVolumePlugins(featureGate featuregate.FeatureGate) ([]volume.VolumePlu
 	allPlugins = append(allPlugins, projected.ProbeVolumePlugins()...)
 	allPlugins = append(allPlugins, local.ProbeVolumePlugins()...)
 	allPlugins = append(allPlugins, storageos.ProbeVolumePlugins()...)
+	// csi plugin探针，这个应该是k8s中最为重要的存储
 	allPlugins = append(allPlugins, csi.ProbeVolumePlugins()...)
 	return allPlugins, nil
 }

@@ -230,7 +230,7 @@ type Dependencies struct {
 	EventClient             v1core.EventsGetter
 	HeartbeatClient         clientset.Interface
 	OnHeartbeatFailure      func()
-	KubeClient              clientset.Interface
+	KubeClient              clientset.Interface // kubeclient实际上就可以理解为kubectl，主要就是封装了各种和api-server交互的api
 	Mounter                 mount.Interface
 	HostUtil                hostutil.HostUtils
 	OOMAdjuster             *oom.OOMAdjuster

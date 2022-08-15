@@ -98,10 +98,12 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 	// It is safe to invoke `MachineInfo` on cAdvisor before logically initializing cAdvisor here because
 	// machine info is computed and cached once as part of cAdvisor object creation.
 	// But `RootFsInfo` and `ImagesFsInfo` are not available at this moment so they will be called later during manager starts
+	// 通过cAdvisor拿到机器信息
 	machineInfo, err := cadvisorInterface.MachineInfo()
 	if err != nil {
 		return nil, err
 	}
+	// capacity中保存的是cpu, 内存的容量信息
 	capacity := cadvisor.CapacityFromMachineInfo(machineInfo)
 
 	cm := &containerManagerImpl{

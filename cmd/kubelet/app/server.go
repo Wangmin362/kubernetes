@@ -409,18 +409,19 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 // is not valid.  It will not start any background processes, and does not include authentication/authorization
 func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.FeatureGate) (*kubelet.Dependencies, error) {
 	// Initialize the TLS Options
+	// todo 建立TLS连接使用的证书是啥子证书？ api-server的证书么？
 	tlsOptions, err := InitializeTLS(&s.KubeletFlags, &s.KubeletConfiguration)
 	if err != nil {
 		return nil, err
 	}
 
-	mounter := mount.New(s.ExperimentalMounterPath)
+	mounter := mount.New(s.ExperimentalMounterPath) // 应该是用来挂载volume和卸载volume使用的
 	subpather := subpath.New(mounter)
 	hu := hostutil.NewHostUtil()
 	var pluginRunner = exec.New()
 
 	var dockerOptions *kubelet.DockerOptions
-	if s.ContainerRuntime == kubetypes.DockerContainerRuntime {
+	if s.ContainerRuntime == kubetypes.DockerContainerRuntime { // 容器运行时目前就两种，一种是docker,另外一种是remote，我猜这个应该是cri吧
 		dockerOptions = &kubelet.DockerOptions{
 			DockerEndpoint:            s.DockerEndpoint,
 			RuntimeRequestTimeout:     s.RuntimeRequestTimeout.Duration,
@@ -547,7 +548,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 
-	// Warn if MemoryQoS enabled with cgroups v1
+	// Warn if MemoryQoS enabled with cgroups v1  检查cGroup的配置
 	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) && !isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
@@ -578,16 +579,18 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	if len(s.ShowHiddenMetricsForVersion) > 0 {
+		// 不同的kubelet的版本，暴露的metric指标不一样
 		metrics.SetShowHidden()
 	}
 
 	// About to get clients and such, detect standaloneMode
 	standaloneMode := true
-	if len(s.KubeConfig) > 0 {
+	if len(s.KubeConfig) > 0 { // 若在启动kubelet之时，没有指定配置文件，就认为是standalone模式
 		standaloneMode = false
 	}
 
 	if kubeDeps == nil {
+		// 初始化kubelet的依赖，譬如cAdvisor, CloudProvider, ContainerManager等等
 		kubeDeps, err = UnsecuredDependencies(s, featureGate)
 		if err != nil {
 			return err
@@ -596,9 +599,9 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// TODO cloudprovider是用来干嘛的？ 具体提供了什么功能？
 	if kubeDeps.Cloud == nil {
-		if !cloudprovider.IsExternal(s.CloudProvider) {
-			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
-			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
+		if !cloudprovider.IsExternal(s.CloudProvider) { // 如果不是external类型的cloudprovider
+			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)                      // 字面意思好像是不打印warning消息
+			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile) // 初始化cloudprovider
 			if err != nil {
 				return err
 			}

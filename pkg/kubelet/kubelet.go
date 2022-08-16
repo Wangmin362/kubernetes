@@ -2056,10 +2056,11 @@ func (kl *Kubelet) syncLoop(updates <-chan kubetypes.PodUpdate, handler SyncHand
 	// The syncTicker wakes up kubelet to checks if there are any pod workers
 	// that need to be sync'd. A one-second period is sufficient because the
 	// sync interval is defaulted to 10s.
-	syncTicker := time.NewTicker(time.Second)
+	syncTicker := time.NewTicker(time.Second) // 一秒一次
 	defer syncTicker.Stop()
-	housekeepingTicker := time.NewTicker(housekeepingPeriod)
+	housekeepingTicker := time.NewTicker(housekeepingPeriod) // 两秒一次
 	defer housekeepingTicker.Stop()
+	// 获取Pod状态Event的Channel
 	plegCh := kl.pleg.Watch()
 	const (
 		base   = 100 * time.Millisecond
@@ -2174,6 +2175,7 @@ func (kl *Kubelet) syncLoopIteration(configCh <-chan kubetypes.PodUpdate, handle
 			// to make sure we don't miss handling graceful termination for containers we reported as having started.
 			kl.lastContainerStartedTime.Add(e.ID, time.Now())
 		}
+		// 判断是否值得同步Pod, 只要容器不是被移除，就值得同步
 		if isSyncPodWorthy(e) {
 			// PLEG event for a pod; sync it.
 			if pod, ok := kl.podManager.GetPodByUID(e.ID); ok {

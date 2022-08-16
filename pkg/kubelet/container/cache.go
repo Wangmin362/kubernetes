@@ -35,12 +35,14 @@ import (
 // populating the cache is expected to call Delete() to explicitly free the
 // cache entries.
 type Cache interface {
+	// Get 这里的UID，应该就是 metadata.uid
 	Get(types.UID) (*PodStatus, error)
 	Set(types.UID, *PodStatus, error, time.Time)
 	// GetNewerThan is a blocking call that only returns the status
 	// when it is newer than the given time.
 	GetNewerThan(types.UID, time.Time) (*PodStatus, error)
 	Delete(types.UID)
+	// todo 这个接口是用来干啥的？ 更新Cache里面所有元素的时间？
 	UpdateTime(time.Time)
 }
 
@@ -53,6 +55,7 @@ type data struct {
 	modified time.Time
 }
 
+// todo 订阅记录，似乎是通过chan来获取pod的更新，这里应该会在start的时候启动一个协程来监听chan
 type subRecord struct {
 	time time.Time
 	ch   chan *data
@@ -70,6 +73,7 @@ type cache struct {
 	// it is ready to serve the cached statuses.
 	timestamp *time.Time
 	// Map that stores the subscriber records.
+	// TODO 用于记录某个Pod的更新，最终的更新结果应该会从 subscribers -> pods, subscribers 有点类似于kafka，当作一个中间缓冲层，最终会更新pod的状态到 pod中
 	subscribers map[types.UID][]*subRecord
 }
 

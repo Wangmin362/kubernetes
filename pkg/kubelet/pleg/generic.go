@@ -48,19 +48,19 @@ import (
 // periodic sync in kubelet as the safety net.
 type GenericPLEG struct {
 	// The period for relisting.
-	relistPeriod time.Duration
+	relistPeriod time.Duration // 重新同步周期，默认一秒
 	// The container runtime.
-	runtime kubecontainer.Runtime
+	runtime kubecontainer.Runtime // 容器运行时
 	// The channel from which the subscriber listens events.
-	eventChannel chan *PodLifecycleEvent
+	eventChannel chan *PodLifecycleEvent // 时间触发器，用于记录每个Pod发生了什么改变，譬如容器开始了，容器死亡、容器被移除、容器发生改变
 	// The internal cache for pod/container information.
-	podRecords podRecords
+	podRecords podRecords // 也是一个cache，属于PLEG内部的Cache，用于记录某个Pod的新老状态
 	// Time of the last relisting.
 	relistTime atomic.Value
 	// Cache for storing the runtime states required for syncing pods.
-	cache kubecontainer.Cache
+	cache kubecontainer.Cache //这个cache应该是kubelet的cache,用于记录kubelet所在节点所有Pod的状态
 	// For testability.
-	clock clock.Clock
+	clock clock.Clock // todo 时钟，似乎K8S中，每个定义都有这个东西
 	// Pods that failed to have their status retrieved during a relist. These pods will be
 	// retried during the next relisting.
 	podsToReinspect map[types.UID]*kubecontainer.Pod
@@ -99,6 +99,9 @@ func convertState(state kubecontainer.State) plegContainerState {
 	}
 }
 
+// 似乎已经看懂了，这个数据结构的用法，实际上就是间隔一段时间，譬如一秒之后查询Pod的状态，每次查询的状态设置为current，同时
+// 比较上一次old的状态，如果old为nil，说明当前容器是新添加的，那么PELG需要产生Create事件，如果current当前被设置为nil，同时old不为nil，
+// 说明当前Pod已经被移除，PELG应该产生Remote事件。若old和current同时都不为nil，并且current != old，那么PELG应该产生Change事件
 type podRecord struct {
 	old     *kubecontainer.Pod
 	current *kubecontainer.Pod
@@ -110,12 +113,12 @@ type podRecords map[types.UID]*podRecord
 func NewGenericPLEG(runtime kubecontainer.Runtime, channelCapacity int,
 	relistPeriod time.Duration, cache kubecontainer.Cache, clock clock.Clock) PodLifecycleEventGenerator {
 	return &GenericPLEG{
-		relistPeriod: relistPeriod,
-		runtime:      runtime,
-		eventChannel: make(chan *PodLifecycleEvent, channelCapacity),
-		podRecords:   make(podRecords),
-		cache:        cache,
-		clock:        clock,
+		relistPeriod: relistPeriod,                                   // 默认一秒钟一次
+		runtime:      runtime,                                        // 容器运行时
+		eventChannel: make(chan *PodLifecycleEvent, channelCapacity), // 默认容量是1000
+		podRecords:   make(podRecords),                               // podRecords是PLEG内部的缓存，而cache则是kubelet的缓存
+		cache:        cache,                                          // pod状态的缓存，同时每个Pod都会有一个chan用于更新状态
+		clock:        clock,                                          // 时钟
 	}
 }
 
@@ -174,6 +177,7 @@ func generateEvents(podID types.UID, cid string, oldState, newState plegContaine
 	}
 }
 
+// 获取上一次同步的时间
 func (g *GenericPLEG) getRelistTime() time.Time {
 	val := g.relistTime.Load()
 	if val == nil {
@@ -192,29 +196,34 @@ func (g *GenericPLEG) relist() {
 	klog.V(5).InfoS("GenericPLEG: Relisting")
 
 	if lastRelistTime := g.getRelistTime(); !lastRelistTime.IsZero() {
+		// 计算PLEG重新同步Pod的时间间隔，更新metric指标
 		metrics.PLEGRelistInterval.Observe(metrics.SinceInSeconds(lastRelistTime))
 	}
 
 	timestamp := g.clock.Now()
 	defer func() {
+		// 计算PLEG重新同步需要的时间，更新PLEGRelistDuration metric指标
 		metrics.PLEGRelistDuration.Observe(metrics.SinceInSeconds(timestamp))
 	}()
 
-	// Get all the pods.
+	// Get all the pods. 调用runtime接口，获取所有容器，估计类似于 docker ps -a这么一个操作
 	podList, err := g.runtime.GetPods(true)
 	if err != nil {
 		klog.ErrorS(err, "GenericPLEG: Unable to retrieve pods")
 		return
 	}
 
+	// 通过容器运行时获取容器的状态如果没有错误，那么直接更新relistTime
 	g.updateRelistTime(timestamp)
 
 	pods := kubecontainer.Pods(podList)
-	// update running pod and container count
+	// update running pod and container count 顾名思义，就是更新Metric指标，包括每个pod的容器数量以及sandbox数量
 	updateRunningPodAndContainerMetrics(pods)
+	// 更新PLEG的内部缓存，记录所有容器当前的状态
 	g.podRecords.setCurrent(pods)
 
 	// Compare the old and the current pods, and generate events.
+	// 下面的代码逻辑就不难理解了，实际上就是对比old、current的状态，产生对应的事件就可以了
 	eventsByPodID := map[types.UID][]*PodLifecycleEvent{}
 	for pid := range g.podRecords {
 		oldPod := g.podRecords.getOld(pid)
@@ -222,6 +231,7 @@ func (g *GenericPLEG) relist() {
 		// Get all containers in the old and the new pod.
 		allContainers := getContainersFromPods(oldPod, pod)
 		for _, container := range allContainers {
+			// todo 计算产生事件的类型，这里才是PELG的核心部分
 			events := computeEvents(oldPod, pod, &container.ID)
 			for _, e := range events {
 				updateEvents(eventsByPodID, e)
@@ -237,6 +247,7 @@ func (g *GenericPLEG) relist() {
 	// If there are events associated with a pod, we should update the
 	// podCache.
 	for pid, events := range eventsByPodID {
+		// 获取容器的当前状态
 		pod := g.podRecords.getCurrent(pid)
 		if g.cacheEnabled() {
 			// updateCache() will inspect the pod and update the cache. If an
@@ -248,6 +259,7 @@ func (g *GenericPLEG) relist() {
 			// inspecting the pod and getting the PodStatus to update the cache
 			// serially may take a while. We should be aware of this and
 			// parallelize if needed.
+			// 从g.cache中先删除Pod，然后在通过CRI接口拆线呢当前容器的状态
 			if err := g.updateCache(pod, pid); err != nil {
 				// Rely on updateCache calling GetPodStatus to log the actual error.
 				klog.V(4).ErrorS(err, "PLEG: Ignoring events for pod", "pod", klog.KRef(pod.Namespace, pod.Name))
@@ -264,6 +276,7 @@ func (g *GenericPLEG) relist() {
 			}
 		}
 		// Update the internal storage and send out the events.
+		// 更新podRecords,主要是把current状态赋值给old状态，并且如果current为Nil,说明容器已经被删除，就不再需要保留podRecord
 		g.podRecords.update(pid)
 
 		// Map from containerId to exit code; used as a temporary cache for lookup
@@ -275,7 +288,7 @@ func (g *GenericPLEG) relist() {
 				continue
 			}
 			select {
-			case g.eventChannel <- events[i]:
+			case g.eventChannel <- events[i]: // TODO 容器所有的事件都发送到eventChannel中，kubelet #syncLoop中会处理这些事件
 			default:
 				metrics.PLEGDiscardEvents.Inc()
 				klog.ErrorS(nil, "Event channel is full, discard this relist() cycle event")
@@ -288,11 +301,13 @@ func (g *GenericPLEG) relist() {
 					status, err := g.cache.Get(pod.ID)
 					if err == nil {
 						for _, containerStatus := range status.ContainerStatuses {
+							// 记录容器的退出状态码
 							containerExitCode[containerStatus.ID.ID] = containerStatus.ExitCode
 						}
 					}
 				}
 				if containerID, ok := events[i].Data.(string); ok {
+					// 打印容器退出的状态码
 					if exitCode, ok := containerExitCode[containerID]; ok && pod != nil {
 						klog.V(2).InfoS("Generic (PLEG): container finished", "podID", pod.ID, "containerID", containerID, "exitCode", exitCode)
 					}
@@ -333,6 +348,7 @@ func getContainersFromPods(pods ...*kubecontainer.Pod) []*kubecontainer.Containe
 		for _, c := range p.Containers {
 			cid := string(c.ID.ID)
 			if cidSet.Has(cid) {
+				// 已经保存过，直接跳出，因为current和old极有可能都不为nil，所以里面的容器应该是相同的
 				continue
 			}
 			cidSet.Insert(cid)
@@ -360,7 +376,10 @@ func computeEvents(oldPod, newPod *kubecontainer.Pod, cid *kubecontainer.Contain
 	} else if newPod != nil {
 		pid = newPod.ID
 	}
+
+	// 当前容器在old Pod中的状态
 	oldState := getContainerState(oldPod, cid)
+	// 当前容器在new Pod中的状态
 	newState := getContainerState(newPod, cid)
 	return generateEvents(pid, cid.ID, oldState, newState)
 }
@@ -449,6 +468,7 @@ func getContainerState(pod *kubecontainer.Pod, cid *kubecontainer.ContainerID) p
 	return state
 }
 
+// 这里的名字取得很不错，直接根据名字就能看到函数里面具体的内容，值得学习
 func updateRunningPodAndContainerMetrics(pods []*kubecontainer.Pod) {
 	runningSandboxNum := 0
 	// intermediate map to store the count of each "container_state"
@@ -463,6 +483,7 @@ func updateRunningPodAndContainerMetrics(pods []*kubecontainer.Pod) {
 
 		sandboxes := pod.Sandboxes
 
+		// todo container和sandbox有啥关系？
 		for _, sandbox := range sandboxes {
 			if sandbox.State == kubecontainer.ContainerStateRunning {
 				runningSandboxNum++
@@ -497,12 +518,14 @@ func (pr podRecords) getCurrent(id types.UID) *kubecontainer.Pod {
 
 func (pr podRecords) setCurrent(pods []*kubecontainer.Pod) {
 	for i := range pr {
+		// 先把所有容器的current置为Nil，这个动作是必须的，必须把每个pod的current状态设置为Nil,这样才能发现当前Pod已经被移除。
 		pr[i].current = nil
 	}
 	for _, pod := range pods {
 		if r, ok := pr[pod.ID]; ok {
-			r.current = pod
+			r.current = pod // 说明之前保存过该容器的状态，直接更新就是
 		} else {
+			// 说明用户后来新启动的容器，所以需要重新new podRecord对象
 			pr[pod.ID] = &podRecord{current: pod}
 		}
 	}
@@ -519,6 +542,7 @@ func (pr podRecords) update(id types.UID) {
 func (pr podRecords) updateInternal(id types.UID, r *podRecord) {
 	if r.current == nil {
 		// Pod no longer exists; delete the entry.
+		// 容器已经被删除了，所以留着podRecords也没啥用了
 		delete(pr, id)
 		return
 	}

@@ -314,8 +314,9 @@ type Status struct {
 	// Status of the container.
 	State State
 	// Creation time of the container.
+	// TODO 创建时间是从什么时候开始算？ replicaset创建pod的时候？ 还是scheduler真正把pod调度到某个节点上的时候
 	CreatedAt time.Time
-	// Start time of the container.
+	// Start time of the container. todo readiesness probe有返回值之后？
 	StartedAt time.Time
 	// Finish time of the container.
 	FinishedAt time.Time

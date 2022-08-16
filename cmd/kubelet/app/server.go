@@ -280,8 +280,8 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			// construct a KubeletServer from kubeletFlags and kubeletConfig
 			// 实例化KubeletServer, 净是些各种配置参数，估计得有上百个
 			kubeletServer := &options.KubeletServer{
-				KubeletFlags:         *kubeletFlags,
-				KubeletConfiguration: *kubeletConfig,
+				KubeletFlags:         *kubeletFlags,  // 从命令行中获取的配置参数
+				KubeletConfiguration: *kubeletConfig, // 从配置文件中获取到的配置参数
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
@@ -461,6 +461,7 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 func Run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) error {
 	// To help debugging, immediately log version
 	klog.InfoS("Kubelet version", "kubeletVersion", version.Get())
+	// 执行不同的OS的初始化操作，从代码来看，目前只有windows平台需要初始化
 	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil {
 		return fmt.Errorf("failed OS init: %w", err)
 	}
@@ -539,6 +540,7 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 // 4、启动dockershim、创建runtimeService、runtimeImageService
 func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
+	// 设置一些特性功能，K8S中叫做feature gate,实际上就是一些功能的开关，可以通过在启动kubelet的时候传递相应的参数打开或者关闭
 	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
 	if err != nil {
 		return err
@@ -586,7 +588,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// About to get clients and such, detect standaloneMode
 	standaloneMode := true
-	if len(s.KubeConfig) > 0 { // 若在启动kubelet之时，没有指定配置文件，就认为是standalone模式
+	if len(s.KubeConfig) > 0 { // 若在启动kubelet之时，没有指定配置文件，就认为是standalone模式，如果指定了kubeconfig文件，就认为是Api server模式
 		standaloneMode = false
 	}
 
@@ -613,10 +615,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// 获取hostname
 	hostName, err := nodeutil.GetHostname(s.HostnameOverride)
 	if err != nil {
 		return err
 	}
+	// 获取nodeName
 	nodeName, err := getNodeName(kubeDeps.Cloud, hostName)
 	if err != nil {
 		return err
@@ -641,6 +645,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 		kubeDeps.OnHeartbeatFailure = closeAllConns
 
+		// kubeclient会向Api Server发送节点的状态信息
 		kubeDeps.KubeClient, err = clientset.NewForConfig(clientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to initialize kubelet client: %w", err)
@@ -681,10 +686,11 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		runAuthenticatorCAReload(ctx.Done())
 	}
 
-	// 设置cgroupRoot
+	// 设置cgroupRoot, root cgroup可以有kubelet参数--cgroup-root指定，可选，比如可以指定为Systemd或者cgroupfs
 	var cgroupRoots []string
 	nodeAllocatableRoot := cm.NodeAllocatableRoot(s.CgroupRoot, s.CgroupsPerQOS, s.CgroupDriver)
 	cgroupRoots = append(cgroupRoots, nodeAllocatableRoot)
+	// kubelet cgroup可以通过--kubelet-cgroups指定，可选，默认是kubelet进程所在，可参考GetKubeletContainer函数
 	kubeletCgroup, err := cm.GetKubeletContainer(s.KubeletCgroups)
 	if err != nil {
 		klog.InfoS("Failed to get the kubelet's cgroup. Kubelet system container metrics may be missing.", "err", err)
@@ -693,6 +699,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// fixme 根据注释，这里主要是为了获取运行时容器的 CGroup, 感觉这里取得名字有问题，字面意思不就是获取运行时容器嘛
+	// runtime cgroup可以由--runtime-cgroups参数指定，一般使用docker进程所在
 	runtimeCgroup, err := cm.GetRuntimeContainer(s.ContainerRuntime, s.RuntimeCgroups)
 	if err != nil {
 		klog.InfoS("Failed to get the container runtime's cgroup. Runtime system container metrics may be missing.", "err", err)
@@ -701,6 +708,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		cgroupRoots = append(cgroupRoots, runtimeCgroup)
 	}
 
+	// system cgroup可以由kubelet的启动参数--system-cgroups指定
 	if s.SystemCgroups != "" {
 		// SystemCgroups is optional, so ignore if it isn't specified
 		cgroupRoots = append(cgroupRoots, s.SystemCgroups)

@@ -113,6 +113,7 @@ func newSystemCgroups(containerName string) (*systemContainer, error) {
 	}, nil
 }
 
+// container-manager中包含了很多子功能
 type containerManagerImpl struct {
 	sync.RWMutex
 	cadvisorInterface cadvisor.Interface

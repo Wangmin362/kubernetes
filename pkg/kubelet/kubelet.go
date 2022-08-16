@@ -1395,7 +1395,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 // initializeModules will initialize internal modules that do not require the container runtime to be up.
 // Note that the modules here must not depend on modules that are not initialized here.
 func (kl *Kubelet) initializeModules() error {
-	// Prometheus metrics.
+	// 注册Prometheus metrics.
 	metrics.Register(
 		collectors.NewVolumeStatsCollector(kl),
 		collectors.NewLogMetricsCollector(kl.StatsProvider.ListPodStats),
@@ -1486,6 +1486,7 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	// 注册logServer
 	if kl.logServer == nil {
+		// 初始化logServer，这是个net.http.FileServer，将/var/log挂载到HTTP的/logs路径下面
 		kl.logServer = http.StripPrefix("/logs/", http.FileServer(http.Dir("/var/log/")))
 	}
 	if kl.kubeClient == nil {

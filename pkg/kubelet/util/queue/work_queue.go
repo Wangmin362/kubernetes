@@ -28,8 +28,10 @@ import (
 // considered ready to process if the timestamp has expired.
 type WorkQueue interface {
 	// GetWork dequeues and returns all ready items.
+	// 获取当前时刻所有已经到时间的Pod
 	GetWork() []types.UID
 	// Enqueue inserts a new item or overwrites an existing item.
+	// 期望delay时间之后处理这个Pod
 	Enqueue(item types.UID, delay time.Duration)
 }
 
@@ -53,7 +55,7 @@ func (q *basicWorkQueue) GetWork() []types.UID {
 	now := q.clock.Now()
 	var items []types.UID
 	for k, v := range q.queue {
-		if v.Before(now) {
+		if v.Before(now) { // 把所有到时间的Pod的拿出来
 			items = append(items, k)
 			delete(q.queue, k)
 		}

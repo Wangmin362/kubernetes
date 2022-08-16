@@ -668,15 +668,15 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	// 工作队列
 	klet.workQueue = queue.NewBasicWorkQueue(klet.clock)
 	klet.podWorkers = newPodWorkers(
-		klet.syncPod,
-		klet.syncTerminatingPod,
-		klet.syncTerminatedPod,
+		klet.syncPod,            // 同步Pod的方法
+		klet.syncTerminatingPod, // 同步正在结束的Pod
+		klet.syncTerminatedPod,  // 同步已经结束的Pod
 
-		kubeDeps.Recorder,
-		klet.workQueue,
-		klet.resyncInterval,
-		backOffPeriod,
-		klet.podCache,
+		kubeDeps.Recorder,   // 事件记录器
+		klet.workQueue,      // 记录Pod
+		klet.resyncInterval, // 重新同步的事件间隔，由kubelet参数 --sync-frequency控制
+		backOffPeriod,       // 备份周期，默认10s中
+		klet.podCache,       // Pod Status的Map
 	)
 
 	// kubelet通用运行时管理器

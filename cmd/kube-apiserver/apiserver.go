@@ -29,6 +29,7 @@ import (
 )
 
 func main() {
+	// apiserver的入口函数
 	command := app.NewAPIServerCommand()
 	code := cli.Run(command)
 	os.Exit(code)

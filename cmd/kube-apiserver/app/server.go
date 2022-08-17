@@ -124,21 +124,23 @@ cluster's shared state through which all other components interact.`,
 			}
 			cliflag.PrintFlags(fs)
 
+			// 校验端口是否为0
 			err := checkNonZeroInsecurePort(fs)
 			if err != nil {
 				return err
 			}
-			// set default options
+			// set default options 参数补全，设置默认值
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err
 			}
 
-			// validate options
+			// validate options 校验补全后的参数
 			if errs := completedOptions.Validate(); len(errs) != 0 {
 				return utilerrors.NewAggregate(errs)
 			}
 
+			// genericapiserver.SetupSignalHandler()处理sigint信号
 			return Run(completedOptions, genericapiserver.SetupSignalHandler())
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -171,11 +173,13 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 	// To help debugging, immediately log version
 	klog.Infof("Version: %+v", version.Get())
 
+	// 创建服务链：aggregate server -> api-server(master server) -> extension server -> notFoundHandler (相当于一个兜底)
 	server, err := CreateServerChain(completeOptions, stopCh)
 	if err != nil {
 		return err
 	}
 
+	// OpenApi 规范
 	prepared, err := server.PrepareRun()
 	if err != nil {
 		return err
@@ -186,12 +190,14 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions, stopCh <-chan struct{}) (*aggregatorapiserver.APIAggregator, error) {
+	// 创建kube-apiserver的配置
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	// If additional API servers are added, they should be gated.
+	// 创建extension server的配置
 	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers, pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount,
 		serviceResolver, webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport, kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, kubeAPIServerConfig.GenericConfig.TracerProvider))
 	if err != nil {

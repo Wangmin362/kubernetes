@@ -103,6 +103,7 @@ type VolumeManager interface {
 	// actual state of the world).
 	// An error is returned if all volumes are not attached and mounted within
 	// the duration defined in podAttachAndMountTimeout.
+	// todo 如何理解attach和mount这两个动作的区别？
 	WaitForAttachAndMount(pod *v1.Pod) error
 
 	// WaitForUnmount processes the volumes referenced in the specified

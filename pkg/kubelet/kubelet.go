@@ -824,19 +824,19 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	// setup volumeManager 创建VolumeManager
 	klet.volumeManager = volumemanager.NewVolumeManager(
-		kubeCfg.EnableControllerAttachDetach,
-		nodeName,
-		klet.podManager,
-		klet.podWorkers,
-		klet.kubeClient,
-		klet.volumePluginMgr,
-		klet.containerRuntime,
-		kubeDeps.Mounter,
-		kubeDeps.HostUtil,
-		klet.getPodsDir(),
-		kubeDeps.Recorder,
-		experimentalCheckNodeCapabilitiesBeforeMount,
-		keepTerminatedPodVolumes,
+		kubeCfg.EnableControllerAttachDetach, // 是否允许Attach/Detach Controller管理Volume的attachment以及detachment
+		nodeName,                             // 节点名称
+		klet.podManager,                      //
+		klet.podWorkers,                      //
+		klet.kubeClient,                      // api-server client，用于和api-server交互
+		klet.volumePluginMgr,                 // volume插件管理器
+		klet.containerRuntime,                //
+		kubeDeps.Mounter,                     // 挂载器，用于挂载和卸载Volume
+		kubeDeps.HostUtil,                    //
+		klet.getPodsDir(),                    //
+		kubeDeps.Recorder,                    // event 事件记录器
+		experimentalCheckNodeCapabilitiesBeforeMount, //
+		keepTerminatedPodVolumes,                     // 是否保留已经死亡的Pod的挂载卷
 		volumepathhandler.NewBlockVolumePathHandler())
 
 	klet.backOff = flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)

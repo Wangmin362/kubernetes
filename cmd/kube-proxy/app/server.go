@@ -95,7 +95,7 @@ const (
 	proxyModeUserspace   = "userspace"
 	proxyModeIPTables    = "iptables"
 	proxyModeIPVS        = "ipvs"
-	proxyModeKernelspace = "kernelspace" //nolint:deadcode,varcheck
+	proxyModeKernelspace = "kernelspace" //nolint:deadcode,varcheck 为了支持windows
 )
 
 // proxyRun defines the interface to run a specified ProxyServer
@@ -107,9 +107,9 @@ type proxyRun interface {
 // Options contains everything necessary to create and run a proxy server.
 type Options struct {
 	// ConfigFile is the location of the proxy server's configuration file.
-	ConfigFile string
+	ConfigFile string // kube-proxy的配置文件所在位置
 	// WriteConfigTo is the path where the default configuration will be written.
-	WriteConfigTo string
+	WriteConfigTo string // kube-proxy的默认配置写入的地方
 	// CleanupAndExit, when true, makes the proxy server clean up iptables and ipvs rules, then exit.
 	CleanupAndExit bool
 	// WindowsService should be set to true if kube-proxy is running as a service on Windows.
@@ -130,6 +130,7 @@ type Options struct {
 	// TODO remove these fields once the deprecated flags are removed.
 
 	// master is used to override the kubeconfig's URL to the apiserver.
+	// todo 似乎说的是kubeconfig文件中的apiserver地址，什么情况下会用到该参数
 	master string
 	// healthzPort is the port to be used by the healthz server.
 	healthzPort int32
@@ -305,14 +306,17 @@ func (o *Options) Validate() error {
 func (o *Options) Run() error {
 	defer close(o.errCh)
 	if len(o.WriteConfigTo) > 0 {
+		// 如果指定了kube-proxy默认参数保存到文件的位置，那么就把默认参数写入到指定文件中
 		return o.writeConfigFile()
 	}
 
+	// 创建kube-proxy实例
 	proxyServer, err := NewProxyServer(o)
 	if err != nil {
 		return err
 	}
 
+	// 这个参数是用来干嘛的？ 感觉使用用于上一次启动Kube-proxy生成的iptables等等配置，倒像是一个清理的标志
 	if o.CleanupAndExit {
 		return proxyServer.CleanupAndExit()
 	}
@@ -325,6 +329,7 @@ func (o *Options) Run() error {
 // Return an error when updated
 func (o *Options) runLoop() error {
 	if o.watcher != nil {
+		// todo watcher监听的是啥？
 		o.watcher.Run()
 	}
 
@@ -483,10 +488,11 @@ with the apiserver API to configure the proxy.`,
 				return fmt.Errorf("failed os init: %w", err)
 			}
 
+			// 补全默认参数
 			if err := opts.Complete(); err != nil {
 				return fmt.Errorf("failed complete: %w", err)
 			}
-
+			// 校验参数
 			if err := opts.Validate(); err != nil {
 				return fmt.Errorf("failed validate: %w", err)
 			}
@@ -658,6 +664,7 @@ func (s *ProxyServer) Run() error {
 	// TODO(vmarmol): Use container config for this.
 	var oomAdjuster *oom.OOMAdjuster
 	if s.OOMScoreAdj != nil {
+		// OOM调整期，如果宿主机的内容使用完，那么再有新的容器申请内存，OOMAdjuster会按照一定的策略删除容器
 		oomAdjuster = oom.NewOOMAdjuster()
 		if err := oomAdjuster.ApplyOOMScoreAdj(0, int(*s.OOMScoreAdj)); err != nil {
 			klog.V(2).InfoS("Failed to apply OOMScore", "err", err)

@@ -109,6 +109,7 @@ type KubeProxyConfiguration struct {
 	metav1.TypeMeta
 
 	// featureGates is a map of feature names to bools that enable or disable alpha/experimental features.
+	// kube-proxy的特性开关，显然不可能传递任意的参数，只能传递kube-proxy各个版本支持的参数
 	FeatureGates map[string]bool
 
 	// bindAddress is the IP address for the proxy server to serve on (set to 0.0.0.0
@@ -116,9 +117,11 @@ type KubeProxyConfiguration struct {
 	BindAddress string
 	// healthzBindAddress is the IP address and port for the health check server to serve on,
 	// defaulting to 0.0.0.0:10256
+	// 健康检测
 	HealthzBindAddress string
 	// metricsBindAddress is the IP address and port for the metrics server to serve on,
 	// defaulting to 127.0.0.1:10249 (set to 0.0.0.0 for all interfaces)
+	// metric指标
 	MetricsBindAddress string
 	// BindAddressHardFail, if true, kube-proxy will treat failure to bind to a port as fatal and exit
 	BindAddressHardFail bool

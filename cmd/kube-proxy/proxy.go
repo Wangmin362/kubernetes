@@ -25,6 +25,7 @@ import (
 	"k8s.io/kubernetes/cmd/kube-proxy/app"
 )
 
+// kube-proxy入口
 func main() {
 	command := app.NewProxyCommand()
 	code := cli.Run(command)

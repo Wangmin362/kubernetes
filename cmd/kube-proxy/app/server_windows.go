@@ -73,6 +73,7 @@ func newProxyServer(config *proxyconfigapi.KubeProxyConfiguration, cleanupAndExi
 		metrics.SetShowHidden()
 	}
 
+	// client为api-server的客户端
 	client, eventClient, err := createClients(config.ClientConnection, master)
 	if err != nil {
 		return nil, err
@@ -103,6 +104,7 @@ func newProxyServer(config *proxyconfigapi.KubeProxyConfiguration, cleanupAndExi
 
 	var proxier proxy.Provider
 	proxyMode := getProxyMode(string(config.Mode), winkernel.WindowsKernelCompatTester{})
+	// 这里的双栈应该指的是IPV4 / IPV6双栈
 	dualStackMode := getDualStackMode(config.Winkernel.NetworkName, winkernel.DualStackCompatTester{})
 	if proxyMode == proxyModeKernelspace {
 		klog.V(0).InfoS("Using Kernelspace Proxier.")

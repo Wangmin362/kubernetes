@@ -540,7 +540,7 @@ type ProxyServer struct {
 	IpvsInterface          utilipvs.Interface
 	IpsetInterface         utilipset.Interface
 	execer                 exec.Interface
-	Proxier                proxy.Provider
+	Proxier                proxy.Provider // 目前有iptables, ipvs, userspace, winkernel, winuserspace这几种实现
 	Broadcaster            events.EventBroadcaster
 	Recorder               events.EventRecorder
 	ConntrackConfiguration kubeproxyconfig.KubeProxyConntrackConfiguration
@@ -683,14 +683,15 @@ func (s *ProxyServer) Run() error {
 		errCh = make(chan error)
 	}
 
-	// Start up a healthz server if requested
+	// Start up a healthz server if requested 健康服务
 	serveHealthz(s.HealthzServer, errCh)
 
-	// Start up a metrics server if requested
+	// Start up a metrics server if requested metric服务
 	serveMetrics(s.MetricsBindAddress, s.ProxyMode, s.EnableProfiling, errCh)
 
 	// Tune conntrack, if requested
 	// Conntracker is always nil for windows
+	// todo 可以具体看一下linux conntrack的用法，看后面的代码conntrack和tcp建立和关闭的超时时间有关
 	if s.Conntracker != nil {
 		max, err := getConntrackMax(s.ConntrackConfiguration)
 		if err != nil {
@@ -730,20 +731,24 @@ func (s *ProxyServer) Run() error {
 		}
 	}
 
+	// 排除标注了 service.kubernetes.io/service-proxy-name 注解的资源
 	noProxyName, err := labels.NewRequirement(apis.LabelServiceProxyName, selection.DoesNotExist, nil)
 	if err != nil {
 		return err
 	}
 
+	// 排除标注了 service.kubernetes.io/headless 注解的资源
 	noHeadlessEndpoints, err := labels.NewRequirement(v1.IsHeadlessService, selection.DoesNotExist, nil)
 	if err != nil {
 		return err
 	}
 
 	labelSelector := labels.NewSelector()
+	// 把上面两个匹配规则加入到标签选择器中
 	labelSelector = labelSelector.Add(*noProxyName, *noHeadlessEndpoints)
 
 	// Make informers that filter out objects that want a non-default service proxy.
+	// 这里的informer实际上可以理解为api-server的客户端，只不过informer内部有缓存而已
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(s.Client, s.ConfigSyncPeriod,
 		informers.WithTweakListOptions(func(options *metav1.ListOptions) {
 			options.LabelSelector = labelSelector.String()
@@ -753,25 +758,31 @@ func (s *ProxyServer) Run() error {
 	// Note: RegisterHandler() calls need to happen before creation of Sources because sources
 	// only notify on changes, and the initial update (on process start) may be lost if no handlers
 	// are registered yet.
+	// 按照上面的标签选择需要监听的Service，排除标注了service.kubernetes.io/service-proxy-name、service.kubernetes.io/headless的注解
 	serviceConfig := config.NewServiceConfig(informerFactory.Core().V1().Services(), s.ConfigSyncPeriod)
+	// TODO 这里的s.Proxier实际上就是kube-proxy代理模式的核心，不同的代理模式会建立不同的Proxier
 	serviceConfig.RegisterEventHandler(s.Proxier)
+	// 监听service的变动，让Proxier去处理
 	go serviceConfig.Run(wait.NeverStop)
 
 	if endpointsHandler, ok := s.Proxier.(config.EndpointsHandler); ok && !s.UseEndpointSlices {
 		endpointsConfig := config.NewEndpointsConfig(informerFactory.Core().V1().Endpoints(), s.ConfigSyncPeriod)
 		endpointsConfig.RegisterEventHandler(endpointsHandler)
+		// 监听endpoint的变化
 		go endpointsConfig.Run(wait.NeverStop)
 	} else {
 		endpointSliceConfig := config.NewEndpointSliceConfig(informerFactory.Discovery().V1().EndpointSlices(), s.ConfigSyncPeriod)
 		endpointSliceConfig.RegisterEventHandler(s.Proxier)
+		// 监听endpointSlice的变化
 		go endpointSliceConfig.Run(wait.NeverStop)
 	}
 
 	// This has to start after the calls to NewServiceConfig and NewEndpointsConfig because those
 	// functions must configure their shared informer event handlers first.
+	// 启动informerFactory，informerFactory启动之后service, endpoint, endpointSlice等资源的监听都会开始生效
 	informerFactory.Start(wait.NeverStop)
 
-	if utilfeature.DefaultFeatureGate.Enabled(features.TopologyAwareHints) {
+	if utilfeature.DefaultFeatureGate.Enabled(features.TopologyAwareHints) { // 是否开启了拓扑感知路由
 		// Make an informer that selects for our nodename.
 		currentNodeInformerFactory := informers.NewSharedInformerFactoryWithOptions(s.Client, s.ConfigSyncPeriod,
 			informers.WithTweakListOptions(func(options *metav1.ListOptions) {
@@ -779,6 +790,7 @@ func (s *ProxyServer) Run() error {
 			}))
 		nodeConfig := config.NewNodeConfig(currentNodeInformerFactory.Core().V1().Nodes(), s.ConfigSyncPeriod)
 		nodeConfig.RegisterEventHandler(s.Proxier)
+		// 监听Node的变化
 		go nodeConfig.Run(wait.NeverStop)
 
 		// This has to start after the calls to NewNodeConfig because that must
@@ -787,6 +799,7 @@ func (s *ProxyServer) Run() error {
 	}
 
 	// Birth Cry after the birth is successful
+	// 名字很形象 道理这里，就说明kube-proxy已经开始正常运行了
 	s.birthCry()
 
 	go s.Proxier.SyncLoop()

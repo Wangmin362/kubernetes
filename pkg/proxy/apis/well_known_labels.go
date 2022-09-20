@@ -19,5 +19,6 @@ package apis
 const (
 	// LabelServiceProxyName indicates that an alternative service
 	// proxy will implement this Service.
+	// todo 哪些Pod会标注这个注解？
 	LabelServiceProxyName = "service.kubernetes.io/service-proxy-name"
 )

@@ -297,9 +297,9 @@ func NewServiceConfig(serviceInformer coreinformers.ServiceInformer, resyncPerio
 
 	serviceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    result.handleAddService,
-			UpdateFunc: result.handleUpdateService,
-			DeleteFunc: result.handleDeleteService,
+			AddFunc:    result.handleAddService,    // 新增service
+			UpdateFunc: result.handleUpdateService, // 更新service
+			DeleteFunc: result.handleDeleteService, // 删除service
 		},
 		resyncPeriod,
 	)

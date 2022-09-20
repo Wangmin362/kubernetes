@@ -99,10 +99,12 @@ func newProxyServer(config *proxyconfigapi.KubeProxyConfiguration, cleanupAndExi
 
 	var healthzServer healthcheck.ProxierHealthUpdater
 	if len(config.HealthzBindAddress) > 0 {
+		// 新建健康检测Server
 		healthzServer = healthcheck.NewProxierHealthServer(config.HealthzBindAddress, 2*config.IPTables.SyncPeriod.Duration, recorder, nodeRef)
 	}
 
 	var proxier proxy.Provider
+	// 获取kube-proxy的代理模式，一般为：userspace, iptables, ipvs
 	proxyMode := getProxyMode(string(config.Mode), winkernel.WindowsKernelCompatTester{})
 	// 这里的双栈应该指的是IPV4 / IPV6双栈
 	dualStackMode := getDualStackMode(config.Winkernel.NetworkName, winkernel.DualStackCompatTester{})

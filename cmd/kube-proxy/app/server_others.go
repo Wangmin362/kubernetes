@@ -78,6 +78,7 @@ func NewProxyServer(o *Options) (*ProxyServer, error) {
 }
 
 func newProxyServer(
+	// kube-proxy配置
 	config *proxyconfigapi.KubeProxyConfiguration,
 	cleanupAndExit bool,
 	master string) (*ProxyServer, error) {
@@ -102,7 +103,9 @@ func newProxyServer(
 
 	kernelHandler = ipvs.NewLinuxKernelHandler()
 	ipsetInterface = utilipset.New(execer)
+	//判断是否可以使用IPVS
 	canUseIPVS, err := ipvs.CanUseIPVSProxier(kernelHandler, ipsetInterface, config.IPVS.Scheduler)
+	// 如果用户要求kube-proxy以IPVS的方式启动，这里检测到物理主机并不能支持使用IPVS，则直接退出
 	if string(config.Mode) == proxyModeIPVS && err != nil {
 		klog.ErrorS(err, "Can't use the IPVS proxier")
 	}
@@ -129,6 +132,7 @@ func newProxyServer(
 		return nil, err
 	}
 
+	// api-server的客户端，kube-proxy在使用的时候实际上并不是直接调用api-server，而是通过informer的方式间接调用api-server
 	client, eventClient, err := createClients(config.ClientConnection, master)
 	if err != nil {
 		return nil, err
@@ -150,13 +154,16 @@ func newProxyServer(
 
 	var healthzServer healthcheck.ProxierHealthUpdater
 	if len(config.HealthzBindAddress) > 0 {
+		// 健康检测服务
 		healthzServer = healthcheck.NewProxierHealthServer(config.HealthzBindAddress, 2*config.IPTables.SyncPeriod.Duration, recorder, nodeRef)
 	}
 
 	var proxier proxy.Provider
 	var detectLocalMode proxyconfigapi.LocalMode
 
+	// 获取kube-proxy代理模式
 	proxyMode := getProxyMode(string(config.Mode), canUseIPVS, iptables.LinuxKernelCompatTester{})
+	// TODO ClusterCIDR和NodeCIDR有啥区别？
 	detectLocalMode, err = getDetectLocalMode(config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine detect-local-mode: %v", err)
@@ -165,6 +172,7 @@ func newProxyServer(
 	var nodeInfo *v1.Node
 	if detectLocalMode == proxyconfigapi.LocalModeNodeCIDR {
 		klog.InfoS("Watching for node, awaiting podCIDR allocation", "hostname", hostname)
+		// TODO 暂时没有看懂这里到底是在干嘛
 		nodeInfo, err = waitForPodCIDR(client, hostname)
 		if err != nil {
 			return nil, err
@@ -195,7 +203,7 @@ func newProxyServer(
 		}
 
 		for _, perFamilyIpt := range ipt {
-			if !perFamilyIpt.Present() {
+			if !perFamilyIpt.Present() { // 检测Node是否支持双栈
 				klog.V(0).InfoS("kube-proxy running in single-stack mode, this ipFamily is not supported", "ipFamily", perFamilyIpt.Protocol())
 				dualStack = false
 			}
@@ -204,12 +212,13 @@ func newProxyServer(
 
 	if proxyMode == proxyModeIPTables {
 		klog.V(0).InfoS("Using iptables Proxier")
+		// TODO linux iptables masquerade到底是怎么玩的？
 		if config.IPTables.MasqueradeBit == nil {
 			// MasqueradeBit must be specified or defaulted.
 			return nil, fmt.Errorf("unable to read IPTables MasqueradeBit from config")
 		}
 
-		if dualStack {
+		if dualStack { // 启用双栈
 			klog.V(0).InfoS("kube-proxy running in dual-stack mode", "ipFamily", iptInterface.Protocol())
 			klog.V(0).InfoS("Creating dualStackProxier for iptables")
 			// Always ordered to match []ipt
@@ -340,6 +349,7 @@ func newProxyServer(
 		}
 		proxymetrics.RegisterMetrics()
 	} else {
+		// 使用userspace代理模式，目前K8S官方已经不在建议使用该模式了，原因是效率太低了
 		klog.V(0).InfoS("Using userspace Proxier")
 		klog.V(0).InfoS("The userspace proxier is now deprecated and will be removed in a future release, please use 'iptables' or 'ipvs' instead")
 
@@ -390,14 +400,16 @@ func newProxyServer(
 	}, nil
 }
 
+// TODO 没有看懂这里到底是在干嘛
 func waitForPodCIDR(client clientset.Interface, nodeName string) (*v1.Node, error) {
 	// since allocators can assign the podCIDR after the node registers, we do a watch here to wait
 	// for podCIDR to be assigned, instead of assuming that the Get() on startup will have it.
 	ctx, cancelFunc := context.WithTimeout(context.TODO(), timeoutForNodePodCIDR)
 	defer cancelFunc()
 
+	// 每个Worker都会跑一个kube-proxy，因此每个Worker只需要负责自己运行的物理阶段即可
 	fieldSelector := fields.OneTermEqualSelector("metadata.name", nodeName).String()
-	lw := &cache.ListWatch{
+	lw := &cache.ListWatch{ // 监听Node
 		ListFunc: func(options metav1.ListOptions) (object runtime.Object, e error) {
 			options.FieldSelector = fieldSelector
 			return client.CoreV1().Nodes().List(ctx, options)

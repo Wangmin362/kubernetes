@@ -527,6 +527,7 @@ func (proxier *Proxier) Sync() {
 func (proxier *Proxier) SyncLoop() {
 	// Update healthz timestamp at beginning in case Sync() never succeeds.
 	if proxier.healthzServer != nil {
+		// 这里应该可以理解为心跳检测，如果kube-proxy进程还活着，那么就向上报告一次，这里的实现就是把当前时间写入到缓存当中
 		proxier.healthzServer.Updated()
 	}
 

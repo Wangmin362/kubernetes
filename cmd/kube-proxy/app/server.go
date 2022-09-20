@@ -802,6 +802,8 @@ func (s *ProxyServer) Run() error {
 	// 名字很形象 道理这里，就说明kube-proxy已经开始正常运行了
 	s.birthCry()
 
+	// 启动代理，对于iptable proxier来说，实际上就是根据service以及endpoint的变动去不断的重建iptable规则
+	// 对于ipvs proxier来说，应该可以理解为通过ipvsadm去建立ipvs规则
 	go s.Proxier.SyncLoop()
 
 	return <-errCh

@@ -111,6 +111,7 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 
 	// Activate logging as soon as possible, after that
 	// show flags with the final logging configuration.
+	// 校验参数
 	if err := opts.Logs.ValidateAndApply(); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
@@ -120,11 +121,13 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	go func() {
+		// 处理 sigint, segterm 信号
 		stopCh := server.SetupSignalHandler()
 		<-stopCh
 		cancel()
 	}()
 
+	// 新建kube-scheduler调度器
 	cc, sched, err := Setup(ctx, opts, registryOptions...)
 	if err != nil {
 		return err
@@ -176,14 +179,14 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 		}
 	}
 
-	// Start all informers.
+	// Start all informers. 这个informer监听了那些资源呢？
 	cc.InformerFactory.Start(ctx.Done())
 	// DynInformerFactory can be nil in tests.
 	if cc.DynInformerFactory != nil {
 		cc.DynInformerFactory.Start(ctx.Done())
 	}
 
-	// Wait for all caches to sync before scheduling.
+	// Wait for all caches to sync before scheduling. informer本地缓存同步
 	cc.InformerFactory.WaitForCacheSync(ctx.Done())
 	// DynInformerFactory can be nil in tests.
 	if cc.DynInformerFactory != nil {
@@ -292,6 +295,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		opts.ComponentConfig = cfg
 	}
 
+	// 参数校验
 	if errs := opts.Validate(); len(errs) > 0 {
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
@@ -302,6 +306,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	}
 
 	// Get the completed config
+	// 默认参数补全
 	cc := c.Complete()
 
 	outOfTreeRegistry := make(runtime.Registry)
@@ -311,7 +316,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		}
 	}
 
-	recorderFactory := getRecorderFactory(&cc)
+	recorderFactory := getRecorderFactory(&cc) // 实际上就是为了获取EventRecorder，用于记录事件
 	completedProfiles := make([]kubeschedulerconfig.KubeSchedulerProfile, 0)
 	// Create the scheduler.
 	sched, err := scheduler.New(cc.Client,

@@ -300,6 +300,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
+	// 读取ops配置
 	c, err := opts.Config()
 	if err != nil {
 		return nil, nil, err

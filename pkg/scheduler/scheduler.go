@@ -423,12 +423,13 @@ var (
 
 // scheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting.
 func (sched *Scheduler) scheduleOne(ctx context.Context) {
-	podInfo := sched.NextPod()
+	podInfo := sched.NextPod() // 获取到下一个需要被调度的Pod
 	// pod could be nil when schedulerQueue is closed
 	if podInfo == nil || podInfo.Pod == nil {
 		return
 	}
 	pod := podInfo.Pod
+	// 获取pod指定的调度器，如果pod的yaml没有指定需要使用的调度器，那么会默认使用default-scheduler调度器
 	fwk, err := sched.frameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only accept for scheduling the pods
@@ -436,6 +437,9 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		klog.ErrorS(err, "Error occurred")
 		return
 	}
+	// 通过Pod指定的调度器，判断当前pod是否需要被调度，目前两看，有两种情况下Pod不会进行调度
+	// 1、pod已经被删除了，这种情况合情合理，被删除的pod显然不需要被调度
+	// TODO 2、当前pod是一个 assume pod, 那么 assume pod是什么Pod?
 	if sched.skipPodSchedule(fwk, pod) {
 		return
 	}
@@ -444,7 +448,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 
 	// Synchronously attempt to find a fit for the pod.
 	start := time.Now()
-	state := framework.NewCycleState()
+	state := framework.NewCycleState() // 进入到一个新的调度周期
 	state.SetRecordPluginMetrics(rand.Intn(100) < pluginMetricsSamplePercent)
 	// Initialize an empty podsToActivate struct, which will be filled up by plugins or stay empty.
 	podsToActivate := framework.NewPodsToActivate()
@@ -452,6 +456,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	// todo 这里具体的实现细节是怎样的？
 	scheduleResult, err := sched.Algorithm.Schedule(schedulingCycleCtx, sched.Extenders, fwk, state, pod)
 	if err != nil {
 		// Schedule() may have failed because the pod would not fit on any host, so we try to
@@ -487,6 +492,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 			klog.ErrorS(err, "Error selecting node for pod", "pod", klog.KObj(pod))
 			metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))
 		}
+		// 不管怎么样，总归是调度失败了
 		sched.recordSchedulingFailure(fwk, podInfo, err, v1.PodReasonUnschedulable, nominatingInfo)
 		return
 	}
@@ -496,6 +502,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	assumedPodInfo := podInfo.DeepCopy()
 	assumedPod := assumedPodInfo.Pod
 	// assume modifies `assumedPod` by setting NodeName=scheduleResult.SuggestedHost
+	// todo 这里究竟是再干嘛？
 	err = sched.assume(assumedPod, scheduleResult.SuggestedHost)
 	if err != nil {
 		metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))
@@ -548,6 +555,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	}
 
 	// bind the pod to its host asynchronously (we can do this b/c of the assumption step above).
+	// 并发绑定
 	go func() {
 		bindingCycleCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -647,6 +655,7 @@ func getAttemptsLabel(p *framework.QueuedPodInfo) string {
 }
 
 func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error) {
+	// pod可以通过 spec.SchedulerName指定需要使用的调度器，用户可以执行配置，并且在pod中指定
 	fwk, ok := sched.Profiles[pod.Spec.SchedulerName]
 	if !ok {
 		return nil, fmt.Errorf("profile not found for scheduler name %q", pod.Spec.SchedulerName)
@@ -656,7 +665,7 @@ func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error
 
 // skipPodSchedule returns true if we could skip scheduling the pod for specified cases.
 func (sched *Scheduler) skipPodSchedule(fwk framework.Framework, pod *v1.Pod) bool {
-	// Case 1: pod is being deleted.
+	// Case 1: pod is being deleted. 如果pod已经被删除了，那么该pod肯定不需要再被调度
 	if pod.DeletionTimestamp != nil {
 		fwk.EventRecorder().Eventf(pod, nil, v1.EventTypeWarning, "FailedScheduling", "Scheduling", "skip schedule deleting pod: %v/%v", pod.Namespace, pod.Name)
 		klog.V(3).InfoS("Skip schedule deleting pod", "pod", klog.KObj(pod))
@@ -666,6 +675,7 @@ func (sched *Scheduler) skipPodSchedule(fwk framework.Framework, pod *v1.Pod) bo
 	// Case 2: pod that has been assumed could be skipped.
 	// An assumed pod can be added again to the scheduling queue if it got an update event
 	// during its previous scheduling cycle but before getting assumed.
+	// TODO 什么叫 assume pod ?
 	isAssumed, err := sched.SchedulerCache.IsAssumedPod(pod)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("failed to check whether pod %s/%s is assumed: %v", pod.Namespace, pod.Name, err))

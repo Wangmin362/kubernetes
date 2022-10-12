@@ -27,6 +27,8 @@ import (
 )
 
 func main() {
+	// 生成了一个KubeScheduler示例
+	// TODO 用户自行开发的Plugin是如何注册到 kube-scheduler中的？ kube-scheduler是如何调用的自定义插件的？
 	command := app.NewSchedulerCommand()
 	code := cli.Run(command)
 	os.Exit(code)

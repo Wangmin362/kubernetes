@@ -42,6 +42,7 @@ func (pl *PrioritySort) Name() string {
 func (pl *PrioritySort) Less(pInfo1, pInfo2 *framework.QueuedPodInfo) bool {
 	p1 := corev1helpers.PodPriority(pInfo1.Pod)
 	p2 := corev1helpers.PodPriority(pInfo2.Pod)
+	// 默认的QueueSortPlugin是按照Pod的优先级排序，如果两个Pod的优先级相等，那么先创建的就优先
 	return (p1 > p2) || (p1 == p2 && pInfo1.Timestamp.Before(pInfo2.Timestamp))
 }
 

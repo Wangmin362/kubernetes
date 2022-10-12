@@ -74,12 +74,14 @@ type PreEnqueueCheck func(pod *v1.Pod) bool
 // SchedulingQueue is an interface for a queue to store pods waiting to be scheduled.
 // The interface follows a pattern similar to cache.FIFO and cache.Heap and
 // makes it easy to use those data structures as a SchedulingQueue.
+// 所有未调度的Pod会被放入到SchedulingQueue当中
 type SchedulingQueue interface {
 	framework.PodNominator
 	Add(pod *v1.Pod) error
 	// Activate moves the given pods to activeQ iff they're in unschedulableQ or backoffQ.
 	// The passed-in pods are originally compiled from plugins that want to activate Pods,
 	// by injecting the pods through a reserved CycleState struct (PodsToActivate).
+	// TODO 所谓的激活，实际上就是把一个Pod从backoffQ或者unschedulerQ中移动到activeQ中
 	Activate(pods map[string]*v1.Pod)
 	// AddUnschedulableIfNotPresent adds an unschedulable pod back to scheduling queue.
 	// The podSchedulingCycle represents the current scheduling cycle number which can be
@@ -150,6 +152,7 @@ type PriorityQueue struct {
 	unschedulableQ *UnschedulablePodsMap
 	// schedulingCycle represents sequence number of scheduling cycle and is incremented
 	// when a pod is popped.
+	// 用于记录kube-scheduler已经调度了多少个pod
 	schedulingCycle int64
 	// moveRequestCycle caches the sequence number of scheduling cycle when we
 	// received a move request. Unschedulable pods in and before this scheduling
@@ -274,7 +277,9 @@ func NewPriorityQueue(
 
 // Run starts the goroutine to pump from podBackoffQ to activeQ
 func (p *PriorityQueue) Run() {
+	// 把backoffQ中的元素取出来放入到AcitveQ中
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
+	// 把unschedulerQueue中超过1分钟以上还未被调度的Pod放入到backoffQueue或者ActiveQueue中
 	go wait.Until(p.flushUnschedulableQLeftover, 30*time.Second, p.stop)
 }
 
@@ -419,13 +424,15 @@ func (p *PriorityQueue) flushBackoffQCompleted() {
 		pod := rawPodInfo.(*framework.QueuedPodInfo).Pod
 		boTime := p.getBackoffTime(rawPodInfo.(*framework.QueuedPodInfo))
 		if boTime.After(p.clock.Now()) {
+			// 说明当前pod还没有到时间，直接返回
 			return
 		}
-		_, err := p.podBackoffQ.Pop()
+		_, err := p.podBackoffQ.Pop() // 从堆中取出堆顶元素
 		if err != nil {
 			klog.ErrorS(err, "Unable to pop pod from backoff queue despite backoff completion", "pod", klog.KObj(pod))
 			return
 		}
+		// 从backoffQ中取出来的Pod放入到activeQ当中
 		p.activeQ.Add(rawPodInfo)
 		metrics.SchedulerQueueIncomingPods.WithLabelValues("active", BackoffComplete).Inc()
 		defer p.cond.Broadcast()
@@ -440,6 +447,7 @@ func (p *PriorityQueue) flushUnschedulableQLeftover() {
 
 	var podsToMove []*framework.QueuedPodInfo
 	currentTime := p.clock.Now()
+	// 遍历所有的unschedulerQ中的元素，如果发现Pod已经超过1分钟没有调度，那么就把这个pod放入到activeQueue或者backoffQueue中
 	for _, pInfo := range p.unschedulableQ.podInfoMap {
 		lastScheduleTime := pInfo.Timestamp
 		if currentTime.Sub(lastScheduleTime) > unschedulableQTimeInterval {
@@ -611,13 +619,16 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 		moved = true
 		pod := pInfo.Pod
 		if p.isPodBackingoff(pInfo) {
+			// pod还没有到时间，放入到backoffQueue中
 			if err := p.podBackoffQ.Add(pInfo); err != nil {
 				klog.ErrorS(err, "Error adding pod to the backoff queue", "pod", klog.KObj(pod))
 			} else {
+				// 说明成功的把当前pInfo这个Pod放入到backoffQueue中
 				metrics.SchedulerQueueIncomingPods.WithLabelValues("backoff", event.Label).Inc()
 				p.unschedulableQ.delete(pod)
 			}
 		} else {
+			// pod到时间了，就把当前pod放入到activeQueue中等待调度
 			if err := p.activeQ.Add(pInfo); err != nil {
 				klog.ErrorS(err, "Error adding pod to the scheduling queue", "pod", klog.KObj(pod))
 			} else {
@@ -628,6 +639,7 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 	}
 	p.moveRequestCycle = p.schedulingCycle
 	if moved {
+		// todo 这里应该是在通知某些携程开始工作，某些unscheudlerQueue中的pod会被丢到activeQueue中
 		p.cond.Broadcast()
 	}
 }

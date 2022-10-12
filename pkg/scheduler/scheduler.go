@@ -448,15 +448,19 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 
 	// Synchronously attempt to find a fit for the pod.
 	start := time.Now()
+	// todo CycleState如何理解？ 作用用户，如何利用CycleState存储数据,方便其他插件共享数据
 	state := framework.NewCycleState() // 进入到一个新的调度周期
 	state.SetRecordPluginMetrics(rand.Intn(100) < pluginMetricsSamplePercent)
 	// Initialize an empty podsToActivate struct, which will be filled up by plugins or stay empty.
+	// todo 我猜测应该是进入到activeQueue中的Pod
 	podsToActivate := framework.NewPodsToActivate()
+	// 把ActiveQueue整个map放入到共享数据当中
 	state.Write(framework.PodsToActivateKey, podsToActivate)
 
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	// todo 这里具体的实现细节是怎样的？
+	// todo 这里的Algorithm是如何初始化的？
 	scheduleResult, err := sched.Algorithm.Schedule(schedulingCycleCtx, sched.Extenders, fwk, state, pod)
 	if err != nil {
 		// Schedule() may have failed because the pod would not fit on any host, so we try to

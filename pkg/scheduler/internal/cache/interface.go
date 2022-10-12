@@ -31,43 +31,46 @@ import (
 //
 // State Machine of a pod's events in scheduler's cache:
 //
+//	+-------------------------------------------+  +----+
+//	|                            Add            |  |    |
+//	|                                           |  |    | Update
+//	+      Assume                Add            v  v    |
 //
-//   +-------------------------------------------+  +----+
-//   |                            Add            |  |    |
-//   |                                           |  |    | Update
-//   +      Assume                Add            v  v    |
-//Initial +--------> Assumed +------------+---> Added <--+
-//   ^                +   +               |       +
-//   |                |   |               |       |
-//   |                |   |           Add |       | Remove
-//   |                |   |               |       |
-//   |                |   |               +       |
-//   +----------------+   +-----------> Expired   +----> Deleted
-//         Forget             Expire
+// Initial +--------> Assumed +------------+---> Added <--+
 //
+//	^                +   +               |       +
+//	|                |   |               |       |
+//	|                |   |           Add |       | Remove
+//	|                |   |               |       |
+//	|                |   |               +       |
+//	+----------------+   +-----------> Expired   +----> Deleted
+//	      Forget             Expire
 //
 // Note that an assumed pod can expire, because if we haven't received Add event notifying us
 // for a while, there might be some problems and we shouldn't keep the pod in cache anymore.
 //
 // Note that "Initial", "Expired", and "Deleted" pods do not actually exist in cache.
 // Based on existing use cases, we are making the following assumptions:
-// - No pod would be assumed twice
-// - A pod could be added without going through scheduler. In this case, we will see Add but not Assume event.
-// - If a pod wasn't added, it wouldn't be removed or updated.
-// - Both "Expired" and "Deleted" are valid end states. In case of some problems, e.g. network issue,
-//   a pod might have changed its state (e.g. added and deleted) without delivering notification to the cache.
+//   - No pod would be assumed twice
+//   - A pod could be added without going through scheduler. In this case, we will see Add but not Assume event.
+//   - If a pod wasn't added, it wouldn't be removed or updated.
+//   - Both "Expired" and "Deleted" are valid end states. In case of some problems, e.g. network issue,
+//     a pod might have changed its state (e.g. added and deleted) without delivering notification to the cache.
 type Cache interface {
 	// NodeCount returns the number of nodes in the cache.
 	// DO NOT use outside of tests.
+	// 返回当前K8S集群Node的数量
 	NodeCount() int
 
 	// PodCount returns the number of pods in the cache (including those from deleted nodes).
 	// DO NOT use outside of tests.
+	// 返回Pod的数量
 	PodCount() (int, error)
 
 	// AssumePod assumes a pod scheduled and aggregates the pod's information into its node.
 	// The implementation also decides the policy to expire pod before being confirmed (receiving Add event).
 	// After expiration, its information would be subtracted.
+	// TODO 没搞懂这里到底要干嘛
 	AssumePod(pod *v1.Pod) error
 
 	// FinishBinding signals that cache for assumed pod can be expired

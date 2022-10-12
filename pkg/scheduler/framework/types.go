@@ -358,39 +358,49 @@ type ImageStateSummary struct {
 // NodeInfo is node level aggregated information.
 type NodeInfo struct {
 	// Overall node information.
+	// 当前Node的所有信息
 	node *v1.Node
 
 	// Pods running on the node.
+	// 当前Node上运行了哪些Pod的信息
 	Pods []*PodInfo
 
 	// The subset of pods with affinity.
+	// 当前Node上所有携带了Pod亲和的信息
 	PodsWithAffinity []*PodInfo
 
 	// The subset of pods with required anti-affinity.
+	// 当前Node上所有携带了Pod反亲和的信息
 	PodsWithRequiredAntiAffinity []*PodInfo
 
 	// Ports allocated on the node.
+	// 当前Node已经使用的端口
 	UsedPorts HostPortInfo
 
 	// Total requested resources of all pods on this node. This includes assumed
 	// pods, which scheduler has sent for binding, but may not be scheduled yet.
+	// 当前Node已经使用的资源
 	Requested *Resource
 	// Total requested resources of all pods on this node with a minimum value
 	// applied to each container's CPU and memory requests. This does not reflect
 	// the actual resource requests for this node, but is used to avoid scheduling
 	// many zero-request pods onto one node.
+	// 用于记录当前Node上跑了那些注明了Cpu和Memory最小值的Pod
 	NonZeroRequested *Resource
 	// We store allocatedResources (which is Node.Status.Allocatable.*) explicitly
 	// as int64, to avoid conversions and accessing map.
+	// 当前Node已经分配的资源
 	Allocatable *Resource
 
 	// ImageStates holds the entry of an image if and only if this image is on the node. The entry can be used for
 	// checking an image's existence and advanced usage (e.g., image locality scheduling policy) based on the image
 	// state information.
+	// 记录Node上硬盘的信息
 	ImageStates map[string]*ImageStateSummary
 
 	// PVCRefCounts contains a mapping of PVC names to the number of pods on the node using it.
 	// Keys are in the format "namespace/name".
+	// 记录Node上PVC的引用情况
 	PVCRefCounts map[string]int
 
 	// Whenever NodeInfo changes, generation is bumped.

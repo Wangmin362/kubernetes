@@ -30,6 +30,7 @@ type Snapshot struct {
 	// nodeInfoMap a map of node name to a snapshot of its NodeInfo.
 	nodeInfoMap map[string]*framework.NodeInfo
 	// nodeInfoList is the list of nodes as ordered in the cache's nodeTree.
+	// 这里为啥不保存nodeInfoMap的Key，也就是说只需要保存名字即可， 因为这里保存的指针，所以并没有什么影响
 	nodeInfoList []*framework.NodeInfo
 	// havePodsWithAffinityNodeInfoList is the list of nodes with at least one pod declaring affinity terms.
 	havePodsWithAffinityNodeInfoList []*framework.NodeInfo

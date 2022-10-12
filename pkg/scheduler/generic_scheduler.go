@@ -66,6 +66,7 @@ type ScheduleAlgorithm interface {
 // the final selected Node, along with the selected intermediate information.
 type ScheduleResult struct {
 	// Name of the scheduler suggest host
+	// 最终调度到那个节点上？
 	SuggestedHost string
 	// Number of nodes scheduler evaluated on one pod scheduled
 	EvaluatedNodes int
@@ -74,7 +75,10 @@ type ScheduleResult struct {
 }
 
 type genericScheduler struct {
-	cache                    internalcache.Cache
+	// 用于存储当前K8S集群的Node和Pod的信息
+	cache internalcache.Cache
+	// 用于记录Node的信息
+	// todo 思考，为什么cache中保存了node的信息，这里还要使用snapshot来保存node信息？为了解决什么抢矿？
 	nodeInfoSnapshot         *internalcache.Snapshot
 	percentageOfNodesToScore int32
 	nextStartNodeIndex       int
@@ -94,15 +98,18 @@ func (g *genericScheduler) Schedule(ctx context.Context, extenders []framework.E
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
 
+	// todo
 	if err := g.snapshot(); err != nil {
 		return result, err
 	}
 	trace.Step("Snapshotting scheduler cache and node infos done")
 
+	// 获取node的数量
 	if g.nodeInfoSnapshot.NumNodes() == 0 {
 		return result, ErrNoNodesAvailable
 	}
 
+	// 为当前需要调度的pod找到一个合适Node
 	feasibleNodes, diagnosis, err := g.findNodesThatFitPod(ctx, extenders, fwk, state, pod)
 	if err != nil {
 		return result, err

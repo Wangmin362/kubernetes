@@ -225,6 +225,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	// Leader election is disabled, so runCommand inline until done.
 	close(waitingForLeader)
+	// 开始调度
 	sched.Run(ctx)
 	return fmt.Errorf("finished without leader elect")
 }
@@ -310,6 +311,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	// 默认参数补全
 	cc := c.Complete()
 
+	// TODO 这里应该是对于Scheduler Framework的自定义插件的支持，自定义插件是如何注册到 kube-scheduler中的？
 	outOfTreeRegistry := make(runtime.Registry)
 	for _, option := range outOfTreeRegistryOptions {
 		if err := option(outOfTreeRegistry); err != nil {
@@ -325,14 +327,18 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		cc.DynInformerFactory,
 		recorderFactory,
 		ctx.Done(),
+		// 这里应该是在选择使用v1beta1还是v1beta2
 		scheduler.WithComponentConfigVersion(cc.ComponentConfig.TypeMeta.APIVersion),
 		scheduler.WithKubeConfig(cc.KubeConfig),
+		// kube-scheduler的配置文件
 		scheduler.WithProfiles(cc.ComponentConfig.Profiles...),
+		// 指定每次调度一个Pod的选取可用Node的百分比
 		scheduler.WithPercentageOfNodesToScore(cc.ComponentConfig.PercentageOfNodesToScore),
 		scheduler.WithFrameworkOutOfTreeRegistry(outOfTreeRegistry),
 		scheduler.WithPodMaxBackoffSeconds(cc.ComponentConfig.PodMaxBackoffSeconds),
 		scheduler.WithPodInitialBackoffSeconds(cc.ComponentConfig.PodInitialBackoffSeconds),
 		scheduler.WithExtenders(cc.ComponentConfig.Extenders...),
+		// kube-scheduler的并发度配置
 		scheduler.WithParallelism(cc.ComponentConfig.Parallelism),
 		scheduler.WithBuildFrameworkCapturer(func(profile kubeschedulerconfig.KubeSchedulerProfile) {
 			// Profiles are processed during Framework instantiation to set default plugins and configurations. Capturing them for logging

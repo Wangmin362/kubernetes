@@ -642,6 +642,7 @@ func (ni *NominatingInfo) Mode() NominatingMode {
 }
 
 // PodNominator abstracts operations to maintain nominated Pods.
+// TODO 什么叫 Nominated Pod？ 用是用来干嘛的？ 从接口定义上来看，Nominated Pod实际上就是一个普通的Pod
 type PodNominator interface {
 	// AddNominatedPod adds the given pod to the nominator or
 	// updates it if it already exists.

@@ -31,6 +31,7 @@ func getDefaultPlugins() *v1beta2.Plugins {
 	plugins := &v1beta2.Plugins{
 		QueueSort: v1beta2.PluginSet{
 			Enabled: []v1beta2.Plugin{
+				// Pod排序，QueueSort只能启用一个排序插件
 				{Name: names.PrioritySort},
 			},
 		},
@@ -66,6 +67,7 @@ func getDefaultPlugins() *v1beta2.Plugins {
 		},
 		PostFilter: v1beta2.PluginSet{
 			Enabled: []v1beta2.Plugin{
+				// 从名字上来看，K8S的抢占式Pod的调度就是在这里实现的
 				{Name: names.DefaultPreemption},
 			},
 		},
@@ -107,6 +109,7 @@ func getDefaultPlugins() *v1beta2.Plugins {
 			},
 		},
 	}
+	// 根据K8S的特性开关，控制某些插件的启用禁用情况
 	applyFeatureGates(plugins)
 
 	return plugins

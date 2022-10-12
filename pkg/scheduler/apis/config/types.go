@@ -47,20 +47,26 @@ type KubeSchedulerConfiguration struct {
 	// config. Based on the versioned type set in this field, we make decisions;
 	// for example (1) during validation to check for usage of removed plugins,
 	// (2) writing config to a file, (3) initialising the scheduler.
+	// 常规操作，添加这个属性之后，KubeSchedulerConfiguration就是一个GVR
 	metav1.TypeMeta
 
 	// Parallelism defines the amount of parallelism in algorithms for scheduling a Pods. Must be greater than 0. Defaults to 16
+	// KubeScheduler的并发度
 	Parallelism int32
 
 	// LeaderElection defines the configuration of leader election client.
+	// 如果集群中启用了多个KubeScheduler，那么就需要选举一个Leader
 	LeaderElection componentbaseconfig.LeaderElectionConfiguration
 
 	// ClientConnection specifies the kubeconfig file and client connection
 	// settings for the proxy server to use when communicating with the apiserver.
+	// 用于指定kubeconfig文件的路径，将来可以和api-server交互
 	ClientConnection componentbaseconfig.ClientConnectionConfiguration
 	// HealthzBindAddress is the IP address and port for the health check server to serve on.
+	// 健康检测端点
 	HealthzBindAddress string
 	// MetricsBindAddress is the IP address and port for the metrics server to serve on.
+	// metric端点
 	MetricsBindAddress string
 
 	// DebuggingConfiguration holds configuration for Debugging related features
@@ -75,22 +81,30 @@ type KubeSchedulerConfiguration struct {
 	// then scheduler stops finding further feasible nodes once it finds 150 feasible ones.
 	// When the value is 0, default percentage (5%--50% based on the size of the cluster) of the
 	// nodes will be scored.
+	// 可用Node的百分比，调度一个Pod时，只需要给这个Pod找到一个合适的Node即可，但是如果K8S管理的Node数量过大，就没有必要在所有的可用的Node中
+	// 筛选，只需要取其中一部分；譬如K8S集群管理了5000个Node，此时需要调度一个Pod，如果这里配置的5，那么只需要在5000个Node中找到 5000 * 5% = 250个
+	// 一旦KubeScheduler找到可用的250个Node，KubeScheduler就不需要继续寻找。只需要给这250个Node打分，最终Pod会被调度到得分最后高的Node上
 	PercentageOfNodesToScore int32
 
 	// PodInitialBackoffSeconds is the initial backoff for unschedulable pods.
 	// If specified, it must be greater than 0. If this value is null, the default value (1s)
 	// will be used.
+	// 多久备份一次未调度的Pod，默认是1秒中备份一次。
 	PodInitialBackoffSeconds int64
 
 	// PodMaxBackoffSeconds is the max backoff for unschedulable pods.
 	// If specified, it must be greater than or equal to podInitialBackoffSeconds. If this value is null,
 	// the default value (10s) will be used.
+	// 最大备份未调度的pod时间
 	PodMaxBackoffSeconds int64
 
 	// Profiles are scheduling profiles that kube-scheduler supports. Pods can
 	// choose to be scheduled under a particular profile by setting its associated
 	// scheduler name. Pods that don't specify any scheduler name are scheduled
 	// with the "default-scheduler" profile, if present here.
+	// kube-scheduler启用插件的配置，即kube-scheduler的sort, prefilter, filter, prescore, socre, reserve, prebind, bind等等阶段需要启用的插件
+	// TODO 为什么一个kube-scheduler可以指定多个profile? 指定多个Profile意味着什么？ 意味着要启动多个kube-scheduler?
+	// TODO 这里指定多个profile，应该是要启动多个kube-scheduler，并且pod的yaml中可以通过 ”pod.spec.schedulerName“指定需要使用的调度器
 	Profiles []KubeSchedulerProfile
 
 	// Extenders are the list of scheduler extenders, each holding the values of how to communicate
@@ -103,6 +117,7 @@ type KubeSchedulerProfile struct {
 	// SchedulerName is the name of the scheduler associated to this profile.
 	// If SchedulerName matches with the pod's "spec.schedulerName", then the pod
 	// is scheduled with this profile.
+	// 调度器的名字，将来pod在调度的时候可以通过 "pod.sped.schedulerName" 指定需要的调度器
 	SchedulerName string
 
 	// Plugins specify the set of plugins that should be enabled or disabled.
@@ -113,11 +128,13 @@ type KubeSchedulerProfile struct {
 	// default plugins for that extension point will be used if there is any.
 	// If a QueueSort plugin is specified, the same QueueSort Plugin and
 	// PluginConfig must be specified for all profiles.
+	// 各个阶段需要启用的插件
 	Plugins *Plugins
 
 	// PluginConfig is an optional set of custom plugin arguments for each plugin.
 	// Omitting config args for a plugin is equivalent to using the default config
 	// for that plugin.
+	// 各个插件配置参数
 	PluginConfig []PluginConfig
 }
 

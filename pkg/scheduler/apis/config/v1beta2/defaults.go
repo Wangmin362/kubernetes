@@ -34,9 +34,11 @@ var defaultResourceSpec = []v1beta2.ResourceSpec{
 }
 
 func addDefaultingFuncs(scheme *runtime.Scheme) error {
+	// 注册默认插件
 	return RegisterDefaults(scheme)
 }
 
+// 获取所有启用禁用插件的名称
 func pluginsNames(p *v1beta2.Plugins) []string {
 	if p == nil {
 		return nil

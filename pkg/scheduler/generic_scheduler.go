@@ -109,7 +109,8 @@ func (g *genericScheduler) Schedule(ctx context.Context, extenders []framework.E
 		return result, ErrNoNodesAvailable
 	}
 
-	// 为当前需要调度的pod找到一个合适Node
+	// todo 为当前需要调度的pod找到一个合适Node 这里非常重要，实际上framework的各个Cycle的Plugin就是在这里执行的
+	// todo 这里实际上就是所谓的预选策略，再framework中被称之为schedule cycle
 	feasibleNodes, diagnosis, err := g.findNodesThatFitPod(ctx, extenders, fwk, state, pod)
 	if err != nil {
 		return result, err
@@ -133,11 +134,14 @@ func (g *genericScheduler) Schedule(ctx context.Context, extenders []framework.E
 		}, nil
 	}
 
+	// todo 这里在执行优选策略，就是从合适的Node中找到一批适合的node
+	// todo 实际上在scheduler framework中被称之为bind cycle
 	priorityList, err := prioritizeNodes(ctx, extenders, fwk, state, pod, feasibleNodes)
 	if err != nil {
 		return result, err
 	}
 
+	// 计算各个候选Node的分值，哪个分值最高，就用哪个Node
 	host, err := g.selectHost(priorityList)
 	trace.Step("Prioritizing done")
 

@@ -174,7 +174,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				return fmt.Errorf("unknown command %+s", cmds[0])
 			}
 
-			// short-circuit on help
+			// short-circuit on help 如果在kubelet命令行后面跟了help命令，直接短路，打印kubelet的用法
 			help, err := cleanFlagSet.GetBool("help")
 			if err != nil {
 				return errors.New(`"help" flag is non-bool, programmer error, please correct`)
@@ -186,7 +186,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			// short-circuit on verflag
 			verflag.PrintAndExitIfRequested()
 
-			// set feature gates from initial flags-based config
+			// set feature gates from initial flags-based config 解析kubelet的特性开关，在启动kubelet的时候可以选择是否启用某些特性 todo kubelet有哪些特性？？
 			if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
 				return fmt.Errorf("failed to set feature gates from initial flags-based config: %w", err)
 			}
@@ -200,7 +200,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				klog.InfoS("--pod-infra-container-image will not be pruned by the image garbage collector in kubelet and should also be set in the remote runtime")
 			}
 
-			// load kubelet config file, if provided
+			// load kubelet config file, if provided 加载kubelet配置文件
 			if configFile := kubeletFlags.KubeletConfigFile; len(configFile) > 0 {
 				kubeletConfig, err = loadConfigFile(configFile)
 				if err != nil {
@@ -212,7 +212,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				if err := kubeletConfigFlagPrecedence(kubeletConfig, args); err != nil {
 					return fmt.Errorf("failed to precedence kubeletConfigFlag: %w", err)
 				}
-				// update feature gates based on new config
+				// update feature gates based on new config 基于给定的kubelet的配置，修改kubelet的特性开关
 				if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
 					return fmt.Errorf("failed to set feature gates from initial flags-based config: %w", err)
 				}
@@ -223,7 +223,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 			if err := logsapi.ValidateAndApplyAsField(&kubeletConfig.Logging, utilfeature.DefaultFeatureGate, field.NewPath("logging")); err != nil {
 				return fmt.Errorf("initialize logging: %v", err)
 			}
-			cliflag.PrintFlags(cleanFlagSet)
+			cliflag.PrintFlags(cleanFlagSet) // 打印kubelet所有的参数，包括未提供的参数
 
 			// We always validate the local configuration (command line + config file).
 			// This is the default "last-known-good" config for dynamic config, and must always remain valid.
@@ -237,30 +237,30 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 
 			// The features.DynamicKubeletConfig is locked to false,
 			// feature gate is not locked using the LockedToDefault flag
-			// to make sure node authorizer can keep working with the older nodes
+			// to make sure node authorizer can keep working with the older nodes todo 动态kubelet配置是什么？ 应该如何使用
 			if utilfeature.DefaultFeatureGate.Enabled(features.DynamicKubeletConfig) {
 				return fmt.Errorf("cannot set feature gate %v to %v, feature is locked to %v", features.DynamicKubeletConfig, true, false)
 			}
 
-			// construct a KubeletServer from kubeletFlags and kubeletConfig
+			// construct a KubeletServer from kubeletFlags and kubeletConfig kubeletServer中包含了kubelet的所有参数以及启动参数
 			kubeletServer := &options.KubeletServer{
 				KubeletFlags:         *kubeletFlags,
 				KubeletConfiguration: *kubeletConfig,
 			}
 
-			// use kubeletServer to construct the default KubeletDeps
+			// use kubeletServer to construct the default KubeletDeps todo kubelet 依赖是什么？
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
 			}
 
-			if err := checkPermissions(); err != nil {
+			if err := checkPermissions(); err != nil { // todo 检查是否可以运行的权限，检查的是啥？
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
 
 			// make the kubelet's config safe for logging
 			config := kubeletServer.KubeletConfiguration.DeepCopy()
-			for k := range config.StaticPodURLHeader {
+			for k := range config.StaticPodURLHeader { // todo 这玩意是干嘛的？
 				config.StaticPodURLHeader[k] = []string{"<masked>"}
 			}
 			// log the kubelet's config for inspection
@@ -414,7 +414,7 @@ func Run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
-	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil {
+	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil { // 不同的操作系统可能需要做不同的操作
 		return fmt.Errorf("failed OS init: %w", err)
 	}
 	if err := run(ctx, s, kubeDeps, featureGate); err != nil {
@@ -498,7 +498,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 
-	// Warn if MemoryQoS enabled with cgroups v1
+	// Warn if MemoryQoS enabled with cgroups v1 todo 有待继续学习
 	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
 		!isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
@@ -521,17 +521,17 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
-	// Register current configuration with /configz endpoint
+	// Register current configuration with /configz endpoint todo configz endpoint是用来干嘛的？
 	err = initConfigz(&s.KubeletConfiguration)
 	if err != nil {
 		klog.ErrorS(err, "Failed to register kubelet configuration with configz")
 	}
 
-	if len(s.ShowHiddenMetricsForVersion) > 0 {
+	if len(s.ShowHiddenMetricsForVersion) > 0 { // todo 这里是为了解决什么问题
 		metrics.SetShowHidden()
 	}
 
-	// About to get clients and such, detect standaloneMode
+	// About to get clients and such, detect standaloneMode todo 这里应该是nocalhost脚本会执行standaloneMode模式
 	standaloneMode := true
 	if len(s.KubeConfig) > 0 {
 		standaloneMode = false
@@ -544,7 +544,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
-	if kubeDeps.Cloud == nil {
+	if kubeDeps.Cloud == nil { // todo 学习cloudprovider
 		if !cloudprovider.IsExternal(s.CloudProvider) {
 			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
 			cloud, err := cloudprovider.InitCloudProvider(s.CloudProvider, s.CloudConfigFile)
@@ -576,7 +576,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		klog.InfoS("Standalone mode, no API client")
 
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
-		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName)
+		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName) // todo 研究下是如何生成clientConfig的，CertificateManager的工作职责
 		if err != nil {
 			return err
 		}
@@ -585,7 +585,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 		kubeDeps.OnHeartbeatFailure = onHeartbeatFailure
 
-		kubeDeps.KubeClient, err = clientset.NewForConfig(clientConfig)
+		kubeDeps.KubeClient, err = clientset.NewForConfig(clientConfig) // todo 这里应该是在构建apiserver的client
 		if err != nil {
 			return fmt.Errorf("failed to initialize kubelet client: %w", err)
 		}
@@ -645,7 +645,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	if kubeDeps.CAdvisorInterface == nil {
-		imageFsInfoProvider := cadvisor.NewImageFsInfoProvider(s.RemoteRuntimeEndpoint)
+		imageFsInfoProvider := cadvisor.NewImageFsInfoProvider(s.RemoteRuntimeEndpoint) // todo 研究下kubelet内部的Cadvisor是怎么回事
 		kubeDeps.CAdvisorInterface, err = cadvisor.New(imageFsInfoProvider, s.RootDirectory, cgroupRoots, cadvisor.UsingLegacyCadvisorStats(s.RemoteRuntimeEndpoint), s.LocalStorageCapacityIsolation)
 		if err != nil {
 			return err
@@ -655,7 +655,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	// Setup event recorder if required.
 	makeEventRecorder(kubeDeps, nodeName)
 
-	if kubeDeps.ContainerManager == nil {
+	if kubeDeps.ContainerManager == nil { // todo ContainerManager应该是Kubelet最最重要的一个组件之一吧
 		if s.CgroupsPerQOS && s.CgroupRoot == "" {
 			klog.InfoS("--cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /")
 			s.CgroupRoot = "/"

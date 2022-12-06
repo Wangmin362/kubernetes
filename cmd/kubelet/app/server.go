@@ -218,7 +218,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				}
 			}
 
-			// Config and flags parsed, now we can initialize logging.
+			// Config and flags parsed, now we can initialize logging. todo opentelemetry 是如何集成进来的？
 			logs.InitLogs()
 			if err := logsapi.ValidateAndApplyAsField(&kubeletConfig.Logging, utilfeature.DefaultFeatureGate, field.NewPath("logging")); err != nil {
 				return fmt.Errorf("initialize logging: %v", err)
@@ -489,7 +489,7 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 
 func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
-	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
+	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates) // todo 这里面的mutableshi啥意思？
 	if err != nil {
 		return err
 	}
@@ -498,12 +498,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		return err
 	}
 
-	// Warn if MemoryQoS enabled with cgroups v1 todo 有待继续学习
+	// Warn if MemoryQoS enabled with cgroups v1 todo 学习MemoryQoS, 有何作用？ 如何使用？和Cgroup有啥关联？
 	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
 		!isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
-	// Obtain Kubelet Lock File
+	// Obtain Kubelet Lock File todo kubelet lock file是干啥用的？
 	if s.ExitOnLockContention && s.LockFilePath == "" {
 		return errors.New("cannot exit on lock file contention: no lock file specified")
 	}
@@ -575,7 +575,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		kubeDeps.HeartbeatClient = nil
 		klog.InfoS("Standalone mode, no API client")
 
-	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
+	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil: // todo 初始化这三个组件
 		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName) // todo 研究下是如何生成clientConfig的，CertificateManager的工作职责
 		if err != nil {
 			return err
@@ -715,7 +715,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 			}
 		}
 
-		kubeDeps.ContainerManager, err = cm.NewContainerManager(
+		kubeDeps.ContainerManager, err = cm.NewContainerManager( // todo containerManager是如何初始化的？
 			kubeDeps.Mounter,
 			kubeDeps.CAdvisorInterface,
 			cm.NodeConfig{
@@ -764,12 +764,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		klog.InfoS("Failed to ApplyOOMScoreAdj", "err", err)
 	}
 
-	err = kubelet.PreInitRuntimeService(&s.KubeletConfiguration, kubeDeps, s.RemoteRuntimeEndpoint, s.RemoteImageEndpoint)
+	err = kubelet.PreInitRuntimeService(&s.KubeletConfiguration, kubeDeps, s.RemoteRuntimeEndpoint, s.RemoteImageEndpoint) // TODO CRI 组件是如何初始化的？
 	if err != nil {
 		return err
 	}
 
-	if err := RunKubelet(s, kubeDeps, s.RunOnce); err != nil {
+	if err := RunKubelet(s, kubeDeps, s.RunOnce); err != nil { // 开始运行kubelet
 		return err
 	}
 

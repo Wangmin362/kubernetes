@@ -377,7 +377,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		nodeHasSynced = func() bool {
 			return kubeInformers.Core().V1().Nodes().Informer().HasSynced()
 		}
-		kubeInformers.Start(wait.NeverStop)
+		kubeInformers.Start(wait.NeverStop) // todo 这里是在给api-server上报节点信息?
 		klog.InfoS("Attempting to sync node with API server")
 	} else {
 		// we don't have a client to sync!
@@ -432,7 +432,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	var serviceHasSynced cache.InformerSynced
 	if kubeDeps.KubeClient != nil {
 		kubeInformers := informers.NewSharedInformerFactory(kubeDeps.KubeClient, 0)
-		serviceLister = kubeInformers.Core().V1().Services().Lister()
+		serviceLister = kubeInformers.Core().V1().Services().Lister() // todo 监听service是为了干嘛？
 		serviceHasSynced = kubeInformers.Core().V1().Services().Informer().HasSynced
 		kubeInformers.Start(wait.NeverStop)
 	} else {

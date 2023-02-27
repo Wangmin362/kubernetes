@@ -96,6 +96,7 @@ type DeploymentController struct {
 	podListerSynced cache.InformerSynced
 
 	// Deployments that need to be synced
+	// todo 谁往里面放的？？？？ 实际上queu中的元素是通过informer机制放入的
 	queue workqueue.RateLimitingInterface
 }
 
@@ -131,6 +132,7 @@ func NewDeploymentController(dInformer appsinformers.DeploymentInformer, rsInfor
 		DeleteFunc: dc.deleteReplicaSet,
 	})
 	podInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+		// TODO 为什么不关心Pod的ADD以及DELETE事件？
 		DeleteFunc: dc.deletePod,
 	})
 
@@ -165,6 +167,7 @@ func (dc *DeploymentController) Run(ctx context.Context, workers int) {
 	}
 
 	for i := 0; i < workers; i++ {
+		// 每个worker，每秒中执行一次
 		go wait.UntilWithContext(ctx, dc.worker, time.Second)
 	}
 
@@ -187,6 +190,7 @@ func (dc *DeploymentController) updateDeployment(old, cur interface{}) {
 func (dc *DeploymentController) deleteDeployment(obj interface{}) {
 	d, ok := obj.(*apps.Deployment)
 	if !ok {
+		// todo 什么时候，obj对象不是一个deployment对象呢？
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
 			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
@@ -209,12 +213,14 @@ func (dc *DeploymentController) addReplicaSet(obj interface{}) {
 	if rs.DeletionTimestamp != nil {
 		// On a restart of the controller manager, it's possible for an object to
 		// show up in a state that is already pending deletion.
+		// 如果replicaset已经删除了，那么直接把其关联的Deployment入队
 		dc.deleteReplicaSet(rs)
 		return
 	}
 
 	// If it has a ControllerRef, that's all that matters.
 	if controllerRef := metav1.GetControllerOf(rs); controllerRef != nil {
+		// 如果查询到了replicaset的属主deployment，直接入队其关联的deployment
 		d := dc.resolveControllerRef(rs.Namespace, controllerRef)
 		if d == nil {
 			return
@@ -226,6 +232,9 @@ func (dc *DeploymentController) addReplicaSet(obj interface{}) {
 
 	// Otherwise, it's an orphan. Get a list of all matching Deployments and sync
 	// them to see if anyone wants to adopt it.
+	// 如果一个replicaset没有属主，那么这个replicaset就是一个孤儿
+	// 根据replicaset的标签，找到其对应的deployment，然后把所有的deployment入队
+	// todo 什么时候会出现replicaset的属主为空呢？
 	ds := dc.getDeploymentsForReplicaSet(rs)
 	if len(ds) == 0 {
 		return
@@ -333,11 +342,13 @@ func (dc *DeploymentController) deleteReplicaSet(obj interface{}) {
 		// No controller should care about orphans being deleted.
 		return
 	}
+	// 很简单，这里根据replicaset的OwnerReference查询到其属主Deployment
 	d := dc.resolveControllerRef(rs.Namespace, controllerRef)
 	if d == nil {
 		return
 	}
 	klog.V(4).InfoS("ReplicaSet deleted", "replicaSet", klog.KObj(rs))
+	// 还是一样的配方，deployment, replicaset， pod所有的更改都认为是deployment更改了
 	dc.enqueueDeployment(d)
 }
 
@@ -383,6 +394,7 @@ func (dc *DeploymentController) deletePod(obj interface{}) {
 }
 
 func (dc *DeploymentController) enqueue(deployment *apps.Deployment) {
+	// 计算唯一键，实际上就是 namespace + name
 	key, err := controller.KeyFunc(deployment)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", deployment, err))
@@ -447,9 +459,10 @@ func (dc *DeploymentController) getDeploymentForPod(pod *v1.Pod) *apps.Deploymen
 func (dc *DeploymentController) resolveControllerRef(namespace string, controllerRef *metav1.OwnerReference) *apps.Deployment {
 	// We can't look up by UID, so look up by Name and then verify UID.
 	// Don't even try to look up by Name if it's the wrong Kind.
-	if controllerRef.Kind != controllerKind.Kind {
+	if controllerRef.Kind != controllerKind.Kind { // replicaset的属主必须是Deployment
 		return nil
 	}
+	// 根据Replicaset查询其关联的Deployment
 	d, err := dc.dLister.Deployments(namespace).Get(controllerRef.Name)
 	if err != nil {
 		return nil
@@ -470,10 +483,12 @@ func (dc *DeploymentController) worker(ctx context.Context) {
 }
 
 func (dc *DeploymentController) processNextWorkItem(ctx context.Context) bool {
+	// 从队列里获取Deployment
 	key, quit := dc.queue.Get()
 	if quit {
 		return false
 	}
+	// 处理完当前deployment之后，丢弃该元素
 	defer dc.queue.Done(key)
 
 	err := dc.syncHandler(ctx, key.(string))
@@ -510,6 +525,7 @@ func (dc *DeploymentController) handleErr(err error, key interface{}) {
 func (dc *DeploymentController) getReplicaSetsForDeployment(ctx context.Context, d *apps.Deployment) ([]*apps.ReplicaSet, error) {
 	// List all ReplicaSets to find those we own but that no longer match our
 	// selector. They will be orphaned by ClaimReplicaSets().
+	// todo 这里为什么不使用deployment的标签去查询replicaset
 	rsList, err := dc.rsLister.ReplicaSets(d.Namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -573,6 +589,7 @@ func (dc *DeploymentController) getPodMapForDeployment(d *apps.Deployment, rsLis
 // syncDeployment will sync the deployment with the given key.
 // This function is not meant to be invoked concurrently with the same key.
 func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) error {
+	// 根据从queue中拿到的key，获取deployment的名称空间以及name
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		klog.ErrorS(err, "Failed to split meta namespace cache key", "cacheKey", key)
@@ -585,6 +602,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 		klog.V(4).InfoS("Finished syncing deployment", "deployment", klog.KRef(namespace, name), "duration", time.Since(startTime))
 	}()
 
+	// 通过本地缓存informer查询deployment
 	deployment, err := dc.dLister.Deployments(namespace).Get(name)
 	if errors.IsNotFound(err) {
 		klog.V(2).InfoS("Deployment has been deleted", "deployment", klog.KRef(namespace, name))
@@ -600,6 +618,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 
 	everything := metav1.LabelSelector{}
 	if reflect.DeepEqual(d.Spec.Selector, &everything) {
+		// 说明当前Deployment没有标签，即当前Deployment管理所有Pod
 		dc.eventRecorder.Eventf(d, v1.EventTypeWarning, "SelectingAll", "This deployment is selecting all pods. A non-empty selector is required.")
 		if d.Status.ObservedGeneration < d.Generation {
 			d.Status.ObservedGeneration = d.Generation
@@ -610,6 +629,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 
 	// List ReplicaSets owned by this Deployment, while reconciling ControllerRef
 	// through adoption/orphaning.
+	// 找到所有被当前deployment管理的replicaset
 	rsList, err := dc.getReplicaSetsForDeployment(ctx, d)
 	if err != nil {
 		return err

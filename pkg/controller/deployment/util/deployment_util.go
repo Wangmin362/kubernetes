@@ -421,6 +421,8 @@ func ReplicasAnnotationsNeedUpdate(rs *apps.ReplicaSet, desiredReplicas, maxRepl
 	if rs.Annotations == nil {
 		return true
 	}
+
+	// todo fmt.Sprintf的效率高还是strconv.Itoa的效率高？
 	desiredString := fmt.Sprintf("%d", desiredReplicas)
 	if hasString := rs.Annotations[DesiredReplicasAnnotation]; hasString != desiredString {
 		return true
@@ -629,14 +631,17 @@ func FindNewReplicaSet(deployment *apps.Deployment, rsList []*apps.ReplicaSet) *
 func FindOldReplicaSets(deployment *apps.Deployment, rsList []*apps.ReplicaSet) ([]*apps.ReplicaSet, []*apps.ReplicaSet) {
 	var requiredRSs []*apps.ReplicaSet
 	var allRSs []*apps.ReplicaSet
+	// 直接比较deployment.podTemplate和replicaset.podTemplate是否相等，如果相等就认为是最新的
 	newRS := FindNewReplicaSet(deployment, rsList)
 	for _, rs := range rsList {
 		// Filter out new replica set
 		if newRS != nil && rs.UID == newRS.UID {
 			continue
 		}
+		// 除开最新的replicaset，其余的replicaset都是旧的
 		allRSs = append(allRSs, rs)
 		if *(rs.Spec.Replicas) != 0 {
+			// 剔除掉那些replica为0的replica
 			requiredRSs = append(requiredRSs, rs)
 		}
 	}

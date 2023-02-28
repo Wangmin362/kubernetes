@@ -525,7 +525,7 @@ func (dc *DeploymentController) handleErr(err error, key interface{}) {
 func (dc *DeploymentController) getReplicaSetsForDeployment(ctx context.Context, d *apps.Deployment) ([]*apps.ReplicaSet, error) {
 	// List all ReplicaSets to find those we own but that no longer match our
 	// selector. They will be orphaned by ClaimReplicaSets().
-	// todo 这里为什么不使用deployment的标签去查询replicaset
+	// todo 这里为什么不使用deployment的标签去查询replicaset 难道是因为在deployment使用过程中会修改标签？
 	rsList, err := dc.rsLister.ReplicaSets(d.Namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
@@ -562,6 +562,7 @@ func (dc *DeploymentController) getPodMapForDeployment(d *apps.Deployment, rsLis
 	if err != nil {
 		return nil, err
 	}
+	// 根据deployment的所有标签找到所有的符合的Pod
 	pods, err := dc.podLister.Pods(d.Namespace).List(selector)
 	if err != nil {
 		return nil, err
@@ -569,6 +570,7 @@ func (dc *DeploymentController) getPodMapForDeployment(d *apps.Deployment, rsLis
 	// Group Pods by their controller (if it's in rsList).
 	podMap := make(map[types.UID][]*v1.Pod, len(rsList))
 	for _, rs := range rsList {
+		// 记录所有符合条件的replicaset
 		podMap[rs.UID] = []*v1.Pod{}
 	}
 	for _, pod := range pods {
@@ -579,6 +581,7 @@ func (dc *DeploymentController) getPodMapForDeployment(d *apps.Deployment, rsLis
 			continue
 		}
 		// Only append if we care about this UID.
+		// 只有被replicaset管理的Pod才是我们关心的Pod
 		if _, ok := podMap[controllerRef.UID]; ok {
 			podMap[controllerRef.UID] = append(podMap[controllerRef.UID], pod)
 		}
@@ -622,6 +625,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 		dc.eventRecorder.Eventf(d, v1.EventTypeWarning, "SelectingAll", "This deployment is selecting all pods. A non-empty selector is required.")
 		if d.Status.ObservedGeneration < d.Generation {
 			d.Status.ObservedGeneration = d.Generation
+			// 更新deployment的状态
 			dc.client.AppsV1().Deployments(d.Namespace).UpdateStatus(ctx, d, metav1.UpdateOptions{})
 		}
 		return nil
@@ -629,7 +633,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 
 	// List ReplicaSets owned by this Deployment, while reconciling ControllerRef
 	// through adoption/orphaning.
-	// 找到所有被当前deployment管理的replicaset
+	// 找到所有被当前deployment管理的replicaset，规则就是标签匹配
 	rsList, err := dc.getReplicaSetsForDeployment(ctx, d)
 	if err != nil {
 		return err
@@ -639,29 +643,34 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 	//
 	// * check if a Pod is labeled correctly with the pod-template-hash label.
 	// * check that no old Pods are running in the middle of Recreate Deployments.
+	// 根据deployment的标签找到所有的pod，同时这个pod必须被replicaset管理
 	podMap, err := dc.getPodMapForDeployment(d, rsList)
 	if err != nil {
 		return err
 	}
 
 	if d.DeletionTimestamp != nil {
+		// 如果当前deployment已经被删除了，那么更新deployment的状态，垃圾收集将有garbagecollector来处理
 		return dc.syncStatusOnly(ctx, d, rsList)
 	}
 
 	// Update deployment conditions with an Unknown condition when pausing/resuming
 	// a deployment. In this way, we can be sure that we won't timeout when a user
 	// resumes a Deployment with a set progressDeadlineSeconds.
+	// 检查deployment的状态
 	if err = dc.checkPausedConditions(ctx, d); err != nil {
 		return err
 	}
 
 	if d.Spec.Paused {
+		// todo deployment什么时候会处于paused状态
 		return dc.sync(ctx, d, rsList)
 	}
 
 	// rollback is not re-entrant in case the underlying replica sets are updated with a new
 	// revision so we should ensure that we won't proceed to update replica sets until we
 	// make sure that the deployment has cleaned up its rollback spec in subsequent enqueues.
+	// 如果当前deployment处于回滚状态，那么处理回滚逻辑
 	if getRollbackTo(d) != nil {
 		return dc.rollback(ctx, d, rsList)
 	}
@@ -671,9 +680,12 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 		return err
 	}
 	if scalingEvent {
+		// 如果当前的deployment处于扩缩容状态，那么同步这个状态
 		return dc.sync(ctx, d, rsList)
 	}
 
+	// 判断当前的deployment的更新策略是重新创建还是滚动更新
+	// 默认在不设置策略的情况下，deployment的更新策略都是滚动更新
 	switch d.Spec.Strategy.Type {
 	case apps.RecreateDeploymentStrategyType:
 		return dc.rolloutRecreate(ctx, d, rsList, podMap)

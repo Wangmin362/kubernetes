@@ -114,6 +114,7 @@ func (dc *DeploymentController) checkPausedConditions(ctx context.Context, d *ap
 // Note that currently the deployment controller is using caches to avoid querying the server for reads.
 // This may lead to stale reads of replica sets, thus incorrect deployment status.
 func (dc *DeploymentController) getAllReplicaSetsAndSyncRevision(ctx context.Context, d *apps.Deployment, rsList []*apps.ReplicaSet, createIfNotExisted bool) (*apps.ReplicaSet, []*apps.ReplicaSet, error) {
+	// todo 为啥这里明明有最新的replicaset，为什么不用？
 	_, allOldRSs := deploymentutil.FindOldReplicaSets(d, rsList)
 
 	// Get new replica set with the updated revision number
@@ -141,6 +142,7 @@ func (dc *DeploymentController) getNewReplicaSet(ctx context.Context, d *apps.De
 	// Calculate the max revision number among all old RSes
 	maxOldRevision := deploymentutil.MaxRevision(oldRSs)
 	// Calculate revision number for this new replica set
+	// todo 从这里可以看出，版本号每次加一
 	newRevision := strconv.FormatInt(maxOldRevision+1, 10)
 
 	// Latest replica set exists. We need to sync its annotations (includes copying all but
@@ -404,14 +406,16 @@ func (dc *DeploymentController) scaleReplicaSetAndRecordEvent(ctx context.Contex
 	} else {
 		scalingOperation = "down"
 	}
+	// 更新replicaset的副本数以及注解
 	scaled, newRS, err := dc.scaleReplicaSet(ctx, rs, newScale, deployment, scalingOperation)
 	return scaled, newRS, err
 }
 
 func (dc *DeploymentController) scaleReplicaSet(ctx context.Context, rs *apps.ReplicaSet, newScale int32, deployment *apps.Deployment, scalingOperation string) (bool, *apps.ReplicaSet, error) {
-
+	// replicaset的副本数和新的副本数如果不等，那么需要更新副本数
 	sizeNeedsUpdate := *(rs.Spec.Replicas) != newScale
 
+	// 判断是否需要更新deployment.kubernetes.io/desired-replicas，deployment.kubernetes.io/max-replicas这两个注解
 	annotationsNeedUpdate := deploymentutil.ReplicasAnnotationsNeedUpdate(rs, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+deploymentutil.MaxSurge(*deployment))
 
 	scaled := false
@@ -420,7 +424,9 @@ func (dc *DeploymentController) scaleReplicaSet(ctx context.Context, rs *apps.Re
 		oldScale := *(rs.Spec.Replicas)
 		rsCopy := rs.DeepCopy()
 		*(rsCopy.Spec.Replicas) = newScale
+		// 更新注解
 		deploymentutil.SetReplicasAnnotations(rsCopy, *(deployment.Spec.Replicas), *(deployment.Spec.Replicas)+deploymentutil.MaxSurge(*deployment))
+		// 更新replicaset（主要目的就是为了更新副本数以及注解）
 		rs, err = dc.client.AppsV1().ReplicaSets(rsCopy.Namespace).Update(ctx, rsCopy, metav1.UpdateOptions{})
 		if err == nil && sizeNeedsUpdate {
 			scaled = true

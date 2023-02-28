@@ -30,10 +30,12 @@ import (
 
 // rolloutRolling implements the logic for rolling a new replica set.
 func (dc *DeploymentController) rolloutRolling(ctx context.Context, d *apps.Deployment, rsList []*apps.ReplicaSet) error {
+	// 拿到最新的replicaset（newRS）,以及所有的老的replicaset（oldRSs）
 	newRS, oldRSs, err := dc.getAllReplicaSetsAndSyncRevision(ctx, d, rsList, true)
 	if err != nil {
 		return err
 	}
+	// todo 为什么oldRSs中原本存在的最新的replicaset，不能使用？非要在这里自己创建一个出来？
 	allRSs := append(oldRSs, newRS)
 
 	// Scale up, if we can.
@@ -42,11 +44,11 @@ func (dc *DeploymentController) rolloutRolling(ctx context.Context, d *apps.Depl
 		return err
 	}
 	if scaledUp {
-		// Update DeploymentStatus
+		// Update DeploymentStatus 如果replicaset发生扩容容了，那么更新对应的deployment的状态
 		return dc.syncRolloutStatus(ctx, allRSs, newRS, d)
 	}
 
-	// Scale down, if we can.
+	// Scale down, if we can. 新的replicaset扩容，老的replicaset缩容
 	scaledDown, err := dc.reconcileOldReplicaSets(ctx, allRSs, controller.FilterActiveReplicaSets(oldRSs), newRS, d)
 	if err != nil {
 		return err
@@ -68,18 +70,21 @@ func (dc *DeploymentController) rolloutRolling(ctx context.Context, d *apps.Depl
 
 func (dc *DeploymentController) reconcileNewReplicaSet(ctx context.Context, allRSs []*apps.ReplicaSet, newRS *apps.ReplicaSet, deployment *apps.Deployment) (bool, error) {
 	if *(newRS.Spec.Replicas) == *(deployment.Spec.Replicas) {
-		// Scaling not required.
+		// 最新的replicaset的副本数已经和deployment的保持一致，所以不需要扩容，直接退出
 		return false, nil
 	}
 	if *(newRS.Spec.Replicas) > *(deployment.Spec.Replicas) {
-		// Scale down.
+		// Scale down. 需要缩容
 		scaled, _, err := dc.scaleReplicaSetAndRecordEvent(ctx, newRS, *(deployment.Spec.Replicas), deployment)
 		return scaled, err
 	}
+	// 除开相等，和缩容，剩下的就是需要扩容了
+	// 计算replicaset需要的新的副本数
 	newReplicasCount, err := deploymentutil.NewRSNewReplicas(deployment, allRSs, newRS)
 	if err != nil {
 		return false, err
 	}
+	// 如果需要的话更新replica的副本数量以及注解
 	scaled, _, err := dc.scaleReplicaSetAndRecordEvent(ctx, newRS, newReplicasCount, deployment)
 	return scaled, err
 }
@@ -142,6 +147,7 @@ func (dc *DeploymentController) reconcileOldReplicaSets(ctx context.Context, all
 
 	// Scale down old replica sets, need check maxUnavailable to ensure we can scale down
 	allRSs = append(oldRSs, newRS)
+	// 更新旧的replicaset
 	scaledDownCount, err := dc.scaleDownOldReplicaSetsForRollingUpdate(ctx, allRSs, oldRSs, deployment)
 	if err != nil {
 		return false, nil

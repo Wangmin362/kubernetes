@@ -487,6 +487,7 @@ func startModifiedNamespaceController(ctx context.Context, controllerContext Con
 }
 
 func startServiceAccountController(ctx context.Context, controllerContext ControllerContext) (controller.Interface, bool, error) {
+	// 创建ServiceAccountController，可以看到这个控制器就是监听sa以及名称空间的变化
 	sac, err := serviceaccountcontroller.NewServiceAccountsController(
 		controllerContext.InformerFactory.Core().V1().ServiceAccounts(),
 		controllerContext.InformerFactory.Core().V1().Namespaces(),

@@ -64,9 +64,11 @@ func DefaultServiceAccountsControllerOptions() ServiceAccountsControllerOptions 
 // NewServiceAccountsController returns a new *ServiceAccountsController.
 func NewServiceAccountsController(saInformer coreinformers.ServiceAccountInformer, nsInformer coreinformers.NamespaceInformer, cl clientset.Interface, options ServiceAccountsControllerOptions) (*ServiceAccountsController, error) {
 	e := &ServiceAccountsController{
-		client:                  cl,
+		client: cl,
+		// 每个名称空间都有一个默认的default sa账号
 		serviceAccountsToEnsure: options.ServiceAccounts,
-		queue:                   workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount"),
+		// 创建一个限速队列，名字叫做serviceaccount
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount"),
 	}
 	if cl != nil && cl.CoreV1().RESTClient().GetRateLimiter() != nil {
 		if err := ratelimiter.RegisterMetricAndTrackRateLimiterUsage("serviceaccount_controller", cl.CoreV1().RESTClient().GetRateLimiter()); err != nil {
@@ -74,12 +76,16 @@ func NewServiceAccountsController(saInformer coreinformers.ServiceAccountInforme
 		}
 	}
 
+	// 只需要关心ServiceAccount的删除，创建和修改无需关心
+	// 实际上service本身只是一个账号，并没有承载任何其它的信息，因此无需关系其创建和修改操作，而对于SA的删除操作，我们需要做一些额外处理
 	saInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		DeleteFunc: e.serviceAccountDeleted,
 	}, options.ServiceAccountResync)
-	e.saLister = saInformer.Lister()
-	e.saListerSynced = saInformer.Informer().HasSynced
+	e.saLister = saInformer.Lister()                   // 用于获取ServiceAccount
+	e.saListerSynced = saInformer.Informer().HasSynced // 判断SA是否同步完成
 
+	// 关心名称空间的新增、修改操作
+	// todo 为什么不需要关心名称空间的删除操作？
 	nsInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    e.namespaceAdded,
 		UpdateFunc: e.namespaceUpdated,
@@ -87,6 +93,7 @@ func NewServiceAccountsController(saInformer coreinformers.ServiceAccountInforme
 	e.nsLister = nsInformer.Lister()
 	e.nsListerSynced = nsInformer.Informer().HasSynced
 
+	// todo 似乎看起来对于sa处理就是对于名称空间的处理？
 	e.syncHandler = e.syncNamespace
 
 	return e, nil
@@ -143,6 +150,7 @@ func (c *ServiceAccountsController) serviceAccountDeleted(obj interface{}) {
 			return
 		}
 	}
+	// todo 为什么这里添加的是sa的名称空间？
 	c.queue.Add(sa.Namespace)
 }
 
@@ -173,6 +181,7 @@ func (c *ServiceAccountsController) processNextWorkItem(ctx context.Context) boo
 
 	err := c.syncHandler(ctx, key.(string))
 	if err == nil {
+		// 处理完成之后，直接丢弃
 		c.queue.Forget(key)
 		return true
 	}
@@ -188,6 +197,7 @@ func (c *ServiceAccountsController) syncNamespace(ctx context.Context, key strin
 		klog.V(4).Infof("Finished syncing namespace %q (%v)", key, time.Since(startTime))
 	}()
 
+	// 根据名字查询名称空间
 	ns, err := c.nsLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -201,9 +211,11 @@ func (c *ServiceAccountsController) syncNamespace(ctx context.Context, key strin
 	}
 
 	createFailures := []error{}
+	// 每个名称空间都需要有一个default sa账号
 	for _, sa := range c.serviceAccountsToEnsure {
 		switch _, err := c.saLister.ServiceAccounts(ns.Name).Get(sa.Name); {
 		case err == nil:
+			// 如果能找的话，说明已经创建了
 			continue
 		case apierrors.IsNotFound(err):
 		case err != nil:
@@ -213,6 +225,7 @@ func (c *ServiceAccountsController) syncNamespace(ctx context.Context, key strin
 		// TODO eliminate this once the fake client can handle creation without NS
 		sa.Namespace = ns.Name
 
+		// 创建账号
 		if _, err := c.client.CoreV1().ServiceAccounts(ns.Name).Create(ctx, &sa, metav1.CreateOptions{}); err != nil && !apierrors.IsAlreadyExists(err) {
 			// we can safely ignore terminating namespace errors
 			if !apierrors.HasStatusCause(err, v1.NamespaceTerminatingCause) {

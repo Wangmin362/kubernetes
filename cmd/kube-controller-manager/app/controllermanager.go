@@ -402,6 +402,7 @@ func KnownControllers() []string {
 }
 
 // ControllersDisabledByDefault is the set of controllers which is disabled by default
+// todo 为什么这两个插件是默认禁用的？
 var ControllersDisabledByDefault = sets.NewString(
 	"bootstrapsigner",
 	"tokencleaner",
@@ -616,15 +617,18 @@ type serviceAccountTokenControllerStarter struct {
 }
 
 func (c serviceAccountTokenControllerStarter) startServiceAccountTokenController(ctx context.Context, controllerContext ControllerContext) (controller.Interface, bool, error) {
+	// 判断当前SATokenController是否开启
 	if !controllerContext.IsControllerEnabled(saTokenControllerName) {
 		klog.Warningf("%q is disabled", saTokenControllerName)
 		return nil, false, nil
 	}
 
+	// 这个参数是通过controller-manager的service-account-private-key-file参数指定的
 	if len(controllerContext.ComponentConfig.SAController.ServiceAccountKeyFile) == 0 {
 		klog.Warningf("%q is disabled because there is no private key", saTokenControllerName)
 		return nil, false, nil
 	}
+	// 读取私钥
 	privateKey, err := keyutil.PrivateKeyFromFile(controllerContext.ComponentConfig.SAController.ServiceAccountKeyFile)
 	if err != nil {
 		return nil, true, fmt.Errorf("error reading key for service account token controller: %v", err)
@@ -636,6 +640,7 @@ func (c serviceAccountTokenControllerStarter) startServiceAccountTokenController
 			return nil, true, fmt.Errorf("error parsing root-ca-file at %s: %v", controllerContext.ComponentConfig.SAController.RootCAFile, err)
 		}
 	} else {
+		// todo token-controller又是干嘛的？ 和当前的sa-token-controller有何区别？
 		rootCA = c.rootClientBuilder.ConfigOrDie("tokens-controller").CAData
 	}
 
@@ -644,8 +649,8 @@ func (c serviceAccountTokenControllerStarter) startServiceAccountTokenController
 		return nil, false, fmt.Errorf("failed to build token generator: %v", err)
 	}
 	controller, err := serviceaccountcontroller.NewTokensController(
-		controllerContext.InformerFactory.Core().V1().ServiceAccounts(),
-		controllerContext.InformerFactory.Core().V1().Secrets(),
+		controllerContext.InformerFactory.Core().V1().ServiceAccounts(), // 监听service-account
+		controllerContext.InformerFactory.Core().V1().Secrets(),         // 监听secret
 		c.rootClientBuilder.ClientOrDie("tokens-controller"),
 		serviceaccountcontroller.TokensControllerOptions{
 			TokenGenerator: tokenGenerator,

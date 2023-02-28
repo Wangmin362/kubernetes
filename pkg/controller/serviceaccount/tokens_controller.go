@@ -85,8 +85,10 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 		token:  options.TokenGenerator,
 		rootCA: options.RootCA,
 
+		// 这个队列专门给service-account使用
 		syncServiceAccountQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount_tokens_service"),
-		syncSecretQueue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount_tokens_secret"),
+		// 这个队列专门给secret使用
+		syncSecretQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount_tokens_secret"),
 
 		maxRetries:   maxRetries,
 		autoGenerate: options.AutoGenerate,
@@ -97,8 +99,8 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 		}
 	}
 
-	e.serviceAccounts = serviceAccounts.Lister()
-	e.serviceAccountSynced = serviceAccounts.Informer().HasSynced
+	e.serviceAccounts = serviceAccounts.Lister()                  // 用于获取serviceaccount
+	e.serviceAccountSynced = serviceAccounts.Informer().HasSynced // 用于判断serviceAccount是否同步完成
 	serviceAccounts.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    e.queueServiceAccountSync,
@@ -175,6 +177,7 @@ func (e *TokensController) Run(workers int, stopCh <-chan struct{}) {
 	defer e.syncServiceAccountQueue.ShutDown()
 	defer e.syncSecretQueue.ShutDown()
 
+	// todo 一会叫token-controller，一会儿叫tokens，名字还是统一一下还是比较好哦
 	if !cache.WaitForNamedCacheSync("tokens", stopCh, e.serviceAccountSynced, e.secretSynced) {
 		return
 	}
@@ -260,7 +263,7 @@ func (e *TokensController) syncServiceAccount() {
 		if err != nil {
 			klog.Errorf("error deleting serviceaccount tokens for %s/%s: %v", saInfo.namespace, saInfo.name, err)
 		}
-	case e.autoGenerate:
+	case e.autoGenerate: // 如果开启了自动生成token
 		// ensure a token exists and is referenced by this service account
 		retry, err = e.ensureReferencedToken(sa)
 		if err != nil {
@@ -642,7 +645,7 @@ func (e *TokensController) getServiceAccount(ns string, name string, uid types.U
 		return nil, nil
 	}
 
-	// Live lookup
+	// Live lookup todo 既然是informer机制，为什么这里不信任informer，还要再去apiserver中查询一遍？
 	sa, err = e.client.CoreV1().ServiceAccounts(ns).Get(context.TODO(), name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		return nil, nil

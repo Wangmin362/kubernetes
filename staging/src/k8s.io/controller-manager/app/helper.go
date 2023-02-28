@@ -63,6 +63,7 @@ func IsControllerEnabled(name string, disabledByDefaultControllers sets.String, 
 		if ctrl == name {
 			return true
 		}
+		// 说明在插件前面设置 - 可以禁用插件
 		if ctrl == "-"+name {
 			return false
 		}
@@ -76,5 +77,6 @@ func IsControllerEnabled(name string, disabledByDefaultControllers sets.String, 
 		return false
 	}
 
+	// 默认禁用的插件中如果有当前插件，就需要禁止
 	return !disabledByDefaultControllers.Has(name)
 }

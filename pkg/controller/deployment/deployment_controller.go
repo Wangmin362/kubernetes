@@ -688,6 +688,7 @@ func (dc *DeploymentController) syncDeployment(ctx context.Context, key string) 
 	// 默认在不设置策略的情况下，deployment的更新策略都是滚动更新
 	switch d.Spec.Strategy.Type {
 	case apps.RecreateDeploymentStrategyType:
+		// 先干掉老的replicaset，然后在创建新的replicaset
 		return dc.rolloutRecreate(ctx, d, rsList, podMap)
 	case apps.RollingUpdateDeploymentStrategyType:
 		return dc.rolloutRolling(ctx, d, rsList)

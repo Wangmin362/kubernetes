@@ -641,6 +641,7 @@ func (c serviceAccountTokenControllerStarter) startServiceAccountTokenController
 		}
 	} else {
 		// todo token-controller又是干嘛的？ 和当前的sa-token-controller有何区别？
+		// 这里应该是创建默认的CA文件
 		rootCA = c.rootClientBuilder.ConfigOrDie("tokens-controller").CAData
 	}
 

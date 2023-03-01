@@ -79,9 +79,9 @@ func startHPAControllerWithMetricsClient(ctx context.Context, controllerContext 
 		scaleClient,
 		hpaClient.AutoscalingV2(),
 		controllerContext.RESTMapper,
-		metricsClient,
-		controllerContext.InformerFactory.Autoscaling().V2().HorizontalPodAutoscalers(),
-		controllerContext.InformerFactory.Core().V1().Pods(),
+		metricsClient, // hpa判断是否扩缩容的依据就是metrics
+		controllerContext.InformerFactory.Autoscaling().V2().HorizontalPodAutoscalers(), // hap资源监听
+		controllerContext.InformerFactory.Core().V1().Pods(),                            // pods资源监听
 		controllerContext.ComponentConfig.HPAController.HorizontalPodAutoscalerSyncPeriod.Duration,
 		controllerContext.ComponentConfig.HPAController.HorizontalPodAutoscalerDownscaleStabilizationWindow.Duration,
 		controllerContext.ComponentConfig.HPAController.HorizontalPodAutoscalerTolerance,

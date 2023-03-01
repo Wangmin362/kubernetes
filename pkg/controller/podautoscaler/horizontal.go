@@ -148,6 +148,7 @@ func NewHorizontalController(
 	hpaController.podLister = podInformer.Lister()
 	hpaController.podListerSynced = podInformer.Informer().HasSynced
 
+	// hpa的核心就是计算根据pod实际资源占用情况计算出副本数
 	replicaCalc := NewReplicaCalculator(
 		metricsClient,
 		hpaController.podLister,

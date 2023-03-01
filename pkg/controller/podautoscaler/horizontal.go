@@ -351,6 +351,7 @@ func (a *HorizontalController) computeReplicasForMetric(ctx context.Context, hpa
 }
 
 func (a *HorizontalController) reconcileKey(ctx context.Context, key string) (deleted bool, err error) {
+	// 根据存储在queue中的key获得hpa的名称空间以及名字
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
 		return true, err
@@ -368,6 +369,7 @@ func (a *HorizontalController) reconcileKey(ctx context.Context, key string) (de
 		return false, err
 	}
 
+	// 根据指标扩缩容
 	return false, a.reconcileAutoscaler(ctx, hpa, key)
 }
 
@@ -576,12 +578,16 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 	hpa := hpaShared.DeepCopy()
 	hpaStatusOriginal := hpa.Status.DeepCopy()
 
+	// 拼出需要扩缩容对象的key，一般来说就是deployment
 	reference := fmt.Sprintf("%s/%s/%s", hpa.Spec.ScaleTargetRef.Kind, hpa.Namespace, hpa.Spec.ScaleTargetRef.Name)
 
+	// 获取deployment的group以及version
 	targetGV, err := schema.ParseGroupVersion(hpa.Spec.ScaleTargetRef.APIVersion)
 	if err != nil {
 		a.eventRecorder.Event(hpa, v1.EventTypeWarning, "FailedGetScale", err.Error())
+		// 设置HPA的状态
 		setCondition(hpa, autoscalingv2.AbleToScale, v1.ConditionFalse, "FailedGetScale", "the HPA controller was unable to get the target's current scale: %v", err)
+		// 如果解析扩缩容对象的GV失败，那么更新HPA状态
 		a.updateStatusIfNeeded(ctx, hpaStatusOriginal, hpa)
 		return fmt.Errorf("invalid API version in scale target reference: %v", err)
 	}
@@ -599,6 +605,7 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 		return fmt.Errorf("unable to determine resource for scale target reference: %v", err)
 	}
 
+	// 生成Scale对象，用于扩缩容目标对象
 	scale, targetGR, err := a.scaleForResourceMappings(ctx, hpa.Namespace, hpa.Spec.ScaleTargetRef.Name, mappings)
 	if err != nil {
 		a.eventRecorder.Event(hpa, v1.EventTypeWarning, "FailedGetScale", err.Error())
@@ -608,6 +615,7 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 	}
 	setCondition(hpa, autoscalingv2.AbleToScale, v1.ConditionTrue, "SucceededGetScale", "the HPA controller was able to get the target's current scale")
 	currentReplicas := scale.Spec.Replicas
+	// 设置该对象的初始化副本数
 	a.recordInitialRecommendation(currentReplicas, key)
 
 	var (
@@ -632,6 +640,7 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 
 	if scale.Spec.Replicas == 0 && minReplicas != 0 {
 		// Autoscaling is disabled for this resource
+		// 如果HPA扩缩容对象（譬如Deployment）的副本数一开始就设置为0，相当于禁用HPA，这种场景不适合使用HPA
 		desiredReplicas = 0
 		rescale = false
 		setCondition(hpa, autoscalingv2.ScalingActive, v1.ConditionFalse, "ScalingDisabled", "scaling is disabled since the replica count of the target is zero")
@@ -643,6 +652,7 @@ func (a *HorizontalController) reconcileAutoscaler(ctx context.Context, hpaShare
 		desiredReplicas = minReplicas
 	} else {
 		var metricTimestamp time.Time
+		// 计算所有指标的副本数，并选择最大的副本数
 		metricDesiredReplicas, metricName, metricStatuses, metricTimestamp, err = a.computeReplicasForMetrics(ctx, hpa, scale, hpa.Spec.Metrics)
 		if err != nil {
 			a.setCurrentReplicasInStatus(hpa, currentReplicas)

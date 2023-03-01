@@ -73,7 +73,8 @@ func NewNamespaceController(
 
 	// create the controller so we can inject the enqueue function
 	namespaceController := &NamespaceController{
-		queue:                      workqueue.NewNamedRateLimitingQueue(nsControllerRateLimiter(), "namespace"),
+		queue: workqueue.NewNamedRateLimitingQueue(nsControllerRateLimiter(), "namespace"),
+		// todo 猜测这玩意应该是用来当namespace删除时，把名称空间中的所有资源全部删除
 		namespacedResourcesDeleter: deletion.NewNamespacedResourcesDeleter(kubeClient.CoreV1().Namespaces(), metadataClient, kubeClient.CoreV1(), discoverResourcesFn, finalizerToken),
 	}
 
@@ -84,6 +85,7 @@ func NewNamespaceController(
 	// configure the namespace informer event handlers
 	namespaceInformer.Informer().AddEventHandlerWithResyncPeriod(
 		cache.ResourceEventHandlerFuncs{
+			// todo 为什么不监听namespace的删除事件？？？
 			AddFunc: func(obj interface{}) {
 				namespace := obj.(*v1.Namespace)
 				namespaceController.enqueueNamespace(namespace)
@@ -139,12 +141,14 @@ func (nm *NamespaceController) enqueueNamespace(obj interface{}) {
 // the same namespace at the same time.
 func (nm *NamespaceController) worker() {
 	workFunc := func() bool {
+		// 获取名称空间
 		key, quit := nm.queue.Get()
 		if quit {
 			return true
 		}
 		defer nm.queue.Done(key)
 
+		// NamespaceController的核心处理逻辑
 		err := nm.syncNamespaceFromKey(key.(string))
 		if err == nil {
 			// no error, forget this entry and return

@@ -104,7 +104,10 @@ func (d *namespacedResourcesDeleter) Delete(nsName string) error {
 		}
 		return err
 	}
+	// TODO 明明NamespaceController只监听了名称空间的更新的新增事件，为什么这里还会有删除？ 难道是Finalizer机制？
+	// TODO 删除名称空间只是修改名称空间？
 	if namespace.DeletionTimestamp == nil {
+		// 如果名称空间没有被删除，那么直接退出
 		return nil
 	}
 
@@ -112,6 +115,7 @@ func (d *namespacedResourcesDeleter) Delete(nsName string) error {
 
 	// ensure that the status is up to date on the namespace
 	// if we get a not found error, we assume the namespace is truly gone
+	// 更新名称空间的专改的Terminating状态
 	namespace, err = d.retryOnConflictError(namespace, d.updateNamespaceStatusFunc)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -127,8 +131,12 @@ func (d *namespacedResourcesDeleter) Delete(nsName string) error {
 
 	// return if it is already finalized.
 	if finalized(namespace) {
+		// 如果名称空间没有设置Finallizer，那么这个名称空间认为已经处理完毕
 		return nil
 	}
+
+	// 否则，如果名称空间设置了Finalizer，删除名称空间中的所有内容
+	// 实际上，所有的名称空间在创建的时候都会被默认添加 Kubernetes Finalizer，所以一旦名称空间被删除，那么名称空间中的所有资源都需要删除
 
 	// there may still be content for us to remove
 	estimate, err := d.deleteAllContent(namespace)
@@ -264,6 +272,7 @@ func (d *namespacedResourcesDeleter) retryOnConflictError(namespace *v1.Namespac
 // updateNamespaceStatusFunc will verify that the status of the namespace is correct
 func (d *namespacedResourcesDeleter) updateNamespaceStatusFunc(namespace *v1.Namespace) (*v1.Namespace, error) {
 	if namespace.DeletionTimestamp.IsZero() || namespace.Status.Phase == v1.NamespaceTerminating {
+		// 如果名称空间没有被删除或者已经处于终止状态，直接退出
 		return namespace, nil
 	}
 	newNamespace := namespace.DeepCopy()

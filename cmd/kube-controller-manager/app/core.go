@@ -458,6 +458,7 @@ func startNamespaceController(ctx context.Context, controllerContext ControllerC
 	// the ratelimiter negatively affects its speed.  Deleting 100 total items in a namespace (that's only a few of each resource
 	// including events), takes ~10 seconds by default.
 	nsKubeconfig := controllerContext.ClientBuilder.ConfigOrDie("namespace-controller")
+	// todo 这两个参数主要是用来干嘛的？
 	nsKubeconfig.QPS *= 20
 	nsKubeconfig.Burst *= 100
 	namespaceKubeClient := clientset.NewForConfigOrDie(nsKubeconfig)
@@ -465,7 +466,7 @@ func startNamespaceController(ctx context.Context, controllerContext ControllerC
 }
 
 func startModifiedNamespaceController(ctx context.Context, controllerContext ControllerContext, namespaceKubeClient clientset.Interface, nsKubeconfig *restclient.Config) (controller.Interface, bool, error) {
-
+	// 用于获取K8S资源的元数据
 	metadataClient, err := metadata.NewForConfig(nsKubeconfig)
 	if err != nil {
 		return nil, true, err

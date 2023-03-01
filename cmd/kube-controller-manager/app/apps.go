@@ -61,6 +61,7 @@ func startStatefulSetController(ctx context.Context, controllerContext Controlle
 
 func startReplicaSetController(ctx context.Context, controllerContext ControllerContext) (controller.Interface, bool, error) {
 	go replicaset.NewReplicaSetController(
+		// replica只关心replicaset以及pod的变化
 		controllerContext.InformerFactory.Apps().V1().ReplicaSets(),
 		controllerContext.InformerFactory.Core().V1().Pods(),
 		controllerContext.ClientBuilder.ClientOrDie("replicaset-controller"),

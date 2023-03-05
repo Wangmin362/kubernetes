@@ -61,6 +61,7 @@ import (
 
 // Info about an API group.
 type APIGroupInfo struct {
+	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage

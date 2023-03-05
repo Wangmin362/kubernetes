@@ -86,6 +86,7 @@ type ShortNamesProvider interface {
 // CategoriesProvider allows a resource to specify which groups of resources (categories) it's part of. Categories can
 // be used by API clients to refer to a batch of resources by using a single name (e.g. "all" could translate to "pod,rc,svc,...").
 type CategoriesProvider interface {
+	// Categories categories接口实际上就是返回资源的group
 	Categories() []string
 }
 

@@ -222,6 +222,7 @@ type EndpointReconcilerConfig struct {
 
 // Instance contains state for a Kubernetes cluster api server instance.
 type Instance struct {
+	// todo GenericAPIServer是apiserver的核心，apiserver, aggregrate-apiserver, extend-server都是建立在generic-apiserver之上的
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
@@ -334,17 +335,23 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, fmt.Errorf("Master.New() called with empty config.KubeletClientConfig")
 	}
 
+	// genericConfig是apiserver的配置，当apiserver处理不了一个请求的时候，会把请求委派给delegationTarget，也就是extend-apiserver
 	s, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
 
+	// 如果开启了日志服务，那么创建日志的container
+	// todo go-restful框架中，不同的container需要监听不同的端口，也就是说看起来是一个工程，实际上是多个web服务，难道是说日志
+	// todo 服务是另外起的一个web服务，只是通过apiserver完成代理？？？？
 	if c.ExtraConfig.EnableLogsSupport {
+		// todo 日志URL被注册到了s.Handler.GoRestfulContainer当中，那么记下来我们应该看看这玩意是个啥？
 		routes.Logs{}.Install(s.Handler.GoRestfulContainer)
 	}
 
 	// Metadata and keys are expected to only change across restarts at present,
 	// so we just marshal immediately and serve the cached JSON bytes.
+	// todo 这里应该是apiserver对于openID认证的支持
 	md, err := serviceaccount.NewOpenIDMetadata(
 		c.ExtraConfig.ServiceAccountIssuerURL,
 		c.ExtraConfig.ServiceAccountJWKSURI,
@@ -370,6 +377,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			klog.Info(msg)
 		}
 	} else {
+		// 这里给Container添加OpenID以及JWKS的路由
 		routes.NewOpenIDMetadataServer(md.ConfigJSON, md.PublicKeysetJSON).
 			Install(s.Handler.GoRestfulContainer)
 	}
@@ -381,6 +389,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// install legacy rest storage
 
+	// todo legacy资源指的仅仅是core资源么？
 	if err := m.InstallLegacyAPI(&c, c.GenericConfig.RESTOptionsGetter); err != nil {
 		return nil, err
 	}
@@ -547,6 +556,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 }
 
 // RESTStorageProvider is a factory type for REST storage.
+// todo 什么叫REST Storage? 是关于啥子东西的抽象？
 type RESTStorageProvider interface {
 	GroupName() string
 	NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error)

@@ -117,14 +117,13 @@ cluster's shared state through which all other components interact.`,
 			}
 			cliflag.PrintFlags(fs)
 
-			// set default options
 			// 设置apiserver参数的默认值，补全参数，后续创建extendserver, apiserver, aggregateserver都需要这些参数
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err
 			}
 
-			// validate options
+			// 校验参数的合法性
 			if errs := completedOptions.Validate(); len(errs) != 0 {
 				return utilerrors.NewAggregate(errs)
 			}
@@ -163,16 +162,19 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
+	// 创建server链，即：Aggregrate Server => Apiserver => Extend Server
 	server, err := CreateServerChain(completeOptions)
 	if err != nil {
 		return err
 	}
 
+	// todo 在apiserver运行之前干了啥？
 	prepared, err := server.PrepareRun()
 	if err != nil {
 		return err
 	}
 
+	// 运行Server
 	return prepared.Run(stopCh)
 }
 
@@ -196,6 +198,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
+	// 实例化apiserver，k8s内建的资源都是通过apiserver处理的
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err
@@ -217,6 +220,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
 func CreateKubeAPIServer(kubeAPIServerConfig *controlplane.Config, delegateAPIServer genericapiserver.DelegationTarget) (*controlplane.Instance, error) {
+	// complete仅仅是针对于apiserver的参数不全，重点应该关注如何实例化apiserver的
 	kubeAPIServer, err := kubeAPIServerConfig.Complete().New(delegateAPIServer)
 	if err != nil {
 		return nil, err

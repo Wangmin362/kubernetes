@@ -118,6 +118,7 @@ cluster's shared state through which all other components interact.`,
 			cliflag.PrintFlags(fs)
 
 			// set default options
+			// 设置apiserver参数的默认值，补全参数，后续创建extendserver, apiserver, aggregateserver都需要这些参数
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err
@@ -243,8 +244,11 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	[]admission.PluginInitializer,
 	error,
 ) {
+	// todo 如何理解golang中的transport  transport似乎是用来做长连接，多路复用的东西
 	proxyTransport := CreateProxyTransport()
 
+	// todo admissionPostStartHook是用来干嘛的？
+	// todo 如何理解serviceResolver?
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers, admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
 		return nil, nil, nil, err
@@ -397,6 +401,7 @@ func buildGenericConfig(
 		genericConfig.OpenAPIV3Config.Info.Title = "Kubernetes"
 	}
 
+	// todo 什么叫做langRunningRequest?
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
 		sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"),
@@ -432,6 +437,7 @@ func buildGenericConfig(
 	// Since not every generic apiserver has to support protobufs, we
 	// cannot default to it in generic apiserver and need to explicitly
 	// set it in kube-apiserver.
+	// todo vnd表示什么东西？
 	genericConfig.LoopbackClientConfig.ContentConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	// Disable compression for self-communication, since we are going to be
 	// on a fast local network
@@ -469,6 +475,7 @@ func buildGenericConfig(
 		LoopbackClientConfig: genericConfig.LoopbackClientConfig,
 		CloudConfigFile:      s.CloudProvider.CloudConfigFile,
 	}
+	// todo 什么叫做服务解析器？ 是用来从URL找到对应的handler的么？
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
 	if err != nil {

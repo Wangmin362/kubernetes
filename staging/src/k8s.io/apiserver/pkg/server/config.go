@@ -146,6 +146,7 @@ type Config struct {
 	//===========================================================================
 
 	// BuildHandlerChainFunc allows you to build custom handler chains by decorating the apiHandler.
+	// todo 这玩意似乎很重要
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// HandlerChainWaitGroup allows you to wait for all chain handlers exit after the server shutdown.
 	HandlerChainWaitGroup *utilwaitgroup.SafeWaitGroup
@@ -328,7 +329,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 
 	return &Config{
 		Serializer:                  codecs,
-		BuildHandlerChainFunc:       DefaultBuildHandlerChain,
+		BuildHandlerChainFunc:       DefaultBuildHandlerChain, // todo 重点分析
 		HandlerChainWaitGroup:       new(utilwaitgroup.SafeWaitGroup),
 		LegacyAPIGroupPrefixes:      sets.NewString(DefaultLegacyAPIPrefix),
 		DisabledPostStartHooks:      sets.NewString(),
@@ -806,6 +807,7 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 }
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
+	// todo 这里面到底干了啥？
 	handler := filterlatency.TrackCompleted(apiHandler)
 	handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)
 	handler = filterlatency.TrackStarted(handler, "authorization")

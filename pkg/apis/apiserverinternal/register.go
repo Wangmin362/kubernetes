@@ -22,6 +22,7 @@ import (
 )
 
 // GroupName is the group name use in this package
+// todo 这玩意是用来干嘛的？
 const GroupName = "internal.apiserver.k8s.io"
 
 // SchemeGroupVersion is group version used to register these objects

@@ -61,6 +61,7 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 			audit.AddAuditAnnotations(ctx,
 				decisionAnnotationKey, decisionAllow,
 				reasonAnnotationKey, reason)
+			// todo 这到底是啥意思？ 是请求放行么？
 			handler.ServeHTTP(w, req)
 			return
 		}

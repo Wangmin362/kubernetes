@@ -52,6 +52,7 @@ type KubeCloudSharedConfiguration struct {
 	ExternalCloudVolumePlugin string
 	// useServiceAccountCredentials indicates whether controllers should be run with
 	// individual service account credentials.
+	// todo 这个参数配置为true和false有啥影响？
 	UseServiceAccountCredentials bool
 	// run with untagged cloud instances
 	AllowUntaggedCloud bool

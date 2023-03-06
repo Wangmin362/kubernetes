@@ -26,21 +26,27 @@ import (
 
 // Config is the main context object for the controller manager.
 type Config struct {
+	// 各个组件的配置，每个组件可配置的行为就是通过这些配置决定的。这些配置就是通过controller-manager的配置传进来的
 	ComponentConfig kubectrlmgrconfig.KubeControllerManagerConfiguration
 
+	// 安全服务相关，譬如CA证书，加密套件等等
 	SecureServing *apiserver.SecureServingInfo
 	// LoopbackClientConfig is a config for a privileged loopback connection
+	// todo loopback指的是什么？
 	LoopbackClientConfig *restclient.Config
 
 	// TODO: remove deprecated insecure serving
+	// apiserver除了可以开启一个安全端口，还支持开启一个非安全的端口，也就是不需要经过认证、鉴权，不过默认是关闭的
 	InsecureServing *apiserver.DeprecatedInsecureServingInfo
-	Authentication  apiserver.AuthenticationInfo
-	Authorization   apiserver.AuthorizationInfo
+	// 认证信息
+	Authentication apiserver.AuthenticationInfo
+	// 授权信息
+	Authorization apiserver.AuthorizationInfo
 
-	// the general kube client
+	// apiserver客户端
 	Client *clientset.Clientset
 
-	// the rest config for the master
+	// kubeconfig文件
 	Kubeconfig *restclient.Config
 
 	EventBroadcaster record.EventBroadcaster
@@ -61,6 +67,7 @@ type CompletedConfig struct {
 func (c *Config) Complete() *CompletedConfig {
 	cc := completedConfig{c}
 
+	// todo 这一块得好好研究下
 	apiserver.AuthorizeClientBearerToken(c.LoopbackClientConfig, &c.Authentication, &c.Authorization)
 
 	return &CompletedConfig{&cc}

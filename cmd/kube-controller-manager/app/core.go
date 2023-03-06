@@ -490,7 +490,8 @@ func startModifiedNamespaceController(ctx context.Context, controllerContext Con
 func startServiceAccountController(ctx context.Context, controllerContext ControllerContext) (controller.Interface, bool, error) {
 	// 创建ServiceAccountController，可以看到这个控制器就是监听sa以及名称空间的变化
 	sac, err := serviceaccountcontroller.NewServiceAccountsController(
-		controllerContext.InformerFactory.Core().V1().ServiceAccounts(),
+		controllerContext.InformerFactory.Core().V1().ServiceAccounts(), // SAController需要监听ServiceAccount，这个是肯定的
+		// 为什么SAController需要监听Namespace的变化情况呢？ 原因是每个名称空间都需要有一个default sa，所以这里需要监听名称空间
 		controllerContext.InformerFactory.Core().V1().Namespaces(),
 		controllerContext.ClientBuilder.ClientOrDie("service-account-controller"),
 		serviceaccountcontroller.DefaultServiceAccountsControllerOptions(),

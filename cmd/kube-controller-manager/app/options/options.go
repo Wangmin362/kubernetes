@@ -406,14 +406,17 @@ func (s *KubeControllerManagerOptions) Validate(allControllers []string, disable
 
 // Config return a controller manager config objective
 func (s KubeControllerManagerOptions) Config(allControllers []string, disabledByDefaultControllers []string) (*kubecontrollerconfig.Config, error) {
+	// 校验controller-manager中各个组件的重要参数，同时把用户禁用的组件剔除
 	if err := s.Validate(allControllers, disabledByDefaultControllers); err != nil {
 		return nil, err
 	}
 
+	// 如果没有给controller-manager指定证书，那么controller-manager会自己实例化自签证书
 	if err := s.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
 		return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 
+	// 构建kubeconfig配置，将来和apiserver通信就指望着这玩意了
 	kubeconfig, err := clientcmd.BuildConfigFromFlags(s.Master, s.Kubeconfig)
 	if err != nil {
 		return nil, err
@@ -424,6 +427,7 @@ func (s KubeControllerManagerOptions) Config(allControllers []string, disabledBy
 	kubeconfig.QPS = s.Generic.ClientConnection.QPS
 	kubeconfig.Burst = int(s.Generic.ClientConnection.Burst)
 
+	// 根据kubeconfig文件生成apiserver的客户端，添加请求头：UserAgent: kube-controller-manager
 	client, err := clientset.NewForConfig(restclient.AddUserAgent(kubeconfig, KubeControllerManagerUserAgent))
 	if err != nil {
 		return nil, err
@@ -432,12 +436,14 @@ func (s KubeControllerManagerOptions) Config(allControllers []string, disabledBy
 	eventBroadcaster := record.NewBroadcaster()
 	eventRecorder := eventBroadcaster.NewRecorder(clientgokubescheme.Scheme, v1.EventSource{Component: KubeControllerManagerUserAgent})
 
+	// 实例化配置
 	c := &kubecontrollerconfig.Config{
 		Client:           client,
 		Kubeconfig:       kubeconfig,
 		EventBroadcaster: eventBroadcaster,
 		EventRecorder:    eventRecorder,
 	}
+	// 这里才是重点，把controller-manager的各个参数转为组件需要的配置
 	if err := s.ApplyTo(c); err != nil {
 		return nil, err
 	}

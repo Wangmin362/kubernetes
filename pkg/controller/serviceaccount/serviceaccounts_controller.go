@@ -70,6 +70,7 @@ func NewServiceAccountsController(saInformer coreinformers.ServiceAccountInforme
 		// 创建一个限速队列，名字叫做serviceaccount
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "serviceaccount"),
 	}
+	// 增加rateLimiter指标
 	if cl != nil && cl.CoreV1().RESTClient().GetRateLimiter() != nil {
 		if err := ratelimiter.RegisterMetricAndTrackRateLimiterUsage("serviceaccount_controller", cl.CoreV1().RESTClient().GetRateLimiter()); err != nil {
 			return nil, err
@@ -85,9 +86,10 @@ func NewServiceAccountsController(saInformer coreinformers.ServiceAccountInforme
 	e.saListerSynced = saInformer.Informer().HasSynced // 判断SA是否同步完成
 
 	// 关心名称空间的新增、修改操作
-	// todo 为什么不需要关心名称空间的删除操作？
+	// todo 为什么不需要关心名称空间的删除操作？  因为一个名称空间被删除了不需要做啥操作，本身SAController就是为了在名称空间中创建一个默认SA，所以一个名称空间被删除不需要再关心
 	nsInformer.Informer().AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
-		AddFunc:    e.namespaceAdded,
+		AddFunc: e.namespaceAdded,
+		// todo 为什么需要关心名称空间的更新操作,难道名称空间的更新操作会影响默认SA账号
 		UpdateFunc: e.namespaceUpdated,
 	}, options.NamespaceResync)
 	e.nsLister = nsInformer.Lister()
@@ -211,7 +213,7 @@ func (c *ServiceAccountsController) syncNamespace(ctx context.Context, key strin
 	}
 
 	createFailures := []error{}
-	// 每个名称空间都需要有一个default sa账号
+	// 目前每个名称空间只需要有一个default的SA账号
 	for _, sa := range c.serviceAccountsToEnsure {
 		switch _, err := c.saLister.ServiceAccounts(ns.Name).Get(sa.Name); {
 		case err == nil:

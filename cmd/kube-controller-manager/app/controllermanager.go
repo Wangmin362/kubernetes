@@ -91,6 +91,7 @@ type ControllerLoopMode int
 
 const (
 	// IncludeCloudLoops means the kube-controller-manager include the controller loops that are cloud provider dependent
+	// todo 这种模式是啥意思？ 没有看懂注释内容
 	IncludeCloudLoops ControllerLoopMode = iota
 	// ExternalLoops means the kube-controller-manager exclude the controller loops that are cloud provider dependent
 	ExternalLoops
@@ -121,20 +122,24 @@ controller, and serviceaccounts controller.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 参数校验，如果参数不合法，直接退出
 			verflag.PrintAndExitIfRequested()
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
+			// 日志打印
 			if err := logsapi.ValidateAndApply(s.Logs, utilfeature.DefaultFeatureGate); err != nil {
 				return err
 			}
 			cliflag.PrintFlags(cmd.Flags())
 
+			// 生成controller-manager各个组件的配置
 			c, err := s.Config(KnownControllers(), ControllersDisabledByDefault.List())
 			if err != nil {
 				return err
 			}
 
+			// 运行controller-manager
 			return Run(c.Complete(), wait.NeverStop)
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -184,6 +189,7 @@ func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 	c.EventBroadcaster.StartRecordingToSink(&v1core.EventSinkImpl{Interface: c.Client.CoreV1().Events("")})
 	defer c.EventBroadcaster.Shutdown()
 
+	// 实际上就是给controller-manager增加了 /configz RESTFul接口，可以让用户知道自己到底配置了什么？
 	if cfgz, err := configz.New(ConfigzName); err == nil {
 		cfgz.Set(c.ComponentConfig)
 	} else {
@@ -193,6 +199,7 @@ func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 	// Setup any healthz checks we will want to use.
 	var checks []healthz.HealthChecker
 	var electionChecker *leaderelection.HealthzAdaptor
+	// todo 如果不开启LeaderElect会怎么样？
 	if c.ComponentConfig.Generic.LeaderElection.LeaderElect {
 		electionChecker = leaderelection.NewLeaderHealthzAdaptor(time.Second * 20)
 		checks = append(checks, electionChecker)
@@ -211,8 +218,10 @@ func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 		}
 	}
 
+	// todo 这里到底是在干嘛？
 	clientBuilder, rootClientBuilder := createClientBuilders(c)
 
+	// todo 为什么saServiceToken需要有单独初始化的流程，不是和其它controller一起初始化？难道是为了通信？
 	saTokenControllerInitFunc := serviceAccountTokenControllerStarter{rootClientBuilder: rootClientBuilder}.startServiceAccountTokenController
 
 	run := func(ctx context.Context, startSATokenController InitFunc, initializersFunc ControllerInitializersFunc) {
@@ -377,6 +386,7 @@ func (c ControllerContext) IsControllerEnabled(name string) bool {
 // that requests no additional features from the controller manager.
 // Any error returned will cause the controller process to `Fatal`
 // The bool indicates whether the controller was enabled.
+// todo 所有的controller都是直接返回的 nil,nil,nil，也就是说这个返回值并没有意义？ 这里到底是出了什么问题？ 为什么会这么玩？
 type InitFunc func(ctx context.Context, controllerCtx ControllerContext) (controller controller.Interface, enabled bool, err error)
 
 // ControllerInitializersFunc is used to create a collection of initializers
@@ -394,6 +404,7 @@ func KnownControllers() []string {
 	// using a normal function.  The only known special case is the SA token controller which *must* be started
 	// first to ensure that the SA tokens for future controllers will exist.  Think very carefully before adding
 	// to this list.
+	// todo 为什么saTokenController需要额外初始化？
 	ret.Insert(
 		saTokenControllerName,
 	)

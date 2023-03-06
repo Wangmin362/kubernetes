@@ -23,6 +23,7 @@ import (
 )
 
 // Interface defines the base of a controller managed by a controller manager
+// todo 一个controller的抽象为什么仅仅定义了一个Name方法？？
 type Interface interface {
 	// Name returns the canonical name of the controller.
 	Name() string

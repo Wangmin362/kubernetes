@@ -221,7 +221,8 @@ func Run(c *config.CompletedConfig, stopCh <-chan struct{}) error {
 	// todo 这里到底是在干嘛？
 	clientBuilder, rootClientBuilder := createClientBuilders(c)
 
-	// todo 为什么saServiceToken需要有单独初始化的流程，不是和其它controller一起初始化？难道是为了通信？
+	// 为什么saServiceToken需要有单独初始化的流程，不是和其它controller一起初始化？难道是为了通信？
+	// 主要原因是因为其它controller的启动是依赖saTokenController的，所以需要提前启动
 	saTokenControllerInitFunc := serviceAccountTokenControllerStarter{rootClientBuilder: rootClientBuilder}.startServiceAccountTokenController
 
 	run := func(ctx context.Context, startSATokenController InitFunc, initializersFunc ControllerInitializersFunc) {
@@ -646,23 +647,25 @@ func (c serviceAccountTokenControllerStarter) startServiceAccountTokenController
 	}
 
 	var rootCA []byte
+	// 每个sa账号生成的secret里面都有一个ca.crt，应该就是这个文件
 	if controllerContext.ComponentConfig.SAController.RootCAFile != "" {
 		if rootCA, err = readCA(controllerContext.ComponentConfig.SAController.RootCAFile); err != nil {
 			return nil, true, fmt.Errorf("error parsing root-ca-file at %s: %v", controllerContext.ComponentConfig.SAController.RootCAFile, err)
 		}
 	} else {
-		// todo token-controller又是干嘛的？ 和当前的sa-token-controller有何区别？
 		// 这里应该是创建默认的CA文件
 		rootCA = c.rootClientBuilder.ConfigOrDie("tokens-controller").CAData
 	}
 
+	// 每个sa账号生成的secret中都有一个token用于通信，这里的JWTToeknGenerate应该就是用来生成Token的
 	tokenGenerator, err := serviceaccount.JWTTokenGenerator(serviceaccount.LegacyIssuer, privateKey)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to build token generator: %v", err)
 	}
 	controller, err := serviceaccountcontroller.NewTokensController(
 		controllerContext.InformerFactory.Core().V1().ServiceAccounts(), // 监听service-account
-		controllerContext.InformerFactory.Core().V1().Secrets(),         // 监听secret
+		// todo 猜测这里监听secret是为了保证default sa的存在
+		controllerContext.InformerFactory.Core().V1().Secrets(),
 		c.rootClientBuilder.ClientOrDie("tokens-controller"),
 		serviceaccountcontroller.TokensControllerOptions{
 			TokenGenerator: tokenGenerator,

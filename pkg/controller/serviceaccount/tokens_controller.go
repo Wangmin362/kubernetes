@@ -82,7 +82,7 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 
 	e := &TokensController{
 		client: cl,
-		token:  options.TokenGenerator,
+		token:  options.TokenGenerator, // token生成器
 		rootCA: options.RootCA,
 
 		// 这个队列专门给service-account使用
@@ -93,6 +93,7 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 		maxRetries:   maxRetries,
 		autoGenerate: options.AutoGenerate,
 	}
+	// 用于添加rateLimiter指标
 	if cl != nil && cl.CoreV1().RESTClient().GetRateLimiter() != nil {
 		if err := ratelimiter.RegisterMetricAndTrackRateLimiterUsage("serviceaccount_tokens_controller", cl.CoreV1().RESTClient().GetRateLimiter()); err != nil {
 			return nil, err
@@ -110,7 +111,7 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 		options.ServiceAccountResync,
 	)
 
-	secretCache := secrets.Informer().GetIndexer()
+	secretCache := secrets.Informer().GetIndexer() // secret缓存
 	e.updatedSecrets = cache.NewIntegerResourceVersionMutationCache(secretCache, secretCache, 60*time.Second, true)
 	e.secretSynced = secrets.Informer().HasSynced
 	secrets.Informer().AddEventHandlerWithResyncPeriod(
@@ -118,6 +119,7 @@ func NewTokensController(serviceAccounts informers.ServiceAccountInformer, secre
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Secret:
+					// 果然，这里验证了我的想法 SATokenController仅仅关心那些因为创建default sa而生成的secret
 					return t.Type == v1.SecretTypeServiceAccountToken
 				default:
 					utilruntime.HandleError(fmt.Errorf("object passed to %T that is not expected: %T", e, obj))
@@ -184,7 +186,9 @@ func (e *TokensController) Run(workers int, stopCh <-chan struct{}) {
 
 	klog.V(5).Infof("Starting workers")
 	for i := 0; i < workers; i++ {
+		// 创建sa账号时，其对应的secret就是由SATokenController创建的
 		go wait.Until(e.syncServiceAccount, 0, stopCh)
+		// 当SAToken类型的Secret被删除时，需要重建
 		go wait.Until(e.syncSecret, 0, stopCh)
 	}
 	<-stopCh
@@ -367,6 +371,7 @@ func (e *TokensController) deleteToken(ns, name string, uid types.UID) ( /*retry
 
 // ensureReferencedToken makes sure at least one ServiceAccountToken secret exists, and is included in the serviceAccount's Secrets list
 func (e *TokensController) ensureReferencedToken(serviceAccount *v1.ServiceAccount) ( /* retry */ bool, error) {
+	// 看看sa当前名称空间中是否生成了对应的secret，如果生成了，直接返回
 	if hasToken, err := e.hasReferencedToken(serviceAccount); err != nil {
 		// Don't retry cache lookup errors
 		return false, err
@@ -399,7 +404,7 @@ func (e *TokensController) ensureReferencedToken(serviceAccount *v1.ServiceAccou
 				v1.ServiceAccountUIDKey:  string(serviceAccount.UID),
 			},
 		},
-		Type: v1.SecretTypeServiceAccountToken,
+		Type: v1.SecretTypeServiceAccountToken, // 为每个sa创建的secret都是SAToken类型
 		Data: map[string][]byte{},
 	}
 
@@ -494,6 +499,7 @@ func (e *TokensController) hasReferencedToken(serviceAccount *v1.ServiceAccount)
 	if len(serviceAccount.Secrets) == 0 {
 		return false, nil
 	}
+	// 找到sa所有名称名间中的对应secret
 	allSecrets, err := e.listTokenSecrets(serviceAccount)
 	if err != nil {
 		return false, err

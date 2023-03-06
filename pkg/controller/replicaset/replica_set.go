@@ -83,17 +83,22 @@ type ReplicaSetController struct {
 	// GroupVersionKind indicates the controller type.
 	// Different instances of this struct may handle different GVKs.
 	// For example, this struct can be used (with adapters) to handle ReplicationController.
+	// 用于表征当前控制器是针对于哪类资源的控制器
 	schema.GroupVersionKind
 
+	// apiserver的client，用于和apiserver交互
 	kubeClient clientset.Interface
+	// replicaset控制的就是pod
 	podControl controller.PodControlInterface
 
+	// 用于发送事件
 	eventBroadcaster record.EventBroadcaster
 
 	// A ReplicaSet is temporarily suspended after creating/deleting these many replicas.
 	// It resumes normal action after observing the watch events for them.
 	burstReplicas int
 	// To allow injection of syncReplicaSet for testing.
+	// todo 这玩意应该是replicaset的事件的处理器
 	syncHandler func(ctx context.Context, rsKey string) error
 
 	// A TTLCache of pod creates/deletes each rc expects to see.
@@ -138,6 +143,7 @@ func NewReplicaSetController(rsInformer appsinformers.ReplicaSetInformer, podInf
 // parameters so that it can also serve as the implementation of NewReplicationController.
 func NewBaseController(rsInformer appsinformers.ReplicaSetInformer, podInformer coreinformers.PodInformer, kubeClient clientset.Interface, burstReplicas int,
 	gvk schema.GroupVersionKind, metricOwnerName, queueName string, podControl controller.PodControlInterface, eventBroadcaster record.EventBroadcaster) *ReplicaSetController {
+	// reateLimter指标
 	if kubeClient != nil && kubeClient.CoreV1().RESTClient().GetRateLimiter() != nil {
 		ratelimiter.RegisterMetricAndTrackRateLimiterUsage(metricOwnerName, kubeClient.CoreV1().RESTClient().GetRateLimiter())
 	}
@@ -149,7 +155,8 @@ func NewBaseController(rsInformer appsinformers.ReplicaSetInformer, podInformer 
 		eventBroadcaster: eventBroadcaster,
 		burstReplicas:    burstReplicas,
 		expectations:     controller.NewUIDTrackingControllerExpectations(controller.NewControllerExpectations()),
-		queue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName),
+		// 默认的限速队列
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), queueName),
 	}
 
 	rsInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -539,15 +546,19 @@ func (rsc *ReplicaSetController) processNextWorkItem(ctx context.Context) bool {
 	if quit {
 		return false
 	}
+	// 处理完成之后从队列当中删除
 	defer rsc.queue.Done(key)
 
 	err := rsc.syncHandler(ctx, key.(string))
 	if err == nil {
+		// todo 处理成功之后如果不调用forget会怎么样？
 		rsc.queue.Forget(key)
 		return true
 	}
 
 	utilruntime.HandleError(fmt.Errorf("sync %q failed with %v", key, err))
+	// 如果处理出错了，就重新加入队列
+	// todo 这个函数为什么可以在Done之前调用
 	rsc.queue.AddRateLimited(key)
 
 	return true
@@ -681,7 +692,9 @@ func (rsc *ReplicaSetController) syncReplicaSet(ctx context.Context, key string)
 		return err
 	}
 
+	// todo rsNeedsSync到底是用来干么的？
 	rsNeedsSync := rsc.expectations.SatisfiedExpectations(key)
+	// rs的标签，一会儿用来查询pod
 	selector, err := metav1.LabelSelectorAsSelector(rs.Spec.Selector)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("error converting pod selector to selector for rs %v/%v: %v", namespace, name, err))
@@ -700,6 +713,7 @@ func (rsc *ReplicaSetController) syncReplicaSet(ctx context.Context, key string)
 
 	// NOTE: filteredPods are pointing to objects from cache - if you need to
 	// modify them, you need to copy it first.
+	// 筛选出符合条件的pod
 	filteredPods, err = rsc.claimPods(ctx, rs, selector, filteredPods)
 	if err != nil {
 		return err
@@ -707,6 +721,7 @@ func (rsc *ReplicaSetController) syncReplicaSet(ctx context.Context, key string)
 
 	var manageReplicasErr error
 	if rsNeedsSync && rs.DeletionTimestamp == nil {
+		// todo 这里实际上就在根据replicaset的数量调谐pod数量
 		manageReplicasErr = rsc.manageReplicas(ctx, filteredPods, rs)
 	}
 	rs = rs.DeepCopy()

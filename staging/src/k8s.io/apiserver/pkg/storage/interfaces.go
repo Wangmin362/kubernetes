@@ -156,6 +156,8 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 
 // Interface offers a common interface for object marshaling/unmarshaling operations and
 // hides all the storage-related operations behind it.
+// Interface提供了一个对象通用的序列化和反序列化接口，该接口隐藏了所有存储对象相关的操作
+// staging/src/k8s.io/apiserver/pkg/storage/etcd3/store.go实现了这个接口
 type Interface interface {
 	// Returns Versioner associated with this interface.
 	Versioner() Versioner
@@ -188,6 +190,11 @@ type Interface interface {
 	// Treats empty responses and nil response nodes exactly like a not found error.
 	// The returned contents may be delayed, but it is guaranteed that they will
 	// match 'opts.ResourceVersion' according 'opts.ResourceVersionMatch'.
+	// todo 为什么查询到的接口是通过 objPtr传递给外部的，而不是通过返回值？ 如果是放在返回值的位置，有什么弊端？
+	// 实际上这个问题的答案还是比较容易立即的，这是因为反序列化的对象类型并不是唯一的，而是多种多样的，可能是deployment，
+	// 可能是service，也可能是pod，不管他们是啥类型，都可以认为是 runtime.Object类型，K8S在这里进行了抽象。
+	// 如果查询到的结果我们通过返回值传出去，我们完全不可能知道当前的字节数组应该序列化成为什么资源对象，因此我们需要函数
+	// 调用者告诉我们到底是是啥类型。用户只需要在使用的时候定义一个具体资源对象的空类型，然后把该资源对象传进来即可
 	Get(ctx context.Context, key string, opts GetOptions, objPtr runtime.Object) error
 
 	// GetList unmarshalls objects found at key into a *List api object (an object

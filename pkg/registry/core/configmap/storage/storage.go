@@ -37,15 +37,17 @@ type REST struct {
 // NewREST returns a RESTStorage object that will work with ConfigMap objects.
 func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, error) {
 	store := &genericregistry.Store{
-		NewFunc:                  func() runtime.Object { return &api.ConfigMap{} },
-		NewListFunc:              func() runtime.Object { return &api.ConfigMapList{} },
-		PredicateFunc:            configmap.Matcher,
+		NewFunc:       func() runtime.Object { return &api.ConfigMap{} },
+		NewListFunc:   func() runtime.Object { return &api.ConfigMapList{} },
+		PredicateFunc: configmap.Matcher,
+		// GVR中的R，也就是Resources
 		DefaultQualifiedResource: api.Resource("configmaps"),
 
 		CreateStrategy: configmap.Strategy,
 		UpdateStrategy: configmap.Strategy,
 		DeleteStrategy: configmap.Strategy,
 
+		// todo 这个tableConvertor到底是干嘛用的？
 		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(printersinternal.AddHandlers)},
 	}
 	options := &generic.StoreOptions{

@@ -121,6 +121,7 @@ type Getter interface {
 	// Get finds a resource in the storage by name and returns it.
 	// Although it can return an arbitrary error value, IsNotFound(err) is true for the
 	// returned error value err when the specified resource is not found.
+	// 这个函数就是clisentset正儿八经获取K8S资源对象的函数了
 	Get(ctx context.Context, name string, options *metav1.GetOptions) (runtime.Object, error)
 }
 
@@ -145,6 +146,7 @@ type GetterWithOptions interface {
 	NewGetOptions() (runtime.Object, bool, string)
 }
 
+// TableConvertor 这个接口到底是干嘛用的，也没有写注释
 type TableConvertor interface {
 	ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error)
 }
@@ -277,6 +279,7 @@ type Watcher interface {
 
 // StandardStorage is an interface covering the common verbs. Provided for testing whether a
 // resource satisfies the normal storage methods. Use Storage when passing opaque storage objects.
+// 这个接口主要是面向K8S，用于提供对于K8S各个资源对象的存储抽象接口
 type StandardStorage interface {
 	Getter
 	Lister

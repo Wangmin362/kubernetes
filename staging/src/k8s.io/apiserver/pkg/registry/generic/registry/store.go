@@ -92,17 +92,21 @@ type GenericStore interface {
 // specific to the API.
 //
 // TODO: make the default exposed methods exactly match a generic RESTStorage
+// 这个类对象是对于staging/src/k8s.io/apiserver/pkg/registry/rest/rest.go StandardStorage的标准实现
+// 每个资源对象都会使用这个类去封装自己
 type Store struct {
 	// NewFunc returns a new instance of the type this registry returns for a
 	// GET of a single object, e.g.:
 	//
 	// curl GET /apis/group/version/namespaces/my-ns/myresource/name-of-object
+	// 生成一个对象，譬如deployment, configmap, service等等
 	NewFunc func() runtime.Object
 
 	// NewListFunc returns a new list of the type this registry; it is the
 	// type returned when the resource is listed, e.g.:
 	//
 	// curl GET /apis/group/version/namespaces/my-ns/myresource
+	// 生成一个List对象
 	NewListFunc func() runtime.Object
 
 	// DefaultQualifiedResource is the pluralized name of the resource.
@@ -225,7 +229,10 @@ type Store struct {
 }
 
 // Note: the rest.StandardStorage interface aggregates the common REST verbs
+// Store对象必须要实现 rest.StandardStorage 接口
 var _ rest.StandardStorage = &Store{}
+
+// TODO tableConvertor到底是干嘛的？
 var _ rest.TableConvertor = &Store{}
 var _ GenericStore = &Store{}
 

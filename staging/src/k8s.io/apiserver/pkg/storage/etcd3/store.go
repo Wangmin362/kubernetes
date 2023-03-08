@@ -70,6 +70,7 @@ func (d authenticatedDataString) AuthenticatedData() []byte {
 
 var _ value.Context = authenticatedDataString("")
 
+// k8s资源存储接口的实现，该存储类实现了 StandardStorage 接口
 type store struct {
 	client              *clientv3.Client
 	codec               runtime.Codec
@@ -92,11 +93,15 @@ type objState struct {
 }
 
 // New returns an etcd3 implementation of storage.Interface.
-func New(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string, groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) storage.Interface {
+func New(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string,
+	groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool,
+	leaseManagerConfig LeaseManagerConfig) storage.Interface {
 	return newStore(c, codec, newFunc, prefix, groupResource, transformer, pagingEnabled, leaseManagerConfig)
 }
 
-func newStore(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string, groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) *store {
+func newStore(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string,
+	groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool,
+	leaseManagerConfig LeaseManagerConfig) *store {
 	versioner := storage.APIObjectVersioner{}
 	result := &store{
 		client:        c,
@@ -107,6 +112,7 @@ func newStore(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Ob
 		// for compatibility with etcd2 impl.
 		// no-op for default prefix of '/registry'.
 		// keeps compatibility with etcd2 impl for custom prefixes that don't start with '/'
+		// 如果不配置的话，默认就是所有的资源都是 /registry 开头前缀存储对象
 		pathPrefix:          path.Join("/", prefix),
 		groupResource:       groupResource,
 		groupResourceString: groupResource.String(),
@@ -122,9 +128,13 @@ func (s *store) Versioner() storage.Versioner {
 }
 
 // Get implements storage.Interface.Get.
+// TODO 如何理解这个out参数的含义
+// 答：实际上这个out就是标准的K8S资源对象，这个对象才是我们想要的。因为ETCD中存储的就是字节数组: []byte，我们需要把字节数组翻译为
+// K8S的标注资源对象，而应该翻译为什么类型的资源对象就是通过用户告诉我们的。详情解释原因请看它的接口定义
 func (s *store) Get(ctx context.Context, key string, opts storage.GetOptions, out runtime.Object) error {
 	key = path.Join(s.pathPrefix, key)
 	startTime := time.Now()
+	// 看到这里，实际上就是很简单的调用ETCD接口查询数据
 	getResp, err := s.client.KV.Get(ctx, key)
 	metrics.RecordEtcdRequestLatency("get", getTypeName(out), startTime)
 	if err != nil {
@@ -135,18 +145,21 @@ func (s *store) Get(ctx context.Context, key string, opts storage.GetOptions, ou
 	}
 
 	if len(getResp.Kvs) == 0 {
-		if opts.IgnoreNotFound {
+		if opts.IgnoreNotFound { // 如果忽略未找到，那么直接返回
 			return runtime.SetZeroValue(out)
 		}
 		return storage.NewKeyNotFoundError(key, 0)
 	}
+	// 拿到资源对象，由于是GET，而每种资源对象的KEY都是独一无二的，因此我们在这里直接取第一个就好
 	kv := getResp.Kvs[0]
 
+	// todo  按照某种规则翻译对象, K8S实际上存储对象时会做怎样的转换？
 	data, _, err := s.transformer.TransformFromStorage(ctx, kv.Value, authenticatedDataString(key))
 	if err != nil {
 		return storage.NewInternalError(err.Error())
 	}
 
+	// docode实际上就是对象的反序列化
 	return decode(s.codec, s.versioner, data, out, kv.ModRevision)
 }
 
@@ -158,13 +171,16 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 		utiltrace.Field{"type", getTypeName(obj)},
 	)
 	defer trace.LogIfLong(500 * time.Millisecond)
+	// 需要存储到ETCD中的对象不应该包含版本信息
 	if version, err := s.versioner.ObjectResourceVersion(obj); err == nil && version != 0 {
 		return errors.New("resourceVersion should not be set on objects to be created")
 	}
+	// 设置对象某些字段的默认值（ResourceVersion，SelfLink），这些字段应该由ETCD管控，用户不应该染指
 	if err := s.versioner.PrepareObjectForStorage(obj); err != nil {
 		return fmt.Errorf("PrepareObjectForStorage failed: %v", err)
 	}
 	trace.Step("About to Encode")
+	// 对象序列化，数据的保存一定是二进制数据，所以需要序列化数据
 	data, err := runtime.Encode(s.codec, obj)
 	trace.Step("Encode finished", utiltrace.Field{"len", len(data)}, utiltrace.Field{"err", err})
 	if err != nil {
@@ -172,11 +188,13 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 	}
 	key = path.Join(s.pathPrefix, key)
 
+	// 设置KV的TTL，也就是这个KV的存活时间
 	opts, err := s.ttlOpts(ctx, int64(ttl))
 	if err != nil {
 		return err
 	}
 
+	// 把序列化的数据进行一次转换，譬如加密
 	newData, err := s.transformer.TransformToStorage(ctx, data, authenticatedDataString(key))
 	trace.Step("TransformToStorage finished", utiltrace.Field{"err", err})
 	if err != nil {
@@ -184,6 +202,7 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 	}
 
 	startTime := time.Now()
+	// 创建了一个事务，只有在key没有找到的情况下，才允许存放数据
 	txnResp, err := s.client.KV.Txn(ctx).If(
 		notFound(key),
 	).Then(
@@ -201,6 +220,7 @@ func (s *store) Create(ctx context.Context, key string, obj, out runtime.Object,
 
 	if out != nil {
 		putResp := txnResp.Responses[0].GetResponsePut()
+		// 反序列化，把ETCD填充好的字段带回去给用户
 		err = decode(s.codec, s.versioner, data, out, putResp.Header.Revision)
 		trace.Step("decode finished", utiltrace.Field{"len", len(data)}, utiltrace.Field{"err", err})
 		return err
@@ -327,6 +347,7 @@ func (s *store) conditionalDelete(
 }
 
 // GuaranteedUpdate implements storage.Interface.GuaranteedUpdate.
+// todo ETCD是如何保证更新的呢？
 func (s *store) GuaranteedUpdate(
 	ctx context.Context, key string, destination runtime.Object, ignoreNotFound bool,
 	preconditions *storage.Preconditions, tryUpdate storage.UpdateFunc, cachedExistingObject runtime.Object) error {
@@ -336,6 +357,7 @@ func (s *store) GuaranteedUpdate(
 		utiltrace.Field{"type", getTypeName(destination)})
 	defer trace.LogIfLong(500 * time.Millisecond)
 
+	// 需要更新的对象必须是一个指针
 	v, err := conversion.EnforcePtr(destination)
 	if err != nil {
 		return fmt.Errorf("unable to convert output object to pointer: %v", err)
@@ -344,6 +366,7 @@ func (s *store) GuaranteedUpdate(
 
 	getCurrentState := func() (*objState, error) {
 		startTime := time.Now()
+		// 通过查询ETCD得到ETCD的状态
 		getResp, err := s.client.KV.Get(ctx, key)
 		metrics.RecordEtcdRequestLatency("get", getTypeName(destination), startTime)
 		if err != nil {
@@ -366,6 +389,7 @@ func (s *store) GuaranteedUpdate(
 	trace.Step("initial value restored")
 
 	transformContext := authenticatedDataString(key)
+	// todo 如果ETCD在更新过程中宕机，这个函数还能保证更新么？
 	for {
 		if err := preconditions.Check(key, origState.obj); err != nil {
 			// If our data is already up to date, return the error
@@ -457,6 +481,7 @@ func (s *store) GuaranteedUpdate(
 		).Then(
 			clientv3.OpPut(key, string(newData), opts...),
 		).Else(
+			// 这里出现的意义是啥？
 			clientv3.OpGet(key),
 		).Commit()
 		metrics.RecordEtcdRequestLatency("update", getTypeName(destination), startTime)
@@ -914,6 +939,7 @@ func (s *store) validateMinimumResourceVersion(minimumResourceVersion string, ac
 // decode decodes value of bytes into object. It will also set the object resource version to rev.
 // On success, objPtr would be set to the object.
 func decode(codec runtime.Codec, versioner storage.Versioner, value []byte, objPtr runtime.Object, rev int64) error {
+	// objPtr必须是一个指针类型，否则没有意义，因为用户永远不可能拿到值
 	if _, err := conversion.EnforcePtr(objPtr); err != nil {
 		return fmt.Errorf("unable to convert output object to pointer: %v", err)
 	}

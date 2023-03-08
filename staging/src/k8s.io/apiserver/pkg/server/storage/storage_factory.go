@@ -35,6 +35,7 @@ import (
 
 // Backend describes the storage servers, the information here should be enough
 // for health validations.
+// 后端存储
 type Backend struct {
 	// the url of storage backend like: https://etcd.domain:2379
 	Server string
@@ -67,6 +68,7 @@ type DefaultStorageFactory struct {
 	// Its authentication information will be used for every storage.Interface returned.
 	StorageConfig storagebackend.Config
 
+	// TODO 为什么不是GVR作为Key,而是GR作为Key
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
 	DefaultResourcePrefixes map[schema.GroupResource]string

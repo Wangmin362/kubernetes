@@ -55,12 +55,16 @@ type TransportConfig struct {
 }
 
 // Config is configuration for creating a storage backend.
+// 该配置为K8S后端存储配置
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
+	// K8S的后端存储类型，空默认为ETCD3存储
 	Type string
 	// Prefix is the prefix to all keys passed to storage.Interface methods.
+	// K8S存储ETCD的KEY的前缀，原因是K8S用户搭建的ETCD集群可能不单单是给K8S使用，可能还会有其它应用
 	Prefix string
 	// Transport holds all connection related info, i.e. equal TransportConfig means equal servers we talk to.
+	// 传输配置，譬如CA证书、后端存储地址
 	Transport TransportConfig
 	// Paging indicates whether the server implementation should allow paging (if it is
 	// supported). This is generally configured by feature gating, or by a specific
@@ -75,6 +79,7 @@ type Config struct {
 	// converted to before persisted in etcd.
 	EncodeVersioner runtime.GroupVersioner
 	// Transformer allows the value to be transformed prior to persisting into etcd.
+	// 在把K8S资源对象序列化为二进制数据存储ETCD之前可能需要转换，譬如数据加密
 	Transformer value.Transformer
 
 	// CompactionInterval is an interval of requesting compaction from apiserver.

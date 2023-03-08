@@ -344,6 +344,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 如果开启了日志服务，那么创建日志的container
 	// todo go-restful框架中，不同的container需要监听不同的端口，也就是说看起来是一个工程，实际上是多个web服务，难道是说日志
 	// todo 服务是另外起的一个web服务，只是通过apiserver完成代理？？？？
+	// 答： 实际上，从下面三行代码可以看出，日志服务用的是外面传进来的cotainer,所以是公用的一个端口，仅仅是增加了一个Service
 	if c.ExtraConfig.EnableLogsSupport {
 		// todo 日志URL被注册到了s.Handler.GoRestfulContainer当中，那么记下来我们应该看看这玩意是个啥？
 		routes.Logs{}.Install(s.Handler.GoRestfulContainer)
@@ -547,6 +548,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 
 	controllerName := "bootstrap-controller"
 	client := kubernetes.NewForConfigOrDie(c.GenericConfig.LoopbackClientConfig)
+	// todo BootstrapController主要是用来干嘛的？
 	bootstrapController, err := c.NewBootstrapController(legacyRESTStorage, client)
 	if err != nil {
 		return fmt.Errorf("error creating bootstrap controller: %v", err)
@@ -564,7 +566,8 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 // todo 什么叫REST Storage? 是关于啥子东西的抽象？
 type RESTStorageProvider interface {
 	GroupName() string
-	NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error)
+	NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource,
+		restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error)
 }
 
 // InstallAPIs will install the APIs for the restStorageProviders if they are enabled.

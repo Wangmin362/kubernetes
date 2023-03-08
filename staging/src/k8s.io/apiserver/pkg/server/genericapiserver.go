@@ -60,6 +60,7 @@ import (
 )
 
 // Info about an API group.
+// TODO 如何理解这个对象？
 type APIGroupInfo struct {
 	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
 	PrioritizedVersions []schema.GroupVersion

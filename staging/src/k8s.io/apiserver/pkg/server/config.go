@@ -220,6 +220,7 @@ type Config struct {
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
 	// This is composed of genericapiserver defaultAPIResourceConfig and those parsed from flags.
 	// If not specify any in flags, then genericapiserver will only enable defaultAPIResourceConfig.
+	// todo 什么叫做MergedResourceConfig?
 	MergedResourceConfig *serverstore.ResourceConfig
 
 	// lifecycleSignals provides access to the various signals

@@ -30,6 +30,7 @@ import (
 )
 
 const (
+	// 默认就是ETCD3存储类型
 	StorageTypeUnset = ""
 	StorageTypeETCD2 = "etcd2"
 	StorageTypeETCD3 = "etcd3"

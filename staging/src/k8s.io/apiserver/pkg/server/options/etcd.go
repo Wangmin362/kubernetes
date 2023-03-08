@@ -302,13 +302,15 @@ type StorageFactoryRestOptionsFactory struct {
 }
 
 func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
+	// 构建当前资源的存储后端
 	storageConfig, err := f.StorageFactory.NewConfig(resource)
 	if err != nil {
 		return generic.RESTOptions{}, fmt.Errorf("unable to find storage destination for %v, due to %v", resource, err.Error())
 	}
 
 	ret := generic.RESTOptions{
-		StorageConfig:             storageConfig,
+		StorageConfig: storageConfig,
+		// TODO 这里相当重要，通过Decorator，K8S把数据存到了ETCD当中
 		Decorator:                 generic.UndecoratedStorage,
 		DeleteCollectionWorkers:   f.Options.DeleteCollectionWorkers,
 		EnableGarbageCollection:   f.Options.EnableGarbageCollection,
@@ -316,6 +318,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 		CountMetricPollPeriod:     f.Options.StorageConfig.CountMetricPollPeriod,
 		StorageObjectCountTracker: f.Options.StorageConfig.StorageObjectCountTracker,
 	}
+	// TODO ETCD的watchCache是干嘛用的？
 	if f.Options.EnableWatchCache {
 		sizes, err := ParseWatchCacheSizes(f.Options.WatchCacheSizes)
 		if err != nil {

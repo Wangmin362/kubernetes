@@ -414,6 +414,7 @@ func buildGenericConfig(
 	kubeVersion := version.Get()
 	genericConfig.Version = &kubeVersion
 
+	// 构建K8S的后端存储
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
 	completedStorageFactoryConfig, err := storageFactoryConfig.Complete(s.Etcd)

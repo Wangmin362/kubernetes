@@ -83,20 +83,26 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 
 // StorageFactoryConfig is a configuration for creating storage factory.
 type StorageFactoryConfig struct {
-	StorageConfig                    storagebackend.Config
-	APIResourceConfig                *serverstorage.ResourceConfig
-	DefaultResourceEncoding          *serverstorage.DefaultResourceEncodingConfig
-	DefaultStorageMediaType          string
-	Serializer                       runtime.StorageSerializer
-	ResourceEncodingOverrides        []schema.GroupVersionResource
+	// 后端存储配置
+	StorageConfig storagebackend.Config
+	// API资源配置 TODO 如何理解这个参数
+	APIResourceConfig         *serverstorage.ResourceConfig
+	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig
+	DefaultStorageMediaType   string
+	Serializer                runtime.StorageSerializer
+	ResourceEncodingOverrides []schema.GroupVersionResource
+	// TODO 如何理解这个参数
 	EtcdServersOverrides             []string
 	EncryptionProviderConfigFilepath string
 }
 
 // Complete completes the StorageFactoryConfig with provided etcdOptions returning completedStorageFactoryConfig.
 func (c *StorageFactoryConfig) Complete(etcdOptions *serveroptions.EtcdOptions) (*completedStorageFactoryConfig, error) {
+	// 后端存储配置
 	c.StorageConfig = etcdOptions.StorageConfig
+	// 默认的媒体类型
 	c.DefaultStorageMediaType = etcdOptions.DefaultStorageMediaType
+	// TODO 如何理解这个参数
 	c.EtcdServersOverrides = etcdOptions.EtcdServersOverrides
 	c.EncryptionProviderConfigFilepath = etcdOptions.EncryptionProviderConfigFilepath
 	return &completedStorageFactoryConfig{c}, nil
@@ -130,6 +136,7 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 	storageFactory.AddCohabitatingResources(policy.Resource("podsecuritypolicies"), extensions.Resource("podsecuritypolicies"))
 	storageFactory.AddCohabitatingResources(networking.Resource("ingresses"), extensions.Resource("ingresses"))
 
+	// TODO 这是在干嘛？
 	for _, override := range c.EtcdServersOverrides {
 		tokens := strings.Split(override, "#")
 		apiresource := strings.Split(tokens[0], "/")

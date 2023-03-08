@@ -66,17 +66,20 @@ type StorageFactory interface {
 type DefaultStorageFactory struct {
 	// StorageConfig describes how to create a storage backend in general.
 	// Its authentication information will be used for every storage.Interface returned.
+	// K8S后端存储配置，默认就是ETCD3
 	StorageConfig storagebackend.Config
 
 	// TODO 为什么不是GVR作为Key,而是GR作为Key
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
+	// 资源前缀
 	DefaultResourcePrefixes map[schema.GroupResource]string
 
 	// DefaultMediaType is the media type used to store resources. If it is not set, "application/json" is used.
 	DefaultMediaType string
 
 	// DefaultSerializer is used to create encoders and decoders for the storage.Interface.
+	// 序列化、反序列化
 	DefaultSerializer runtime.StorageSerializer
 
 	// ResourceEncodingConfig describes how to encode a particular GroupVersionResource

@@ -254,8 +254,9 @@ func (s *DefaultStorageFactory) getStorageGroupResource(groupResource schema.Gro
 	return groupResource
 }
 
-// New finds the storage destination for the given group and resource. It will
+// NewConfig New finds the storage destination for the given group and resource. It will
 // return an error if the group has no storage destination configured.
+// 为当前传入的groupResource生成后端的存储配置
 func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error) {
 	chosenStorageResource := s.getStorageGroupResource(groupResource)
 

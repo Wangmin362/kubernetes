@@ -108,6 +108,7 @@ type ConfigForResource struct {
 	Config
 
 	// GroupResource is the relevant one
+	// 用于标识当前配置是哪种资源配置
 	GroupResource schema.GroupResource
 }
 

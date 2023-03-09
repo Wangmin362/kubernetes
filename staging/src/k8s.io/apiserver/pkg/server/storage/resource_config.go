@@ -21,6 +21,7 @@ import (
 )
 
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
+// TODO 这TM又是干嘛的？
 type APIResourceConfigSource interface {
 	ResourceEnabled(resource schema.GroupVersionResource) bool
 	AnyResourceForGroupEnabled(group string) bool

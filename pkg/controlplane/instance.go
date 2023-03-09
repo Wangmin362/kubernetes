@@ -538,6 +538,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 		ServiceAccountMaxExpiration: c.ExtraConfig.ServiceAccountMaxExpiration,
 		APIAudiences:                c.GenericConfig.Authentication.APIAudiences,
 	}
+	// legacyRESTStorage保存了各个legacy中的资源如何存储
 	legacyRESTStorage, apiGroupInfo, err := legacyRESTStorageProvider.NewLegacyRESTStorage(c.ExtraConfig.APIResourceConfigSource, restOptionsGetter)
 	if err != nil {
 		return fmt.Errorf("error building core storage: %v", err)

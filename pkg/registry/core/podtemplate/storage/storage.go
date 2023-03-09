@@ -47,7 +47,9 @@ func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, error) {
 
 		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(printersinternal.AddHandlers)},
 	}
+	// StoreOptions中拿到了后端存储的信息，简单来说就是ETCD
 	options := &generic.StoreOptions{RESTOptions: optsGetter}
+	// 使用options参数补全Store标存储，到了这里PodTemplate资源如何序列化之后保存到ETCD的链路就打通了
 	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, err
 	}

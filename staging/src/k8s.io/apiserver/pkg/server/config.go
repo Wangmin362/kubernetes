@@ -79,6 +79,7 @@ import (
 
 const (
 	// DefaultLegacyAPIPrefix is where the legacy APIs will be located.
+	// 所有的core API 都是装载到了这个路径下， 所谓的Legecy，实际上就是因为core资源实现的比较早，因此称之为Legacy
 	DefaultLegacyAPIPrefix = "/api"
 
 	// APIGroupPrefix is where non-legacy API group will be located.
@@ -87,23 +88,31 @@ const (
 
 // Config is a structure used to configure a GenericAPIServer.
 // Its members are sorted roughly in order of importance for composers.
+// TODO k8s认为一个GenericServer应该需要哪些配置呢？
 type Config struct {
 	// SecureServing is required to serve https
+	// 安全信息，实际上就是用于指定HTTPS启用哪个端口？ 证书是啥？ 加密Cihper选择啥？
+	// GenericServer作为一个WEB Server，肯定是需要接受用户请求的，因此需要绑定端口，如果是HTTP协议
+	// 那显然不需要这些信息，而如果启用HTTPS协议，肯定是需要告诉GenericServer TLS相关的信息的
 	SecureServing *SecureServingInfo
 
 	// Authentication is the configuration for authentication
+	// TODO 如何认证？
 	Authentication AuthenticationInfo
 
 	// Authorization is the configuration for authorization
+	// TODO 如何授权？
 	Authorization AuthorizationInfo
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
+	// TODO 什么叫做Loopback客户端？ 它应该有什么样的功能？
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
 	// It does so based on a EgressSelectorConfiguration which was read at startup.
+	// TODO lookup机制到底是啥意思？
 	EgressSelector *egressselector.EgressSelector
 
 	// RuleResolver is required to get the list of rules that apply to a given user
@@ -309,6 +318,7 @@ type SecureServingInfo struct {
 type AuthenticationInfo struct {
 	// APIAudiences is a list of identifier that the API identifies as. This is
 	// used by some authenticators to validate audience bound credentials.
+	// TODO 如何理解Audiences?
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
 	Authenticator authenticator.Request

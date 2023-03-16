@@ -107,11 +107,14 @@ cluster's shared state through which all other components interact.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 如果用户传了-version参数，那么打印版本，然后直接退出
 			verflag.PrintAndExitIfRequested()
+			// TODO Cobra是如何封装参数的？
 			fs := cmd.Flags()
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
+			// 校验并且根据FeatureGate设置一些默认参数
 			if err := logsapi.ValidateAndApply(s.Logs, utilfeature.DefaultFeatureGate); err != nil {
 				return err
 			}
@@ -128,6 +131,7 @@ cluster's shared state through which all other components interact.`,
 				return utilerrors.NewAggregate(errs)
 			}
 
+			// server一旦启动，只有SIGINT SIGTERM才可以停止程序的运行
 			return Run(completedOptions, genericapiserver.SetupSignalHandler())
 		},
 		Args: func(cmd *cobra.Command, args []string) error {
@@ -163,6 +167,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
 	// 创建server链，即：Aggregrate Server => Apiserver => Extend Server
+	// 而外部用户的请求进来时Server的执行顺序为：Extend Server (CRD) => Apiserver (K8S资源) => Aggregrate Server (API聚合接口)
 	server, err := CreateServerChain(completeOptions)
 	if err != nil {
 		return err
@@ -192,13 +197,19 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
+	// 第一步：创建notFoundHandler 当用户的请求进来时，Extend Server , Apiserver, Aggregrate Server都处理不了时就只能委托给NotFoundHandler
+	// 这个handler返回的就是404
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
+	// 第二步：创建Extend Server，并且把notfoundHander作为ExtendServer下一任的委派，也就是说notFoundHandler时请求处理的兜底
+	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err
 	}
 
 	// 实例化apiserver，k8s内建的资源都是通过apiserver处理的
+	// 第三步：创建Apiserver 实现对于K8S标准资源的处理
+	// TODO 标准资源的Handler是如何转载的？ 如何与资源的URL绑定的？
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err
@@ -209,6 +220,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	if err != nil {
 		return nil, err
 	}
+	// 第四步：创建AggregrateServer，实现对于聚合接口请求的处理？
+	// TODO k8s是如何设计聚合接口的？ 使得用户可以扩展聚合接口？
 	aggregatorServer, err := createAggregatorServer(aggregatorConfig, kubeAPIServer.GenericAPIServer, apiExtensionsServer.Informers)
 	if err != nil {
 		// we don't need special handling for innerStopCh because the aggregator server doesn't create any go routines

@@ -336,6 +336,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 
 	// genericConfig是apiserver的配置，当apiserver处理不了一个请求的时候，会把请求委派给delegationTarget，也就是extend-apiserver
+	// TODO GenericConfig是如何被实例化出来的？
 	s, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err

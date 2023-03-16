@@ -32,10 +32,12 @@ type Token interface {
 // Request attempts to extract authentication information from a request and
 // returns a Response or an error if the request could not be checked.
 type Request interface {
+	// TODO 可以看到认证是一个非常标准的HTTP Handler的格式
 	AuthenticateRequest(req *http.Request) (*Response, bool, error)
 }
 
 // TokenFunc is a function that implements the Token interface.
+// TokenFunc实际上就是Token接口的适配器，用于强转
 type TokenFunc func(ctx context.Context, token string) (*Response, bool, error)
 
 // AuthenticateToken implements authenticator.Token.
@@ -44,6 +46,7 @@ func (f TokenFunc) AuthenticateToken(ctx context.Context, token string) (*Respon
 }
 
 // RequestFunc is a function that implements the Request interface.
+// Request接口的适配器，用于强转
 type RequestFunc func(req *http.Request) (*Response, bool, error)
 
 // AuthenticateRequest implements authenticator.Request.

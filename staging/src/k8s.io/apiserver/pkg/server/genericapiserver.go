@@ -100,6 +100,7 @@ func (a *APIGroupInfo) destroyStorage() {
 }
 
 // GenericAPIServer contains state for a Kubernetes cluster api server.
+// TODO k8s是如何抽象GenericAPIServer的？ 通用Server应该具有什么样的功能？ 以及在哪些地方需要扩展？
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
 	discoveryAddresses discovery.Addresses
@@ -253,6 +254,7 @@ type GenericAPIServer struct {
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
+// TODO 如何理解委派目标这个接口的设计？ k8s为啥设计了这么多的接口方法？
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
 	UnprotectedHandler() http.Handler

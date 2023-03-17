@@ -70,6 +70,7 @@ import (
 
 // LegacyRESTStorageProvider provides information needed to build RESTStorage for core, but
 // does NOT implement the "normal" RESTStorageProvider (yet!)
+// TODO 如何理解这个东西？
 type LegacyRESTStorageProvider struct {
 	StorageFactory serverstorage.StorageFactory
 	// Used for custom proxy dialing, and proxy TLS options

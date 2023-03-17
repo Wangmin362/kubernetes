@@ -73,6 +73,7 @@ type Config struct {
 	// set.
 	Paging bool
 
+	// 该资源的编解码器，实际上就是一个序列化/反序列化器
 	Codec runtime.Codec
 	// EncodeVersioner is the same groupVersioner used to build the
 	// storage encoder. Given a list of kinds the input object might belong
@@ -108,7 +109,7 @@ type ConfigForResource struct {
 	Config
 
 	// GroupResource is the relevant one
-	// 用于标识当前配置是哪种资源配置
+	// 用于标识当前配置是哪种资源配置 TODO 为什么不需要Version?
 	GroupResource schema.GroupResource
 }
 

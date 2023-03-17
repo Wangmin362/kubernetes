@@ -347,7 +347,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// todo 服务是另外起的一个web服务，只是通过apiserver完成代理？？？？
 	// 答： 实际上，从下面三行代码可以看出，日志服务用的是外面传进来的cotainer,所以是公用的一个端口，仅仅是增加了一个Service
 	if c.ExtraConfig.EnableLogsSupport {
-		// todo 日志URL被注册到了s.Handler.GoRestfulContainer当中，那么记下来我们应该看看这玩意是个啥？
+		// GoRestfulContainer实际上就是一个Container， Log相关的处理注册到了这个Container当中
 		routes.Logs{}.Install(s.Handler.GoRestfulContainer)
 	}
 
@@ -384,7 +384,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			Install(s.Handler.GoRestfulContainer)
 	}
 
-	m := &Instance{
+	m := &Instance{ // 创建实例
 		GenericAPIServer:          s,
 		ClusterAuthenticationInfo: c.ExtraConfig.ClusterAuthenticationInfo,
 	}

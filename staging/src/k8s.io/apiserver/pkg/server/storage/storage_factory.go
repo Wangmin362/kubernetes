@@ -44,18 +44,22 @@ type Backend struct {
 }
 
 // StorageFactory is the interface to locate the storage for a given GroupResource
+// TODO 什么叫做StorageFactory，
 type StorageFactory interface {
 	// New finds the storage destination for the given group and resource. It will
 	// return an error if the group has no storage destination configured.
+	// 用于返回groupResource资源的存储后端
 	NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error)
 
 	// ResourcePrefix returns the overridden resource prefix for the GroupResource
 	// This allows for cohabitation of resources with different native types and provides
 	// centralized control over the shape of etcd directories
+	// TODO NewConfig函数的返回值中已经有了Prefix，为什么还需要一个方法来获取Prefix，难道是直接从NewConfig返回值中获取的？
 	ResourcePrefix(groupResource schema.GroupResource) string
 
 	// Backends gets all backends for all registered storage destinations.
 	// Used for getting all instances for health validations.
+	// 后端存储
 	Backends() []Backend
 }
 

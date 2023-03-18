@@ -106,7 +106,7 @@ type Store struct {
 	// type returned when the resource is listed, e.g.:
 	//
 	// curl GET /apis/group/version/namespaces/my-ns/myresource
-	// 生成一个List对象
+	// 生成一个List对象, K8S中每个资源都定义了List对象
 	NewListFunc func() runtime.Object
 
 	// DefaultQualifiedResource is the pluralized name of the resource.

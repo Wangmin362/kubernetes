@@ -82,8 +82,8 @@ func startServiceController(ctx context.Context, controllerContext ControllerCon
 	serviceController, err := servicecontroller.New(
 		controllerContext.Cloud,
 		controllerContext.ClientBuilder.ClientOrDie("service-controller"),
-		controllerContext.InformerFactory.Core().V1().Services(),
-		controllerContext.InformerFactory.Core().V1().Nodes(),
+		controllerContext.InformerFactory.Core().V1().Services(), // 监听service资源，理所当然
+		controllerContext.InformerFactory.Core().V1().Nodes(),    // todo 监听Node是为了干啥？
 		controllerContext.ComponentConfig.KubeCloudShared.ClusterName,
 		utilfeature.DefaultFeatureGate,
 	)

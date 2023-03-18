@@ -115,7 +115,7 @@ func NewStatefulSetController(
 		DeleteFunc: ssc.deletePod,
 	})
 	ssc.podLister = podInformer.Lister()
-	ssc.podListerSynced = podInformer.Informer().HasSynced
+	ssc.podListerSynced = podInformer.Informer().HasSynced // 等待Pod同步完成
 
 	setInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
@@ -132,7 +132,7 @@ func NewStatefulSetController(
 		},
 	)
 	ssc.setLister = setInformer.Lister()
-	ssc.setListerSynced = setInformer.Informer().HasSynced
+	ssc.setListerSynced = setInformer.Informer().HasSynced // 等待Statefulset同步完成
 
 	// TODO: Watch volumes
 	return ssc
@@ -176,6 +176,7 @@ func (ssc *StatefulSetController) addPod(obj interface{}) {
 
 	// If it has a ControllerRef, that's all that matters.
 	if controllerRef := metav1.GetControllerOf(pod); controllerRef != nil {
+		// 如果由OwnerReference，那么通过OwnerReference找到对一个的Statefulset资源
 		set := ssc.resolveControllerRef(pod.Namespace, controllerRef)
 		if set == nil {
 			return
@@ -187,6 +188,7 @@ func (ssc *StatefulSetController) addPod(obj interface{}) {
 
 	// Otherwise, it's an orphan. Get a list of all matching controllers and sync
 	// them to see if anyone wants to adopt it.
+	// todo K8S中 Orphan 是怎么来的？
 	sets := ssc.getStatefulSetsForPod(pod)
 	if len(sets) == 0 {
 		return
@@ -278,11 +280,13 @@ func (ssc *StatefulSetController) deletePod(obj interface{}) {
 		// No controller should care about orphans being deleted.
 		return
 	}
+	// 通过OwnerReference找到对应的ControllerRef
 	set := ssc.resolveControllerRef(pod.Namespace, controllerRef)
 	if set == nil {
 		return
 	}
 	klog.V(4).Infof("Pod %s/%s deleted through %v.", pod.Namespace, pod.Name, utilruntime.GetCaller())
+	// 如果一个Statefulset管控的pod被删除了，肯定是需要调谐的
 	ssc.enqueueStatefulSet(set)
 }
 
@@ -295,11 +299,13 @@ func (ssc *StatefulSetController) deletePod(obj interface{}) {
 func (ssc *StatefulSetController) getPodsForStatefulSet(ctx context.Context, set *apps.StatefulSet, selector labels.Selector) ([]*v1.Pod, error) {
 	// List all pods to include the pods that don't match the selector anymore but
 	// has a ControllerRef pointing to this StatefulSet.
+	// 查询所有的pod
 	pods, err := ssc.podLister.Pods(set.Namespace).List(labels.Everything())
 	if err != nil {
 		return nil, err
 	}
 
+	// 过滤出属于sts的pod
 	filter := func(pod *v1.Pod) bool {
 		// Only claim if it matches our StatefulSet name. Otherwise release/ignore.
 		return isMemberOf(set, pod)
@@ -420,6 +426,7 @@ func (ssc *StatefulSetController) processNextWorkItem(ctx context.Context) bool 
 	defer ssc.queue.Done(key)
 	if err := ssc.sync(ctx, key.(string)); err != nil {
 		utilruntime.HandleError(fmt.Errorf("error syncing StatefulSet %v, requeuing: %v", key.(string), err))
+		// 如果处理的有问题，那么重新丢回队列，继续调谐
 		ssc.queue.AddRateLimited(key)
 	} else {
 		ssc.queue.Forget(key)
@@ -444,6 +451,7 @@ func (ssc *StatefulSetController) sync(ctx context.Context, key string) error {
 	if err != nil {
 		return err
 	}
+	// 查询当前变化的Statefulset资源
 	set, err := ssc.setLister.StatefulSets(namespace).Get(name)
 	if errors.IsNotFound(err) {
 		klog.Infof("StatefulSet has been deleted %v", key)

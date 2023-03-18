@@ -53,6 +53,7 @@ var (
 )
 
 // Event represents a single event to a watched resource.
+// K8S的事件是关于某个资源对象的事件，因此这里定义为Object标准K8S资源对象
 // +k8s:deepcopy-gen=true
 type Event struct {
 	Type EventType

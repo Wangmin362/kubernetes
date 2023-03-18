@@ -113,6 +113,7 @@ type Lister interface {
 	// List selects resources in the storage which match to the selector. 'options' can be nil.
 	List(ctx context.Context, options *metainternalversion.ListOptions) (runtime.Object, error)
 	// TableConvertor ensures all list implementers also implement table conversion
+	// TODO TableConvertor这个接口主要用在什么场景？
 	TableConvertor
 }
 
@@ -279,7 +280,7 @@ type Watcher interface {
 
 // StandardStorage is an interface covering the common verbs. Provided for testing whether a
 // resource satisfies the normal storage methods. Use Storage when passing opaque storage objects.
-// 这个接口主要是面向K8S，用于提供对于K8S各个资源对象的存储抽象接口
+// 这个接口主要是面向K8S的资源，用于提供对于K8S各个资源对象的存储抽象接口
 type StandardStorage interface {
 	Getter
 	Lister
@@ -295,6 +296,7 @@ type StandardStorage interface {
 }
 
 // Redirector know how to return a remote resource's location.
+// TODO 什么叫做远程资源的位置？
 type Redirector interface {
 	// ResourceLocation should return the remote location of the given resource, and an optional transport to use to request it, or an error.
 	ResourceLocation(ctx context.Context, id string) (remoteLocation *url.URL, transport http.RoundTripper, err error)
@@ -332,6 +334,7 @@ type Connecter interface {
 
 // ResourceStreamer is an interface implemented by objects that prefer to be streamed from the server
 // instead of decoded directly.
+// TODO 这个接口是如何实现的？ 这玩意应该是和Kubectl Exec命令相关
 type ResourceStreamer interface {
 	// InputStream should return an io.ReadCloser if the provided object supports streaming. The desired
 	// api version and an accept header (may be empty) are passed to the call. If no error occurs,
@@ -343,6 +346,7 @@ type ResourceStreamer interface {
 
 // StorageMetadata is an optional interface that callers can implement to provide additional
 // information about their Storage objects.
+// TODO 一般需要那些元信息
 type StorageMetadata interface {
 	// ProducesMIMETypes returns a list of the MIME types the specified HTTP verb (GET, POST, DELETE,
 	// PATCH) can respond with.

@@ -15,4 +15,5 @@ limitations under the License.
 */
 
 // Package registry contains the generic implementation of the storage and system logic.
+// TODO 如何理解Registry，注册了什么？ 注册机制又是怎样的？
 package registry // import "k8s.io/apiserver/pkg/registry"

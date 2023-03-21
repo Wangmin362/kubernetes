@@ -290,6 +290,7 @@ type GenericAPIServer struct {
 // 实际上GenericAPIServer就是一个委派目标
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
+	// TODO 什么叫做未保护的Hnadler?
 	UnprotectedHandler() http.Handler
 
 	// PostStartHooks returns the post-start hooks that need to be combined

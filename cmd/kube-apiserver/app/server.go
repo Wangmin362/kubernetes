@@ -191,8 +191,13 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// If additional API servers are added, they should be gated.
-	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers, pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount,
-		serviceResolver, webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport, kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, kubeAPIServerConfig.GenericConfig.TracerProvider))
+	// TODO ExtendApiserver是如何解决动态发现CRD并注册的？
+	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers,
+		pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount, serviceResolver,
+		webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport,
+			kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig,
+			kubeAPIServerConfig.GenericConfig.TracerProvider),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -209,7 +214,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 	// 实例化apiserver，k8s内建的资源都是通过apiserver处理的
 	// 第三步：创建Apiserver 实现对于K8S标准资源的处理
-	// TODO 标准资源的Handler是如何转载的？ 如何与资源的URL绑定的？
+	// TODO 标准资源的Handler是如何装载的？ URL+Method是如何与Handler匹配的？
+	// TODO k8s是如何解决相同的对象不同的版本的？
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err

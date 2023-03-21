@@ -102,11 +102,15 @@ func (a *APIGroupInfo) destroyStorage() {
 
 // GenericAPIServer contains state for a Kubernetes cluster api server.
 // TODO k8s是如何抽象GenericAPIServer的？ 通用Server应该具有什么样的功能？ 以及在哪些地方需要扩展？
+// TODO GenericAPIServer到底有多generic? 这东西似乎是用来给开发人员开发聚合接口使用的
+// 本质上GenericAPIServer就是一个WebServer，用于处理HTTP请求
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
+	// TODO 什么叫做集群的IP发现？
 	discoveryAddresses discovery.Addresses
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
+	// TODO 什么叫做loopback连接？
 	LoopbackClientConfig *restclient.Config
 
 	// minRequestTimeout is how short the request timeout can be.  This is used to build the RESTHandler
@@ -118,33 +122,41 @@ type GenericAPIServer struct {
 
 	// legacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup
+	// TODO 为什么是集合？
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
+	// TODO 准入控制，为什么不是 admissionControls []admission.Interface，K8S不是可以定义多个准入控制的么？ 多个注入控制是如何体现的？
 	admissionControl admission.Interface
 
 	// SecureServingInfo holds configuration of the TLS server.
+	// HTTPS相关信息
 	SecureServingInfo *SecureServingInfo
 
 	// ExternalAddress is the address (hostname or IP and port) that should be used in
 	// external (public internet) URLs for this GenericAPIServer.
+	// 这个应该就是apiserver的地址了
 	ExternalAddress string
 
 	// Serializer controls how common API objects not in a group/version prefix are serialized for this server.
 	// Individual APIGroups may define their own serializers.
+	// 序列化、反序列化器
 	Serializer runtime.NegotiatedSerializer
 
 	// "Outputs"
 	// Handler holds the handlers being used by this API server
+	// URL + Method => Handler的映射就在这里面了
 	Handler *APIServerHandler
 
 	// listedPathProvider is a lister which provides the set of paths to show at /
+	// TODO 这玩意是用来干嘛的？ 如何理解？
 	listedPathProvider routes.ListedPathProvider
 
 	// DiscoveryGroupManager serves /apis
 	DiscoveryGroupManager discovery.GroupManager
 
 	// Enable swagger and/or OpenAPI if these configs are non-nil.
+	// Swagger文档
 	openAPIConfig *openapicommon.Config
 
 	// Enable swagger and/or OpenAPI V3 if these configs are non-nil.
@@ -171,11 +183,16 @@ type GenericAPIServer struct {
 	// PostStartHooks are each called after the server has started listening, in a separate go func for each
 	// with no guarantee of ordering between them.  The map key is a name used for error reporting.
 	// It may kill the process with a panic if it wishes to by returning an error.
-	postStartHookLock      sync.Mutex
-	postStartHooks         map[string]postStartHookEntry
-	postStartHooksCalled   bool
+	// server开始监听端口后，postStartHookLock就会被调用
+	postStartHookLock sync.Mutex
+	// TODO postStartHooks是如何涉及的？为什么要这么涉及？
+	postStartHooks       map[string]postStartHookEntry
+	postStartHooksCalled bool
+	// TODO 猜测这个属性中的值未postStartHooks中的key
 	disabledPostStartHooks sets.String
 
+	// 在停止server之前，需要做的收尾工作
+	// TODO apiserver, extend server, aggregrate server都是如何利用这些Hook点的呢？
 	preShutdownHookLock    sync.Mutex
 	preShutdownHooks       map[string]preShutdownHookEntry
 	preShutdownHooksCalled bool
@@ -196,51 +213,64 @@ type GenericAPIServer struct {
 	livezClock            clock.Clock
 
 	// auditing. The backend is started before the server starts listening.
+	// TODO 如何理解审计后端？
 	AuditBackend audit.Backend
 
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
 	// authorization check using the request URI but it may be necessary to make additional checks, such as in
 	// the create-on-update case
+	// TODO 授权是如何工作的？
 	Authorizer authorizer.Authorizer
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
 	// and the kind associated with a given resource. As resources are installed, they are registered here.
+	// TODO 什么叫做等效资源注册器？ 意思是多个 URL+Method可以映射到一个Handler之上么？
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// delegationTarget is the next delegate in the chain. This is never nil.
+	// 当前server处理不了，就把请求委派给delegationTarget
 	delegationTarget DelegationTarget
 
 	// HandlerChainWaitGroup allows you to wait for all chain handlers finish after the server shutdown.
+	// TODO 啥时候需要
 	HandlerChainWaitGroup *utilwaitgroup.SafeWaitGroup
 
 	// ShutdownDelayDuration allows to block shutdown for some time, e.g. until endpoints pointing to this API server
 	// have converged on all node. During this time, the API server keeps serving, /healthz will return 200,
 	// but /readyz will return failure.
+	// server关闭的时候可能需要处理什么东西，因此可以通过这个时间阻塞一会儿再关闭
 	ShutdownDelayDuration time.Duration
 
 	// The limit on the request body size that would be accepted and decoded in a write request.
 	// 0 means no limit.
+	// 定义了HTTP请求的Body最大能传输多少数据
 	maxRequestBodyBytes int64
 
 	// APIServerID is the ID of this API server
+	// TODO 如果有多个apiserver, 那么这个ID是怎么产生的？
 	APIServerID string
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
+	// TODO 什么叫做StorageVersion
 	StorageVersionManager storageversion.Manager
 
 	// Version will enable the /version endpoint if non-nil
+	// 这个适用于/version接口响应数据的定义
 	Version *version.Info
 
 	// lifecycleSignals provides access to the various signals that happen during the life cycle of the apiserver.
+	// TODO 生命周期信号 从K8S的定义中我们能够学习到什么？
 	lifecycleSignals lifecycleSignals
 
 	// destroyFns contains a list of functions that should be called on shutdown to clean up resources.
+	// TODO 这玩意和preShutdownHooks有何区别？ 调用的时间点不一样？
 	destroyFns []func()
 
 	// muxAndDiscoveryCompleteSignals holds signals that indicate all known HTTP paths have been registered.
 	// it exists primarily to avoid returning a 404 response when a resource actually exists but we haven't installed the path to a handler.
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
+	// TODO 如何理解这个属性？
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -250,12 +280,14 @@ type GenericAPIServer struct {
 	// Server as soon as ShutdownDelayDuration has elapsed.
 	// If enabled, after ShutdownDelayDuration elapses, any incoming request is
 	// rejected with a 429 status code and a 'Retry-After' response.
+	// TODO 如何理解这个属性？
 	ShutdownSendRetryAfter bool
 }
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
 // TODO 如何理解委派目标这个接口的设计？ k8s为啥设计了这么多的接口方法？
+// 实际上GenericAPIServer就是一个委派目标
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
 	UnprotectedHandler() http.Handler
@@ -276,6 +308,7 @@ type DelegationTarget interface {
 	NextDelegate() DelegationTarget
 
 	// PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
+	// TODO 这里的PrepareRun接口返回值定义未一个私有对象，如何理解为什么要这么设计
 	PrepareRun() preparedGenericAPIServer
 
 	// MuxAndDiscoveryCompleteSignals exposes registered signals that indicate if all known HTTP paths have been installed.
@@ -340,6 +373,7 @@ func (s *GenericAPIServer) Destroy() {
 	}
 }
 
+// TODO NotFoundHandler应该就是一个空委派吧
 type emptyDelegate struct {
 	// handler is called at the end of the delegation chain
 	// when a request has been made against an unregistered HTTP path the individual servers will simply pass it through until it reaches the handler.

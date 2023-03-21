@@ -331,6 +331,7 @@ func (c *Config) Complete() CompletedConfig {
 //
 //	KubeletClientConfig
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*Instance, error) {
+	// TODO 为什么apiserver需要耦合kubelet的配置？
 	if reflect.DeepEqual(c.ExtraConfig.KubeletClientConfig, kubeletclient.KubeletClientConfig{}) {
 		return nil, fmt.Errorf("Master.New() called with empty config.KubeletClientConfig")
 	}

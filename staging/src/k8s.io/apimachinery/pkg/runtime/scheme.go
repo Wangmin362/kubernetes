@@ -43,6 +43,8 @@ import (
 //
 // Schemes are not expected to change at runtime and are only threadsafe after
 // registration is complete.
+// 策略中保存了goType到GVK以及GVK到goType的映射
+// TODO 各个资源是如何注册的？
 type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.
@@ -53,11 +55,13 @@ type Scheme struct {
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
 	// unversionedTypes are transformed without conversion in ConvertToVersion.
+	// TODO K8S中难道还有没有版本的资源?
 	unversionedTypes map[reflect.Type]schema.GroupVersionKind
 
 	// unversionedKinds are the names of kinds that can be created in the context of any group
 	// or version
 	// TODO: resolve the status of unversioned types.
+	// TODO 这个属性主要是用来干嘛的
 	unversionedKinds map[string]reflect.Type
 
 	// Map from version and resource to the corresponding func to convert
@@ -74,6 +78,7 @@ type Scheme struct {
 
 	// versionPriority is a map of groups to ordered lists of versions for those groups indicating the
 	// default priorities of these versions as registered in the scheme
+	// TODO 版本优先级，这个属性决定了一个资源优先使用哪个版本的对象
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
@@ -81,6 +86,7 @@ type Scheme struct {
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
 	// This is useful for error reporting to indicate the origin of the scheme.
+	// TODO 策略名是用来干嘛的？
 	schemeName string
 }
 

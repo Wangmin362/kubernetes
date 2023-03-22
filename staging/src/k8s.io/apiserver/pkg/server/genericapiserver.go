@@ -60,35 +60,46 @@ import (
 )
 
 // Info about an API group.
-// TODO 如何理解这个对象？
+// TODO 如何理解这个对象？ 猜测K8S应该是以组为单位保存信息，因为每个组中的所有资源的前缀都是一样的，而多个组的组合就是K8S apiserver的所有资源
+// k8s的每个组应该都会实例化一个APIGroupInfo资源信息
 type APIGroupInfo struct {
 	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
+	// TODO 如何理解这个字段的含义,为什么是一个slice而不是一个map? 如何理解Priority这个关键字? 这个属性实现了什么功能?
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
-	// TODO 前两个属性就是我们重点应该关注的对象
+	// TODO 这个属性应该就是API组信息中最重要的信息了,它决定了如何存储一个对象
+	// TODO 这个对象的key是啥？ 组下面保存的是version以及resource相关的信息，猜测第一级的key为resource，第二级的key为version
+	// TODO 因为一个组下面有很多资源，而一个资源往往存在多个版本
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may
 	// define a version "v1beta1" but want to use the Kubernetes "v1" internal objects.
 	// If nil, defaults to groupMeta.GroupVersion.
 	// TODO: Remove this when https://github.com/kubernetes/kubernetes/issues/19018 is fixed.
+	// TODO 这个字段又增加了什么信息
 	OptionsExternalVersion *schema.GroupVersion
 	// MetaGroupVersion defaults to "meta.k8s.io/v1" and is the scheme group version used to decode
 	// common API implementations like ListOptions. Future changes will allow this to vary by group
 	// version (for when the inevitable meta/v2 group emerges).
+	// TODO K8S中的META信息是啥？
 	MetaGroupVersion *schema.GroupVersion
 
 	// Scheme includes all of the types used by this group and how to convert between them (or
 	// to convert objects from outside of this group that are accepted in this API).
 	// TODO: replace with interfaces
+	// TODO 如何理解K8S中的策略
 	Scheme *runtime.Scheme
 	// NegotiatedSerializer controls how this group encodes and decodes data
+	// TODO 编解码器居然是以组为单位设计的，这么做有什么好处？  组下的每个资源可以指定自己的序列化和反序列化器么？
 	NegotiatedSerializer runtime.NegotiatedSerializer
 	// ParameterCodec performs conversions for query parameters passed to API calls
+	// TODO 参数编解码器,这玩意应该是用来把http body的信息反序列化为go type的东西吧
+	// TODO 为什么也是一个组一个参数编解码器，讲道理来说不应该是每个资源一个参数编解码器么？ 毕竟每个资源的goType定义的不一样啊
 	ParameterCodec runtime.ParameterCodec
 
 	// StaticOpenAPISpec is the spec derived from the definitions of all resources installed together.
 	// It is set during InstallAPIGroups, InstallAPIGroup, and InstallLegacyAPIGroup.
+	// TODO 这玩意应该就和openapi标准相关了
 	StaticOpenAPISpec *spec.Swagger
 }
 
@@ -103,7 +114,7 @@ func (a *APIGroupInfo) destroyStorage() {
 // GenericAPIServer contains state for a Kubernetes cluster api server.
 // TODO k8s是如何抽象GenericAPIServer的？ 通用Server应该具有什么样的功能？ 以及在哪些地方需要扩展？
 // TODO GenericAPIServer到底有多generic? 这东西似乎是用来给开发人员开发聚合接口使用的
-// 本质上GenericAPIServer就是一个WebServer，用于处理HTTP请求
+// TODO 本质上GenericAPIServer就是一个WebServer，用于处理HTTP请求
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
 	// TODO 什么叫做集群的IP发现？
@@ -287,7 +298,7 @@ type GenericAPIServer struct {
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
 // TODO 如何理解委派目标这个接口的设计？ k8s为啥设计了这么多的接口方法？
-// 实际上GenericAPIServer就是一个委派目标
+// TODO 实际上GenericAPIServer就是一个委派目标
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
 	// TODO 什么叫做未保护的Hnadler?
@@ -496,6 +507,8 @@ func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 //	                 listenerStoppedCh
 //	                           |
 //	HTTPServerStoppedListening (httpServerStoppedListeningCh)
+//
+// todo GenericAPIServer是怎么被运行起来的？
 func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	delayedStopCh := s.lifecycleSignals.AfterShutdownDelayDuration
 	shutdownInitiatedCh := s.lifecycleSignals.ShutdownInitiated
@@ -767,6 +780,7 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 // The <apiGroupInfos> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
 func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) error {
+	// 参数检查
 	for _, apiGroupInfo := range apiGroupInfos {
 		// Do not register empty group or empty version.  Doing so claims /apis/ for the wrong entity to be returned.
 		// Catching these here places the error  much closer to its origin

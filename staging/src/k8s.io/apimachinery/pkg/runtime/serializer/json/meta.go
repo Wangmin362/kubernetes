@@ -46,6 +46,7 @@ type SimpleMetaFactory struct {
 // Interpret will return the APIVersion and Kind of the JSON wire-format
 // encoding of an object, or an error.
 func (SimpleMetaFactory) Interpret(data []byte) (*schema.GroupVersionKind, error) {
+	// TODO 显然,这里可以想YAML序列化一样简化,直接使用runtime.TypeMeta{}反序列化即可,完全不用自定义数据类型
 	findKind := struct {
 		// +optional
 		APIVersion string `json:"apiVersion,omitempty"`

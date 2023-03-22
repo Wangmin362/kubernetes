@@ -111,6 +111,7 @@ var _ recognizer.RecognizingDecoder = &Serializer{}
 
 // gvkWithDefaults returns group kind and version defaulting from provided default
 func gvkWithDefaults(actual, defaultGVK schema.GroupVersionKind) schema.GroupVersionKind {
+	// actual为真是反序列化得到的
 	if len(actual.Kind) == 0 {
 		actual.Kind = defaultGVK.Kind
 	}
@@ -142,15 +143,18 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		data = altered
 	}
 
+	// 获取到资源对象的GVK
 	actual, err := s.meta.Interpret(data)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	if gvk != nil {
+		// 设置GVK的默认值 TODO 什么情况下GVK会缺失呢,除了核心资源会确实Group,其余资源提交的时候都必须提交GVK吧
 		*actual = gvkWithDefaults(*actual, *gvk)
 	}
 
+	// TODO 啥时候一个资源对象会是Known的?
 	if unk, ok := into.(*runtime.Unknown); ok && unk != nil {
 		unk.Raw = originalData
 		unk.ContentType = runtime.ContentTypeJSON
@@ -198,11 +202,13 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 	}
 
 	// use the target if necessary
+	// 创建资源对象
 	obj, err := runtime.UseOrCreateObject(s.typer, s.creater, *actual, into)
 	if err != nil {
 		return nil, actual, err
 	}
 
+	// 反序列化
 	strictErrs, err := s.unmarshal(obj, data, originalData)
 	if err != nil {
 		return nil, actual, err

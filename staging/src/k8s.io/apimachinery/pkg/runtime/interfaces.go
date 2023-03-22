@@ -49,6 +49,7 @@ type GroupVersioner interface {
 type Identifier string
 
 // Encoder writes objects to a serialized form
+// TODO K8S资源的编解码
 type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
@@ -88,6 +89,7 @@ type EncoderWithAllocator interface {
 }
 
 // Decoder attempts to load an object from data.
+// TODO 如何理解这个解码接口的设计,怎么感觉前两个返回值是多余的
 type Decoder interface {
 	// Decode attempts to deserialize the provided data using either the innate typing of the scheme or the
 	// default kind, group, and version provided. It returns a decoded object as well as the kind, group, and

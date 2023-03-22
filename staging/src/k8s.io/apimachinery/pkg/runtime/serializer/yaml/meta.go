@@ -37,6 +37,7 @@ type SimpleMetaFactory struct{}
 
 // Interpret will return the APIVersion and Kind of the JSON wire-format
 // encoding of an object, or an error.
+// TODO 从YAML中获取到GVK其实非常简单,就是简单的序列化
 func (SimpleMetaFactory) Interpret(data []byte) (*schema.GroupVersionKind, error) {
 	gvk := runtime.TypeMeta{}
 	if err := yaml.Unmarshal(data, &gvk); err != nil {

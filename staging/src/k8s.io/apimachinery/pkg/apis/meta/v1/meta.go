@@ -30,6 +30,7 @@ type ObjectMetaAccessor interface {
 // internal API objects. Attempting to set or retrieve a field on an object that does
 // not support that field (Name, UID, Namespace on lists) will be a no-op and return
 // a default value.
+// TODO ObjectMeta对象实现了则个接口
 type Object interface {
 	GetNamespace() string
 	SetNamespace(namespace string)

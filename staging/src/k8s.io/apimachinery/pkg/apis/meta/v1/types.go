@@ -39,6 +39,7 @@ import (
 // Structures that are versioned or persisted should inline TypeMeta.
 //
 // +k8s:deepcopy-gen=false
+// TODO 许多人说TtpeMeta实现了runtime.Object接口,可是实际上TypeMeta只实现了runtime.Object.GetObjectKind接口,另外一个runtime.Object.DeepCopyObject并没有实现
 type TypeMeta struct {
 	// Kind is a string value representing the REST resource this object represents.
 	// Servers may infer this from the endpoint the client submits requests to.

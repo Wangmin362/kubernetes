@@ -72,6 +72,7 @@ func NewCodec(
 	return internal
 }
 
+// TODO codec主要完成了以下两个事情: 1,资源对象的序列化和反序列化  2, 资源对象和internal object的转换
 type codec struct {
 	encoder   runtime.Encoder
 	decoder   runtime.Decoder

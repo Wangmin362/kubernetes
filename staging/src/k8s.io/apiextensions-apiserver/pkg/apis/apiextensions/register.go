@@ -37,8 +37,10 @@ func Resource(resource string) schema.GroupResource {
 }
 
 var (
+	// 构造一个Budiler，修改函数为addKnownTypes，即向Schema中添加已知类型
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
-	AddToScheme   = SchemeBuilder.AddToScheme
+	// 修改schema
+	AddToScheme = SchemeBuilder.AddToScheme
 )
 
 // Adds the list of known types to the given scheme.

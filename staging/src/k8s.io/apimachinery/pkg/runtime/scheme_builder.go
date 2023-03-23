@@ -20,10 +20,12 @@ package runtime
 // code to compile without explicitly referencing generated types. You should
 // declare one in each package that will have generated deep copy or conversion
 // functions.
+// 从名字上来看，SchemeBuilder实际上就是为了修改Scheme
 type SchemeBuilder []func(*Scheme) error
 
 // AddToScheme applies all the stored functions to the scheme. A non-nil error
 // indicates that one function failed and the attempt was abandoned.
+// Builder最终的目的是为了能够修改Scheme，这里的AddToScheme实际上就是在执行一个一个的方法，进而修改Schema
 func (sb *SchemeBuilder) AddToScheme(s *Scheme) error {
 	for _, f := range *sb {
 		if err := f(s); err != nil {
@@ -34,6 +36,7 @@ func (sb *SchemeBuilder) AddToScheme(s *Scheme) error {
 }
 
 // Register adds a scheme setup function to the list.
+// Register函数实际上为了添加修改
 func (sb *SchemeBuilder) Register(funcs ...func(*Scheme) error) {
 	for _, f := range funcs {
 		*sb = append(*sb, f)

@@ -55,7 +55,7 @@ type Scheme struct {
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
 	// unversionedTypes are transformed without conversion in ConvertToVersion.
-	// TODO K8S中难道还有没有版本的资源?
+	// TODO K8S中难道还有没有版本的资源? 当然有啊，譬如metav1.Status, metav1.APIVersions, metav1.APIGroupList, metav1.APIResourceList
 	unversionedTypes map[reflect.Type]schema.GroupVersionKind
 
 	// unversionedKinds are the names of kinds that can be created in the context of any group

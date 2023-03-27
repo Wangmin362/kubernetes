@@ -36,9 +36,11 @@ func Resource(resource string) schema.GroupResource {
 var (
 	// TODO: move SchemeBuilder with zz_generated.deepcopy.go to k8s.io/api.
 	// localSchemeBuilder and AddToScheme will stay in k8s.io/kubernetes.
+	// 创建SchemeBuidler,目的是为了修改Scheme，添加apps相关的资源
 	SchemeBuilder      = runtime.NewSchemeBuilder(addKnownTypes)
 	localSchemeBuilder = &SchemeBuilder
-	AddToScheme        = localSchemeBuilder.AddToScheme
+	// 最终执行AddToScheme的时候才会添加到具体的Scheme中，这里仅仅是函数别名
+	AddToScheme = localSchemeBuilder.AddToScheme
 )
 
 // Adds the list of known types to the given scheme.

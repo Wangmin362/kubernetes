@@ -21,6 +21,7 @@ package runtime
 // declare one in each package that will have generated deep copy or conversion
 // functions.
 // 从名字上来看，SchemeBuilder实际上就是为了修改Scheme
+// 本质上SchemeBuilder就是一堆函数数组，就是为了修改传入的Scheme
 type SchemeBuilder []func(*Scheme) error
 
 // AddToScheme applies all the stored functions to the scheme. A non-nil error

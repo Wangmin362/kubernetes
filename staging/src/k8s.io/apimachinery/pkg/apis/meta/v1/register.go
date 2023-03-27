@@ -72,6 +72,7 @@ func AddToGroupVersion(scheme *runtime.Scheme, groupVersion schema.GroupVersion)
 	// Supports legacy code paths, most callers should use metav1.ParameterCodec for now
 	scheme.AddKnownTypes(groupVersion, optionsTypes...)
 	// Register Unversioned types under their own special group
+	// unversion类型的添加
 	scheme.AddUnversionedTypes(Unversioned,
 		&Status{},
 		&APIVersions{},

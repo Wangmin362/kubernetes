@@ -71,6 +71,7 @@ import (
 	netutils "k8s.io/utils/net"
 
 	"k8s.io/kubernetes/cmd/kube-apiserver/app/options"
+	// TODO 生成Schame实例，后续的所有api都会注册到这个schema上
 	"k8s.io/kubernetes/pkg/api/legacyscheme"
 	"k8s.io/kubernetes/pkg/capabilities"
 	// TODO 导入这个包的时候,会执行pkg/controlplane/import_known_versions.go逻辑,从而注册所有的Schema

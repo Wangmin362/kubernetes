@@ -45,10 +45,13 @@ type APIServerHandler struct {
 	// chain and then call the Director.
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
+	// 所有的Hander都会注册到Container当中
 	GoRestfulContainer *restful.Container
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling
 	// This is where other servers can attach handler to various parts of the chain.
+	// TODO k8s为什么需要单独开发Mux? restful.Mux有哪些功能不满足？
+	// 本质上，Mux就是多路服用，说白了就是为了实现路由功能
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.

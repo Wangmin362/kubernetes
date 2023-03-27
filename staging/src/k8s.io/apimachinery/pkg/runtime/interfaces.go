@@ -131,6 +131,7 @@ type Codec Serializer
 // ParameterCodec defines methods for serializing and deserializing API objects to url.Values and
 // performing any necessary conversion. Unlike the normal Codec, query parameters are not self describing
 // and the desired version must be specified.
+// TODO 什么叫做参数的编解码器？
 type ParameterCodec interface {
 	// DecodeParameters takes the given url.Values in the specified group version and decodes them
 	// into the provided object, or returns an error.
@@ -181,12 +182,14 @@ type StreamSerializerInfo struct {
 // NegotiatedSerializer is an interface used for obtaining encoders, decoders, and serializers
 // for multiple supported media types. This would commonly be accepted by a server component
 // that performs HTTP content negotiation to accept multiple formats.
+// TODO 什么叫做协商序列化器？ 猜测应该是根据HTTP的请求头类型自动选择合适的序列化器
 type NegotiatedSerializer interface {
 	// SupportedMediaTypes is the media types supported for reading and writing single objects.
 	SupportedMediaTypes() []SerializerInfo
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided
 	// serializer are in the provided group version.
+	// TODO 为什么这里是这么设计的？ 传入一个Encoder，并且返回一个Encoder?
 	EncoderForVersion(serializer Encoder, gv GroupVersioner) Encoder
 	// DecoderToVersion returns a decoder that ensures objects being read by the provided
 	// serializer are in the provided group version by default.

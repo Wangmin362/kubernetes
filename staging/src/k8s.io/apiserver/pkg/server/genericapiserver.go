@@ -76,12 +76,13 @@ type APIGroupInfo struct {
 	// define a version "v1beta1" but want to use the Kubernetes "v1" internal objects.
 	// If nil, defaults to groupMeta.GroupVersion.
 	// TODO: Remove this when https://github.com/kubernetes/kubernetes/issues/19018 is fixed.
-	// TODO 这个字段又增加了什么信息
+	// TODO 这个字段又增加了什么信息??
+	// TODO K8S的资源有ExternalVersion以及InternalVersion之分，这里的ExternalVersion是指的它么？
 	OptionsExternalVersion *schema.GroupVersion
 	// MetaGroupVersion defaults to "meta.k8s.io/v1" and is the scheme group version used to decode
 	// common API implementations like ListOptions. Future changes will allow this to vary by group
 	// version (for when the inevitable meta/v2 group emerges).
-	// TODO K8S中的META信息是啥？
+	// TODO K8S中的META信息是啥？ 什么叫做MetaGroupVersion
 	MetaGroupVersion *schema.GroupVersion
 
 	// Scheme includes all of the types used by this group and how to convert between them (or

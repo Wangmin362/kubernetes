@@ -53,6 +53,7 @@ type Identifier string
 type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
+	// 把obj对象序列化，然后把数据发送到w当中
 	Encode(obj Object, w io.Writer) error
 	// Identifier returns an identifier of the encoder.
 	// Identifiers of two different encoders should be equal if and only if for every input
@@ -67,6 +68,8 @@ type Encoder interface {
 	//     }
 	//     return e.doEncode(obj, w)
 	//   }
+	// TODO 为什么序列化需要 Identifier 这个东西？ 这玩意主要是用来干么的
+	// Encode的结果是可以缓存的，TODO 暂时还是没有看懂序列化的缓存机制
 	Identifier() Identifier
 }
 
@@ -98,14 +101,25 @@ type Decoder interface {
 	// guaranteed to be populated. The returned object is not guaranteed to match into. If defaults are
 	// provided, they are applied to the data by default. If no defaults or partial defaults are provided, the
 	// type of the into may be used to guide conversion decisions.
+	// 把二进制data数据反序列化到Object当中
+	// TODO 如果用户提供了 defaults gvk，这个gvk是如何影响反序列化的流程的呢？ defaults参数是为了能够提供一些默认值，主要原因是因为data二进制
+	// 数据当中可能没有提供kind , group ,group全部信息，而是提供了其中的一部分，这个时候就需要通过defaults参数补全默认
+	// TODO into参数的作用是啥？
 	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error)
 }
 
 // Serializer is the core interface for transforming objects into a serialized format and back.
 // Implementations may choose to perform conversion of the object, but no assumptions should be made.
 // TODO 可以参考这两篇文章加深立即：https://mp.weixin.qq.com/s/fJf1mtCR49XO7BOUn2FRTg  https://cloud.tencent.com/developer/article/1519826
+// TODO 为什么K8S需要抽象Serializer，不是就是对象的序列化反序列化么？
+// 答：1、一般我们在项目当中只需要把数据序列化、反序列化为json, yaml, protobuf其中的一种，而K8S需要同时考虑三种格式的序列化和反序列化，
+// 因此需要抽象出一个标准的接口。在K8S当中，ETCD中保存的最终是json格式的数据，而当返回给用户的时候需要yaml格式的数据，如果进行gRPC通信，
+// 那么需要protobuf格式的数据，因此一个标准的序列化、发序列化接口是非常有必要的   2、万一K8S需要支持一个新的格式的序列化、反序列化，此时
+// 定义为接口的好处就体现出来了
 type Serializer interface {
+	// Encoder 相当于json.Marshal(&obj)，也就是我们常说的序列化，主要是把http请求body序列化之后存储在etcd当中
 	Encoder
+	// Decoder 相当于json.Unmarshal(data, &obj)，即我们常说的反序列化，用于把二进制数据转换为语言相关的类型，放在K8S项目中就是转换为各个类型的资源对象的go struct
 	Decoder
 }
 
@@ -273,6 +287,7 @@ type ObjectTyper interface {
 	// ObjectKinds returns the all possible group,version,kind of the provided object, true if
 	// the object is unversioned, or an error if the object is not recognized
 	// (IsNotRegisteredError will return true).
+	// TODO K8S的一个资源对象的GVK为什么是复数
 	ObjectKinds(Object) ([]schema.GroupVersionKind, bool, error)
 	// Recognizes returns true if the scheme is able to handle the provided version and kind,
 	// or more precisely that the provided version is a possible conversion or decoding

@@ -84,24 +84,39 @@ type SerializerOptions struct {
 	// Yaml: configures the Serializer to work with JSON(false) or YAML(true).
 	// When `Yaml` is enabled, this serializer only supports the subset of YAML that
 	// matches JSON, and will error if constructs are used that do not serialize to JSON.
+	// json序列化器同时支持json以及yaml格式的序列化
+	// TODO 有了这个参数，为什么还需要YamlSerializer 实际上，这个参数的意思是二进制数据的存储格式，二进制可能存储的是yaml格式，也可能存储
+	// 的是json格式，这里做了通用的处理
 	Yaml bool
 
 	// Pretty: configures a JSON enabled Serializer(`Yaml: false`) to produce human-readable output.
 	// This option is silently ignored when `Yaml` is `true`.
+	// 这个参数应该是在decode当中使用的， 用于更好的展示给用户，其实就是方便人读
 	Pretty bool
 
 	// Strict: configures the Serializer to return strictDecodingError's when duplicate fields are present decoding JSON or YAML.
 	// Note that enabling this option is not as performant as the non-strict variant, and should not be used in fast paths.
+	// Strict应用于Decode接口，表示严谨的。那什么是严谨的？笔者很难用语言表达，但是以下几种情况是不严谨的：
+	// 1. 存在重复字段，比如{"value":1,"value":1};
+	// 2. 不存在的字段，比如{"unknown": 1}，而目标API对象中不存在Unknown属性;
+	// 3. 未打标签字段，比如{"Other":"test"}，虽然目标API对象中有Other字段，但是没有打`json:"Other"`标签
+	// Strict选项可以理解为增加了很多校验，请注意，启用此选项的性能下降非常严重，因此不应在性能敏感的场景中使用。
+	// 那什么场景需要用到Strict选项？比如Kubernetes各个服务的配置API，对性能要求不高，但需要严格的校验。
 	Strict bool
 }
 
 // Serializer handles encoding versioned objects into the proper JSON form
 type Serializer struct {
-	meta    MetaFactory
+	// 实际上就是解析二进制数据，得到该数据的GVK，实际上MetaFactory放在这里并不合适，取名为MetaParser更加合适
+	meta MetaFactory
+	// 一些加单的参数，影响序列化、反序列化的过程
 	options SerializerOptions
+	// 根据名字不难理解，实际上就是为了创建一个go struct，然后通过序列化的方式进行字段填充
 	creater runtime.ObjectCreater
-	typer   runtime.ObjectTyper
+	// TODO 这个参数还有待理解  runtime.Serializer.Decode()接口注释说的很清楚，在json数据和默认GVK无法提供的类型元数据需要用输出类型补全。
+	typer runtime.ObjectTyper
 
+	// TODO 暂时还不理解这个参数的含义
 	identifier runtime.Identifier
 }
 
@@ -135,7 +150,8 @@ func gvkWithDefaults(actual, defaultGVK schema.GroupVersionKind) schema.GroupVer
 // The gvk calculate priority will be originalData > default gvk > into
 func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
 	data := originalData
-	if s.options.Yaml {
+	if s.options.Yaml { // 如果原始数据是通过yaml格式存储的，那么先把数据转为json格式的二进制数据
+		// TODO 既然数据是通过YAML格式存储的，而接口调用方仅仅是为了得到go struct，那为什么这里不直接调用 YAML Serializer的Decode方法？
 		altered, err := yaml.YAMLToJSON(data)
 		if err != nil {
 			return nil, nil, err
@@ -151,10 +167,15 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 
 	if gvk != nil {
 		// 设置GVK的默认值 TODO 什么情况下GVK会缺失呢,除了核心资源会确实Group,其余资源提交的时候都必须提交GVK吧
+		// 解析类型元数据大部分情况是正确的，除非不是json或者apiVersion格式不对。
+		// 但是GVK三元组可能有所缺失，比如只有Kind，Group/Version，其他字段就用默认的GVK补全。
+		// 这也体现出了原始数据中的GVK的优先级最高，其次是默认的GVK。gvkWithDefaults()函数下面有注释。
+		// 实际上通常情况下defaults参数并不起作用，因为data二进制数据提供了完整的group, version, kind信息
 		*actual = gvkWithDefaults(*actual, *gvk)
 	}
 
-	// TODO 啥时候一个资源对象会是Known的?
+	// TODO 啥时候一个资源对象会是UnKnown的?
+	// 如果into对象是UnKnown类型，那么直接取出其中的GVK，其余信息还是二进制的。
 	if unk, ok := into.(*runtime.Unknown); ok && unk != nil {
 		unk.Raw = originalData
 		unk.ContentType = runtime.ContentTypeJSON
@@ -162,6 +183,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		return unk, actual, nil
 	}
 
+	// TODO 这里就体现出来了into对象的意义之所在
 	if into != nil {
 		_, isUnstructured := into.(runtime.Unstructured)
 		types, _, err := s.typer.ObjectKinds(into)

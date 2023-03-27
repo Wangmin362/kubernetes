@@ -103,6 +103,7 @@ type Decoder interface {
 
 // Serializer is the core interface for transforming objects into a serialized format and back.
 // Implementations may choose to perform conversion of the object, but no assumptions should be made.
+// TODO 可以参考这两篇文章加深立即：https://mp.weixin.qq.com/s/fJf1mtCR49XO7BOUn2FRTg  https://cloud.tencent.com/developer/article/1519826
 type Serializer interface {
 	Encoder
 	Decoder

@@ -63,6 +63,7 @@ type Scheme struct {
 	// TODO: resolve the status of unversioned types.
 	// TODO 这个属性主要是用来干嘛的
 	// 这个属性用于记录某些资源,这些资源可以通过任意版本创建出来
+	// TODO 为什么这里的key不是 schema.GroupVersionKind
 	unversionedKinds map[string]reflect.Type
 
 	// Map from version and resource to the corresponding func to convert

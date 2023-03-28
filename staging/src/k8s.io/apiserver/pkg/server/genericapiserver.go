@@ -440,6 +440,7 @@ type preparedGenericAPIServer struct {
 
 // PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
 func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
+	// 递归调用PrepareRun方法
 	s.delegationTarget.PrepareRun()
 
 	if s.openAPIConfig != nil && !s.skipOpenAPIInstallation {

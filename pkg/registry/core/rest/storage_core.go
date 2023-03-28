@@ -104,12 +104,14 @@ type LegacyRESTStorage struct {
 
 func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource,
 	restOptionsGetter generic.RESTOptionsGetter) (LegacyRESTStorage, genericapiserver.APIGroupInfo, error) {
+	// 构建APIGroupInfo信息，Legacy的Group为空，apiGroupInfo中因该包含所有legacy资源
 	apiGroupInfo := genericapiserver.APIGroupInfo{
 		PrioritizedVersions:          legacyscheme.Scheme.PrioritizedVersionsForGroup(""),
 		VersionedResourcesStorageMap: map[string]map[string]rest.Storage{},
-		Scheme:                       legacyscheme.Scheme,
-		ParameterCodec:               legacyscheme.ParameterCodec,
-		NegotiatedSerializer:         legacyscheme.Codecs,
+		// legacy scheme的注册
+		Scheme:               legacyscheme.Scheme,
+		ParameterCodec:       legacyscheme.ParameterCodec,
+		NegotiatedSerializer: legacyscheme.Codecs,
 	}
 
 	podDisruptionClient, err := policyclient.NewForConfig(c.LoopbackClientConfig)
@@ -377,6 +379,7 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource 
 	}
 
 	if len(storage) > 0 {
+		// TODO legacy资源除了V1版本，应该还有其它版本资源才对
 		apiGroupInfo.VersionedResourcesStorageMap["v1"] = storage
 	}
 

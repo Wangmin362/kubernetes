@@ -129,6 +129,7 @@ const (
 type ExtraConfig struct {
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 
+	// 用于判断某个资源是否启用
 	APIResourceConfigSource  serverstorage.APIResourceConfigSource
 	StorageFactory           serverstorage.StorageFactory
 	EndpointReconcilerConfig EndpointReconcilerConfig
@@ -392,7 +393,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// install legacy rest storage
 
-	// legacy资源指的仅仅是core资源，譬如event,pod等等资源
+	// TODO legacy资源指的仅仅是core资源，譬如event,pod等等资源
 	if err := m.InstallLegacyAPI(&c, c.GenericConfig.RESTOptionsGetter); err != nil {
 		return nil, err
 	}

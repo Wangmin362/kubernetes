@@ -23,7 +23,9 @@ import (
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
 // TODO 这TM又是干嘛的？
 type APIResourceConfigSource interface {
+	// ResourceEnabled 资源是否启用
 	ResourceEnabled(resource schema.GroupVersionResource) bool
+	// AnyResourceForGroupEnabled 这个接口应该是上面的接口快速判断吧，如果一个组下的所有资源都是启用状态，那么当前API就应该返回true
 	AnyResourceForGroupEnabled(group string) bool
 }
 

@@ -139,6 +139,7 @@ func NewParameterCodec(scheme *Scheme) ParameterCodec {
 }
 
 // parameterCodec implements conversion to and from query parameters and objects.
+// TODO 什么叫做参数编解码器？
 type parameterCodec struct {
 	typer     ObjectTyper
 	convertor ObjectConvertor

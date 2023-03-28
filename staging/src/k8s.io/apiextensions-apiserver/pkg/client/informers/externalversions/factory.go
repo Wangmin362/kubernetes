@@ -91,7 +91,8 @@ func NewFilteredSharedInformerFactory(client clientset.Interface, defaultResync 
 // NewSharedInformerFactoryWithOptions constructs a new instance of a SharedInformerFactory with additional options.
 func NewSharedInformerFactoryWithOptions(client clientset.Interface, defaultResync time.Duration, options ...SharedInformerOption) SharedInformerFactory {
 	factory := &sharedInformerFactory{
-		client:           client,
+		client: client,
+		// CRD资源本身是Cluster级别的资源
 		namespace:        v1.NamespaceAll,
 		defaultResync:    defaultResync,
 		informers:        make(map[reflect.Type]cache.SharedIndexInformer),

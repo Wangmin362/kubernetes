@@ -217,7 +217,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// 实例化apiserver，k8s内建的资源都是通过apiserver处理的
 	// 第三步：创建Apiserver 实现对于K8S标准资源的处理
 	// TODO 标准资源的Handler是如何装载的？ URL+Method是如何与Handler匹配的？
-	// TODO k8s是如何解决相同的对象不同的版本的？
+	// TODO k8s是如何解决相同的对象不同的版本的？ 答：K8S的接口本来就是有版本特性的，相同资源的不同版本完全可以当作不同资源来处理
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err

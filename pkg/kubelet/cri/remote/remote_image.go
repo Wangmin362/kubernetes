@@ -233,6 +233,7 @@ func (r *remoteImageService) pullImageV1alpha2(ctx context.Context, image *runti
 }
 
 func (r *remoteImageService) pullImageV1(ctx context.Context, image *runtimeapi.ImageSpec, auth *runtimeapi.AuthConfig, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, error) {
+	// 拉取镜像
 	resp, err := r.imageClient.PullImage(ctx, &runtimeapi.PullImageRequest{
 		Image:         image,
 		Auth:          auth,

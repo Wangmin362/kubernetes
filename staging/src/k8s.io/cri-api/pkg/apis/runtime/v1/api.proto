@@ -133,6 +133,7 @@ service ImageService {
     // nil.
     rpc ImageStatus(ImageStatusRequest) returns (ImageStatusResponse) {}
     // PullImage pulls an image with authentication config.
+    // TODO 如果本地已经存在镜像，docker\containerd\crio还会拉取镜像么？
     rpc PullImage(PullImageRequest) returns (PullImageResponse) {}
     // RemoveImage removes the image.
     // This call is idempotent, and must not return an error if the image has

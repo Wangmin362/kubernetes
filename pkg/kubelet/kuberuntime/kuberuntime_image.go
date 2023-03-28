@@ -28,6 +28,7 @@ import (
 
 // PullImage pulls an image from the network to local storage using the supplied
 // secrets if necessary.
+// 拉取镜像
 func (m *kubeGenericRuntimeManager) PullImage(image kubecontainer.ImageSpec, pullSecrets []v1.Secret, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, error) {
 	img := image.Image
 	repoToPull, _, _, err := parsers.ParseImageName(img)

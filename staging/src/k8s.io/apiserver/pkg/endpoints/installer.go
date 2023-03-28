@@ -54,8 +54,11 @@ const (
 )
 
 type APIInstaller struct {
-	group             *APIGroupVersion
-	prefix            string // Path prefix where API resources are to be registered.
+	// 一个组下的所有资源
+	group *APIGroupVersion
+	// 前缀信息，/<prefix>/<group>/<version>
+	prefix string // Path prefix where API resources are to be registered.
+	// 请求的超时时间
 	minRequestTimeout time.Duration
 }
 
@@ -96,9 +99,11 @@ var toDiscoveryKubeVerb = map[string]string{
 
 // Install handlers for API resources.
 func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.ResourceInfo, *restful.WebService, []error) {
+	// 资源信息，实际上就是ApiGroupVersion.storage的所有的key
 	var apiResources []metav1.APIResource
 	var resourceInfos []*storageversion.ResourceInfo
 	var errors []error
+	// 创建一个新的webservice
 	ws := a.newWebService()
 
 	// Register the paths in a deterministic (sorted) order to get a deterministic swagger spec.
@@ -110,7 +115,7 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 	}
 	sort.Strings(paths)
 	for _, path := range paths {
-		// TODO 这玩意到底是咋注册的，看起来还挺复杂的
+		// TODO 把资源的Handler注册到webservice中，路径为path
 		apiResource, resourceInfo, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("error in registering resource: %s, %v", path, err))
@@ -189,13 +194,15 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 }
 
 func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage, ws *restful.WebService) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
+	// 准入控制
 	admit := a.group.Admit
 
-	optionsExternalVersion := a.group.GroupVersion
+	optionsExternalVersion := a.group.GroupVersion // 设置默认值
 	if a.group.OptionsExternalVersion != nil {
 		optionsExternalVersion = *a.group.OptionsExternalVersion
 	}
 
+	// 有些资源是有子资源的，譬如pods/status
 	resource, subresource, err := splitSubresource(path)
 	if err != nil {
 		return nil, nil, err
@@ -203,6 +210,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	group, version := a.group.GroupVersion.Group, a.group.GroupVersion.Version
 
+	// 获取kind
 	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
 	if err != nil {
 		return nil, nil, err
@@ -398,8 +406,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	var apiResource metav1.APIResource
 	if utilfeature.DefaultFeatureGate.Enabled(features.StorageVersionHash) &&
-		isStorageVersionProvider &&
-		storageVersionProvider.StorageVersion() != nil {
+		isStorageVersionProvider && storageVersionProvider.StorageVersion() != nil {
 		versioner := storageVersionProvider.StorageVersion()
 		gvk, err := getStorageVersionKind(versioner, storage, a.group.Typer)
 		if err != nil {
@@ -410,7 +417,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	// Get the list of actions for the given scope.
 	switch {
-	case !namespaceScoped:
+	case !namespaceScoped: // 如果是Cluster级别的资源，譬如Node资源
 		// Handle non-namespace scoped resources like nodes.
 		resourcePath := resource
 		resourceParams := params
@@ -452,7 +459,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		actions = appendIf(actions, action{"WATCH", "watch/" + itemPath, nameParams, namer, false}, isWatcher)
 		actions = appendIf(actions, action{"CONNECT", itemPath, nameParams, namer, false}, isConnecter)
 		actions = appendIf(actions, action{"CONNECT", itemPath + "/{path:*}", proxyParams, namer, false}, isConnecter && connectSubpath)
-	default:
+	default: // 名称空间级别的资源
 		namespaceParamName := "namespaces"
 		// Handler for standard REST verbs (GET, PUT, POST and DELETE).
 		namespaceParam := ws.PathParameter("namespace", "object name and auth scope, such as for teams and projects").DataType("string")
@@ -697,9 +704,11 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 			if needOverride {
 				// need change the reported verb
-				handler = metrics.InstrumentRouteFunc(verbOverrider.OverrideMetricsVerb(action.Verb), group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
+				handler = metrics.InstrumentRouteFunc(verbOverrider.OverrideMetricsVerb(action.Verb), group, version, resource,
+					subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
 			} else {
-				handler = metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
+				handler = metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope,
+					metrics.APIServerComponent, deprecated, removedRelease, handler)
 			}
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 
@@ -1011,6 +1020,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 }
 
 // indirectArbitraryPointer returns *ptrToObject for an arbitrary pointer
+// TODO 这玩意是干嘛的？
 func indirectArbitraryPointer(ptrToObject interface{}) interface{} {
 	return reflect.Indirect(reflect.ValueOf(ptrToObject)).Interface()
 }

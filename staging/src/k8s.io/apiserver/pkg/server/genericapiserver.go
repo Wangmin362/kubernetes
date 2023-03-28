@@ -65,11 +65,14 @@ import (
 type APIGroupInfo struct {
 	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
 	// TODO 如何理解这个字段的含义,为什么是一个slice而不是一个map? 如何理解Priority这个关键字? 这个属性实现了什么功能?
+	// 答：这里的设计其实比较常规，因为map是没有顺序的，即VersionedResourcesStorageMap没有顺序相关的信息，而数组是有序的，选注册的会
+	// 先遍历，后注册的会后遍历到，从而体现顺序性。即我们可以通过遍历PrioritizedVersions中的值作为VersionedResourcesStorageMap的key
+	// 这样就能保证顺序性
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	// TODO 这个属性应该就是API组信息中最重要的信息了,它决定了如何存储一个对象
-	// TODO 这个对象的key是啥？ 组下面保存的是version以及resource相关的信息，猜测第一级的key为resource，第二级的key为version
-	// TODO 因为一个组下面有很多资源，而一个资源往往存在多个版本
+	// TODO 这个对象的key是啥？ 组下面保存的是version以及resource相关的信息，猜测第一级的key为version，第二级的key为resource
+	// TODO 譬如第一级的key为v1, 第二级的key为：pods
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may
@@ -703,14 +706,17 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 }
 
 // installAPIResources is a private method for installing the REST storage backing each api groupversionresource
+// TODO 什么叫做安装API资源？
 func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels openapiproto.Models) error {
 	var resourceInfos []*storageversion.ResourceInfo
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
+			// map中没有找到相关的version信息，直接退出
 			klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
 			continue
 		}
 
+		// 根据ApiGroupInfo实例化一个ApiGroupVersion
 		apiGroupVersion, err := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
 		if err != nil {
 			return err
@@ -720,6 +726,7 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 		}
 		apiGroupVersion.OpenAPIModels = openAPIModels
 
+		// TODO ServerSideApply特新有啥用？
 		if openAPIModels != nil && utilfeature.DefaultFeatureGate.Enabled(features.ServerSideApply) {
 			typeConverter, err := fieldmanager.NewTypeConverter(openAPIModels, false)
 			if err != nil {
@@ -842,12 +849,15 @@ func (s *GenericAPIServer) InstallAPIGroup(apiGroupInfo *APIGroupInfo) error {
 
 func (s *GenericAPIServer) getAPIGroupVersion(apiGroupInfo *APIGroupInfo, groupVersion schema.GroupVersion, apiPrefix string) (*genericapi.APIGroupVersion, error) {
 	storage := make(map[string]rest.Storage)
+	// k为resource, v为rest.Storage
 	for k, v := range apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version] {
 		if strings.ToLower(k) != k {
 			return nil, fmt.Errorf("resource names must be lowercase only, not %q", k)
 		}
+		// map的深拷贝
 		storage[k] = v
 	}
+	// 实例化一个新的APIGroupVersion信息，实际上就是ApiGroupInfo的一个子集
 	version := s.newAPIGroupVersion(apiGroupInfo, groupVersion)
 	version.Root = apiPrefix
 	version.Storage = storage

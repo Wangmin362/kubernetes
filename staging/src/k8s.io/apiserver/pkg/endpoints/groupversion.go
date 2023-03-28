@@ -48,12 +48,17 @@ type ConvertabilityChecker interface {
 // /${storage_key}[/${object_name}]
 // Where 'storage_key' points to a rest.Storage object stored in storage.
 // This object should contain all parameterization necessary for running a particular API version
+// TODO 实际上APIGroupVersion就是APIGroupInfo的子集，ApiGroupVersion中保存的是关于一个版本的所有Resource的信息
+// 譬如所有V1版本的资源信息
 type APIGroupVersion struct {
+	// key为resource，譬如pods, deployments，value则是各个资源的存储
 	Storage map[string]rest.Storage
 
+	// 当前组的API前缀是啥，其实在K8S当中只有两种，第一种是/api，也就是所谓的Legacy API,另外一种就是/apis
 	Root string
 
 	// GroupVersion is the external group version
+	// 当前API组信息是哪个组的
 	GroupVersion schema.GroupVersion
 
 	// OptionsExternalVersion controls the Kubernetes APIVersion used for common objects in the apiserver
@@ -71,11 +76,14 @@ type APIGroupVersion struct {
 
 	// Serializer is used to determine how to convert responses from API methods into bytes to send over
 	// the wire.
-	Serializer     runtime.NegotiatedSerializer
+	// BODY编解码器
+	Serializer runtime.NegotiatedSerializer
+	// 参数编解码器 TODO 为什么参数编解码器可以做到通用？
 	ParameterCodec runtime.ParameterCodec
 
-	Typer                 runtime.ObjectTyper
-	Creater               runtime.ObjectCreater
+	Typer   runtime.ObjectTyper
+	Creater runtime.ObjectCreater
+	// TODO Convertor应该是负责ExternalVersion和Internal Version之间的转换
 	Convertor             runtime.ObjectConvertor
 	ConvertabilityChecker ConvertabilityChecker
 	Defaulter             runtime.ObjectDefaulter
@@ -105,7 +113,9 @@ type APIGroupVersion struct {
 // InstallREST registers the REST handlers (storage, watch, proxy and redirect) into a restful Container.
 // It is expected that the provided path root prefix will serve all operations. Root MUST NOT end
 // in a slash.
+// TODO 这就是核心的功能了,映射URL + Method以及Handler,这些信息会注册到container当中
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storageversion.ResourceInfo, error) {
+	// 拼接路由前缀 /<prefix>/<group>/<version>
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
 	installer := &APIInstaller{
 		group:             g,

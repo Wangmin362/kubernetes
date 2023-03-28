@@ -60,14 +60,15 @@ import (
 )
 
 // Info about an API group.
-// TODO 如何理解这个对象？ 猜测K8S应该是以组为单位保存信息，因为每个组中的所有资源的前缀都是一样的，而多个组的组合就是K8S apiserver的所有资源
-// k8s的每个组应该都会实例化一个APIGroupInfo资源信息
+// TODO VersionedResourcesStorageMap中会存储所有资源的存储信息，但是并没有保存组相关的信息 而PrioritizedVersions则保存了组相关的信息
+// TODO 同时PrioritizedVersions还保存注册的顺序，即哪个组先注册，哪个组后注册
 type APIGroupInfo struct {
 	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
 	// TODO 如何理解这个字段的含义,为什么是一个slice而不是一个map? 如何理解Priority这个关键字? 这个属性实现了什么功能?
 	// 答：这里的设计其实比较常规，因为map是没有顺序的，即VersionedResourcesStorageMap没有顺序相关的信息，而数组是有序的，选注册的会
 	// 先遍历，后注册的会后遍历到，从而体现顺序性。即我们可以通过遍历PrioritizedVersions中的值作为VersionedResourcesStorageMap的key
 	// 这样就能保证顺序性
+	// TODO PrioritizedVersions中保存了组的信息，同时还保证了资源注册是按顺序进行的
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	// TODO 这个属性应该就是API组信息中最重要的信息了,它决定了如何存储一个对象
@@ -137,7 +138,7 @@ type GenericAPIServer struct {
 
 	// legacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup
-	// TODO 为什么是集合？
+	// TODO 为什么是集合？ 这应该是可扩展性的考虑，虽然目前只有/api前缀，但是保不齐还会有其它前缀
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
@@ -706,9 +707,10 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 }
 
 // installAPIResources is a private method for installing the REST storage backing each api groupversionresource
-// TODO 什么叫做安装API资源？
+// TODO 什么叫做安装API资源？  实际上就是注册URL + Method与Handler的映射到restful的Container当中
 func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels openapiproto.Models) error {
 	var resourceInfos []*storageversion.ResourceInfo
+	// 按顺序注册APIGroup信息
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
 			// map中没有找到相关的version信息，直接退出
@@ -716,7 +718,8 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 			continue
 		}
 
-		// 根据ApiGroupInfo实例化一个ApiGroupVersion
+		// 根据ApiGroupInfo实例化一个ApiGroupVersion，实际上是APIGroupInfo的子集，里面只包含/group/version下的所有资源
+		// 即一个APIGroupVersion中所有资源的Group以及Version都是一样的
 		apiGroupVersion, err := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
 		if err != nil {
 			return err
@@ -762,7 +765,9 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 // The <apiGroupInfo> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
 // 把所有的apiGroupInfo都注册到apiPrefix的底下
+// APIGroupInfo中包含了所有要注册的资源
 func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo *APIGroupInfo) error {
+	// 实际上，目前的K8S的Legacy前缀必须是/api，否则无法注册
 	if !s.legacyAPIGroupPrefixes.Has(apiPrefix) {
 		return fmt.Errorf("%q is not in the allowed legacy API prefixes: %v", apiPrefix, s.legacyAPIGroupPrefixes.List())
 	}

@@ -116,16 +116,19 @@ type APIGroupVersion struct {
 // TODO 这就是核心的功能了,映射URL + Method以及Handler,这些信息会注册到container当中
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storageversion.ResourceInfo, error) {
 	// 拼接路由前缀 /<prefix>/<group>/<version>
+	// TOOD 如果是Legacy相关的资源注册，这里的Group是啥？
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
+	// 委托给APIInstaller完成信息的注册
 	installer := &APIInstaller{
 		group:             g,
-		prefix:            prefix,
+		prefix:            prefix, // /<prefix>/<group>/<version>
 		minRequestTimeout: g.MinRequestTimeout,
 	}
 
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
 	versionDiscoveryHandler.AddToWebService(ws)
+	// 注册webservice到container当中
 	container.Add(ws)
 	return removeNonPersistedResources(resourceInfos), utilerrors.NewAggregate(registrationErrors)
 }

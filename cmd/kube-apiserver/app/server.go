@@ -188,6 +188,9 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
+	// kubeAPIServerConfig为generic apiserver配置
+	// serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
+	// pluginInitializer  TODO 暂时还没有看懂这个参数意义，似乎是和准入控制相关  准入控制原理是啥？  如何自定义准入控制插件
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err
@@ -273,14 +276,19 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// todo 如何理解golang中的transport  transport似乎是用来做长连接，多路复用的东西
 	proxyTransport := CreateProxyTransport()
 
-	// todo admissionPostStartHook是用来干嘛的？
-	// todo 如何理解serviceResolver?
+	// genericConfig为generic apiserver的配置
+	// versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象
+	// serviceResolver 通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
+	// pluginInitializers TODO 暂时搞不懂这个参数的作用，它和K8S准入控制相关
+	// admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
+	// storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers, admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
 	// TODO linux的capabilities
+	// TODO 怎么没有看懂这里的写法，似乎没啥用啊
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: s.AllowPrivileged,
 		// TODO(vmarmol): Implement support for HostNetworkSources.
@@ -328,12 +336,14 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		},
 	}
 
+	// TODO 似乎是和K8S的动态CA证书相关
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	config.ExtraConfig.ClusterAuthenticationInfo.ClientCA = clientCAProvider
 
+	// TODO 和apiserver的认证方式相关
 	requestHeaderConfig, err := s.Authentication.RequestHeader.ToAuthenticationRequestHeaderConfig()
 	if err != nil {
 		return nil, nil, nil, err
@@ -346,10 +356,12 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		config.ExtraConfig.ClusterAuthenticationInfo.RequestHeaderUsernameHeaders = requestHeaderConfig.UsernameHeaders
 	}
 
+	// 给generic apiserver添加后置处理器
 	if err := config.GenericConfig.AddPostStartHook("start-kube-apiserver-admission-initializer", admissionPostStartHook); err != nil {
 		return nil, nil, nil, err
 	}
 
+	// TODO egress selector到底是干嘛用的？
 	if config.GenericConfig.EgressSelector != nil {
 		// Use the config.GenericConfig.EgressSelector lookup to find the dialer to connect to the kubelet
 		config.ExtraConfig.KubeletClientConfig.Lookup = config.GenericConfig.EgressSelector.Lookup
@@ -366,6 +378,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	}
 
 	// Load the public keys.
+	// TODO 还是和认证相关的初始化
 	var pubKeys []interface{}
 	for _, f := range s.Authentication.ServiceAccounts.KeyFiles {
 		keys, err := keyutil.PublicKeysFromFile(f)
@@ -395,6 +408,7 @@ func buildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
+	// 实例化一个generic apiserver配置
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 	// TODO 启用哪些资源，禁用哪些资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()

@@ -33,18 +33,24 @@ import (
 
 // ServerRunOptions contains the options while running a generic api server.
 type ServerRunOptions struct {
+	// TODO Advertise地址是干嘛用的？ 是多个master之间协商的地址么？
 	AdvertiseAddress net.IP
 
-	CorsAllowedOriginList       []string
-	HSTSDirectives              []string
-	ExternalHost                string
+	// TODO 为什么会有跨域问题
+	CorsAllowedOriginList []string
+	HSTSDirectives        []string
+	ExternalHost          string
+	// TODO 这个东西似乎和K8S的限速相关
 	MaxRequestsInFlight         int
 	MaxMutatingRequestsInFlight int
-	RequestTimeout              time.Duration
-	GoawayChance                float64
-	LivezGracePeriod            time.Duration
-	MinRequestTimeout           int
-	ShutdownDelayDuration       time.Duration
+	// 请求超时时间
+	RequestTimeout time.Duration
+	// TODO 这玩意是干嘛的？
+	GoawayChance     float64
+	LivezGracePeriod time.Duration
+	// TODO 什么叫做最小请求超时时间
+	MinRequestTimeout     int
+	ShutdownDelayDuration time.Duration
 	// We intentionally did not add a flag for this option. Users of the
 	// apiserver library can wire it to a flag.
 	JSONPatchMaxCopyBytes int64
@@ -52,6 +58,7 @@ type ServerRunOptions struct {
 	// decoded in a write request. 0 means no limit.
 	// We intentionally did not add a flag for this option. Users of the
 	// apiserver library can wire it to a flag.
+	// 请求可以携带数据的最大的字节数  TODO 如果超过了会怎么样？
 	MaxRequestBodyBytes       int64
 	EnablePriorityAndFairness bool
 

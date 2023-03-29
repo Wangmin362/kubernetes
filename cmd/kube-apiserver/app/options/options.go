@@ -138,6 +138,7 @@ func NewServerRunOptions() *ServerRunOptions {
 	}
 
 	// Overwrite the default for storage data format.
+	// TODO ETCD的默认媒体类型为什么是 application/vnd.kubernetes.protobuf, 这种MIME有啥特性？
 	s.Etcd.DefaultStorageMediaType = "application/vnd.kubernetes.protobuf"
 
 	return &s

@@ -92,6 +92,7 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
+	// 实例化ServerRunOptions参数
 	s := options.NewServerRunOptions()
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -122,7 +123,7 @@ cluster's shared state through which all other components interact.`,
 			}
 			cliflag.PrintFlags(fs)
 
-			// 设置apiserver参数的默认值，补全参数，后续创建extendserver, apiserver, aggregateserver都需要这些参数
+			// 补全ServerRunOptions参数配置
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err

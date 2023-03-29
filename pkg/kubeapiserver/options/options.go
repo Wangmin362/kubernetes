@@ -30,4 +30,5 @@ var DefaultServiceNodePortRange = utilnet.PortRange{Base: 30000, Size: 2768}
 var DefaultServiceIPCIDR = net.IPNet{IP: netutils.ParseIPSloppy("10.0.0.0"), Mask: net.CIDRMask(24, 32)}
 
 // DefaultEtcdPathPrefix is the default key prefix of etcd for API Server
+// K8S存入ETCD的数据key的默认前缀
 const DefaultEtcdPathPrefix = "/registry"

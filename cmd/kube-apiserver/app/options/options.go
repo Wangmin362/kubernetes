@@ -67,33 +67,40 @@ type ServerRunOptions struct {
 	EnableLogsHandler bool
 	EventTTL          time.Duration
 	// TODO 为什么apiserver需要kubelet的配置
-	KubeletConfig             kubeletclient.KubeletClientConfig
+	KubeletConfig kubeletclient.KubeletClientConfig
+	// TODO 这个是apiserver的6553端口么
 	KubernetesServiceNodePort int
 	MaxConnectionBytesPerSec  int64
 	// ServiceClusterIPRange is mapped to input provided by user
 	ServiceClusterIPRanges string
 	// PrimaryServiceClusterIPRange and SecondaryServiceClusterIPRange are the results
 	// of parsing ServiceClusterIPRange into actual values
+	// TODO 这俩破玩意是干啥的？
 	PrimaryServiceClusterIPRange   net.IPNet
 	SecondaryServiceClusterIPRange net.IPNet
 	// APIServerServiceIP is the first valid IP from PrimaryServiceClusterIPRange
 	// 用于广播给集群的所有成员自己的IP地址，不指定的话就使用"--bind-address"的IP地址
 	APIServerServiceIP net.IP
 
+	// nodeport端口范围 todo 为什么apiserver需要关心这个参数，这不是kubelet的参数么？
 	ServiceNodePortRange utilnet.PortRange
 
+	// TODO proxy是啥意思？ 用来干嘛的
 	ProxyClientCertFile string
 	ProxyClientKeyFile  string
 
+	// TODO 这个应该和aggregate apiserver有关
 	EnableAggregatorRouting             bool
 	AggregatorRejectForwardingRedirects bool
 
+	// master的数量
 	MasterCount            int
 	EndpointReconcilerType string
 
 	IdentityLeaseDurationSeconds      int
 	IdentityLeaseRenewIntervalSeconds int
 
+	// TODO 和BootstrapToken相关？
 	ServiceAccountSigningKeyFile     string
 	ServiceAccountIssuer             serviceaccount.TokenGenerator
 	ServiceAccountTokenMaxExpiration time.Duration
@@ -119,7 +126,8 @@ func NewServerRunOptions() *ServerRunOptions {
 		Logs:                    logs.NewOptions(),
 		Traces:                  genericoptions.NewTracingOptions(),
 
-		EnableLogsHandler:                 true,
+		EnableLogsHandler: true,
+		// TODO 意思是K8S中的时间只能保存一个小时？
 		EventTTL:                          1 * time.Hour,
 		MasterCount:                       1,
 		EndpointReconcilerType:            string(reconcilers.LeaseEndpointReconcilerType),

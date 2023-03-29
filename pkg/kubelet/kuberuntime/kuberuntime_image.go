@@ -82,6 +82,7 @@ func (m *kubeGenericRuntimeManager) PullImage(image kubecontainer.ImageSpec, pul
 // GetImageRef gets the ID of the image which has already been in
 // the local storage. It returns ("", nil) if the image isn't in the local storage.
 func (m *kubeGenericRuntimeManager) GetImageRef(image kubecontainer.ImageSpec) (string, error) {
+	// 通过查询底层的容器运行时，获取镜像信息
 	resp, err := m.imageService.ImageStatus(toRuntimeAPIImageSpec(image), false)
 	if err != nil {
 		klog.ErrorS(err, "Failed to get image status", "image", image.Image)
@@ -90,6 +91,7 @@ func (m *kubeGenericRuntimeManager) GetImageRef(image kubecontainer.ImageSpec) (
 	if resp.Image == nil {
 		return "", nil
 	}
+	// 镜像ID就是镜像的摘要
 	return resp.Image.Id, nil
 }
 

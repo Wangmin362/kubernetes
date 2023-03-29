@@ -134,6 +134,7 @@ service ImageService {
     rpc ImageStatus(ImageStatusRequest) returns (ImageStatusResponse) {}
     // PullImage pulls an image with authentication config.
     // TODO 如果本地已经存在镜像，docker\containerd\crio还会拉取镜像么？
+    // containerd返回的是镜像摘要
     rpc PullImage(PullImageRequest) returns (PullImageResponse) {}
     // RemoveImage removes the image.
     // This call is idempotent, and must not return an error if the image has
@@ -1360,6 +1361,7 @@ message PullImageRequest {
 message PullImageResponse {
     // Reference to the image in use. For most runtimes, this should be an
     // image ID or digest.
+    // containerD返回的是镜像摘要
     string image_ref = 1;
 }
 

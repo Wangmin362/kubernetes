@@ -46,15 +46,18 @@ import (
 
 // BuiltInAuthenticationOptions contains all build-in authentication options for API Server
 type BuiltInAuthenticationOptions struct {
+	// TODO audience是啥意思
 	APIAudiences    []string
-	Anonymous       *AnonymousAuthenticationOptions
-	BootstrapToken  *BootstrapTokenAuthenticationOptions
-	ClientCert      *genericoptions.ClientCertAuthenticationOptions
-	OIDC            *OIDCAuthenticationOptions
-	RequestHeader   *genericoptions.RequestHeaderAuthenticationOptions
-	ServiceAccounts *ServiceAccountAuthenticationOptions
-	TokenFile       *TokenFileAuthenticationOptions
-	WebHook         *WebHookAuthenticationOptions
+	Anonymous       *AnonymousAuthenticationOptions                    // K8S的匿名访问
+	BootstrapToken  *BootstrapTokenAuthenticationOptions               // Token访问
+	ClientCert      *genericoptions.ClientCertAuthenticationOptions    // 证书访问
+	OIDC            *OIDCAuthenticationOptions                         // OIDC认证
+	RequestHeader   *genericoptions.RequestHeaderAuthenticationOptions // 请求头认证
+	ServiceAccounts *ServiceAccountAuthenticationOptions               // SA认证
+	// TODO 这个TokenFile是给谁用的？
+	TokenFile *TokenFileAuthenticationOptions
+	// TODO K8S中的WebHook是怎么实现的？
+	WebHook *WebHookAuthenticationOptions
 
 	TokenSuccessCacheTTL time.Duration
 	TokenFailureCacheTTL time.Duration

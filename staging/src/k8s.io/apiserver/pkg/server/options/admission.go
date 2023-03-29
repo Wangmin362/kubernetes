@@ -61,6 +61,7 @@ type AdmissionOptions struct {
 	// DisablePlugins indicates plugins to be disabled passed through `--disable-admission-plugins`.
 	DisablePlugins []string
 	// ConfigFile is the file path with admission control configuration.
+	// TODO 准入控制的配置文件是啥？
 	ConfigFile string
 	// Plugins contains all registered plugins.
 	Plugins *admission.Plugins

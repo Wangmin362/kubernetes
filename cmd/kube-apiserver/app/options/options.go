@@ -41,24 +41,32 @@ import (
 
 // ServerRunOptions runs a kubernetes api server.
 type ServerRunOptions struct {
-	GenericServerRunOptions *genericoptions.ServerRunOptions
-	Etcd                    *genericoptions.EtcdOptions
-	SecureServing           *genericoptions.SecureServingOptionsWithLoopback
-	Audit                   *genericoptions.AuditOptions
-	Features                *genericoptions.FeatureOptions
-	Admission               *kubeoptions.AdmissionOptions
-	Authentication          *kubeoptions.BuiltInAuthenticationOptions
-	Authorization           *kubeoptions.BuiltInAuthorizationOptions
-	CloudProvider           *kubeoptions.CloudProviderOptions
-	APIEnablement           *genericoptions.APIEnablementOptions
-	EgressSelector          *genericoptions.EgressSelectorOptions
-	Metrics                 *metrics.Options
-	Logs                    *logs.Options
-	Traces                  *genericoptions.TracingOptions
+	GenericServerRunOptions *genericoptions.ServerRunOptions                 // genericServer配置
+	Etcd                    *genericoptions.EtcdOptions                      // ETCD的配置
+	SecureServing           *genericoptions.SecureServingOptionsWithLoopback // TLS相关配置
+	// TODO K8S是如何实现审计的？
+	Audit          *genericoptions.AuditOptions              // 审计相关配置
+	Features       *genericoptions.FeatureOptions            // K8S的特性开关
+	Admission      *kubeoptions.AdmissionOptions             // 准入控制
+	Authentication *kubeoptions.BuiltInAuthenticationOptions // 认证相关
+	Authorization  *kubeoptions.BuiltInAuthorizationOptions  // 授权相关
+	// TODO cloudProvider是啥？
+	CloudProvider *kubeoptions.CloudProviderOptions
+	// TODO 什么叫做APIEnablement?
+	APIEnablement *genericoptions.APIEnablementOptions
+	// TODO EgressSelector是啥？有啥作用？
+	EgressSelector *genericoptions.EgressSelectorOptions
+	// TODO apiserver的指标可以配置啥？
+	Metrics *metrics.Options
+	Logs    *logs.Options
+	Traces  *genericoptions.TracingOptions
 
-	AllowPrivileged           bool
-	EnableLogsHandler         bool
-	EventTTL                  time.Duration
+	// TODO 这个参数有啥用？
+	AllowPrivileged bool
+	// TODO logHandler的开启和关闭有啥影响？
+	EnableLogsHandler bool
+	EventTTL          time.Duration
+	// TODO 为什么apiserver需要kubelet的配置
 	KubeletConfig             kubeletclient.KubeletClientConfig
 	KubernetesServiceNodePort int
 	MaxConnectionBytesPerSec  int64
@@ -69,6 +77,7 @@ type ServerRunOptions struct {
 	PrimaryServiceClusterIPRange   net.IPNet
 	SecondaryServiceClusterIPRange net.IPNet
 	// APIServerServiceIP is the first valid IP from PrimaryServiceClusterIPRange
+	// 用于广播给集群的所有成员自己的IP地址，不指定的话就使用"--bind-address"的IP地址
 	APIServerServiceIP net.IP
 
 	ServiceNodePortRange utilnet.PortRange

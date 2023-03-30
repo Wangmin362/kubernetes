@@ -55,22 +55,25 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 			responsewriters.InternalError(w, req, err)
 			return
 		}
+		// 判断是否有权限
 		authorized, reason, err := a.Authorize(ctx, attributes)
 		// an authorizer like RBAC could encounter evaluation errors and still allow the request, so authorizer decision is checked before error here.
 		if authorized == authorizer.DecisionAllow {
+			// 审计记录
 			audit.AddAuditAnnotations(ctx,
 				decisionAnnotationKey, decisionAllow,
 				reasonAnnotationKey, reason)
-			// todo 这到底是啥意思？ 是请求放行么？
+			// 鉴权通过的话就执行请求动作
 			handler.ServeHTTP(w, req)
 			return
 		}
-		if err != nil {
+		if err != nil { // 鉴权异常
 			audit.AddAuditAnnotation(ctx, reasonAnnotationKey, reasonError)
 			responsewriters.InternalError(w, req, err)
 			return
 		}
 
+		// 鉴权未通过
 		klog.V(4).InfoS("Forbidden", "URI", req.RequestURI, "Reason", reason)
 		audit.AddAuditAnnotations(ctx,
 			decisionAnnotationKey, decisionForbid,

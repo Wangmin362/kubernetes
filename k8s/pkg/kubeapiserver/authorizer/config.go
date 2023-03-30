@@ -39,11 +39,13 @@ import (
 
 // Config contains the data on how to authorize a request to the Kube API Server
 type Config struct {
+	// TODO Apiserver的授权模式，有AlwaysAllow, AlwaysDeny, ABAC, Webhook, RBAC, Node，每一种授权模式有何区别？
 	AuthorizationModes []string
 
 	// Options for ModeABAC
 
 	// Path to an ABAC policy file.
+	// ABAC的策略文件
 	PolicyFile string
 
 	// Options for ModeWebhook
@@ -82,6 +84,7 @@ func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, erro
 	for _, authorizationMode := range config.AuthorizationModes {
 		// Keep cases in sync with constant list in k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes/modes.go.
 		switch authorizationMode {
+		// TODO node授权模式用在什么场景当中？
 		case modes.ModeNode:
 			node.RegisterMetrics()
 			graph := node.NewGraph()

@@ -317,6 +317,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 			APIServerServiceIP:      s.APIServerServiceIP,
 			SecondaryServiceIPRange: s.SecondaryServiceClusterIPRange,
 
+			// TODO apiserver的安全端口为443端口，现在的版本应该不能开启非安全端口了吧
 			APIServerServicePort: 443,
 
 			ServiceNodePortRange:      s.ServiceNodePortRange,
@@ -409,6 +410,7 @@ func buildGenericConfig(
 	lastErr error,
 ) {
 	// 实例化一个generic apiserver配置
+	// TODO 重点关注 DefaultBuildHandlerChain
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 	// TODO 启用哪些资源，禁用哪些资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
@@ -430,6 +432,7 @@ func buildGenericConfig(
 	if lastErr = s.EgressSelector.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
+	// TODO apiserver的tracing是干嘛的？
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		if lastErr = s.Traces.ApplyTo(genericConfig.EgressSelector, genericConfig); lastErr != nil {
 			return
@@ -453,7 +456,7 @@ func buildGenericConfig(
 	kubeVersion := version.Get()
 	genericConfig.Version = &kubeVersion
 
-	// 构建K8S的后端存储
+	// TODO 构建K8S的后端存储
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
 	completedStorageFactoryConfig, err := storageFactoryConfig.Complete(s.Etcd)
@@ -493,6 +496,7 @@ func buildGenericConfig(
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
 		return
 	}
+	// 实际上就是k8s clientset, 重新同步资源的事件为10分钟
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
@@ -500,6 +504,8 @@ func buildGenericConfig(
 		return
 	}
 
+	// genericConfig.Authorization.Authorizer K8S的授权策略
+	// genericConfig.RuleResolver TODO 估计是授权策略的规则解析
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver, err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
 		lastErr = fmt.Errorf("invalid authorization config: %v", err)
@@ -509,6 +515,7 @@ func buildGenericConfig(
 		genericConfig.DisabledPostStartHooks.Insert(rbacrest.PostStartHookName)
 	}
 
+	// TODO 初始化审计相关
 	lastErr = s.Audit.ApplyTo(genericConfig)
 	if lastErr != nil {
 		return
@@ -519,8 +526,9 @@ func buildGenericConfig(
 		LoopbackClientConfig: genericConfig.LoopbackClientConfig,
 		CloudConfigFile:      s.CloudProvider.CloudConfigFile,
 	}
-	// todo 什么叫做服务解析器？ 是用来从URL找到对应的handler的么？
+	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
+	// 准入控制相关
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create admission plugin initializer: %v", err)
@@ -546,7 +554,8 @@ func buildGenericConfig(
 }
 
 // BuildAuthorizer constructs the authorizer
-func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector, versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
+func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector,
+	versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
 	if EgressSelector != nil {
@@ -557,6 +566,7 @@ func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector
 		authorizationConfig.CustomDial = egressDialer
 	}
 
+	// K8S的授权配置
 	return authorizationConfig.New()
 }
 

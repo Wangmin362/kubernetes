@@ -283,7 +283,8 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// pluginInitializers TODO 暂时搞不懂这个参数的作用，它和K8S准入控制相关
 	// admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
 	// storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
-	genericConfig, versionedInformers, serviceResolver, pluginInitializers, admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
+	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
+		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
 		return nil, nil, nil, err
 	}

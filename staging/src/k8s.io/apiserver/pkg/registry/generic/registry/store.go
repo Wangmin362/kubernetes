@@ -112,6 +112,7 @@ type Store struct {
 	// DefaultQualifiedResource is the pluralized name of the resource.
 	// This field is used if there is no request info present in the context.
 	// See qualifiedResourceFromContext for details.
+	// TODO 要存储的是哪个资源
 	DefaultQualifiedResource schema.GroupResource
 
 	// KeyRootFunc returns the root etcd key for this resource; should not
@@ -119,6 +120,7 @@ type Store struct {
 	// entire collection (listing and watching).
 	//
 	// KeyRootFunc and KeyFunc must be supplied together or not at all.
+	// TODO 这个API和KeyFuc有啥区别？
 	KeyRootFunc func(ctx context.Context) string
 
 	// KeyFunc returns the key for a specific object in the collection.
@@ -163,6 +165,7 @@ type Store struct {
 	// integrations that are above storage and should only be used for
 	// specific cases where storage of the value is not appropriate, since
 	// they cannot be watched.
+	// TODO 暂时没有看懂这玩意是干嘛的
 	Decorator func(runtime.Object)
 
 	// CreateStrategy implements resource-specific behavior during creation.
@@ -214,6 +217,7 @@ type Store struct {
 	// Storage is the interface for the underlying storage for the
 	// resource. It is wrapped into a "DryRunnableStorage" that will
 	// either pass-through or simply dry-run.
+	// TODO 真正的存储就是在这里， DryRunnableStorage主要是为了能够测试方便
 	Storage DryRunnableStorage
 	// StorageVersioner outputs the <group/version/kind> an object will be
 	// converted to before persisted in etcd, given a list of possible

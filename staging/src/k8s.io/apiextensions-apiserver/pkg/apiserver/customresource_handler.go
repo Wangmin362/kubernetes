@@ -139,6 +139,7 @@ type crdHandler struct {
 type crdInfo struct {
 	// spec and acceptedNames are used to compare against if a change is made on a CRD. We only update
 	// the storage if one of these changes.
+	// CRD定义
 	spec          *apiextensionsv1.CustomResourceDefinitionSpec
 	acceptedNames *apiextensionsv1.CustomResourceDefinitionNames
 
@@ -201,6 +202,7 @@ func NewCustomResourceDefinitionHandler(
 		staticOpenAPISpec:       staticOpenAPISpec,
 		maxRequestBodyBytes:     maxRequestBodyBytes,
 	}
+	// 监听CRD资源
 	crdInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    ret.createCustomResourceDefinition,
 		UpdateFunc: ret.updateCustomResourceDefinition,
@@ -228,6 +230,7 @@ var longRunningFilter = genericfilters.BasicLongRunningRequestCheck(sets.NewStri
 // namespaces for namespaces resources. I.e. for these an empty namespace in the requestInfo is fine.
 var possiblyAcrossAllNamespacesVerbs = sets.NewString("list", "watch")
 
+// TODO 重点就是这里， 这里是CRD动态支持访问的原因么
 func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
 	requestInfo, ok := apirequest.RequestInfoFrom(ctx)
@@ -470,6 +473,7 @@ func (r *crdHandler) createCustomResourceDefinition(obj interface{}) {
 			crd.Name)
 		return
 	}
+	// TODO 发现CRD了为啥是移除？
 	r.removeStorage_locked(crd.UID)
 }
 
@@ -515,6 +519,7 @@ func (r *crdHandler) updateCustomResourceDefinition(oldObj, newObj interface{}) 
 // removeStorage_locked removes the cached storage with the given uid as key from the storage map. This function
 // updates r.customStorage with the cleaned-up storageMap and tears down the old storage.
 // NOTE: Caller MUST hold r.customStorageLock to write r.customStorage thread-safely.
+// TODO 暂时没看懂这玩意是干嘛用的
 func (r *crdHandler) removeStorage_locked(uid types.UID) {
 	storageMap := r.customStorage.Load().(crdStorageMap)
 	if oldInfo, ok := storageMap[uid]; ok {
@@ -523,6 +528,7 @@ func (r *crdHandler) removeStorage_locked(uid types.UID) {
 		storageMap2 := storageMap.clone()
 
 		// Remove from the CRD info map and store the map
+		//
 		delete(storageMap2, uid)
 		r.customStorage.Store(storageMap2)
 

@@ -278,6 +278,7 @@ const (
 	// Established means that the resource has become active. A resource is established when all names are
 	// accepted without a conflict for the first time. A resource stays established until deleted, even during
 	// a later NamesAccepted due to changed names. Note that not all names can be changed.
+	// TODO Established是啥意思？
 	Established CustomResourceDefinitionConditionType = "Established"
 	// NamesAccepted means the names chosen for this CustomResourceDefinition do not conflict with others in
 	// the group and are therefore accepted.

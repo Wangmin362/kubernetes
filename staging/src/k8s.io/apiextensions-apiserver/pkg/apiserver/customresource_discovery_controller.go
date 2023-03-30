@@ -40,16 +40,20 @@ import (
 	listers "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
 )
 
+// DiscoveryController  TODO 监听CRD资源，并维护versionHandler以及groupHandler
 type DiscoveryController struct {
 	versionHandler *versionDiscoveryHandler
 	groupHandler   *groupDiscoveryHandler
 
+	// 通过Informer获取CRD资源
 	crdLister  listers.CustomResourceDefinitionLister
 	crdsSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// queue的消费者
 	syncFn func(version schema.GroupVersion) error
 
+	// CRD资源的工作队列
 	queue workqueue.RateLimitingInterface
 }
 
@@ -76,10 +80,11 @@ func NewDiscoveryController(crdInformer informers.CustomResourceDefinitionInform
 
 func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
-	apiVersionsForDiscovery := []metav1.GroupVersionForDiscovery{}
-	apiResourcesForDiscovery := []metav1.APIResource{}
+	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
+	var apiResourcesForDiscovery []metav1.APIResource
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
+	// 查询所有的CRD
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -146,6 +151,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		if err != nil {
 			return err
 		}
+		// status子资源
 		if subresources != nil && subresources.Status != nil {
 			apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 				Name:       crd.Status.AcceptedNames.Plural + "/status",
@@ -156,6 +162,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		}
 
 		if subresources != nil && subresources.Scale != nil {
+			// sacle子资源
 			apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 				Group:      autoscaling.GroupName,
 				Version:    "v1",
@@ -208,13 +215,15 @@ func (c *DiscoveryController) Run(stopCh <-chan struct{}, synchedCh chan<- struc
 
 	klog.Info("Starting DiscoveryController")
 
-	if !cache.WaitForCacheSync(stopCh, c.crdsSynced) {
+	if !cache.WaitForCacheSync(stopCh, c.crdsSynced) { // 等待 crd资源同步完成
 		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 		return
 	}
 
 	// initially sync all group versions to make sure we serve complete discovery
+	// TODO 为什么一开始就需要处理一边所有的CRD， informer机制为啥不用？
 	if err := wait.PollImmediateUntil(time.Second, func() (bool, error) {
+		// 查询所有的CRD资源
 		crds, err := c.crdLister.List(labels.Everything())
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to initially list CRDs: %v", err))
@@ -222,7 +231,7 @@ func (c *DiscoveryController) Run(stopCh <-chan struct{}, synchedCh chan<- struc
 		}
 		for _, crd := range crds {
 			for _, v := range crd.Spec.Versions {
-				gv := schema.GroupVersion{crd.Spec.Group, v.Name}
+				gv := schema.GroupVersion{Group: crd.Spec.Group, Version: v.Name}
 				if err := c.sync(gv); err != nil {
 					utilruntime.HandleError(fmt.Errorf("failed to initially sync CRD version %v: %v", gv, err))
 					return false, nil

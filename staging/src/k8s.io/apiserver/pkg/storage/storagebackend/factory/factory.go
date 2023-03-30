@@ -28,6 +28,7 @@ import (
 type DestroyFunc func()
 
 // Create creates a storage backend based on given config.
+// TODO 创建K8S的存储后端
 func Create(c storagebackend.ConfigForResource, newFunc func() runtime.Object) (storage.Interface, DestroyFunc, error) {
 	switch c.Type {
 	case storagebackend.StorageTypeETCD2:

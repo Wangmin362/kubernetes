@@ -28,8 +28,10 @@ import (
 
 // RESTOptions is set of resource-specific configuration options to generic registries.
 type RESTOptions struct {
+	// TODO 后端存储的配置
 	StorageConfig *storagebackend.ConfigForResource
-	Decorator     StorageDecorator
+	// 后端存储配置，针对于某个资源
+	Decorator StorageDecorator
 
 	EnableGarbageCollection   bool
 	DeleteCollectionWorkers   int
@@ -48,6 +50,7 @@ type RESTOptionsGetter interface {
 }
 
 // StoreOptions is set of configuration options used to complete generic registries.
+// TODO 存储配置
 type StoreOptions struct {
 	RESTOptions RESTOptionsGetter
 	TriggerFunc storage.IndexerFuncs

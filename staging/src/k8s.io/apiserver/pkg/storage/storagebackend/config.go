@@ -71,6 +71,7 @@ type Config struct {
 	// supported). This is generally configured by feature gating, or by a specific
 	// resource type not wishing to allow paging, and is not intended for end users to
 	// set.
+	// TODO 似乎是和分页相关
 	Paging bool
 
 	// 该资源的编解码器，实际上就是一个序列化/反序列化器
@@ -109,7 +110,7 @@ type ConfigForResource struct {
 	Config
 
 	// GroupResource is the relevant one
-	// 用于标识当前配置是哪种资源配置 TODO 为什么不需要Version?
+	// TODO 用于标识当前配置是哪种资源配置  为什么不需要Version?
 	GroupResource schema.GroupResource
 }
 

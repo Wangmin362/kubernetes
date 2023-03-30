@@ -70,10 +70,10 @@ func (d authenticatedDataString) AuthenticatedData() []byte {
 
 var _ value.Context = authenticatedDataString("")
 
-// k8s资源存储接口的实现，该存储类实现了 StandardStorage 接口
+// TODO k8s资源存储接口的实现，该存储类实现了 StandardStorage 接口
 type store struct {
-	client              *clientv3.Client
-	codec               runtime.Codec
+	client              *clientv3.Client // ETCD的客户端
+	codec               runtime.Codec    // value的编解码器
 	versioner           storage.Versioner
 	transformer         value.Transformer
 	pathPrefix          string

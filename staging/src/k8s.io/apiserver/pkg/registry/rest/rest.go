@@ -280,7 +280,9 @@ type Watcher interface {
 
 // StandardStorage is an interface covering the common verbs. Provided for testing whether a
 // resource satisfies the normal storage methods. Use Storage when passing opaque storage objects.
-// 这个接口主要是面向K8S的资源，用于提供对于K8S各个资源对象的存储抽象接口
+// TODO 这个接口主要是面向K8S的资源，用于提供对于K8S各个资源对象的存储抽象接口
+// TODO 每个K8S资源对象都应该实现StandardStorage接口，用于对于数据的增删改查
+// TODO 这个抽象接口是面向K8S资源的，真正的存储则是依赖staging/src/k8s.io/apiserver/pkg/storage/interfaces.go接口完成
 type StandardStorage interface {
 	Getter
 	Lister

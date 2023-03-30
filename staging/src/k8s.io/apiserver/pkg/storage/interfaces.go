@@ -156,8 +156,13 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 
 // Interface offers a common interface for object marshaling/unmarshaling operations and
 // hides all the storage-related operations behind it.
-// Interface提供了一个对象通用的序列化和反序列化接口，该接口隐藏了所有存储对象相关的操作
-// staging/src/k8s.io/apiserver/pkg/storage/etcd3/store.go实现了这个接口
+// TODO Interface提供了一个对象通用的序列化和反序列化接口，该接口隐藏了所有存储对象相关的操作
+// TODO staging/src/k8s.io/apiserver/pkg/storage/etcd3/store.go实现了这个接口
+// TODO Ingerface接口是K8S存储的核心抽象，对于所有资源的增删改查都是通过这个接口进行的
+// TODO 不难推测，K8S资源的增删改查一定会组合Interface接口完成对于资源的增删改查
+// TODO 同时，通过K8S Interface接口的定义，可以推测出K8S的资源对象的存储都是以KV的方式存储的
+// TODO 显然,相对于结构化的数据库，KV数据库对于关系型数据的查询就不是那么又好了，不过K8S的资源
+// TODO 之间的基本没有啥联系
 type Interface interface {
 	// Returns Versioner associated with this interface.
 	Versioner() Versioner
@@ -172,6 +177,7 @@ type Interface interface {
 	// If 'cachedExistingObject' is non-nil, it can be used as a suggestion about the
 	// current version of the object to avoid read operation from storage to get it.
 	// However, the implementations have to retry in case suggestion is stale.
+	// TODO out为被删除的对象
 	Delete(
 		ctx context.Context, key string, out runtime.Object, preconditions *Preconditions,
 		validateDeletion ValidateObjectFunc, cachedExistingObject runtime.Object) error

@@ -341,6 +341,7 @@ func newETCD3Storage(c storagebackend.ConfigForResource, newFunc func() runtime.
 	}
 
 	// decorate the KV instance so we can track etcd latency per request.
+	// TODO 估计适合MySQL SlowSQL类似
 	client.KV = etcd3.NewETCDLatencyTracker(client.KV)
 
 	stopDBSizeMonitor, err := startDBSizeMonitorPerEndpoint(client, c.DBMetricPollInterval)

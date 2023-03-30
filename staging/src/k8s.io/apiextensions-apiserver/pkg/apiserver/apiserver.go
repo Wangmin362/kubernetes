@@ -76,6 +76,7 @@ func init() {
 	Scheme.AddUnversionedTypes(unversionedVersion, unversionedTypes...)
 }
 
+// ExtraConfig TODO 每种apiserver都有自己的额外配置信息
 type ExtraConfig struct {
 	CRDRESTOptionsGetter genericregistry.RESTOptionsGetter
 
@@ -90,6 +91,7 @@ type ExtraConfig struct {
 }
 
 type Config struct {
+	// 本质上就是generic apiserver的配置信息，只不过增加了informer
 	GenericConfig *genericapiserver.RecommendedConfig
 	ExtraConfig   ExtraConfig
 }
@@ -112,6 +114,7 @@ type CustomResourceDefinitions struct {
 }
 
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
+// extension-apiserver参数的补全
 func (cfg *Config) Complete() CompletedConfig {
 	c := completedConfig{
 		cfg.GenericConfig.Complete(),
@@ -131,6 +134,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // New returns a new instance of CustomResourceDefinitions from the given config.
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
+	// 实例化一个generic-apiserver，实际上所有的apiserver都是generic-apiserver
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
@@ -148,6 +152,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
+	// 实例化APIGroupInfo
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
 	storage := map[string]rest.Storage{}
 	// customresourcedefinitions  注册CRD资源

@@ -43,8 +43,11 @@ type WantsAuthenticationInfoResolverWrapper interface {
 }
 
 // PluginInitializer is used for initialization of the webhook admission plugin.
+// TODO webhook准入控制器初始化器
 type PluginInitializer struct {
-	serviceResolver                   webhook.ServiceResolver
+	// 根据svc的name,namespace,port拼接合法的URL
+	serviceResolver webhook.ServiceResolver
+	//
 	authenticationInfoResolverWrapper webhook.AuthenticationInfoResolverWrapper
 }
 

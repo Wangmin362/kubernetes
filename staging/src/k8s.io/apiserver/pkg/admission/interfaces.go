@@ -28,35 +28,45 @@ import (
 
 // Attributes is an interface used by AdmissionController to get information about a request
 // that is used to make an admission decision.
+// Attributes用于一个注入控制器从HTTP请求中获取相关的信息，从而用于决策是否通过
 type Attributes interface {
 	// GetName returns the name of the object as presented in the request.  On a CREATE operation, the client
 	// may omit name and rely on the server to generate the name.  If that is the case, this method will return
 	// the empty string
+	// TODO 猜测是K8S资源的名字
 	GetName() string
 	// GetNamespace is the namespace associated with the request (if any)
+	// TODO 猜测是K8S资源的名称空间
 	GetNamespace() string
 	// GetResource is the name of the resource being requested.  This is not the kind.  For example: pods
+	// TODO 当前请求的是哪种资源
 	GetResource() schema.GroupVersionResource
 	// GetSubresource is the name of the subresource being requested.  This is a different resource, scoped to the parent resource, but it may have a different kind.
 	// For instance, /pods has the resource "pods" and the kind "Pod", while /pods/foo/status has the resource "pods", the sub resource "status", and the kind "Pod"
 	// (because status operates on pods). The binding resource for a pod though may be /pods/foo/binding, which has resource "pods", subresource "binding", and kind "Binding".
+	// 子资源，譬如status,binding等等
 	GetSubresource() string
 	// GetOperation is the operation being performed
+	// 对于资源的操作，有CREATE, UPDATE, DELETE, CONNECT，TODO 为什么没有GET操作？ 难道是因为GET操作默认都是允许的？
 	GetOperation() Operation
 	// GetOperationOptions is the options for the operation being performed
+	// TODO 当前操作的参数，猜测是 metav1.DeleteOption, metav1.CreateOptions
 	GetOperationOptions() runtime.Object
 	// IsDryRun indicates that modifications will definitely not be persisted for this request. This is to prevent
 	// admission controllers with side effects and a method of reconciliation from being overwhelmed.
 	// However, a value of false for this does not mean that the modification will be persisted, because it
 	// could still be rejected by a subsequent validation step.
+	// TODO K8S的DryRun似乎是为了验证用户提交的YAML是否合法，并不会真正的执行
 	IsDryRun() bool
 	// GetObject is the object from the incoming request prior to default values being applied
+	// 获取当前提交的资源对象
 	GetObject() runtime.Object
 	// GetOldObject is the existing object. Only populated for UPDATE and DELETE requests.
 	GetOldObject() runtime.Object
 	// GetKind is the type of object being manipulated.  For example: Pod
 	GetKind() schema.GroupVersionKind
 	// GetUserInfo is information about the requesting user
+	// 发出当前请求的用户信息
 	GetUserInfo() user.Info
 
 	// AddAnnotation sets annotation according to key-value pair. The key should be qualified, e.g., podsecuritypolicy.admission.k8s.io/admit-policy, where
@@ -120,6 +130,7 @@ type ReinvocationContext interface {
 }
 
 // Interface is an abstract, pluggable interface for Admission Control decisions.
+// TODO 这个接口的核心作用是判断当前的准入控制器是否能够处理当前请求
 type Interface interface {
 	// Handles returns true if this admission controller can handle the given operation
 	// where operation can be one of CREATE, UPDATE, DELETE, or CONNECT
@@ -156,6 +167,7 @@ const (
 
 // PluginInitializer is used for initialization of shareable resources between admission plugins.
 // After initialization the resources have to be set separately
+// TODO 这玩意到底是干嘛用的？
 type PluginInitializer interface {
 	Initialize(plugin Interface)
 }

@@ -67,6 +67,7 @@ type APIServerHandler struct {
 	// order to handle "normal" paths and delegation. Hopefully no API consumers will ever have to deal with this level of detail.  I think
 	// we should consider completely removing gorestful.
 	// Other servers should only use this opaquely to delegate to an API server.
+	// TODO Director是干嘛用的
 	Director http.Handler
 }
 
@@ -75,11 +76,14 @@ type APIServerHandler struct {
 type HandlerChainBuilderFn func(apiHandler http.Handler) http.Handler
 
 func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerChainBuilder HandlerChainBuilderFn, notFoundHandler http.Handler) *APIServerHandler {
+	// TODO go-restfule框架的Mux处理不了这个功能么？ 为什么k8s需要自己实现一个
 	nonGoRestfulMux := mux.NewPathRecorderMux(name)
 	if notFoundHandler != nil {
+		// extension-apiserver都无法处理这个请求，那么只能报404了
 		nonGoRestfulMux.NotFoundHandler(notFoundHandler)
 	}
 
+	// 实例化了一个Container
 	gorestfulContainer := restful.NewContainer()
 	gorestfulContainer.ServeMux = http.NewServeMux()
 	gorestfulContainer.Router(restful.CurlyRouter{}) // e.g. for proxy/{kind}/{name}/{*}

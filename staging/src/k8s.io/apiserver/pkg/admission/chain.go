@@ -20,6 +20,7 @@ import "context"
 
 // chainAdmissionHandler is an instance of admission.NamedHandler that performs admission control using
 // a chain of admission handlers
+// TODO 准入控制器数组
 type chainAdmissionHandler []Interface
 
 // NewChainHandler creates a new chain handler from an array of handlers. Used for testing.
@@ -31,10 +32,12 @@ func NewChainHandler(handlers ...Interface) chainAdmissionHandler {
 func (admissionHandler chainAdmissionHandler) Admit(ctx context.Context, a Attributes, o ObjectInterfaces) error {
 	for _, handler := range admissionHandler {
 		if !handler.Handles(a.GetOperation()) {
+			// 当前准入控制器如果处理不了当前操作，就跳出本次循环
 			continue
 		}
+		// 说明当前的handler可以处理挡墙请求
 		if mutator, ok := handler.(MutationInterface); ok {
-			err := mutator.Admit(ctx, a, o)
+			err := mutator.Admit(ctx, a, o) // 判断当前请求是否允许通过
 			if err != nil {
 				return err
 			}
@@ -50,7 +53,7 @@ func (admissionHandler chainAdmissionHandler) Validate(ctx context.Context, a At
 			continue
 		}
 		if validator, ok := handler.(ValidationInterface); ok {
-			err := validator.Validate(ctx, a, o)
+			err := validator.Validate(ctx, a, o) // 判断当前注入控制器是否校验通过
 			if err != nil {
 				return err
 			}
@@ -63,7 +66,7 @@ func (admissionHandler chainAdmissionHandler) Validate(ctx context.Context, a At
 func (admissionHandler chainAdmissionHandler) Handles(operation Operation) bool {
 	for _, handler := range admissionHandler {
 		if handler.Handles(operation) {
-			return true
+			return true // 任何一个准入控制器能够处理就认为能够处理
 		}
 	}
 	return false

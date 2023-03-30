@@ -272,8 +272,9 @@ type Config struct {
 	StorageVersionManager storageversion.Manager
 }
 
+// RecommendedConfig TODO 为什么叫做RecommendedConfig,是因为informer的加入，后续的操作都是本地缓存的原因么？
 type RecommendedConfig struct {
-	Config
+	Config // 这就是generic apiserver的配置
 
 	// SharedInformerFactory provides shared informers for Kubernetes resources. This value is set by
 	// RecommendedOptions.CoreAPI.ApplyTo called by RecommendedOptions.ApplyTo. It uses an in-cluster client config
@@ -354,10 +355,10 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		EnableDiscovery:             true,
 		EnableProfiling:             true,
 		EnableMetrics:               true,
-		MaxRequestsInFlight:         400,
-		MaxMutatingRequestsInFlight: 200,
+		MaxRequestsInFlight:         400, // 限速策略
+		MaxMutatingRequestsInFlight: 200, // TODO 这玩意是和mutating webhook相关的配置么?
 		RequestTimeout:              time.Duration(60) * time.Second,
-		MinRequestTimeout:           1800,
+		MinRequestTimeout:           1800, // 30分钟？意思是exec, logs这类的操作最长操作30分钟？
 		LivezGracePeriod:            time.Duration(0),
 		ShutdownDelayDuration:       time.Duration(0),
 		// 1.5MB is the default client request size in bytes
@@ -610,7 +611,7 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // name is used to differentiate for logging. The handler chain in particular can be difficult as it starts delegating.
 // delegationTarget may not be nil.
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
-	if c.Serializer == nil {
+	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
 	}
 	if c.LoopbackClientConfig == nil {
@@ -620,10 +621,13 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.EquivalentResourceRegistry == nil")
 	}
 
+	// handlerChainBuilder类似Java中的Filter，或者Gin中的中间件，实际上就是在请求被真正处理前处理了一道，主要是增加了认证、审计、限速、鉴权等通用工作
 	handlerChainBuilder := func(handler http.Handler) http.Handler {
+		// 请求处理的逻辑，认证、审计、限速等等 extension-apiserver复用了之前的generic-apiserver的初始化逻辑
 		return c.BuildHandlerChainFunc(handler, c.Config)
 	}
 
+	// TODO 如何理解APIServerHandler?
 	apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler())
 
 	s := &GenericAPIServer{
@@ -799,6 +803,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
+	// 非常核心的功能
 	installAPI(s, c.Config)
 
 	// use the UnprotectedHandler from the delegation target to ensure that we don't attempt to double authenticator, authorize,

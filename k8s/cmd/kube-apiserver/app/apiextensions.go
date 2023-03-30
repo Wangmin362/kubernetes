@@ -37,7 +37,7 @@ import (
 )
 
 func createAPIExtensionsConfig(
-	kubeAPIServerConfig genericapiserver.Config,
+	kubeAPIServerConfig genericapiserver.Config, // TODO 注意，这里传递的是一个实体，因此extension apiserver初始化的修改并不会影响外面
 	externalInformers kubeexternalinformers.SharedInformerFactory,
 	pluginInitializers []admission.PluginInitializer,
 	commandOptions *options.ServerRunOptions,
@@ -48,11 +48,13 @@ func createAPIExtensionsConfig(
 	// make a shallow copy to let us twiddle a few things
 	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the apiextensions
 	genericConfig := kubeAPIServerConfig
+	// 清空generic-apiserver的后置处理器
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
 	genericConfig.RESTOptionsGetter = nil
 
 	// override genericConfig.AdmissionControl with apiextensions' scheme,
 	// because apiextensions apiserver should use its own scheme to convert resources.
+	// 初始化extension-apiserver的准入配置信息
 	err := commandOptions.Admission.ApplyTo(
 		&genericConfig,
 		externalInformers,
@@ -65,8 +67,10 @@ func createAPIExtensionsConfig(
 
 	// copy the etcd options so we don't mutate originals.
 	etcdOptions := *commandOptions.Etcd
+	// TODO APILISTChunking是啥？
 	etcdOptions.StorageConfig.Paging = utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
 	// this is where the true decodable levels come from.
+	// 实例化extension-apiserver的编解码器
 	etcdOptions.StorageConfig.Codec = apiextensionsapiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion, v1.SchemeGroupVersion)
 	// prefer the more compact serialization (v1beta1) for storage until http://issue.k8s.io/82292 is resolved for objects whose v1 serialization is too big but whose v1beta1 serialization can be stored
 	etcdOptions.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(v1beta1.SchemeGroupVersion, schema.GroupKind{Group: v1beta1.GroupName})

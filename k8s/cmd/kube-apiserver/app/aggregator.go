@@ -126,6 +126,7 @@ func createAggregatorConfig(
 }
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget, apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
+	// 生成aggregate-apiserver的配置
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err

@@ -197,7 +197,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// If additional API servers are added, they should be gated.
-	// TODO ExtendApiserver是如何解决动态发现CRD并注册的？
+	// 初始化extension-apiserver的配置
 	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers,
 		pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount, serviceResolver,
 		webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport,
@@ -213,6 +213,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 	// 第二步：创建Extend Server，并且把notfoundHander作为ExtendServer下一任的委派，也就是说notFoundHandler时请求处理的兜底
 	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
+	// TODO ExtendApiserver是如何解决动态发现CRD并注册的？
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err

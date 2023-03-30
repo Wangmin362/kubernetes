@@ -38,6 +38,7 @@ type PathRecorderMux struct {
 
 	lock            sync.Mutex
 	notFoundHandler http.Handler
+	// 核心就是这两个属性
 	pathToHandler   map[string]http.Handler
 	prefixToHandler map[string]http.Handler
 
@@ -48,6 +49,7 @@ type PathRecorderMux struct {
 	mux atomic.Value
 
 	// exposedPaths is the list of paths that should be shown at /
+	// TODO 什么叫做Expose Path?
 	exposedPaths []string
 
 	// pathStacks holds the stacks of all registered paths.  This allows us to show a more helpful message

@@ -564,6 +564,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 	}
 
 	controllerName := "bootstrap-controller"
+	// 实例化K8S的客户端
 	client := kubernetes.NewForConfigOrDie(c.GenericConfig.LoopbackClientConfig)
 	// todo BootstrapController主要是用来干嘛的？
 	bootstrapController, err := c.NewBootstrapController(legacyRESTStorage, client)
@@ -573,7 +574,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 	m.GenericAPIServer.AddPostStartHookOrDie(controllerName, bootstrapController.PostStartHook)
 	m.GenericAPIServer.AddPreShutdownHookOrDie(controllerName, bootstrapController.PreShutdownHook)
 
-	// 注册LegacyAPIGroup
+	// 装载Legacy资源到go-restful的Container当中
 	if err := m.GenericAPIServer.InstallLegacyAPIGroup(genericapiserver.DefaultLegacyAPIPrefix, &apiGroupInfo); err != nil {
 		return fmt.Errorf("error in registering group versions: %v", err)
 	}

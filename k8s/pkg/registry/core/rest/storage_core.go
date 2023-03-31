@@ -105,6 +105,7 @@ type LegacyRESTStorage struct {
 func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource,
 	restOptionsGetter generic.RESTOptionsGetter) (LegacyRESTStorage, genericapiserver.APIGroupInfo, error) {
 	// 构建APIGroupInfo信息，Legacy的Group为空，apiGroupInfo中因该包含所有legacy资源
+	// legacy scheme早已在main函数运行之前就已经装配好了
 	apiGroupInfo := genericapiserver.APIGroupInfo{
 		PrioritizedVersions:          legacyscheme.Scheme.PrioritizedVersionsForGroup(""),
 		VersionedResourcesStorageMap: map[string]map[string]rest.Storage{},
@@ -120,7 +121,7 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource 
 	}
 	restStorage := LegacyRESTStorage{}
 
-	// pod资源
+	// podTemplate 增删改查
 	podTemplateStorage, err := podtemplatestore.NewREST(restOptionsGetter)
 	if err != nil {
 		return LegacyRESTStorage{}, genericapiserver.APIGroupInfo{}, err
@@ -183,6 +184,7 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource 
 	}
 
 	var serviceAccountStorage *serviceaccountstore.REST
+	// TODO 这两种初始化有何区别
 	if c.ServiceAccountIssuer != nil {
 		serviceAccountStorage, err = serviceaccountstore.NewREST(restOptionsGetter, c.ServiceAccountIssuer, c.APIAudiences, c.ServiceAccountMaxExpiration, podStorage.Pod.Store, secretStorage.Store, c.ExtendExpiration)
 	} else {
@@ -270,6 +272,7 @@ func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource 
 		serviceIPAllocators[secondaryServiceClusterIPAllocator.IPFamily()] = secondaryServiceClusterIPAllocator
 	}
 
+	// TODO 卧槽，这里是在干啥，又看不懂了。。。。。
 	serviceRESTStorage, serviceStatusStorage, serviceRESTProxy, err := servicestore.NewREST(
 		restOptionsGetter,
 		serviceClusterIPAllocator.IPFamily(),

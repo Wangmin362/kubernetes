@@ -768,7 +768,8 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 			if isSubresource {
 				doc = "replace " + subresource + " of the specified " + kind
 			}
-			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, restfulUpdateResource(updater, reqScope, admit))
+			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope,
+				metrics.APIServerComponent, deprecated, removedRelease, restfulUpdateResource(updater, reqScope, admit))
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 			route := ws.PUT(action.Path).To(handler).
 				Doc(doc).

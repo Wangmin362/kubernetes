@@ -116,7 +116,7 @@ type APIGroupVersion struct {
 // TODO 这就是核心的功能了,映射URL + Method以及Handler,这些信息会注册到container当中
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storageversion.ResourceInfo, error) {
 	// 拼接路由前缀 /<prefix>/<group>/<version>
-	// TOOD 如果是Legacy相关的资源注册，这里的Group是啥？
+	// TODO 如果是Legacy相关的资源注册，这里的Group是啥？ 那肯定就是core了
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
 	// 委托给APIInstaller完成信息的注册
 	installer := &APIInstaller{

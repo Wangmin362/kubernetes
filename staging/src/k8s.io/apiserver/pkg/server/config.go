@@ -107,7 +107,7 @@ type Config struct {
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
-	// TODO 什么叫做Loopback客户端？ 它应该有什么样的功能？
+	// TODO 什么叫做Loopback客户端？ 它应该有什么样的功能？ 实际上就是K8S的客户端工具的配置
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.

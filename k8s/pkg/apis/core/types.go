@@ -5595,6 +5595,7 @@ type WindowsSecurityContextOptions struct {
 // binary range.  Consumers should use annotations to record additional information (schema version,
 // data encoding hints). A range allocation should *ALWAYS* be recreatable at any time by observation
 // of the cluster, thus the object is less strongly typed than most.
+// TODO RangeAllocation资源是啥子鬼哦
 type RangeAllocation struct {
 	metav1.TypeMeta
 	// +optional

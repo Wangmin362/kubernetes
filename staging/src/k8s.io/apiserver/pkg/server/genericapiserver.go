@@ -713,7 +713,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 // TODO 什么叫做安装API资源？  实际上就是注册URL + Method与Handler的映射到restful的Container当中
 func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels openapiproto.Models) error {
 	var resourceInfos []*storageversion.ResourceInfo
-	// 按顺序注册APIGroup信息
+	// 按顺序注册APIGroup信息 注册顺序应该和k8s/pkg/controlplane/import_known_versions.go这个文件的顺序有关
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
 			// map中没有找到相关的version信息，直接退出
@@ -775,6 +775,7 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 		return fmt.Errorf("%q is not in the allowed legacy API prefixes: %v", apiPrefix, s.legacyAPIGroupPrefixes.List())
 	}
 
+	// TODO 应该是为了装在OpenAPI相关的资源，也就是我们俗称的Swagger文档
 	openAPIModels, err := s.getOpenAPIModels(apiPrefix, apiGroupInfo)
 	if err != nil {
 		return fmt.Errorf("unable to get openapi models: %v", err)

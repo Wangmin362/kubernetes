@@ -26,7 +26,7 @@ import (
 
 // StorageDecorator is a function signature for producing a storage.Interface
 // and an associated DestroyFunc from given parameters.
-type StorageDecorator func(
+type StorageDecorator func( // TODO 为啥叫做存储装饰
 	config *storagebackend.ConfigForResource, // 后端存储配置(针对所有资源)
 	resourcePrefix string, // 资源的前缀配置（针对某个资源）
 	keyFunc func(obj runtime.Object) (string, error), // 用于生成当前资源对象的key,一般都是 namespace/name (针对某个资源)
@@ -39,6 +39,7 @@ type StorageDecorator func(
 
 // UndecoratedStorage returns the given a new storage from the given config
 // without any decoration.
+// TODO 为啥这里是非装饰的存储，从搜索结果来看这个方法主要是用来测试使用的
 func UndecoratedStorage(
 	config *storagebackend.ConfigForResource,
 	resourcePrefix string,

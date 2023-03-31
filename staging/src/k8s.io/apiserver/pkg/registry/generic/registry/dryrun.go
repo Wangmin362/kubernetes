@@ -24,6 +24,7 @@ import (
 	"k8s.io/apiserver/pkg/storage"
 )
 
+// DryRunnableStorage TODO 网上说这里的DryRunnableStorage是为了测试，但是我暂时还没有看懂这种设计
 type DryRunnableStorage struct {
 	Storage storage.Interface
 	Codec   runtime.Codec

@@ -27,6 +27,7 @@ import (
 )
 
 // RESTOptions is set of resource-specific configuration options to generic registries.
+// TODO 特定资源配置
 type RESTOptions struct {
 	// TODO 后端存储的配置
 	StorageConfig *storagebackend.ConfigForResource
@@ -35,7 +36,7 @@ type RESTOptions struct {
 
 	EnableGarbageCollection   bool
 	DeleteCollectionWorkers   int
-	ResourcePrefix            string
+	ResourcePrefix            string // 资源前缀
 	CountMetricPollPeriod     time.Duration
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
@@ -45,6 +46,7 @@ func (opts RESTOptions) GetRESTOptions(schema.GroupResource) (RESTOptions, error
 	return opts, nil
 }
 
+// RESTOptionsGetter TODO 这个接口是对于K8S资源RESTFul接口参数的抽象，主要是为了获取resource资源对象的存储方式
 type RESTOptionsGetter interface {
 	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
 }

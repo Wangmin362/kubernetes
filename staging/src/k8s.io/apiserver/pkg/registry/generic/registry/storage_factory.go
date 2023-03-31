@@ -33,6 +33,7 @@ import (
 )
 
 // Creates a cacher based given storageConfig.
+// TODO 缓存一定是为了能够加速查询逻辑
 func StorageWithCacher() generic.StorageDecorator {
 	return func(
 		storageConfig *storagebackend.ConfigForResource,
@@ -44,6 +45,7 @@ func StorageWithCacher() generic.StorageDecorator {
 		triggerFuncs storage.IndexerFuncs,
 		indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error) {
 
+		// 创建一个后端存储，实际上就是ETCD存储
 		s, d, err := generic.NewRawStorage(storageConfig, newFunc)
 		if err != nil {
 			return s, d, err

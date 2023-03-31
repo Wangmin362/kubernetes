@@ -39,6 +39,7 @@ type DefaultResourceEncodingConfig struct {
 	scheme    *runtime.Scheme
 }
 
+// TODO K8S的External以及Internal资源
 type OverridingResourceEncoding struct {
 	ExternalResourceEncoding schema.GroupVersion
 	InternalResourceEncoding schema.GroupVersion

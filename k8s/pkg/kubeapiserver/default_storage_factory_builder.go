@@ -127,6 +127,7 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 		c.APIResourceConfig,
 		SpecialDefaultResourcePrefixes)
 
+	// TODO 看起来是为了保持兼容性，譬如app.deployment和extension.deployment是相同的
 	storageFactory.AddCohabitatingResources(networking.Resource("networkpolicies"), extensions.Resource("networkpolicies"))
 	storageFactory.AddCohabitatingResources(apps.Resource("deployments"), extensions.Resource("deployments"))
 	storageFactory.AddCohabitatingResources(apps.Resource("daemonsets"), extensions.Resource("daemonsets"))

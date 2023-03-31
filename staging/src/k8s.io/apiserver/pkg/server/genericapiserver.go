@@ -74,6 +74,7 @@ type APIGroupInfo struct {
 	// TODO 这个属性应该就是API组信息中最重要的信息了,它决定了如何存储一个对象
 	// TODO 这个对象的key是啥？ 组下面保存的是version以及resource相关的信息，猜测第一级的key为version，第二级的key为resource
 	// TODO 譬如第一级的key为v1, 第二级的key为：pods
+	// TODO 为什么是rest.Storage接口，而不是rest.StandardStorage接口
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may

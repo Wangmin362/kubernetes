@@ -73,7 +73,7 @@ type DefaultStorageFactory struct {
 	// K8S后端存储配置，默认就是ETCD3
 	StorageConfig storagebackend.Config
 
-	// TODO 为什么不是GVR作为Key,而是GR作为Key
+	// TODO 为什么不是GVR作为Key,而是GR作为Key  难道是因为同一个资源，不管是哪一个版本呢，它的存储策略都不应该改变，所以就没有version么？
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
 	// 资源前缀

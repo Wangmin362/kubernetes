@@ -27,6 +27,7 @@ import (
 var DefaultServiceNodePortRange = utilnet.PortRange{Base: 30000, Size: 2768}
 
 // DefaultServiceIPCIDR is a CIDR notation of IP range from which to allocate service cluster IPs
+// TODO 这里就是为什么Service的IP地址一般为10.0.0.0的原因了
 var DefaultServiceIPCIDR = net.IPNet{IP: netutils.ParseIPSloppy("10.0.0.0"), Mask: net.CIDRMask(24, 32)}
 
 // DefaultEtcdPathPrefix is the default key prefix of etcd for API Server

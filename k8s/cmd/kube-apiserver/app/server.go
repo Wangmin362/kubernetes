@@ -188,7 +188,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
-	// kubeAPIServerConfig为generic apiserver配置
+	// kubeAPIServerConfig为generic TODO 生成generic-apiserver配置的原理相当重要
 	// serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
 	// pluginInitializer  TODO 暂时还没有看懂这个参数意义，似乎是和准入控制相关  准入控制原理是啥？  如何自定义准入控制插件
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
@@ -229,7 +229,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// aggregator comes last in the chain
-	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, completedOptions.ServerRunOptions, kubeAPIServerConfig.ExtraConfig.VersionedInformers, serviceResolver, kubeAPIServerConfig.ExtraConfig.ProxyTransport, pluginInitializer)
+	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, completedOptions.ServerRunOptions,
+		kubeAPIServerConfig.ExtraConfig.VersionedInformers, serviceResolver, kubeAPIServerConfig.ExtraConfig.ProxyTransport, pluginInitializer)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +247,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
 func CreateKubeAPIServer(kubeAPIServerConfig *controlplane.Config, delegateAPIServer genericapiserver.DelegationTarget) (*controlplane.Instance, error) {
-	// complete仅仅是针对于apiserver的参数不全，重点应该关注如何实例化apiserver的
+	// complete()方法主要是在设置generic-apiserver配置的一些默认参数
 	kubeAPIServer, err := kubeAPIServerConfig.Complete().New(delegateAPIServer)
 	if err != nil {
 		return nil, err
@@ -478,6 +479,7 @@ func buildGenericConfig(
 	} else {
 		storageFactory.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
+	// TODO 主要是为了初始化genericConfig.RESTOptionsGetter
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}

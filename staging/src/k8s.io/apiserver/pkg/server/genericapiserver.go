@@ -307,7 +307,7 @@ type GenericAPIServer struct {
 // TODO 实际上GenericAPIServer就是一个委派目标
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
-	// TODO 什么叫做未保护的Hnadler?
+	// TODO 什么叫做未保护的Handler? 未保护的Handler似乎意味着不做认证、鉴权
 	UnprotectedHandler() http.Handler
 
 	// PostStartHooks returns the post-start hooks that need to be combined
@@ -408,6 +408,7 @@ func NewEmptyDelegateWithCustomHandler(handler http.Handler) DelegationTarget {
 }
 
 func (s emptyDelegate) UnprotectedHandler() http.Handler {
+	// 看到这里因该就可以理解什么叫做UnprotectedHandler，实际上就是不经过认证、授权
 	return s.handler
 }
 func (s emptyDelegate) PostStartHooks() map[string]postStartHookEntry {

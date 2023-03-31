@@ -304,6 +304,7 @@ type ObjectCreater interface {
 }
 
 // EquivalentResourceMapper provides information about resources that address the same underlying data as a specified resource
+// TODO 什么叫等效资源映射器
 type EquivalentResourceMapper interface {
 	// EquivalentResourcesFor returns a list of resources that address the same underlying data as resource.
 	// If subresource is specified, only equivalent resources which also have the same subresource are included.

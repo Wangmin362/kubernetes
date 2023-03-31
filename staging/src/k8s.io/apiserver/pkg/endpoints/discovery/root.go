@@ -32,6 +32,7 @@ import (
 
 // GroupManager is an interface that allows dynamic mutation of the existing webservice to handle
 // API groups being added or removed.
+// TODO 这玩意是干嘛的？
 type GroupManager interface {
 	AddGroup(apiGroup metav1.APIGroup)
 	RemoveGroup(groupName string)

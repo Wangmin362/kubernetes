@@ -71,6 +71,7 @@ type Controller struct {
 }
 
 // ClusterAuthenticationInfo holds the information that will included in public configmap.
+// TODO 认证信息这里相当重要，是理解apiserver认证的重要依据
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
 	ClientCA dynamiccertificates.CAContentProvider

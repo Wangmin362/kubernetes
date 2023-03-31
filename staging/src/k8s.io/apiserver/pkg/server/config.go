@@ -101,7 +101,7 @@ type Config struct {
 	Authentication AuthenticationInfo
 
 	// Authorization is the configuration for authorization
-	// TODO 如何授权？
+	// TODO 如何授权？ 授权的话一般是通过RBAC进行授权的，应该是在HandlerChain中进行的
 	Authorization AuthorizationInfo
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
@@ -120,16 +120,24 @@ type Config struct {
 	RuleResolver authorizer.RuleResolver
 	// AdmissionControl performs deep inspection of a given request (including content)
 	// to set values and determine whether its allowed
-	AdmissionControl      admission.Interface
+	// 准入控制
+	AdmissionControl admission.Interface
+	// TODO CROS控制
 	CorsAllowedOriginList []string
-	HSTSDirectives        []string
+	// TODO 啥事HSTS
+	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
+	// TODO apiserver的流控到底是怎么设计的?
 	FlowControl utilflowcontrol.Interface
 
-	EnableIndex     bool
+	// TODO 这玩意有啥用？和Informer是否有关？ 答：和informer并不相关 这里的index指的是K8S首页面
+	EnableIndex bool
+	// TODO 什么叫做Profiling?  实际上就是开启了/debug/pprof/相关的api
 	EnableProfiling bool
+	// TODO 发现是发现的啥？
 	EnableDiscovery bool
 	// Requires generic profiling enabled
+	// TODO 什么叫做内容Profiling
 	EnableContentionProfiling bool
 	EnableMetrics             bool
 
@@ -138,8 +146,10 @@ type Config struct {
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
+	// 构建K8S所需工具的版本信息，譬如K8S的版本信息、go的版本信息、Arch， Git版本信息
 	Version *version.Info
 	// AuditBackend is where audit events are sent to.
+	// TODO K8S中的审计是如何设计的？
 	AuditBackend audit.Backend
 	// AuditPolicyRuleEvaluator makes the decision of whether and how to audit log a request.
 	AuditPolicyRuleEvaluator audit.PolicyRuleEvaluator
@@ -170,12 +180,15 @@ type Config struct {
 	ReadyzChecks []healthz.HealthChecker
 	// LegacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup. New API servers don't generally have legacy groups at all.
+	// TODO 目前看来 Legacy只有 /api前缀，不会再有其它前缀了
 	LegacyAPIGroupPrefixes sets.String
 	// RequestInfoResolver is used to assign attributes (used by admission and authorization) based on a request URL.
 	// Use-cases that are like kubelets may need to customize this.
+	// TODO 用于解析标注的HTTP请求为RequestInfo信息
 	RequestInfoResolver apirequest.RequestInfoResolver
 	// Serializer is required and provides the interface for serializing and converting objects to and from the wire
 	// The default (api.Codecs) usually works fine.
+	// 序列化、反序列化
 	Serializer runtime.NegotiatedSerializer
 	// OpenAPIConfig will be used in generating OpenAPI spec. This is nil by default. Use DefaultOpenAPIConfig for "working" defaults.
 	OpenAPIConfig *openapicommon.Config
@@ -186,6 +199,7 @@ type Config struct {
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
 	// 实际上目前所有的资源都是公用的一个存储后端 参考实现：staging/src/k8s.io/apiserver/pkg/server/options/etcd.go
+	// TODO 这玩意相当重要，可以理解为资源的后端存储
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// If specified, all requests except those which match the LongRunningFunc predicate will timeout
@@ -231,7 +245,7 @@ type Config struct {
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
 	// This is composed of genericapiserver defaultAPIResourceConfig and those parsed from flags.
 	// If not specify any in flags, then genericapiserver will only enable defaultAPIResourceConfig.
-	// todo 什么叫做MergedResourceConfig?
+	// TODO 用于标识K8S资源或者子资源的启用或者禁用
 	MergedResourceConfig *serverstore.ResourceConfig
 
 	// lifecycleSignals provides access to the various signals
@@ -614,9 +628,11 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
 	}
+	// TODO 这个配置到底如何理解？
 	if c.LoopbackClientConfig == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.LoopbackClientConfig == nil")
 	}
+	// TODO 等效资源注册中心是啥？为啥需要这个东西？
 	if c.EquivalentResourceRegistry == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.EquivalentResourceRegistry == nil")
 	}
@@ -627,7 +643,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		return c.BuildHandlerChainFunc(handler, c.Config)
 	}
 
-	// TODO 如何理解APIServerHandler?
+	// TODO 如何理解APIServerHandler?  APIServerHandler的核心就是go-restful的Container，只不过为了业务增加了一些属性而已
 	apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler())
 
 	s := &GenericAPIServer{
@@ -680,6 +696,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
 	}
 
+	// TODO 为什么这里需要通过CAS设置值？这里为什么会有并发冲突？
 	for {
 		if c.JSONPatchMaxCopyBytes <= 0 {
 			break
@@ -693,6 +710,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	}
 
+	// TODO 为什么Delegated的后置处理器需要加进来？
 	// first add poststarthooks from delegated targets
 	for k, v := range delegationTarget.PostStartHooks() {
 		s.postStartHooks[k] = v
@@ -720,6 +738,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	if c.SharedInformerFactory != nil {
 		if !s.isPostStartHookRegistered(genericApiServerHookName) {
 			err := s.AddPostStartHook(genericApiServerHookName, func(context PostStartHookContext) error {
+				// TODO 启动informer，缓存K8S资源对象
 				c.SharedInformerFactory.Start(context.StopCh)
 				return nil
 			})
@@ -803,7 +822,14 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
-	// 非常核心的功能
+	// TODO generic-apiserver会安装什么东西呢？
+	// 1、增加/index资源
+	// 2、增加/debug/pprof资源
+	// 3、增加/debug/flags
+	// 4、增加/metrics
+	// 5、增加/version
+	// 6、增加/apis
+	// 7、增加/debug/api_priority_and_fairness/dump_priority_levels资源
 	installAPI(s, c.Config)
 
 	// use the UnprotectedHandler from the delegation target to ensure that we don't attempt to double authenticator, authorize,
@@ -901,6 +927,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 
 func installAPI(s *GenericAPIServer, c *Config) {
 	if c.EnableIndex {
+		// 安装首页资源的映射
 		routes.Index{}.Install(s.listedPathProvider, s.Handler.NonGoRestfulMux)
 	}
 	if c.EnableProfiling {
@@ -919,12 +946,15 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		}
 	}
 
+	// 安装/version api
 	routes.Version{Version: c.Version}.Install(s.Handler.GoRestfulContainer)
 
 	if c.EnableDiscovery {
+		// 资源发现API
 		s.Handler.GoRestfulContainer.Add(s.DiscoveryGroupManager.WebService())
 	}
 	if c.FlowControl != nil && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) {
+		// 安装 /debug/api_priority_and_fairness/dump_priority_levels API
 		c.FlowControl.Install(s.Handler.NonGoRestfulMux)
 	}
 }

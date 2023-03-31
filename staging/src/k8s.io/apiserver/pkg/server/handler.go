@@ -84,9 +84,10 @@ func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerCha
 	}
 
 	// 实例化了一个Container
+	// TODO 实际上实例化apiserver，就是为了实例化container，最后通过golang的http.Server("8080", gorestfulContainer).ListenAndServer()运行起来
 	gorestfulContainer := restful.NewContainer()
-	gorestfulContainer.ServeMux = http.NewServeMux()
-	gorestfulContainer.Router(restful.CurlyRouter{}) // e.g. for proxy/{kind}/{name}/{*}
+	gorestfulContainer.ServeMux = http.NewServeMux() // TODO 这一行完全是多此一举嘛，实例化Container的时候已经实例化了Mux
+	gorestfulContainer.Router(restful.CurlyRouter{}) // e.g. for proxy/{kind}/{name}/{*} CurlyRouter主要是为了处理谷歌风格的占位参数
 	gorestfulContainer.RecoverHandler(func(panicReason interface{}, httpWriter http.ResponseWriter) {
 		logStackOnRecover(s, panicReason, httpWriter)
 	})
@@ -94,6 +95,7 @@ func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerCha
 		serviceErrorHandler(s, serviceErr, request, response)
 	})
 
+	// TODO 这里的Director到底是为了干啥？
 	director := director{
 		name:               name,
 		goRestfulContainer: gorestfulContainer,

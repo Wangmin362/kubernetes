@@ -35,19 +35,24 @@ import (
 type LongRunningRequestCheck func(r *http.Request, requestInfo *RequestInfo) bool
 
 type RequestInfoResolver interface {
+	// NewRequestInfo 解析标准的HTTP请求为RequestInfo信息
 	NewRequestInfo(req *http.Request) (*RequestInfo, error)
 }
 
 // RequestInfo holds information parsed from the http.Request
 type RequestInfo struct {
 	// IsResourceRequest indicates whether or not the request is for an API resource or subresource
+	// 当前请求是否是请求K8S资源或者是子资源
 	IsResourceRequest bool
 	// Path is the URL path of the request
+	// 当前请求的URL
 	Path string
 	// Verb is the kube verb associated with the request for API requests, not the http verb.  This includes things like list and watch.
 	// for non-resource requests, this is the lowercase http verb
+	// 行为，譬如GET, LIST, UPDATE, PATCH, CREATE, LIST, WATCH等等
 	Verb string
 
+	// api前缀
 	APIPrefix  string
 	APIGroup   string
 	APIVersion string

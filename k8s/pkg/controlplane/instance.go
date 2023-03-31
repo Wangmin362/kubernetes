@@ -224,8 +224,10 @@ type EndpointReconcilerConfig struct {
 // Instance contains state for a Kubernetes cluster api server instance.
 type Instance struct {
 	// todo GenericAPIServer是apiserver的核心，apiserver, aggregrate-apiserver, extend-server都是建立在generic-apiserver之上的
+	// TODO 实际上APIServer就是generic-apiserver的核心，只不过安装的资源不同，以及处理逻辑不同而已
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
+	// 集群的认证信息
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 }
 
@@ -282,20 +284,27 @@ func (c *Config) Complete() CompletedConfig {
 		&c.ExtraConfig,
 	}
 
+	// 检测Service的IP Range是否合法，不合法的话就抛出警告信息，同时生成默认配置
 	serviceIPRange, apiServerServiceIP, err := ServiceIPRange(cfg.ExtraConfig.ServiceIPRange)
 	if err != nil {
 		klog.Fatalf("Error determining service IP ranges: %v", err)
 	}
 	if cfg.ExtraConfig.ServiceIPRange.IP == nil {
+		// 设置service的IP地址范围
 		cfg.ExtraConfig.ServiceIPRange = serviceIPRange
 	}
 	if cfg.ExtraConfig.APIServerServiceIP == nil {
+		// 设置generic-apiserver的ip地址，这个地址必须在serviceIPRange参数的范围之内
 		cfg.ExtraConfig.APIServerServiceIP = apiServerServiceIP
 	}
 
+	// TODO 什么叫做地址发现
 	discoveryAddresses := discovery.DefaultAddresses{DefaultAddress: cfg.GenericConfig.ExternalAddress}
-	discoveryAddresses.CIDRRules = append(discoveryAddresses.CIDRRules,
-		discovery.CIDRRule{IPRange: cfg.ExtraConfig.ServiceIPRange, Address: net.JoinHostPort(cfg.ExtraConfig.APIServerServiceIP.String(), strconv.Itoa(cfg.ExtraConfig.APIServerServicePort))})
+	discoveryAddresses.CIDRRules = append(
+		discoveryAddresses.CIDRRules,
+		discovery.CIDRRule{IPRange: cfg.ExtraConfig.ServiceIPRange,
+			Address: net.JoinHostPort(cfg.ExtraConfig.APIServerServiceIP.String(),
+				strconv.Itoa(cfg.ExtraConfig.APIServerServicePort))})
 	cfg.GenericConfig.DiscoveryAddresses = discoveryAddresses
 
 	if cfg.ExtraConfig.ServiceNodePortRange.Size == 0 {
@@ -338,8 +347,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 
 	// genericConfig是apiserver的配置，当apiserver处理不了一个请求的时候，会把请求委派给delegationTarget，也就是extend-apiserver
-	// TODO GenericConfig是如何被实例化出来的？
-	s, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
+	// TODO 通过generic-apiserver-config实例化一个generic-apiserver，名字叫做kube-apiserver
+	// TODO 默认实例出来的generic-apiserver都安装了什么资源，所谓实例化一个generic-apiserver，实际上就是设置其属性，那么到底初始化了什么东西呢？
+	// 主要是创建了一个go-restful的Container，然后注册 /index资源 /debug/pprof /debug/flags /metrics  /version  /apis
+	///debug/api_priority_and_fairness/dump_priority_levels资源
+	apiServer, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
@@ -349,8 +361,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// todo 服务是另外起的一个web服务，只是通过apiserver完成代理？？？？
 	// 答： 实际上，从下面三行代码可以看出，日志服务用的是外面传进来的cotainer,所以是公用的一个端口，仅仅是增加了一个Service
 	if c.ExtraConfig.EnableLogsSupport {
-		// GoRestfulContainer实际上就是一个Container， Log相关的处理注册到了这个Container当中
-		routes.Logs{}.Install(s.Handler.GoRestfulContainer)
+		// 注册/logs资源
+		routes.Logs{}.Install(apiServer.Handler.GoRestfulContainer)
 	}
 
 	// Metadata and keys are expected to only change across restarts at present,
@@ -383,11 +395,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	} else {
 		// 这里给Container添加OpenID以及JWKS的路由
 		routes.NewOpenIDMetadataServer(md.ConfigJSON, md.PublicKeysetJSON).
-			Install(s.Handler.GoRestfulContainer)
+			Install(apiServer.Handler.GoRestfulContainer)
 	}
 
-	m := &Instance{ // 创建实例
-		GenericAPIServer:          s,
+	// kube-apiserver就被实例化出来了
+	m := &Instance{
+		GenericAPIServer:          apiServer,
 		ClusterAuthenticationInfo: c.ExtraConfig.ClusterAuthenticationInfo,
 	}
 
@@ -429,7 +442,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		admissionregistrationrest.RESTStorageProvider{},
 		eventsrest.RESTStorageProvider{TTL: c.ExtraConfig.EventTTL},
 	}
-	// 注册其他资源对象
+	// TODO 注册其他资源对象,也就是除了Legacy之外的资源对象
 	if err := m.InstallAPIs(c.ExtraConfig.APIResourceConfigSource, c.GenericConfig.RESTOptionsGetter, restStorageProviders...); err != nil {
 		return nil, err
 	}

@@ -247,6 +247,7 @@ func RunServer(
 			listener = tls.NewListener(listener, server.TLSConfig)
 		}
 
+		// 最终还是调用了golang的Http运行服务
 		err := server.Serve(listener)
 
 		msg := fmt.Sprintf("Stopped listening on %s", ln.Addr().String())

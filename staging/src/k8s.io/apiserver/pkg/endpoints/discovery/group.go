@@ -31,6 +31,7 @@ import (
 // APIGroupHandler creates a webservice serving the supported versions, preferred version, and name
 // of a group. E.g., such a web service will be registered at /apis/extensions.
 type APIGroupHandler struct {
+	// 根据Group, Version协商出序列化、反序列化器
 	serializer runtime.NegotiatedSerializer
 	group      metav1.APIGroup
 }
@@ -69,5 +70,6 @@ func (s *APIGroupHandler) handle(req *restful.Request, resp *restful.Response) {
 }
 
 func (s *APIGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, w, req, http.StatusOK, &s.group)
+	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions,
+		schema.GroupVersion{}, w, req, http.StatusOK, &s.group)
 }

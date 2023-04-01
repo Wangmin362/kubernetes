@@ -69,6 +69,7 @@ const (
 )
 
 // RequestScope encapsulates common fields across all RESTful handler methods.
+// TODO 这个结构体是对于什么东西的抽象，主要用来干嘛的？
 type RequestScope struct {
 	Namer ScopeNamer
 

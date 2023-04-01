@@ -721,8 +721,8 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 			continue
 		}
 
-		// 根据ApiGroupInfo实例化一个ApiGroupVersion，实际上是APIGroupInfo的子集，里面只包含/group/version下的所有资源
-		// 即一个APIGroupVersion中所有资源的Group以及Version都是一样的
+		// TODO 根据ApiGroupInfo实例化一个ApiGroupVersion，实际上是APIGroupInfo的子集，里面只包含/group/version下的所有资源
+		// TODO 即一个APIGroupVersion中所有资源的Group以及Version都是一样的
 		apiGroupVersion, err := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
 		if err != nil {
 			return err
@@ -743,7 +743,7 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 
 		apiGroupVersion.MaxRequestBodyBytes = s.maxRequestBodyBytes
 
-		// 每一种核心资源都是在这里注册到Container当中的
+		// TODO 每一种核心资源都是在这里注册到Container当中的
 		r, err := apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
 		if err != nil {
 			return fmt.Errorf("unable to setup API %v: %v", apiGroupInfo, err)
@@ -781,13 +781,14 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 		return fmt.Errorf("unable to get openapi models: %v", err)
 	}
 
+	// TODO 注册Legacy资源
 	if err := s.installAPIResources(apiPrefix, apiGroupInfo, openAPIModels); err != nil {
 		return err
 	}
 
 	// Install the version handler.
 	// Add a handler at /<apiPrefix> to enumerate the supported api versions.
-	// 这里就是再正儿八经的注册所有Legacy资源，都添加到Container当中
+	// TODO 注册/api路由，暴露/api路径下所有的Legacy资源
 	s.Handler.GoRestfulContainer.Add(discovery.NewLegacyRootAPIHandler(s.discoveryAddresses, s.Serializer, apiPrefix).WebService())
 
 	return nil
@@ -815,6 +816,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 	}
 
 	for _, apiGroupInfo := range apiGroupInfos {
+		// TODO 重点是这里
 		if err := s.installAPIResources(APIGroupPrefix, apiGroupInfo, openAPIModels); err != nil {
 			return fmt.Errorf("unable to install api resources: %v", err)
 		}
@@ -822,10 +824,12 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 		// setup discovery
 		// Install the version handler.
 		// Add a handler at /apis/<groupName> to enumerate all versions supported by this group.
-		apiVersionsForDiscovery := []metav1.GroupVersionForDiscovery{}
+		var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
+		// 遍历所有组的信息
 		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 			// Check the config to make sure that we elide versions that don't have any resources
 			if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
+				// 说明当前版本，譬如v2alpha2下没有任何资源
 				continue
 			}
 			apiVersionsForDiscovery = append(apiVersionsForDiscovery, metav1.GroupVersionForDiscovery{
@@ -833,6 +837,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 				Version:      groupVersion.Version,
 			})
 		}
+		// TODO 有限选择第一个作为优选版本
 		preferredVersionForDiscovery := metav1.GroupVersionForDiscovery{
 			GroupVersion: apiGroupInfo.PrioritizedVersions[0].String(),
 			Version:      apiGroupInfo.PrioritizedVersions[0].Version,
@@ -843,7 +848,9 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 			PreferredVersion: preferredVersionForDiscovery,
 		}
 
+		// TODO DiscoveryGroupManager 用于暴露/apis路由，并把注册到DiscoveryGroupManager的所有的API返回给用户
 		s.DiscoveryGroupManager.AddGroup(apiGroup)
+		// TODO NewAPIGroupHandler用于暴露/apis/<group>路由，并返回注册的group的信息
 		s.Handler.GoRestfulContainer.Add(discovery.NewAPIGroupHandler(s.Serializer, apiGroup).WebService())
 	}
 	return nil

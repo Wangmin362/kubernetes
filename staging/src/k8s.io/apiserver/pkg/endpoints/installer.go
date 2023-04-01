@@ -114,8 +114,9 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 		i++
 	}
 	sort.Strings(paths)
+
 	for _, path := range paths {
-		// TODO 把资源的Handler注册到webservice中，路径为path
+		// TODO 把资源的Handler注册到webservice中，路径为path -> /<prefix>/<group>/<version>/<path>
 		apiResource, resourceInfo, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("error in registering resource: %s, %v", path, err))
@@ -164,6 +165,7 @@ func getStorageVersionKind(storageVersioner runtime.GroupVersioner, storage rest
 // GetResourceKind returns the external group version kind registered for the given storage
 // object. If the storage object is a subresource and has an override supplied for it, it returns
 // the group version kind supplied in the override.
+// TODO 获取资源的GVK
 func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typer runtime.ObjectTyper) (schema.GroupVersionKind, error) {
 	// Let the storage tell us exactly what GVK it has
 	if gvkProvider, ok := storage.(rest.GroupVersionKindProvider); ok {
@@ -193,7 +195,8 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 	return fqKindToRegister, nil
 }
 
-func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage, ws *restful.WebService) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
+func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage,
+	ws *restful.WebService) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
 	// 准入控制
 	admit := a.group.Admit
 
@@ -210,16 +213,18 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	group, version := a.group.GroupVersion.Group, a.group.GroupVersion.Version
 
-	// 获取kind
+	// TODO 获取资源的GVK
 	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// TODO 创建一个当前资源的空对象 为什么要创建资源的空对象？
 	versionedPtr, err := a.group.Creater.New(fqKindToRegister)
 	if err != nil {
 		return nil, nil, err
 	}
+	// TODO 这一步在干嘛
 	defaultVersionedObject := indirectArbitraryPointer(versionedPtr)
 	kind := fqKindToRegister.Kind
 	isSubresource := len(subresource) > 0
@@ -387,8 +392,8 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	nameParam := ws.PathParameter("name", "name of the "+kind).DataType("string")
 	pathParam := ws.PathParameter("path", "path to the resource").DataType("string")
 
-	params := []*restful.Parameter{}
-	actions := []action{}
+	var params []*restful.Parameter
+	var actions []action
 
 	var resourceKind string
 	kindProvider, ok := storage.(rest.KindProvider)

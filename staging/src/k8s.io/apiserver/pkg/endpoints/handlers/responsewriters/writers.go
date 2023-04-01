@@ -248,7 +248,8 @@ func (w *deferredResponseWriter) Close() error {
 }
 
 // WriteObjectNegotiated renders an object in the content type negotiated by the client.
-func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiation.EndpointRestrictions, gv schema.GroupVersion, w http.ResponseWriter, req *http.Request, statusCode int, object runtime.Object) {
+func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiation.EndpointRestrictions, gv schema.GroupVersion,
+	w http.ResponseWriter, req *http.Request, statusCode int, object runtime.Object) {
 	stream, ok := object.(rest.ResourceStreamer)
 	if ok {
 		requestInfo, _ := request.RequestInfoFrom(req.Context())

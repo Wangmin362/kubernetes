@@ -30,6 +30,7 @@ import (
 )
 
 // legacyRootAPIHandler creates a webservice serving api group discovery.
+// TODO 主要目的是为了能够暴露Legacy资源信息
 type legacyRootAPIHandler struct {
 	// addresses is used to build cluster IPs for discovery.
 	addresses  Addresses
@@ -72,5 +73,6 @@ func (s *legacyRootAPIHandler) handle(req *restful.Request, resp *restful.Respon
 		Versions:                   []string{"v1"},
 	}
 
-	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, resp.ResponseWriter, req.Request, http.StatusOK, apiVersions)
+	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		resp.ResponseWriter, req.Request, http.StatusOK, apiVersions)
 }

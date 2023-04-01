@@ -32,6 +32,7 @@ type APIResourceLister interface {
 	ListAPIResources() []metav1.APIResource
 }
 
+// APIResourceListerFunc 是APIResourceLister的适配器
 type APIResourceListerFunc func() []metav1.APIResource
 
 func (f APIResourceListerFunc) ListAPIResources() []metav1.APIResource {
@@ -47,7 +48,8 @@ type APIVersionHandler struct {
 	apiResourceLister APIResourceLister
 }
 
-func NewAPIVersionHandler(serializer runtime.NegotiatedSerializer, groupVersion schema.GroupVersion, apiResourceLister APIResourceLister) *APIVersionHandler {
+func NewAPIVersionHandler(serializer runtime.NegotiatedSerializer, groupVersion schema.GroupVersion,
+	apiResourceLister APIResourceLister) *APIVersionHandler {
 	if keepUnversioned(groupVersion.Group) {
 		// Because in release 1.1, /apis/extensions returns response with empty
 		// APIVersion, we use stripVersionNegotiatedSerializer to keep the
@@ -64,6 +66,7 @@ func NewAPIVersionHandler(serializer runtime.NegotiatedSerializer, groupVersion 
 
 func (s *APIVersionHandler) AddToWebService(ws *restful.WebService) {
 	mediaTypes, _ := negotiation.MediaTypesForSerializer(s.serializer)
+	// TODO 这里之所以是根 "/", 是因为ws中已经包含了RootPath信息
 	ws.Route(ws.GET("/").To(s.handle).
 		Doc("get available resources").
 		Operation("getAPIResources").

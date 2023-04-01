@@ -33,10 +33,12 @@ import (
 // GroupManager is an interface that allows dynamic mutation of the existing webservice to handle
 // API groups being added or removed.
 // TODO 这玩意是干嘛的？
+// TODO 顾名思义就是组管理器，它的实现目前只有rootAPIsHandler,实际上就是增加/apis路由，并返回/apis下所有的API资源信息
 type GroupManager interface {
 	AddGroup(apiGroup metav1.APIGroup)
 	RemoveGroup(groupName string)
 
+	// WebService 用于注册路由
 	WebService() *restful.WebService
 }
 
@@ -51,9 +53,11 @@ type rootAPIsHandler struct {
 
 	// Map storing information about all groups to be exposed in discovery response.
 	// The map is from name to the group.
-	lock      sync.RWMutex
+	lock sync.RWMutex
+	// key为组的名字
 	apiGroups map[string]metav1.APIGroup
 	// apiGroupNames preserves insertion order
+	// 保持顺序，经典的map + array的方式
 	apiGroupNames []string
 }
 
@@ -99,20 +103,22 @@ func (s *rootAPIsHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request)
 	s.lock.RLock()
 	defer s.lock.RUnlock()
 
-	orderedGroups := []metav1.APIGroup{}
+	var orderedGroups []metav1.APIGroup
 	for _, groupName := range s.apiGroupNames {
 		orderedGroups = append(orderedGroups, s.apiGroups[groupName])
 	}
 
 	clientIP := utilnet.GetClientIP(req)
 	serverCIDR := s.addresses.ServerAddressByClientCIDRs(clientIP)
+	// TODO 为啥这里不能直接使用orderedGroups,这里仅仅是为了初始化ServerAddressByClientCIDRs属性而已
 	groups := make([]metav1.APIGroup, len(orderedGroups))
 	for i := range orderedGroups {
 		groups[i] = orderedGroups[i]
 		groups[i].ServerAddressByClientCIDRs = serverCIDR
 	}
 
-	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, resp, req, http.StatusOK, &metav1.APIGroupList{Groups: groups})
+	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		resp, req, http.StatusOK, &metav1.APIGroupList{Groups: groups})
 }
 
 func (s *rootAPIsHandler) restfulHandle(req *restful.Request, resp *restful.Response) {

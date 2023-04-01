@@ -1043,10 +1043,12 @@ type APIGroup struct {
 	// name is the name of the group.
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// versions are the versions supported in this group.
+	// 当前组所有支持的版本
 	Versions []GroupVersionForDiscovery `json:"versions" protobuf:"bytes,2,rep,name=versions"`
 	// preferredVersion is the version preferred by the API server, which
 	// probably is the storage version.
 	// +optional
+	// TODO 当没有指定版本的时候，优先选择的版本
 	PreferredVersion GroupVersionForDiscovery `json:"preferredVersion,omitempty" protobuf:"bytes,3,opt,name=preferredVersion"`
 	// a map of client CIDR to server address that is serving this group.
 	// This is to help clients reach servers in the most network-efficient way possible.

@@ -125,7 +125,9 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storagev
 		minRequestTimeout: g.MinRequestTimeout,
 	}
 
+	// TODO 资源的注册，相当重要
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
+	// TODO 向ws中增加/<prefix>/<group>/<version>/路由信息，返回当前gv下的所有资源信息
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
 	versionDiscoveryHandler.AddToWebService(ws)
 	// 注册webservice到container当中

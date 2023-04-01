@@ -353,6 +353,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var handlerFunc http.HandlerFunc
+	// TODO 获取子资源
 	subresources, err := apiextensionshelpers.GetSubresourcesForVersion(crd, requestInfo.APIVersion)
 	if err != nil {
 		utilruntime.HandleError(err)

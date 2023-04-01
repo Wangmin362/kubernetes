@@ -52,6 +52,7 @@ type Controller struct {
 func NewAPIServerLeaseGC(clientset kubernetes.Interface, gcCheckPeriod time.Duration, leaseNamespace, leaseLabelSelector string) *Controller {
 	// we construct our own informer because we need such a small subset of the information available.
 	// Just one namespace with label selection.
+	// Lease缓存
 	leaseInformer := informers.NewFilteredLeaseInformer(
 		clientset,
 		leaseNamespace,
@@ -78,8 +79,10 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 	klog.Infof("Starting apiserver lease garbage collector")
 
 	// we have a personal informer that is narrowly scoped, start it.
+	// 启动LeaseInformer
 	go c.leaseInformer.Run(stopCh)
 
+	// 等待LeaseInformer缓存同步完成
 	if !cache.WaitForCacheSync(stopCh, c.leasesSynced) {
 		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 		return
@@ -91,6 +94,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 }
 
 func (c *Controller) gc() {
+	// 找到所有的Lease
 	leases, err := c.leaseLister.Leases(c.leaseNamespace).List(labels.Everything())
 	if err != nil {
 		klog.ErrorS(err, "Error while listing apiserver leases")
@@ -99,9 +103,11 @@ func (c *Controller) gc() {
 	for _, lease := range leases {
 		// evaluate lease from cache
 		if !isLeaseExpired(lease) {
+			// 如果当前Lease没有过期，直接跳过
 			continue
 		}
 		// double check latest lease from apiserver before deleting
+		// 直接查询apiserver，看看apiserver中是否还存在已经过期的lease
 		lease, err := c.kubeclientset.CoordinationV1().Leases(c.leaseNamespace).Get(context.TODO(), lease.Name, metav1.GetOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Error getting lease")
@@ -116,8 +122,10 @@ func (c *Controller) gc() {
 		}
 		// evaluate lease from apiserver
 		if !isLeaseExpired(lease) {
+			// 如果从apiserver中查询到的lease没有过期，直接退出
 			continue
 		}
+		// 否则直接删除过期的lease对象
 		if err := c.kubeclientset.CoordinationV1().Leases(c.leaseNamespace).Delete(
 			context.TODO(), lease.Name, metav1.DeleteOptions{}); err != nil {
 			if errors.IsNotFound(err) {

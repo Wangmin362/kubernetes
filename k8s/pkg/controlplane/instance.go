@@ -190,6 +190,7 @@ type ExtraConfig struct {
 
 	VersionedInformers informers.SharedInformerFactory
 
+	// Lease资源定期回收的时间间隔
 	IdentityLeaseDurationSeconds      int
 	IdentityLeaseRenewIntervalSeconds int
 
@@ -515,6 +516,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			return nil
 		})
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-garbage-collector", func(hookContext genericapiserver.PostStartHookContext) error {
+			// 定期回收已经过期的Lease资源对象
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				return err

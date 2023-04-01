@@ -92,8 +92,10 @@ import (
 // crdHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
 type crdHandler struct {
+	// TODO 这个属性干啥的？
 	versionDiscoveryHandler *versionDiscoveryHandler
-	groupDiscoveryHandler   *groupDiscoveryHandler
+	// TODO 这个呢？
+	groupDiscoveryHandler *groupDiscoveryHandler
 
 	customStorageLock sync.Mutex
 	// customStorage contains a crdStorageMap
@@ -104,19 +106,25 @@ type crdHandler struct {
 
 	crdLister listers.CustomResourceDefinitionLister
 
-	delegate          http.Handler
+	// 如果处理不了当前请求，直接委托给delegate
+	delegate http.Handler
+	// ETCD后端存储
 	restOptionsGetter generic.RESTOptionsGetter
-	admission         admission.Interface
+	// 准入控制
+	admission admission.Interface
 
+	// 用于修改CRD资源的Condition
 	establishingController *establish.EstablishingController
 
 	// MasterCount is used to implement sleep to improve
 	// CRD establishing process for HA clusters.
 	masterCount int
 
+	// TODO 这玩意干嘛的
 	converterFactory *conversion.CRConverterFactory
 
 	// so that we can do create on update.
+	// TODO 授权
 	authorizer authorizer.Authorizer
 
 	// request timeout we should delay storage teardown for
@@ -150,6 +158,7 @@ type crdInfo struct {
 	warnings map[string][]string
 
 	// Storage per version
+	// TODO 看来Key就是Version了
 	storages map[string]customresource.CustomResourceStorage
 
 	// Request scope per version
@@ -233,6 +242,7 @@ var possiblyAcrossAllNamespacesVerbs = sets.NewString("list", "watch")
 // TODO 重点就是这里， 这里是CRD动态支持访问的原因么
 func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	// 获取请求信息
 	requestInfo, ok := apirequest.RequestInfoFrom(ctx)
 	if !ok {
 		responsewriters.ErrorNegotiated(
@@ -241,6 +251,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		)
 		return
 	}
+	// 如果不是资源请求，那很有可能就是请求的一些组信息、或者是版本信息
 	if !requestInfo.IsResourceRequest {
 		pathParts := splitPath(requestInfo.Path)
 		// only match /apis/<group>/<version>
@@ -260,6 +271,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	crdName := requestInfo.Resource + "." + requestInfo.APIGroup
+	// 查询crd
 	crd, err := r.crdLister.Get(crdName)
 	if apierrors.IsNotFound(err) {
 		r.delegate.ServeHTTP(w, req)
@@ -286,6 +298,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 是否支持CRD的某个版本
 	if !apiextensionshelpers.HasServedCRDVersion(crd, requestInfo.APIVersion) {
 		r.delegate.ServeHTTP(w, req)
 		return
@@ -303,6 +316,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	terminating := apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating)
 
+	// 查询CRD信息
 	crdInfo, err := r.getOrCreateServingInfoFor(crd.UID, crd.Name)
 	if apierrors.IsNotFound(err) {
 		r.delegate.ServeHTTP(w, req)
@@ -370,7 +384,8 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, requestInfo *apirequest.RequestInfo, crdInfo *crdInfo, crd *apiextensionsv1.CustomResourceDefinition, terminating bool, supportedTypes []string) http.HandlerFunc {
+func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, requestInfo *apirequest.RequestInfo,
+	crdInfo *crdInfo, crd *apiextensionsv1.CustomResourceDefinition, terminating bool, supportedTypes []string) http.HandlerFunc {
 	requestScope := crdInfo.requestScopes[requestInfo.APIVersion]
 	storage := crdInfo.storages[requestInfo.APIVersion].CustomResource
 
@@ -619,6 +634,7 @@ func (r *crdHandler) GetCustomResourceListerCollectionDeleter(crd *apiextensions
 // getOrCreateServingInfoFor gets the CRD serving info for the given CRD UID if the key exists in the storage map.
 // Otherwise the function fetches the up-to-date CRD using the given CRD name and creates CRD serving info.
 func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crdInfo, error) {
+	// 从Map中找到哪个CRD
 	storageMap := r.customStorage.Load().(crdStorageMap)
 	if ret, ok := storageMap[uid]; ok {
 		return ret, nil

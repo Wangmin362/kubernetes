@@ -43,6 +43,7 @@ type EstablishingController struct {
 	crdSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// queue的消费者
 	syncFn func(key string) error
 
 	queue workqueue.RateLimitingInterface
@@ -64,6 +65,7 @@ func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInf
 }
 
 // QueueCRD adds CRD into the establishing queue.
+// CRD的生产者
 func (ec *EstablishingController) QueueCRD(key string, timeout time.Duration) {
 	ec.queue.AddAfter(key, timeout)
 }

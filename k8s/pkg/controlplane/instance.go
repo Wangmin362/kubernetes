@@ -448,14 +448,14 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	// todo PostStartHook做了啥？
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		// 生成K8S的客户端工具
 		kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 		if err != nil {
 			return err
 		}
-		// 这里是认证相关,实际上主要是为了能够从extension-apiserver-authentication获取认证数据
+		// TODO 这里是认证相关,实际上主要是为了能够从extension-apiserver-authentication获取认证数据
+		// TODO 后面有时间详细分析这个Controller到底干了啥
 		controller := clusterauthenticationtrust.NewClusterAuthenticationTrustController(m.ClusterAuthenticationInfo, kubeClient)
 
 		// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
@@ -588,8 +588,12 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 
 // RESTStorageProvider is a factory type for REST storage.
 // todo 什么叫REST Storage? 是关于啥子东西的抽象？
+// RESTStorageProvider 是一个抽象工厂，用于生产ApiGroupInfo, 这个信息将来用于向go-restful的container中注册路由信息
 type RESTStorageProvider interface {
 	GroupName() string
+	// NewRESTStorage apiResourceConfigSource用于判断某个资源是否被启用
+	// restOptionsGetter参数为K8S后端存储
+	// 返回的是组信息，这个组信息将来用于向go-restful的container当中注册路由信息，从而支持restful api查询相关的资源
 	NewRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource,
 		restOptionsGetter generic.RESTOptionsGetter) (genericapiserver.APIGroupInfo, error)
 }
@@ -604,8 +608,10 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 		return err
 	}
 
+	// TODO restStorageProviders实际上就是K8S中的资源，只不过被抽象为了工厂而已
 	for _, restStorageBuilder := range restStorageProviders {
 		groupName := restStorageBuilder.GroupName()
+		// TODO restStorageProviders工厂的最终目标是为了产生APIGroupInfo信息
 		apiGroupInfo, err := restStorageBuilder.NewRESTStorage(apiResourceConfigSource, restOptionsGetter)
 		if err != nil {
 			return fmt.Errorf("problem initializing API group %q : %v", groupName, err)
@@ -620,6 +626,7 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 		// Remove resources that serving kinds that are removed.
 		// We do this here so that we don't accidentally serve versions without resources or openapi information that for kinds we don't serve.
 		// This is a spot above the construction of individual storage handlers so that no sig accidentally forgets to check.
+		// TODO 看起来似乎是移除一些实验性质的资源
 		resourceExpirationEvaluator.RemoveDeletedKinds(groupName, apiGroupInfo.Scheme, apiGroupInfo.VersionedResourcesStorageMap)
 		if len(apiGroupInfo.VersionedResourcesStorageMap) == 0 {
 			klog.V(1).Infof("Removing API group %v because it is time to stop serving it because it has no versions per APILifecycle.", groupName)
@@ -628,11 +635,17 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 
 		klog.V(1).Infof("Enabling API group %q.", groupName)
 
+		// 如果当前的restStorageBuilder实现了PostStartHookProvider接口，说明需要添加后置处理
+		// TODO rbac.PostStartHook干了啥？
+		// TODO flowcontrol.PostStartHook干了啥？似乎应该和apiserver的限速相关
+		// TODO scheduling.PostStartHook干了啥？
 		if postHookProvider, ok := restStorageBuilder.(genericapiserver.PostStartHookProvider); ok {
+			// 生成后置处理器
 			name, hook, err := postHookProvider.PostStartHook()
 			if err != nil {
 				klog.Fatalf("Error building PostStartHook: %v", err)
 			}
+			// 向generic-apiserver中添加后置处理器
 			m.GenericAPIServer.AddPostStartHookOrDie(name, hook)
 		}
 

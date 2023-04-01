@@ -86,6 +86,7 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 	if hook == nil {
 		return fmt.Errorf("hook func may not be nil: %q", name)
 	}
+	// 如果当前类型的后置处理器被仅用了，那么放弃对于该后置处理器的添加动作
 	if s.disabledPostStartHooks.Has(name) {
 		klog.V(1).Infof("skipping %q because it was explicitly disabled", name)
 		return nil
@@ -94,9 +95,12 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 	s.postStartHookLock.Lock()
 	defer s.postStartHookLock.Unlock()
 
+	// 如果后置处理器已经被调用了，那么再添加也是无用的
+	// 周至处理器的添加一定是需要被执行，而后置处理器的执行也是有一定的时间点的，如果过了这个时间点，后续肯定无法被处理
 	if s.postStartHooksCalled {
 		return fmt.Errorf("unable to add %q because PostStartHooks have already been called", name)
 	}
+	// 如果后置处理器已经存在，那么也不应该被添加
 	if postStartHook, exists := s.postStartHooks[name]; exists {
 		// this is programmer error, but it can be hard to debug
 		return fmt.Errorf("unable to add %q because it was already registered by: %s", name, postStartHook.originatingStack)

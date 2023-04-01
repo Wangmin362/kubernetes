@@ -43,15 +43,17 @@ import (
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
+	// TODO 实际上FullHandlerChain并不包含真正的业务处理信息，它仅仅只做认证、授权、限速、审计相关的公共操作
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
-	// 所有的Hander都会注册到Container当中
+	// TODO 哪些路由信息注册到了这里？
 	GoRestfulContainer *restful.Container
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling
 	// This is where other servers can attach handler to various parts of the chain.
 	// TODO k8s为什么需要单独开发Mux? restful.Mux有哪些功能不满足？
 	// 本质上，Mux就是多路服用，说白了就是为了实现路由功能
+	// TODO 哪些路由信心注册到了这里
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.
@@ -103,6 +105,7 @@ func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerCha
 	}
 
 	return &APIServerHandler{
+		// TODO 只有当FullHandlerChain中的链处理完成，才会执行Director中的的处理器
 		FullHandlerChain:   handlerChainBuilder(director),
 		GoRestfulContainer: gorestfulContainer,
 		NonGoRestfulMux:    nonGoRestfulMux,

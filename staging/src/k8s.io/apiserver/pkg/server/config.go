@@ -638,6 +638,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	}
 
 	// handlerChainBuilder类似Java中的Filter，或者Gin中的中间件，实际上就是在请求被真正处理前处理了一道，主要是增加了认证、审计、限速、鉴权等通用工作
+	// TODO 真正的资源处理是通过handler放进去的
 	handlerChainBuilder := func(handler http.Handler) http.Handler {
 		// 请求处理的逻辑，认证、审计、限速等等 extension-apiserver复用了之前的generic-apiserver的初始化逻辑
 		return c.BuildHandlerChainFunc(handler, c.Config)
@@ -852,6 +853,8 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// 计算鉴权消耗时间
+	// TODO 实际上，apiHandler才是真正的业务处理，也就是K8S的资源处理，只有下面所有的Handler处理完成之后才会执行apiHandler处理器
+	// TODO 一旦下面中的任何一个处理拒绝处理请求，apiHandler将不会被执行
 	handler := filterlatency.TrackCompleted(apiHandler)
 	// 鉴权，如果没有权限直接拒绝
 	handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)

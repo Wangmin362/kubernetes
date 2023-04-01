@@ -415,7 +415,7 @@ func buildGenericConfig(
 	// 实例化一个generic apiserver配置
 	// TODO 重点关注 DefaultBuildHandlerChain
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
-	// TODO 启用哪些资源，禁用哪些资源
+	// 默认启用稳定版本的资源，譬如v1, v2，禁用处于beta, alpha阶段的资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {

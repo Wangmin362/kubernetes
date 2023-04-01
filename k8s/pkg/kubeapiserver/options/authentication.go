@@ -46,7 +46,7 @@ import (
 
 // BuiltInAuthenticationOptions contains all build-in authentication options for API Server
 type BuiltInAuthenticationOptions struct {
-	// TODO audience是啥意思
+	// TODO audience是干嘛用的？ 似乎暂时没有看到这个属性初始化的地方
 	APIAudiences    []string
 	Anonymous       *AnonymousAuthenticationOptions                    // K8S的匿名访问
 	BootstrapToken  *BootstrapTokenAuthenticationOptions               // Token访问

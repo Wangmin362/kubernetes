@@ -32,7 +32,7 @@ type Token interface {
 // Request attempts to extract authentication information from a request and
 // returns a Response or an error if the request could not be checked.
 type Request interface {
-	// TODO 可以看到认证是一个非常标准的HTTP Handler的格式
+	// AuthenticateRequest TODO 可以看到认证是一个非常标准的HTTP Handler的格式
 	AuthenticateRequest(req *http.Request) (*Response, bool, error)
 }
 

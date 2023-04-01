@@ -758,7 +758,9 @@ func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret.EnableVersions(stableAPIGroupVersionsEnabledByDefault...)
 
 	// disable alpha and beta versions explicitly so we have a full list of what's possible to serve
+	// TODO 默认禁用beta资源
 	ret.DisableVersions(betaAPIGroupVersionsDisabledByDefault...)
+	// TODO 默认禁用alpha资源
 	ret.DisableVersions(alphaAPIGroupVersionsDisabledByDefault...)
 
 	// enable the legacy beta resources that were present before stopped serving new beta APIs by default.

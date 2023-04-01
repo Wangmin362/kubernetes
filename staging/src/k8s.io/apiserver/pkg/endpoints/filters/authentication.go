@@ -53,6 +53,7 @@ func withAuthentication(handler http.Handler, auth authenticator.Request, failed
 		if len(apiAuds) > 0 {
 			req = req.WithContext(authenticator.WithAudiences(req.Context(), apiAuds))
 		}
+		// TODO 认证当前请求 如果开启了K8S的多种认证方式，K8S会默认使用哪一种认证？
 		resp, ok, err := auth.AuthenticateRequest(req)
 		authenticationFinish := time.Now()
 		defer func() {
@@ -67,6 +68,7 @@ func withAuthentication(handler http.Handler, auth authenticator.Request, failed
 		}
 
 		if !audiencesAreAcceptable(apiAuds, resp.Audiences) {
+			// 认证没有通过
 			err = fmt.Errorf("unable to match the audience: %v , accepted: %v", resp.Audiences, apiAuds)
 			klog.Error(err)
 			failed.ServeHTTP(w, req)
@@ -74,6 +76,7 @@ func withAuthentication(handler http.Handler, auth authenticator.Request, failed
 		}
 
 		// authorization header is not required anymore in case of a successful authentication.
+		// 认证通过，删除授权头
 		req.Header.Del("Authorization")
 
 		req = req.WithContext(genericapirequest.WithUser(req.Context(), resp.User))

@@ -449,11 +449,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// todo PostStartHook做了啥？
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
+		// 生成K8S的客户端工具
 		kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 		if err != nil {
 			return err
 		}
-		// 这里是认证相关
+		// 这里是认证相关,实际上主要是为了能够从extension-apiserver-authentication获取认证数据
 		controller := clusterauthenticationtrust.NewClusterAuthenticationTrustController(m.ClusterAuthenticationInfo, kubeClient)
 
 		// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
@@ -495,10 +496,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.APIServerIdentity) {
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-controller", func(hookContext genericapiserver.PostStartHookContext) error {
+			// 生成K8S apiserver客户端
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				return err
 			}
+			// TODO 应该主要是对于Lease对象的更新，至于Lease到底是用来干嘛的，后面有空再来分析
 			controller := lease.NewController(
 				clock.RealClock{},
 				kubeClient,

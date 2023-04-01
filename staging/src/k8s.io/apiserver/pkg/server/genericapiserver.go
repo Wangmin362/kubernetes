@@ -202,7 +202,8 @@ type GenericAPIServer struct {
 	// It may kill the process with a panic if it wishes to by returning an error.
 	// server开始监听端口后，postStartHookLock就会被调用
 	postStartHookLock sync.Mutex
-	// TODO postStartHooks是如何涉及的？为什么要这么涉及？
+	// TODO postStartHooks是如何涉及的？为什么要这么设计？
+	// TODO postStartHook是什么时候被调用的？
 	postStartHooks       map[string]postStartHookEntry
 	postStartHooksCalled bool
 	// TODO 猜测这个属性中的值未postStartHooks中的key

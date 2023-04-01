@@ -47,12 +47,67 @@ import (
 )
 
 const (
+	// TODO 为什么只关心kube-system这个名称空间
 	configMapNamespace = "kube-system"
-	configMapName      = "extension-apiserver-authentication"
+	// 这个ConfigMap应该需要包含 ClusterAuthenticationInfo 相关信息
+	configMapName = "extension-apiserver-authentication"
 )
+
+// TODO 正确格式的 extension-apiserver-authentication configmap的结构如下
+/*
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: extension-apiserver-authentication
+  namespace: kube-system
+data:
+  client-ca-file: |
+    -----BEGIN CERTIFICATE-----
+    MIIC6TCCAdGgAwIBAgIBADANBgkqhkiG9w0BAQsFADAVMRMwEQYDVQQDEwprdWJl
+    cm5ldGVzMCAXDTIyMTExMjAyNTU0MVoYDzIwNTIxMTA0MDI1NTQxWjAVMRMwEQYD
+    VQQDEwprdWJlcm5ldGVzMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA
+    0N01OXM5sLzX2DIKL01NhHHmV0Qxb2fbW5UgY/B/VBNTBDsLTMjaNm77Icfu8QQP
+    dygUS/MoDW8QrLOjE3J8PJWQYi6MjOfO5+yownZeqMSzwry/TxjcimiHCkdxC7tV
+    3g9swXQ27dUOmTUKHjMtp+sBosXx0DxEzomSdGaZikMmZZy2gNuuQMroT7IeKlah
+    KQnURkIihmf6dqQ3e9mQ91a/iE2Col93lnbyW5k46aUB3EKNQJLOA8pLOtZx2a1Q
+    LJa1nbIMiOxyerlFpX/QyDal3I4R2UKpk0gS0jDPrA/E4dMJ9gqdCGr9fjWO58dg
+    v81rGc6t8RBXpm+VBus87QIDAQABo0IwQDAOBgNVHQ8BAf8EBAMCAqQwDwYDVR0T
+    AQH/BAUwAwEB/zAdBgNVHQ4EFgQUPtL0lWN4kzK6G7VW2SSt7FK4VSMwDQYJKoZI
+    hvcNAQELBQADggEBAK7P+jngUWqFN8625gfIsCH2+bPtXx55/e2Dvt7Zw8lTgPdc
+    mr7GnGTLjBsumzq54Wp3dd7cfBO66tCkKHsAzuxX4CQVJ+oDZMRLPfCGTR4pONz/
+    DPCtWtZVXdl+ZNOiKCJu50yq47rnFCH8D/S+nADmAybYe7WJxGs69Mgd1qhlDEPU
+    9AnUq6EtlaG3GNxWnixiRgqQ/lg/WluqzVodB0n+IHzjIg804v1EVpIwi2ZbXA+B
+    KF2wo0KCmCSO7cbbDouhIQ6xiMVpin4fNgMGVe5LB5hQ46vQDFaRfRwG5MvcOjRQ
+    /10gow5ZF5MBnQK+4CN5Rus6QmWsc2Xm+6cCLZM=
+    -----END CERTIFICATE-----
+  requestheader-allowed-names: '["front-proxy-client"]'
+  requestheader-client-ca-file: |
+    -----BEGIN CERTIFICATE-----
+    MIIC8TCCAdmgAwIBAgIBADANBgkqhkiG9w0BAQsFADAZMRcwFQYDVQQDEw5mcm9u
+    dC1wcm94eS1jYTAgFw0yMjExMTIwMjU1NDJaGA8yMDUyMTEwNDAyNTU0MlowGTEX
+    MBUGA1UEAxMOZnJvbnQtcHJveHktY2EwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAw
+    ggEKAoIBAQDmdPgeQBl2pe9IsQbgjPiNZqY+XrNuPqfxKw01eByngQAmCxH7lF0u
+    esQIodHlsY8pEtVh+p/wsCriG8FwBUnwwHNauYoD/Zd5pLXFn9kPY2HuJV1SDaht
+    Yw0saC2OWnECZjUa4uX9PUr74kZlW2JfmV2mR7MsfqquJU2RMA0+PoUJK4kXVSKe
+    dLk8MvoHWdhJ/WIuHO7R/z0Tulx5aHUbJEUSgwazWrtWaid0tb1HujueMPaQ5At9
+    DU8nTPfDFtW20KJ7w/7ff+aOPWKvbfnSZo/YEepr7P2p+Ihx8fQqh4GhplSF2Tv0
+    aLmgpMN/UzGRJTfliC3cNU7XLjvPK1ULAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIC
+    pDAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBRbYNFZT9LyhWMLJjuw3EBOXaXT
+    hzANBgkqhkiG9w0BAQsFAAOCAQEAjTSGphKU9K4gdgC/VAu5p19PV3+cFRL3k/Mi
+    vtl8j65nvGXhkYqfgL4VnnPd+v2Wbi+7UPv11wzKy5Qag1djYmN0/BYFy83bgawr
+    dBj3iV+IJXe+1PDfrmQxeQFh2ythaCTnymVL1vTdCytMnZdO1vfvT5ixSzeS+H8g
+    CFNQTw8QuOPrJWnA6nFst9T1Fa2qQYvJx+Muzh69oloM2nxNqLxoLa1X/9VeI3xu
+    RFK+tS2NuWTRKCCPsOnVvziymPUigVm2gfUeqoLyvFtd9LI7vKyLOY5oHo/4MA0U
+    aE3/sFki0hwCF7Oc4oxFqp/l78OkaiEvnDgS9uuKmZQGT5EQmQ==
+    -----END CERTIFICATE-----
+  requestheader-extra-headers-prefix: '["X-Remote-Extra-"]'
+  requestheader-group-headers: '["X-Remote-Group"]'
+  requestheader-username-headers: '["X-Remote-User"]'
+*/
 
 // Controller holds the running state for the controller
 type Controller struct {
+	// 这些信息是在apiserver启动的时候配置的
 	requiredAuthenticationData ClusterAuthenticationInfo
 
 	configMapLister corev1listers.ConfigMapLister
@@ -61,9 +116,11 @@ type Controller struct {
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors.
 	// we only ever place one entry in here, but it is keyed as usual: namespace/name
+	// TODO 这个queue中保存的是啥？
 	queue workqueue.RateLimitingInterface
 
 	// kubeSystemConfigMapInformer is tracked so that we can start these on Run
+	// ConfigMap缓存
 	kubeSystemConfigMapInformer cache.SharedIndexInformer
 
 	// preRunCaches are the caches to sync before starting the work of this control loop
@@ -72,6 +129,7 @@ type Controller struct {
 
 // ClusterAuthenticationInfo holds the information that will included in public configmap.
 // TODO 认证信息这里相当重要，是理解apiserver认证的重要依据
+// TODO 这里的认证信息应该适合K8S的认证相关
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
 	ClientCA dynamiccertificates.CAContentProvider
@@ -92,7 +150,9 @@ type ClusterAuthenticationInfo struct {
 // that holds information about how to aggregated apiservers are recommended (but not required) to configure themselves.
 func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterAuthenticationInfo, kubeClient kubernetes.Interface) *Controller {
 	// we construct our own informer because we need such a small subset of the information available.  Just one namespace.
-	kubeSystemConfigMapInformer := corev1informers.NewConfigMapInformer(kubeClient, configMapNamespace, 12*time.Hour, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
+	// TODO 为什么只关心kube-system这个名称空间？
+	kubeSystemConfigMapInformer := corev1informers.NewConfigMapInformer(kubeClient, configMapNamespace, 12*time.Hour,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
 	c := &Controller{
 		requiredAuthenticationData:  requiredAuthenticationData,
@@ -106,6 +166,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 
 	kubeSystemConfigMapInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
+			// TODO 为什么只关心extension-apiserver-authentication这个名字的configmap?
 			if cast, ok := obj.(*corev1.ConfigMap); ok {
 				return cast.Name == configMapName
 			}
@@ -114,6 +175,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 					return cast.Name == configMapName
 				}
 			}
+			// TODO 难道还有可能到达这里，应该不可能到达这里吧
 			return true // always return true just in case.  The checks are fairly cheap
 		},
 		Handler: cache.ResourceEventHandlerFuncs{
@@ -135,6 +197,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 }
 
 func (c *Controller) syncConfigMap() error {
+	// 通过configmap缓存查询
 	originalAuthConfigMap, err := c.configMapLister.ConfigMaps(configMapNamespace).Get(configMapName)
 	if apierrors.IsNotFound(err) {
 		originalAuthConfigMap = &corev1.ConfigMap{
@@ -146,6 +209,7 @@ func (c *Controller) syncConfigMap() error {
 	// keep the original to diff against later before updating
 	authConfigMap := originalAuthConfigMap.DeepCopy()
 
+	// 从configmap中解析出ClusterAuthenticationInfo数据
 	existingAuthenticationInfo, err := getClusterAuthenticationInfoFor(originalAuthConfigMap.Data)
 	if err != nil {
 		return err
@@ -168,29 +232,12 @@ func (c *Controller) syncConfigMap() error {
 	if err := createNamespaceIfNeeded(c.namespaceClient, authConfigMap.Namespace); err != nil {
 		return err
 	}
+	// 更新Configmap
 	if err := writeConfigMap(c.configMapClient, authConfigMap); err != nil {
 		return err
 	}
 
 	return nil
-}
-
-func createNamespaceIfNeeded(nsClient corev1client.NamespacesGetter, ns string) error {
-	if _, err := nsClient.Namespaces().Get(context.TODO(), ns, metav1.GetOptions{}); err == nil {
-		// the namespace already exists
-		return nil
-	}
-	newNs := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ns,
-			Namespace: "",
-		},
-	}
-	_, err := nsClient.Namespaces().Create(context.TODO(), newNs, metav1.CreateOptions{})
-	if err != nil && apierrors.IsAlreadyExists(err) {
-		err = nil
-	}
-	return err
 }
 
 func writeConfigMap(configMapClient corev1client.ConfigMapsGetter, required *corev1.ConfigMap) error {
@@ -212,6 +259,24 @@ func writeConfigMap(configMapClient corev1client.ConfigMapsGetter, required *cor
 		return err
 	}
 
+	return err
+}
+
+func createNamespaceIfNeeded(nsClient corev1client.NamespacesGetter, ns string) error {
+	if _, err := nsClient.Namespaces().Get(context.TODO(), ns, metav1.GetOptions{}); err == nil {
+		// the namespace already exists
+		return nil
+	}
+	newNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      ns,
+			Namespace: "",
+		},
+	}
+	_, err := nsClient.Namespaces().Create(context.TODO(), newNs, metav1.CreateOptions{})
+	if err != nil && apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
 	return err
 }
 
@@ -442,14 +507,17 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 	defer klog.Infof("Shutting down cluster_authentication_trust_controller controller")
 
 	// we have a personal informer that is narrowly scoped, start it.
+	// 启动informer，同步apiserver中的数据
 	go c.kubeSystemConfigMapInformer.Run(ctx.Done())
 
 	// wait for your secondary caches to fill before starting your work
+	// 等待configmap同步完成
 	if !cache.WaitForNamedCacheSync("cluster_authentication_trust_controller", ctx.Done(), c.preRunCaches...) {
 		return
 	}
 
 	// only run one worker
+	// 消费workqueue
 	go wait.Until(c.runWorker, time.Second, ctx.Done())
 
 	// checks are cheap.  run once a minute just to be sure we stay in sync in case fsnotify fails again
@@ -485,7 +553,7 @@ func (c *Controller) processNextWorkItem() bool {
 	if err == nil {
 		// if you had no error, tell the queue to stop tracking history for your key.  This will
 		// reset things like failure counts for per-item rate limiting
-		c.queue.Forget(key)
+		c.queue.Forget(key) // 看来workqueue的使用姿势，在没有出错的情况下，必须要执行Forget才行
 		return true
 	}
 

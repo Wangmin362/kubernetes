@@ -117,6 +117,7 @@ func (c *crdRegistrationController) Run(workers int, stopCh <-chan struct{}) {
 	}
 
 	// process each item in the list once
+	// TODO 开始的时候就执行一次
 	if crds, err := c.crdLister.List(labels.Everything()); err != nil {
 		utilruntime.HandleError(err)
 	} else {
@@ -185,6 +186,7 @@ func (c *crdRegistrationController) processNextWorkItem() bool {
 }
 
 func (c *crdRegistrationController) enqueueCRD(crd *apiextensionsv1.CustomResourceDefinition) {
+	// CRD可能支持不同的版本，因此每个版本都需要添加
 	for _, version := range crd.Spec.Versions {
 		c.queue.Add(schema.GroupVersion{Group: crd.Spec.Group, Version: version.Name})
 	}
@@ -194,6 +196,7 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 	apiServiceName := groupVersion.Version + "." + groupVersion.Group
 
 	// check all CRDs.  There shouldn't that many, but if we have problems later we can index them
+	// TODO 为啥这里不能通过group, version直接查询？
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -220,6 +223,7 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 		}
 	}
 
+	// TODO 为啥这里又要移除？
 	c.apiServiceRegistration.RemoveAPIServiceToSync(apiServiceName)
 	return nil
 }

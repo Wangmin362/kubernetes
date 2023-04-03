@@ -321,6 +321,7 @@ type DelegationTarget interface {
 	HealthzChecks() []healthz.HealthChecker
 
 	// ListedPaths returns the paths for supporting an index
+	// TODO APIServer以及ExtensionServer是如何实现的？
 	ListedPaths() []string
 
 	// NextDelegate returns the next delegationTarget in the chain of delegations

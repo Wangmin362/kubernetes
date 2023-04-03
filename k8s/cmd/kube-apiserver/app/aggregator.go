@@ -148,13 +148,15 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	}
 	// TODO ?
 	autoRegistrationController := autoregister.NewAutoRegisterController(aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
+	// TODO 这里相当重要，这里就是把APIServer以及ExtensionServer转为了AggregatorServer的APIService
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
-	// TODO ?
+	// TODO 由于ExtensionServer就是我们常说的CRD，而CRD会被增删改查，因此需要动态注册为APIService
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),
 		autoRegistrationController)
 
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration", func(context genericapiserver.PostStartHookContext) error {
+		// 动态注册CRD为Aggregator的APIService
 		go crdRegistrationController.Run(5, context.StopCh)
 		go func() {
 			// let the CRD controller process the initial set of CRDs before starting the autoregistration controller.
@@ -303,6 +305,7 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 	var apiServices []*v1.APIService
 
 	for _, curr := range delegateAPIServer.ListedPaths() {
+		// TODO APIServer的Legacy API
 		if curr == "/api/v1" {
 			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"})
 			registration.AddAPIServiceToSyncOnStart(apiService)
@@ -310,6 +313,7 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 			continue
 		}
 
+		// TODO 不管是APIServer还是ExtensionServer，他们的API都是以/apis开头
 		if !strings.HasPrefix(curr, "/apis/") {
 			continue
 		}

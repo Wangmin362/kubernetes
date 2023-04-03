@@ -141,6 +141,7 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	}
 
 	// create controllers for auto-registration
+	// clientset客户端
 	apiRegistrationClient, err := apiregistrationclient.NewForConfig(aggregatorConfig.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
@@ -297,8 +298,9 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 	// Version can be set to 9 (to have space around) for a new group.
 }
 
-func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget, registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
-	apiServices := []*v1.APIService{}
+func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
+	registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
+	var apiServices []*v1.APIService
 
 	for _, curr := range delegateAPIServer.ListedPaths() {
 		if curr == "/api/v1" {

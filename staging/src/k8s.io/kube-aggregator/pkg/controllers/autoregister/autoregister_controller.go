@@ -42,6 +42,7 @@ import (
 
 const (
 	// AutoRegisterManagedLabel is a label attached to the APIService that identifies how the APIService wants to be synced.
+	// TODO 这个注解有啥用？
 	AutoRegisterManagedLabel = "kube-aggregator.kubernetes.io/automanaged"
 
 	// manageOnStart is a value for the AutoRegisterManagedLabel that indicates the APIService wants to be synced one time when the controller starts.
@@ -54,6 +55,7 @@ const (
 // adding and removing APIServices
 type AutoAPIServiceRegistration interface {
 	// AddAPIServiceToSyncOnStart adds an API service to sync on start.
+	// TODO 看名字，这个接口应该是程序启动的时候就需要执行
 	AddAPIServiceToSyncOnStart(in *v1.APIService)
 	// AddAPIServiceToSync adds an API service to sync continuously.
 	AddAPIServiceToSync(in *v1.APIService)
@@ -69,13 +71,15 @@ type autoRegisterController struct {
 	apiServiceClient apiregistrationclient.APIServicesGetter
 
 	apiServicesToSyncLock sync.RWMutex
-	apiServicesToSync     map[string]*v1.APIService
+	// TODO 核心就是这里了
+	apiServicesToSync map[string]*v1.APIService
 
 	syncHandler func(apiServiceName string) error
 
 	// track which services we have synced
 	syncedSuccessfullyLock *sync.RWMutex
-	syncedSuccessfully     map[string]bool
+	// syncHandler会修改这个属性
+	syncedSuccessfully map[string]bool
 
 	// remember names of services that existed when we started
 	// 记录aggregator server启动时就存在的APIService
@@ -218,10 +222,13 @@ func (c *autoRegisterController) processNextWorkItem() bool {
 // 5. current: sync on start, present at start     | delete once           | update once               | update once
 // 6. current: sync always                         | delete                | update once               | update
 func (c *autoRegisterController) checkAPIService(name string) (err error) {
+	// 从apiServicesToSync这个Map中获取
 	desired := c.GetAPIServiceToSync(name)
+	// 查询informer，通过名字查询APIService
 	curr, err := c.apiServiceLister.Get(name)
 
 	// if we've never synced this service successfully, record a successful sync.
+	// 通过 syncedSuccessfully判断是否同步成功
 	hasSynced := c.hasSyncedSuccessfully(name)
 	if !hasSynced {
 		defer func() {
@@ -238,6 +245,7 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 
 	// we don't have an entry and we don't want one (2A)
 	case apierrors.IsNotFound(err) && desired == nil:
+		// TODO 这种情况下是正常的
 		return nil
 
 	// the local object only wants to sync on start and has already synced (2B,5B,6B "once" enforcement)

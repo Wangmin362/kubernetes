@@ -30,6 +30,7 @@ import (
 
 // APIGroupHandler creates a webservice serving the supported versions, preferred version, and name
 // of a group. E.g., such a web service will be registered at /apis/extensions.
+// TODO 暴露关于一个group的路由，使得用户可以查询一个group相关的信息
 type APIGroupHandler struct {
 	// 根据Group, Version协商出序列化、反序列化器
 	serializer runtime.NegotiatedSerializer

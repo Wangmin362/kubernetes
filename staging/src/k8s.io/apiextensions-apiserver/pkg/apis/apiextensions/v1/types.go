@@ -170,9 +170,11 @@ type CustomResourceDefinitionVersion struct {
 	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// served is a flag enabling/disabling this version from being served via REST APIs
+	// TODO 意思是通过REST API暴露的版本的Served=true,否则就是Served=false
 	Served bool `json:"served" protobuf:"varint,2,opt,name=served"`
 	// storage indicates this version should be used when persisting custom resources to storage.
 	// There must be exactly one version with storage=true.
+	// TODO 这个字段是啥意思？
 	Storage bool `json:"storage" protobuf:"varint,3,opt,name=storage"`
 	// deprecated indicates this version of the custom resource API is deprecated.
 	// When set to true, API requests to this version receive a warning header in the server response.
@@ -187,9 +189,11 @@ type CustomResourceDefinitionVersion struct {
 	DeprecationWarning *string `json:"deprecationWarning,omitempty" protobuf:"bytes,8,opt,name=deprecationWarning"`
 	// schema describes the schema used for validation, pruning, and defaulting of this version of the custom resource.
 	// +optional
+	// TODO 这里应该就是在描述CRD的定义，也就是所谓的Schema
 	Schema *CustomResourceValidation `json:"schema,omitempty" protobuf:"bytes,4,opt,name=schema"`
 	// subresources specify what subresources this version of the defined custom resource have.
 	// +optional
+	// TODO 如何理解CRD的子资源
 	Subresources *CustomResourceSubresources `json:"subresources,omitempty" protobuf:"bytes,5,opt,name=subresources"`
 	// additionalPrinterColumns specifies additional columns returned in Table output.
 	// See https://kubernetes.io/docs/reference/using-api/api-concepts/#receiving-resources-as-tables for details.
@@ -278,7 +282,7 @@ const (
 	// Established means that the resource has become active. A resource is established when all names are
 	// accepted without a conflict for the first time. A resource stays established until deleted, even during
 	// a later NamesAccepted due to changed names. Note that not all names can be changed.
-	// TODO Established是啥意思？
+	// TODO Established状态是CRD资源已经成功激活的状态，CRD的注册需要经过一系列的步骤，等待所有的步骤完成之后，CRD状态会被设置为Established状态
 	Established CustomResourceDefinitionConditionType = "Established"
 	// NamesAccepted means the names chosen for this CustomResourceDefinition do not conflict with others in
 	// the group and are therefore accepted.

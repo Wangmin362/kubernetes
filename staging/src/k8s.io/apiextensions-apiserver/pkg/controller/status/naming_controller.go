@@ -53,6 +53,7 @@ type NamingConditionController struct {
 	// crdMutationCache backs our lister and keeps track of committed updates to avoid racy
 	// write/lookup cycles.  It's got 100 slots by default, so it unlikely to overrun
 	// TODO to revisit this if naming conflicts are found to occur in the wild
+	// TODO 最重要的应该就是这个Cache了
 	crdMutationCache cache.MutationCache
 
 	// To allow injection for testing.
@@ -232,6 +233,7 @@ func equalToAcceptedOrFresh(requestedName, acceptedName string, usedNames sets.S
 }
 
 func (c *NamingConditionController) sync(key string) error {
+	// 由于CRD是Cluster级别的资源，因此这里的key就是CRD的name
 	inCustomResourceDefinition, err := c.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		// CRD was deleted and has freed its names.
@@ -246,6 +248,7 @@ func (c *NamingConditionController) sync(key string) error {
 	}
 
 	// Skip checking names if Spec and Status names are same.
+	// TODO 这里的对比意味着什么？
 	if equality.Semantic.DeepEqual(inCustomResourceDefinition.Spec.Names, inCustomResourceDefinition.Status.AcceptedNames) {
 		return nil
 	}
@@ -253,6 +256,7 @@ func (c *NamingConditionController) sync(key string) error {
 	acceptedNames, namingCondition, establishedCondition := c.calculateNamesAndConditions(inCustomResourceDefinition)
 
 	// nothing to do if accepted names and NamesAccepted condition didn't change
+	// TODO 又是对比啥？
 	if reflect.DeepEqual(inCustomResourceDefinition.Status.AcceptedNames, acceptedNames) &&
 		apiextensionshelpers.IsCRDConditionEquivalent(&namingCondition, apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NamesAccepted)) {
 		return nil
@@ -327,6 +331,7 @@ func (c *NamingConditionController) processNextWorkItem() bool {
 }
 
 func (c *NamingConditionController) enqueue(obj *apiextensionsv1.CustomResourceDefinition) {
+	// key = namespace/name，由于CRD是Cluster级别的，因此key = name
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(obj)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", obj, err))

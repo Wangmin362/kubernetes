@@ -106,6 +106,7 @@ type CompletedConfig struct {
 	*completedConfig
 }
 
+// CustomResourceDefinitions 实际上就是Extension APIServer
 type CustomResourceDefinitions struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
@@ -153,7 +154,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 	// 实例化APIGroupInfo
+	// TODO ExtensionAPIServer会注册哪些资源？ 主要是在注册 [__internal, v1, v1beta1].[CRD CRDList]资源
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
+	// 构建资源的后端存储
 	storage := map[string]rest.Storage{}
 	// customresourcedefinitions  注册CRD资源
 	if resource := "customresourcedefinitions"; apiResourceConfig.ResourceEnabled(v1.SchemeGroupVersion.WithResource(resource)) {
@@ -165,10 +168,11 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		storage[resource+"/status"] = customresourcedefinition.NewStatusREST(Scheme, customResourceDefinitionStorage)
 	}
 	if len(storage) > 0 {
+		// 初始化后端资源存储
 		apiGroupInfo.VersionedResourcesStorageMap[v1.SchemeGroupVersion.Version] = storage
 	}
 
-	// CRD资源的真正注册在这里
+	// 向go-restful的container中注册CRD资源路由
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
@@ -224,10 +228,15 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.HandlePrefix("/apis/", crdHandler)
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
+	// 定时查询所有的CRD，并添加group handler，以及version handler
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
+	// TODO ?
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// TODO ?
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// TODO ?
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// TODO ?
 	finalizingController := finalizer.NewCRDFinalizer(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1(),

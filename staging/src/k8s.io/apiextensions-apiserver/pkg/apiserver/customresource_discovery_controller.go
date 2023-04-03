@@ -42,8 +42,11 @@ import (
 
 // DiscoveryController  TODO 监听CRD资源，并维护versionHandler以及groupHandler
 type DiscoveryController struct {
+	// TODO 本质上就是关于group的HTTP Handler
+	// 实际上versionHandler以及groupHandler是由外部传进来的
 	versionHandler *versionDiscoveryHandler
-	groupHandler   *groupDiscoveryHandler
+	// TODO 本质上就是关于version的HTTP Handler
+	groupHandler *groupDiscoveryHandler
 
 	// 通过Informer获取CRD资源
 	crdLister  listers.CustomResourceDefinitionLister
@@ -84,7 +87,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	var apiResourcesForDiscovery []metav1.APIResource
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
-	// 查询所有的CRD
+	// 查询所有的CRD TODO 这里为什么不查询特定的group, version的CRD，而是查询所有的资源呢？
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -92,10 +95,13 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	foundVersion := false
 	foundGroup := false
 	for _, crd := range crds {
+		// TODO Established状态意味着CRD已经成功注册
 		if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 			continue
 		}
 
+		// 因为是查询的所有的CRD，因此这里需要过滤不关心的组
+		// TODO 上方查询的时候为什么不优化为只查询特定Group/Version的资源呢？ 是有什么原因考虑的呢？还是说作者的疏忽？
 		if crd.Spec.Group != version.Group {
 			continue
 		}
@@ -103,6 +109,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		foundThisVersion := false
 		var storageVersionHash string
 		for _, v := range crd.Spec.Versions {
+			// TODO CRD的当前版本没有暴露REST API
 			if !v.Served {
 				continue
 			}
@@ -125,6 +132,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			}
 		}
 
+		// 没有找到对应版本，直接退出
 		if !foundThisVersion {
 			continue
 		}
@@ -132,10 +140,13 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 		verbs := metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"})
 		// if we're terminating we don't allow some verbs
+		// 如果当前的CRD正在终止，那么中有些动作回会被禁止
+		// TODO 为什么CRD资源都处于Terminating了，还需要注册呢？
 		if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating) {
 			verbs = metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "watch"})
 		}
 
+		// 发现的同一个资源的所有版本
 		apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 			Name:               crd.Status.AcceptedNames.Plural,
 			SingularName:       crd.Status.AcceptedNames.Singular,
@@ -147,6 +158,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			StorageVersionHash: storageVersionHash,
 		})
 
+		// CRD资源会有哪些子资源呢？ 答：status子资源，scale子资源
 		subresources, err := apiextensionshelpers.GetSubresourcesForVersion(crd, version.Version)
 		if err != nil {
 			return err
@@ -174,12 +186,14 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		}
 	}
 
+	// TODO 为什么判断是否找到group的逻辑判断的这么晚？
 	if !foundGroup {
 		c.groupHandler.unsetDiscovery(version.Group)
 		c.versionHandler.unsetDiscovery(version)
 		return nil
 	}
 
+	// TODO 这玩意是干嘛的？
 	sortGroupDiscoveryByKubeAwareVersion(apiVersionsForDiscovery)
 
 	apiGroup := metav1.APIGroup{
@@ -189,12 +203,15 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		// apiVersionsForDiscovery after it put in the right ordered
 		PreferredVersion: apiVersionsForDiscovery[0],
 	}
+	// TODO 暴露出group的endpoint
 	c.groupHandler.setDiscovery(version.Group, discovery.NewAPIGroupHandler(Codecs, apiGroup))
 
 	if !foundVersion {
 		c.versionHandler.unsetDiscovery(version)
 		return nil
 	}
+
+	// TODO 暴露出version的endpoint
 	c.versionHandler.setDiscovery(version, discovery.NewAPIVersionHandler(Codecs, version, discovery.APIResourceListerFunc(func() []metav1.APIResource {
 		return apiResourcesForDiscovery
 	})))
@@ -296,6 +313,7 @@ func (c *DiscoveryController) updateCustomResourceDefinition(oldObj, newObj inte
 	klog.V(4).Infof("Updating customresourcedefinition %s", castOldObj.Name)
 	// Enqueue both old and new object to make sure we remove and add appropriate Versions.
 	// The working queue will resolve any duplicates and only changes will stay in the queue.
+	// TODO 为什么对于新老对象，都是直接入队
 	c.enqueue(castNewObj)
 	c.enqueue(castOldObj)
 }

@@ -50,11 +50,12 @@ func createAPIExtensionsConfig(
 	genericConfig := kubeAPIServerConfig
 	// 清空generic-apiserver的后置处理器
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
+	// TODO 为什么这里后端存储也重置为空
 	genericConfig.RESTOptionsGetter = nil
 
 	// override genericConfig.AdmissionControl with apiextensions' scheme,
 	// because apiextensions apiserver should use its own scheme to convert resources.
-	// 初始化extension-apiserver的准入配置信息
+	// TODO 初始化extension-apiserver的准入配置信息
 	err := commandOptions.Admission.ApplyTo(
 		&genericConfig,
 		externalInformers,
@@ -74,6 +75,7 @@ func createAPIExtensionsConfig(
 	etcdOptions.StorageConfig.Codec = apiextensionsapiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion, v1.SchemeGroupVersion)
 	// prefer the more compact serialization (v1beta1) for storage until http://issue.k8s.io/82292 is resolved for objects whose v1 serialization is too big but whose v1beta1 serialization can be stored
 	etcdOptions.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(v1beta1.SchemeGroupVersion, schema.GroupKind{Group: v1beta1.GroupName})
+	// TODO 重新设置K8S后端存储
 	genericConfig.RESTOptionsGetter = &genericoptions.SimpleRestOptionsFactory{Options: etcdOptions}
 
 	// override MergedResourceConfig with apiextensions defaults and registry
@@ -91,7 +93,7 @@ func createAPIExtensionsConfig(
 		},
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{
 			CRDRESTOptionsGetter: apiextensionsoptions.NewCRDRESTOptionsGetter(etcdOptions),
-			MasterCount:          masterCount,
+			MasterCount:          masterCount, // master节点数量
 			AuthResolverWrapper:  authResolverWrapper,
 			ServiceResolver:      serviceResolver,
 		},

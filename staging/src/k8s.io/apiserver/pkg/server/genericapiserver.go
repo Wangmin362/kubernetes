@@ -362,6 +362,7 @@ func (s *GenericAPIServer) NextDelegate() DelegationTarget {
 
 // RegisterMuxAndDiscoveryCompleteSignal registers the given signal that will be used to determine if all known
 // HTTP paths have been registered. It is okay to call this method after instantiating the generic server but before running.
+// TODO 如何理解这个函数的主要作用？
 func (s *GenericAPIServer) RegisterMuxAndDiscoveryCompleteSignal(signalName string, signal <-chan struct{}) error {
 	if _, exists := s.muxAndDiscoveryCompleteSignals[signalName]; exists {
 		return fmt.Errorf("%s already registered", signalName)

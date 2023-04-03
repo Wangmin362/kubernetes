@@ -77,6 +77,7 @@ const (
 type ExtraConfig struct {
 	// ProxyClientCert/Key are the client cert used to identify this proxy. Backing APIServices use
 	// this to confirm the proxy's identity
+	// TODO 这两个参数的主要目的是为了干嘛?
 	ProxyClientCertFile string
 	ProxyClientKeyFile  string
 
@@ -92,6 +93,7 @@ type ExtraConfig struct {
 
 // Config represents the configuration needed to create an APIAggregator.
 type Config struct {
+	// RecommendedConfig其实就是genericConfig，只不过额外增加了Informer功能
 	GenericConfig *genericapiserver.RecommendedConfig
 	ExtraConfig   ExtraConfig
 }
@@ -171,6 +173,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 	// the kube aggregator wires its own discovery mechanism
 	// TODO eventually collapse this by extracting all of the discovery out
+	// TODO 为啥这里关闭了服务发现
 	c.GenericConfig.EnableDiscovery = false
 	version := version.Get()
 	c.GenericConfig.Version = &version
@@ -185,6 +188,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
+	// 实例化K8S apiserver clientset
 	apiregistrationClient, err := clientset.NewForConfig(c.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
@@ -199,6 +203,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	// Before it might have resulted in a 404 response which could have serious consequences for some controllers like  GC and NS
 	//
 	// Note that the APIServiceRegistrationController waits for APIServiceInformer to synced before doing its work.
+	// TODO 这里究竟是在干嘛？
 	apiServiceRegistrationControllerInitiated := make(chan struct{})
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated", apiServiceRegistrationControllerInitiated); err != nil {
 		return nil, err
@@ -226,7 +231,9 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
-	apiGroupInfo := apiservicerest.NewRESTStorage(c.GenericConfig.MergedResourceConfig, c.GenericConfig.RESTOptionsGetter, resourceExpirationEvaluator.ShouldServeForVersion(1, 22))
+	// 安装/apiservices路由
+	apiGroupInfo := apiservicerest.NewRESTStorage(c.GenericConfig.MergedResourceConfig, c.GenericConfig.RESTOptionsGetter,
+		resourceExpirationEvaluator.ShouldServeForVersion(1, 22))
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
@@ -244,6 +251,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		lister:         s.lister,
 		discoveryGroup: discoveryGroup(enabledVersions),
 	}
+	// TODO 为啥Handle以及UnlistedHandle都需要注册
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
@@ -262,6 +270,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		aggregatorProxyCerts.AddListener(apiserviceRegistrationController)
 		s.proxyCurrentCertKeyContent = aggregatorProxyCerts.CurrentCertKeyContent
 
+		// TODO 这里是在干嘛？
 		s.GenericAPIServer.AddPostStartHookOrDie("aggregator-reload-proxy-client-cert", func(postStartHookContext genericapiserver.PostStartHookContext) error {
 			// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
 			// TODO: See if we can pass ctx to the current method
@@ -278,6 +287,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		})
 	}
 
+	// TODO AvailableConditionController原理是啥？
 	availableController, err := statuscontrollers.NewAvailableConditionController(
 		informerFactory.Apiregistration().V1().APIServices(),
 		c.GenericConfig.SharedInformerFactory.Core().V1().Services(),

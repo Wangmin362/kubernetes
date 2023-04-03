@@ -847,6 +847,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c *Config) http.Handler {
 	// WithStorageVersionPrecondition needs the WithRequestInfo to run first
+	// TODO StorageVersionPreconditionHandler是干嘛用的？
 	handler := genericapifilters.WithStorageVersionPrecondition(apiHandler, c.StorageVersionManager, c.Serializer)
 	return DefaultBuildHandlerChain(handler, c)
 }

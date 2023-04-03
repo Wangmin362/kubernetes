@@ -64,6 +64,7 @@ type ServiceResolver interface {
 }
 
 // AvailableConditionController handles checking the availability of registered API services.
+// TODO 从名字上来看，这个Controller因该是用来判断APIServer是否可以用的吧？？？？？
 type AvailableConditionController struct {
 	apiServiceClient apiregistrationclient.APIServicesGetter
 
@@ -85,6 +86,7 @@ type AvailableConditionController struct {
 	// To allow injection for testing.
 	syncFn func(key string) error
 
+	// TODO queue中放的是APIService
 	queue workqueue.RateLimitingInterface
 	// map from service-namespace -> service-name -> apiservice names
 	cache map[string]map[string][]string
@@ -224,6 +226,7 @@ func NewAvailableConditionController(
 }
 
 func (c *AvailableConditionController) sync(key string) error {
+	// 查询APIService
 	originalAPIService, err := c.apiServiceLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		c.metrics.ForgetAPIService(key)
@@ -236,6 +239,7 @@ func (c *AvailableConditionController) sync(key string) error {
 	// if a particular transport was specified, use that otherwise build one
 	// construct an http client that will ignore TLS verification (if someone owns the network and messes with your status
 	// that's not so bad) and sets a very short timeout.  This is a best effort GET that provides no additional information
+	// TODO 为什么这里要忽略校验证书
 	restConfig := &rest.Config{
 		TLSClientConfig: rest.TLSClientConfig{
 			Insecure: true,
@@ -530,6 +534,7 @@ func (c *AvailableConditionController) processNextWorkItem() bool {
 func (c *AvailableConditionController) addAPIService(obj interface{}) {
 	castObj := obj.(*apiregistrationv1.APIService)
 	klog.V(4).Infof("Adding %s", castObj.Name)
+	// TODO 为什么当一个新的APIService进入进来的时候需要清空APIServiceCache
 	if castObj.Spec.Service != nil {
 		c.rebuildAPIServiceCache()
 	}

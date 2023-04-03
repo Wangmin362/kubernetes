@@ -33,6 +33,7 @@ import (
 )
 
 // DynamicCertKeyPairContent provides a CertKeyContentProvider that can dynamically react to new file content
+// TODO 这东西是为了干嘛？
 type DynamicCertKeyPairContent struct {
 	name string
 

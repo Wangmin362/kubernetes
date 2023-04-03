@@ -187,6 +187,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // NewWithDelegate returns a new instance of APIAggregator from the given config.
 func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.DelegationTarget) (*APIAggregator, error) {
+	// 实例化generic-server配置
 	genericServer, err := c.GenericConfig.New("kube-aggregator", delegationTarget)
 	if err != nil {
 		return nil, err
@@ -197,6 +198,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	if err != nil {
 		return nil, err
 	}
+	// 实例化InformerFactory，将来用来缓存APIService资源
 	informerFactory := informers.NewSharedInformerFactory(
 		apiregistrationClient,
 		5*time.Minute, // this is effectively used as a refresh interval right now.  Might want to do something nicer later on.
@@ -230,6 +232,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	}
 
 	// used later  to filter the served resource by those that have expired.
+	// TODO ResourceExpirationEvaluator干了啥？
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*c.GenericConfig.Version)
 	if err != nil {
 		return nil, err
@@ -259,9 +262,13 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
+	// APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
+	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 	if len(c.ExtraConfig.ProxyClientCertFile) > 0 && len(c.ExtraConfig.ProxyClientKeyFile) > 0 {
-		aggregatorProxyCerts, err := dynamiccertificates.NewDynamicServingContentFromFiles("aggregator-proxy-cert", c.ExtraConfig.ProxyClientCertFile, c.ExtraConfig.ProxyClientKeyFile)
+		// TODO 这里面是在干嘛？似乎是和证书相关的东西
+		aggregatorProxyCerts, err := dynamiccertificates.NewDynamicServingContentFromFiles("aggregator-proxy-cert",
+			c.ExtraConfig.ProxyClientCertFile, c.ExtraConfig.ProxyClientKeyFile)
 		if err != nil {
 			return nil, err
 		}

@@ -54,7 +54,7 @@ type certKeyFunc func() ([]byte, []byte)
 // specified by items implementing Redirector.
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
-	// TODO 什么叫做Local APIService
+	// TODO 什么叫做Local APIService  其实APIServer以及ExtensionServer就是LocalDelegate
 	localDelegate http.Handler
 
 	// proxyCurrentCertKeyContent holds the client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
@@ -77,7 +77,7 @@ type proxyHandler struct {
 
 type proxyHandlingInfo struct {
 	// local indicates that this APIService is locally satisfied
-	// TODO 一个APIService是什么时候会时Local的？
+	// TODO 一个APIService是什么时候会时Local的？ 当APIService为APIServer以及ExtensionServer的时候就是Local的
 	local bool
 
 	// name is the name of the APIService
@@ -115,11 +115,13 @@ func proxyError(w http.ResponseWriter, req *http.Request, error string, code int
 
 func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	value := r.handlingInfo.Load()
+	// 如果没有找到代理信息，就委派给本地
 	if value == nil {
 		r.localDelegate.ServeHTTP(w, req)
 		return
 	}
 	handlingInfo := value.(proxyHandlingInfo)
+	// 如果找到了代理信息，但是是Local的还是委派给LocalDelegate
 	if handlingInfo.local {
 		if r.localDelegate == nil {
 			http.Error(w, "", http.StatusNotFound)
@@ -128,6 +130,8 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		r.localDelegate.ServeHTTP(w, req)
 		return
 	}
+
+	// 否则就是APIService
 
 	if !handlingInfo.serviceAvailable {
 		proxyError(w, req, "service unavailable", http.StatusServiceUnavailable)
@@ -154,7 +158,9 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		proxyError(w, req, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
+	// APIService的endpoint
 	location.Host = rloc.Host
+	// 代理路径
 	location.Path = req.URL.Path
 	location.RawQuery = req.URL.Query().Encode()
 
@@ -183,6 +189,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		handler.RejectForwardingRedirects = true
 	}
 	utilflowcontrol.RequestDelegated(req.Context())
+	// 执行代理
 	handler.ServeHTTP(w, newReq)
 }
 

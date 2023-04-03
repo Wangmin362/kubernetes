@@ -78,6 +78,7 @@ type autoRegisterController struct {
 	syncedSuccessfully     map[string]bool
 
 	// remember names of services that existed when we started
+	// 记录aggregator server启动时就存在的APIService
 	apiServicesAtStart map[string]bool
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors
@@ -85,7 +86,9 @@ type autoRegisterController struct {
 }
 
 // NewAutoRegisterController creates a new autoRegisterController.
-func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer, apiServiceClient apiregistrationclient.APIServicesGetter) *autoRegisterController {
+// TODO 为啥这里不直接返回AutoAPIServiceRegistration接口？
+func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer,
+	apiServiceClient apiregistrationclient.APIServicesGetter) *autoRegisterController {
 	c := &autoRegisterController{
 		apiServiceLister:  apiServiceInformer.Lister(),
 		apiServiceSynced:  apiServiceInformer.Informer().HasSynced,
@@ -101,6 +104,7 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer, 
 	}
 	c.syncHandler = c.checkAPIService
 
+	// 监听APIService资源的变更
 	apiServiceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cast := obj.(*v1.APIService)

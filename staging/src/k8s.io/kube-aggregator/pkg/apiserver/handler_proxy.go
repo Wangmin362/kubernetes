@@ -54,6 +54,7 @@ type certKeyFunc func() ([]byte, []byte)
 // specified by items implementing Redirector.
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
+	// TODO 什么叫做Local APIService
 	localDelegate http.Handler
 
 	// proxyCurrentCertKeyContent holds the client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
@@ -67,6 +68,7 @@ type proxyHandler struct {
 
 	// egressSelector selects the proper egress dialer to communicate with the custom apiserver
 	// overwrites proxyTransport dialer if not nil
+	// TODO 这玩意到底是干嘛的？
 	egressSelector *egressselector.EgressSelector
 
 	// reject to forward redirect response
@@ -75,11 +77,13 @@ type proxyHandler struct {
 
 type proxyHandlingInfo struct {
 	// local indicates that this APIService is locally satisfied
+	// TODO 一个APIService是什么时候会时Local的？
 	local bool
 
 	// name is the name of the APIService
 	name string
 	// restConfig holds the information for building a roundtripper
+	// 服务连接配置
 	restConfig *restclient.Config
 	// transportBuildingError is an error produced while building the transport.  If this
 	// is non-nil, it will be reported to clients.
@@ -231,6 +235,7 @@ func (r *responder) Error(_ http.ResponseWriter, _ *http.Request, err error) {
 // these methods provide locked access to fields
 
 func (r *proxyHandler) updateAPIService(apiService *apiregistrationv1api.APIService) {
+	// TODO 应该只有当注册APIServer到AggregatorServer中时才会进入这个逻辑吧
 	if apiService.Spec.Service == nil {
 		r.handlingInfo.Store(proxyHandlingInfo{local: true})
 		return
@@ -238,9 +243,11 @@ func (r *proxyHandler) updateAPIService(apiService *apiregistrationv1api.APIServ
 
 	proxyClientCert, proxyClientKey := r.proxyCurrentCertKeyContent()
 
+	// 实例化clientset客户端
 	clientConfig := &restclient.Config{
 		TLSClientConfig: restclient.TLSClientConfig{
-			Insecure:   apiService.Spec.InsecureSkipTLSVerify,
+			Insecure: apiService.Spec.InsecureSkipTLSVerify,
+			// TODO ServiceName加不加.svc有何影响？
 			ServerName: apiService.Spec.Service.Name + "." + apiService.Spec.Service.Namespace + ".svc",
 			CertData:   proxyClientCert,
 			KeyData:    proxyClientKey,

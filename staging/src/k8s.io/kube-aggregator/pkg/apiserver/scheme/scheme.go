@@ -36,12 +36,14 @@ var (
 )
 
 func init() {
+	// TODO 感觉这两行的作用是一样的  有啥区别呢？
 	AddToScheme(Scheme)
 	install.Install(Scheme)
 }
 
 // AddToScheme adds the types of this group into the given scheme.
 func AddToScheme(scheme *runtime.Scheme) {
+	// TODO 这里的先后注册顺序是否有影响？
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
 	utilruntime.Must(apiregistration.AddToScheme(scheme))

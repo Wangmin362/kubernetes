@@ -37,12 +37,14 @@ import (
 
 // APIHandlerManager defines the behaviour that an API handler should have.
 type APIHandlerManager interface {
+	// AddAPIService 增加一个APIService，这也就意味着K8S中增加一个外部服务
 	AddAPIService(apiService *v1.APIService) error
 	RemoveAPIService(apiServiceName string)
 }
 
 // APIServiceRegistrationController is responsible for registering and removing API services.
 type APIServiceRegistrationController struct {
+	// TODO APIHandlerManger是用来干嘛的？
 	apiHandlerManager APIHandlerManager
 
 	apiServiceLister listers.APIServiceLister
@@ -51,6 +53,7 @@ type APIServiceRegistrationController struct {
 	// To allow injection for testing.
 	syncFn func(key string) error
 
+	// queue中存放的当前变更的APIService的名字
 	queue workqueue.RateLimitingInterface
 }
 
@@ -65,8 +68,10 @@ func NewAPIServiceRegistrationController(apiServiceInformer informers.APIService
 		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "APIServiceRegistrationController"),
 	}
 
+	// 监听APIService资源
 	apiServiceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    c.addAPIService,
+		AddFunc: c.addAPIService,
+		// TODO 为什么updateAPI不需要关心OldObj?
 		UpdateFunc: c.updateAPIService,
 		DeleteFunc: c.deleteAPIService,
 	})
@@ -77,6 +82,7 @@ func NewAPIServiceRegistrationController(apiServiceInformer informers.APIService
 }
 
 func (c *APIServiceRegistrationController) sync(key string) error {
+	// APIService资源是Cluster级别的资源，所以key就是资源的名字
 	apiService, err := c.apiServiceLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		c.apiHandlerManager.RemoveAPIService(key)
@@ -86,6 +92,7 @@ func (c *APIServiceRegistrationController) sync(key string) error {
 		return err
 	}
 
+	// 所有变更的APIService从queue中取出之后直接交给APIHandlerManager处理
 	return c.apiHandlerManager.AddAPIService(apiService)
 }
 
@@ -102,6 +109,7 @@ func (c *APIServiceRegistrationController) Run(stopCh <-chan struct{}, handlerSy
 	}
 
 	/// initially sync all APIServices to make sure the proxy handler is complete
+	// TODO 为什么需要手动List一遍，Informer机制不是会把所有的APIService都遍历一遍么？
 	if err := wait.PollImmediateUntil(time.Second, func() (bool, error) {
 		services, err := c.apiServiceLister.List(labels.Everything())
 		if err != nil {

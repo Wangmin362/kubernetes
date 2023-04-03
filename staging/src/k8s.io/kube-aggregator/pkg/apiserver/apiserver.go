@@ -121,11 +121,13 @@ type preparedAPIAggregator struct {
 
 // APIAggregator contains state for a Kubernetes cluster master/api server.
 type APIAggregator struct {
+	// 本质上就是一个generic-apiserver
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
 	// provided for easier embedding
 	APIRegistrationInformers informers.SharedInformerFactory
 
+	// TODO 猜测这个属性就是ApiServer，因为当aggregator server无法处理的时候，它应该委派给ApiServer
 	delegateHandler http.Handler
 
 	// proxyCurrentCertKeyContent holds he client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
@@ -133,6 +135,7 @@ type APIAggregator struct {
 	proxyTransport             *http.Transport
 
 	// proxyHandlers are the proxy handlers that are currently registered, keyed by apiservice.name
+	// TODO 实际上一个ProxyHandler实际上就是一个ProxyHandler key为APIService资源的name
 	proxyHandlers map[string]*proxyHandler
 	// handledGroups are the groups that already have routes
 	handledGroups sets.String
@@ -142,6 +145,7 @@ type APIAggregator struct {
 	lister listers.APIServiceLister
 
 	// Information needed to determine routing for the aggregator
+	// 根据svc的name,namespace,port解析出一个可以访问的地址
 	serviceResolver ServiceResolver
 
 	// Enable swagger and/or OpenAPI if these configs are non-nil.
@@ -435,6 +439,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	// if the proxyHandler already exists, it needs to be updated. The aggregation bits do not
 	// since they are wired against listers because they require multiple resources to respond
 	if proxyHandler, exists := s.proxyHandlers[apiService.Name]; exists {
+		// 如果存在，就更新服务
 		proxyHandler.updateAPIService(apiService)
 		if s.openAPIAggregationController != nil {
 			s.openAPIAggregationController.UpdateAPIService(proxyHandler, apiService)
@@ -447,6 +452,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 
 	proxyPath := "/apis/" + apiService.Spec.Group + "/" + apiService.Spec.Version
 	// v1. is a special case for the legacy API.  It proxies to a wider set of endpoints.
+	// TODO APIService的Name指定为 v1. 是为了干嘛？
 	if apiService.Name == legacyAPIServiceName {
 		proxyPath = "/api"
 	}
@@ -460,6 +466,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		egressSelector:             s.egressSelector,
 		rejectForwardingRedirects:  s.rejectForwardingRedirects,
 	}
+	// TODO 如果原先不存在，也是更新？？？
 	proxyHandler.updateAPIService(apiService)
 	if s.openAPIAggregationController != nil {
 		s.openAPIAggregationController.AddAPIService(proxyHandler, apiService)
@@ -468,10 +475,12 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		s.openAPIV3AggregationController.AddAPIService(proxyHandler, apiService)
 	}
 	s.proxyHandlers[apiService.Name] = proxyHandler
+	// TODO 为啥每次都是Handler以及UnlistedHandlerPrefix一起注册？
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle(proxyPath, proxyHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandlePrefix(proxyPath+"/", proxyHandler)
 
 	// if we're dealing with the legacy group, we're done here
+	// TODO 实际上ApiServer也会以APIService的方式注册到AggregatorServer当中
 	if apiService.Name == legacyAPIServiceName {
 		return nil
 	}
@@ -490,6 +499,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		delegate:  s.delegateHandler,
 	}
 	// aggregation is protected
+	// TODO 注册/apis/<group>路由
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle(groupPath, groupDiscoveryHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle(groupPath+"/", groupDiscoveryHandler)
 	s.handledGroups.Insert(apiService.Spec.Group)

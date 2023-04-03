@@ -126,6 +126,7 @@ func convertToDiscoveryAPIGroup(apiServices []*apiregistrationv1api.APIService) 
 }
 
 // apiGroupHandler serves the `/apis/<group>` endpoint.
+// TODO 这里应该也是为了增加/apis/<group>路由，从而告诉用户当前<group>下的所有资源
 type apiGroupHandler struct {
 	codecs    serializer.CodecFactory
 	groupName string
@@ -163,5 +164,6 @@ func (r *apiGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "", http.StatusNotFound)
 		return
 	}
-	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, w, req, http.StatusOK, discoveryGroup)
+	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		w, req, http.StatusOK, discoveryGroup)
 }

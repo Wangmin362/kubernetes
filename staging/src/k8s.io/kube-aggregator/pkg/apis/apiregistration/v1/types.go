@@ -37,6 +37,7 @@ type ServiceReference struct {
 	// Namespace is the namespace of the service
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,1,opt,name=namespace"`
 	// Name is the name of the service
+	// TODO ServiceName
 	Name string `json:"name,omitempty" protobuf:"bytes,2,opt,name=name"`
 	// If specified, the port on the service that hosting webhook.
 	// Default to 443 for backward compatibility.
@@ -53,6 +54,7 @@ type APIServiceSpec struct {
 	// If the Service is nil, that means the handling for the API groupversion is handled locally on this server.
 	// The call will simply delegate to the normal handler chain to be fulfilled.
 	// +optional
+	// TODO 服务地址
 	Service *ServiceReference `json:"service,omitempty" protobuf:"bytes,1,opt,name=service"`
 	// Group is the API group name this server hosts
 	Group string `json:"group,omitempty" protobuf:"bytes,2,opt,name=group"`
@@ -86,6 +88,7 @@ type APIServiceSpec struct {
 	// by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing major
 	// version, then minor version. An example sorted list of versions:
 	// v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.
+	// TODO 当版本信息缺失时，默认优先选择的版本
 	VersionPriority int32 `json:"versionPriority" protobuf:"varint,8,opt,name=versionPriority"`
 
 	// leaving this here so everyone remembers why proto index 6 is skipped
@@ -148,6 +151,7 @@ type APIServiceStatus struct {
 
 // APIService represents a server for a particular GroupVersion.
 // Name must be "version.group".
+// TODO 一个ApiService其实就是一个Server，譬如Metric
 type APIService struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.

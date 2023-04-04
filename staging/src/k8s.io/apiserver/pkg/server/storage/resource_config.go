@@ -21,7 +21,7 @@ import (
 )
 
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
-// TODO 这TM又是干嘛的？
+// APIResourceConfigSource 用于判断某个资源或者某个组的所有资源是否启用
 type APIResourceConfigSource interface {
 	// ResourceEnabled 资源是否启用
 	ResourceEnabled(resource schema.GroupVersionResource) bool
@@ -43,10 +43,13 @@ func NewResourceConfig() *ResourceConfig {
 // DisableMatchingVersions disables all group/versions for which the matcher function returns true.
 // This will remove any preferences previously set on individual resources.
 func (o *ResourceConfig) DisableMatchingVersions(matcher func(gv schema.GroupVersion) bool) {
-	for version := range o.GroupVersionConfigs {
-		if matcher(version) {
-			o.GroupVersionConfigs[version] = false
-			o.removeMatchingResourcePreferences(resourceMatcherForVersion(version))
+	for groupVersion := range o.GroupVersionConfigs {
+		// 如果匹配上了，说明需要禁用这个组
+		if matcher(groupVersion) {
+			// 禁用这个组
+			o.GroupVersionConfigs[groupVersion] = false
+			// 既然组被禁用了，那么组下的每一个资源都应该被禁用 TODO 没有搞懂的是，为啥是组删除所有的资源
+			o.removeMatchingResourcePreferences(resourceMatcherForVersion(groupVersion))
 		}
 	}
 }
@@ -72,12 +75,14 @@ func resourceMatcherForVersion(gv schema.GroupVersion) func(gvr schema.GroupVers
 // removeMatchingResourcePreferences removes individual resource preferences that match.  This is useful when an override of a version or level enablement should
 // override the previously individual preferences.
 func (o *ResourceConfig) removeMatchingResourcePreferences(matcher func(gvr schema.GroupVersionResource) bool) {
-	keysToRemove := []schema.GroupVersionResource{}
+	var keysToRemove []schema.GroupVersionResource
 	for k := range o.ResourceConfigs {
+		// 如果当前资源的匹配上了组
 		if matcher(k) {
 			keysToRemove = append(keysToRemove, k)
 		}
 	}
+	// TODO 卧槽，这里为啥是移除，上面直接设置为false不可以么？
 	for _, k := range keysToRemove {
 		delete(o.ResourceConfigs, k)
 	}
@@ -131,6 +136,7 @@ func (o *ResourceConfig) ResourceEnabled(resource schema.GroupVersionResource) b
 		return resourceEnabled
 	}
 
+	// 如果整个组都是禁用的，那么就认为此资源是禁用状态
 	if !o.versionEnabled(resource.GroupVersion()) {
 		return false
 	}
@@ -138,10 +144,11 @@ func (o *ResourceConfig) ResourceEnabled(resource schema.GroupVersionResource) b
 	return true
 }
 
+// AnyResourceForGroupEnabled 用于判断整个组是否启用
 func (o *ResourceConfig) AnyResourceForGroupEnabled(group string) bool {
-	for version := range o.GroupVersionConfigs {
-		if version.Group == group {
-			if o.versionEnabled(version) {
+	for groupVersion := range o.GroupVersionConfigs {
+		if groupVersion.Group == group {
+			if o.versionEnabled(groupVersion) {
 				return true
 			}
 		}

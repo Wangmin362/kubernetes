@@ -303,7 +303,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		})
 	}
 
-	// TODO AvailableConditionController原理是啥？  应该是为了评估APIService指向的服务是否可用
+	// TODO AvailableConditionController为了评估APIService指向的服务是否可用，并且修改APIService的状态
 	availableController, err := statuscontrollers.NewAvailableConditionController(
 		informerFactory.Apiregistration().V1().APIServices(),
 		c.GenericConfig.SharedInformerFactory.Core().V1().Services(),
@@ -350,6 +350,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 			if err != nil {
 				return err
 			}
+			// TODO 轮询检测kube-aggregator Lease是否出现 只有当Lease对象查询到了才会继续往下执行
 			if err := wait.PollImmediateUntil(100*time.Millisecond, func() (bool, error) {
 				_, err := kubeClient.CoordinationV1().Leases(metav1.NamespaceSystem).Get(
 					context.TODO(), s.GenericAPIServer.APIServerID, metav1.GetOptions{})

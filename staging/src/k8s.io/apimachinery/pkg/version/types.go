@@ -19,6 +19,7 @@ package version
 // Info contains versioning information.
 // TODO: Add []string of api versions supported? It's still unclear
 // how we'll want to distribute that information.
+// TODO K8S的版本信息，包括K8S的版本，Git版本，Go版本，编译平台等等
 type Info struct {
 	Major        string `json:"major"`
 	Minor        string `json:"minor"`

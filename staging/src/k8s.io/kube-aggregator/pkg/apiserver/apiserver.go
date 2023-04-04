@@ -216,9 +216,11 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	}
 
 	s := &APIAggregator{
-		GenericAPIServer:           genericServer,
-		delegateHandler:            delegationTarget.UnprotectedHandler(),
-		proxyTransport:             c.ExtraConfig.ProxyTransport,
+		GenericAPIServer: genericServer,
+		// 这里委派的应该就是APIServer
+		delegateHandler: delegationTarget.UnprotectedHandler(),
+		proxyTransport:  c.ExtraConfig.ProxyTransport,
+		// 代理
 		proxyHandlers:              map[string]*proxyHandler{},
 		handledGroups:              sets.String{},
 		lister:                     informerFactory.Apiregistration().V1().APIServices().Lister(),
@@ -232,7 +234,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	}
 
 	// used later  to filter the served resource by those that have expired.
-	// TODO ResourceExpirationEvaluator干了啥？
+	// TODO ResourceExpirationEvaluator干了啥？ 似乎是为了评估某个版本是否支持某个版本
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*c.GenericConfig.Version)
 	if err != nil {
 		return nil, err
@@ -245,6 +247,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
+	// 检查 apiregistration.k8s.io的v1版本是否启用，没有启用的话直接退出
 	enabledVersions := sets.NewString()
 	for v := range apiGroupInfo.VersionedResourcesStorageMap {
 		enabledVersions.Insert(v)
@@ -253,6 +256,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, fmt.Errorf("API group/version %s must be enabled", v1.SchemeGroupVersion.String())
 	}
 
+	// 为了暴露/apis 路由
 	apisHandler := &apisHandler{
 		codecs:         aggregatorscheme.Codecs,
 		lister:         s.lister,
@@ -263,7 +267,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
 	// APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
-	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler
+	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 	if len(c.ExtraConfig.ProxyClientCertFile) > 0 && len(c.ExtraConfig.ProxyClientKeyFile) > 0 {
 		// TODO 这里面是在干嘛？似乎是和证书相关的东西
@@ -278,6 +282,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		if err := aggregatorProxyCerts.RunOnce(ctx); err != nil {
 			return nil, err
 		}
+		// TODO 这里又是在干啥？
 		aggregatorProxyCerts.AddListener(apiserviceRegistrationController)
 		s.proxyCurrentCertKeyContent = aggregatorProxyCerts.CurrentCertKeyContent
 
@@ -298,7 +303,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		})
 	}
 
-	// TODO AvailableConditionController原理是啥？
+	// TODO AvailableConditionController原理是啥？  应该是为了评估APIService指向的服务是否可用
 	availableController, err := statuscontrollers.NewAvailableConditionController(
 		informerFactory.Apiregistration().V1().APIServices(),
 		c.GenericConfig.SharedInformerFactory.Core().V1().Services(),
@@ -333,10 +338,10 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil
 	})
 
-	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) &&
-		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
+	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.StorageVersionAPI) && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
 		// Spawn a goroutine in aggregator apiserver to update storage version for
 		// all built-in resources
+		// TODO 这里在干嘛？
 		s.GenericAPIServer.AddPostStartHookOrDie(StorageVersionPostStartHookName, func(hookContext genericapiserver.PostStartHookContext) error {
 			// Wait for apiserver-identity to exist first before updating storage
 			// versions, to avoid storage version GC accidentally garbage-collecting

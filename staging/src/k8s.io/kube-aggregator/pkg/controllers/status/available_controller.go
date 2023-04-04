@@ -64,7 +64,7 @@ type ServiceResolver interface {
 }
 
 // AvailableConditionController handles checking the availability of registered API services.
-// TODO 从名字上来看，这个Controller因该是用来判断APIServer是否可以用的吧？？？？？
+// TODO 从名字上来看，这个Controller因该是用来判断APIService是否可以用的吧？？？？？
 type AvailableConditionController struct {
 	apiServiceClient apiregistrationclient.APIServicesGetter
 

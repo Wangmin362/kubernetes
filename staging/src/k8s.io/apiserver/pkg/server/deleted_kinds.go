@@ -32,7 +32,9 @@ import (
 
 // resourceExpirationEvaluator holds info for deciding if a particular rest.Storage needs to excluded from the API
 type resourceExpirationEvaluator struct {
+	// K8S的主版本
 	currentMajor int
+	// K8S的次版本
 	currentMinor int
 	isAlpha      bool
 	// This is usually set for testing for which tests need to be removed.  This prevent insta-failing CI.

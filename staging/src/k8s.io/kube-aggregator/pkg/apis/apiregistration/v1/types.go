@@ -54,7 +54,7 @@ type APIServiceSpec struct {
 	// If the Service is nil, that means the handling for the API groupversion is handled locally on this server.
 	// The call will simply delegate to the normal handler chain to be fulfilled.
 	// +optional
-	// TODO 服务地址
+	// TODO 服务地址 当Service为nil的时候，说明是本地服务，一般来说就是APIServer和Extension
 	Service *ServiceReference `json:"service,omitempty" protobuf:"bytes,1,opt,name=service"`
 	// Group is the API group name this server hosts
 	Group string `json:"group,omitempty" protobuf:"bytes,2,opt,name=group"`

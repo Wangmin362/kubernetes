@@ -36,6 +36,7 @@ import (
 
 // apisHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
+// TODO 为了暴露/apis路由
 type apisHandler struct {
 	codecs         serializer.CodecFactory
 	lister         listers.APIServiceLister
@@ -67,7 +68,6 @@ func discoveryGroup(enabledVersions sets.String) metav1.APIGroup {
 	return retval
 }
 
-// TODO 原理是啥？
 func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	discoveryGroupList := &metav1.APIGroupList{
 		// always add OUR api group to the list first.  Since we'll never have a registered APIService for it

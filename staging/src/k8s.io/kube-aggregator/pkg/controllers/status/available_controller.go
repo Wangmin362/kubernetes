@@ -124,6 +124,7 @@ func (c *tlsTransportCache) get(config *rest.Config) (http.RoundTripper, error) 
 	if t, ok := c.transports[key]; ok {
 		return t, nil
 	}
+	// 如果不存在，就自己实例化一个
 	restTransport, err := rest.TransportFor(config)
 	if err != nil {
 		return nil, err
@@ -280,13 +281,17 @@ func (c *AvailableConditionController) sync(key string) error {
 
 	// local API services are always considered available
 	if apiService.Spec.Service == nil {
+		// Local服务默认认为是可以使用的
 		apiregistrationv1apihelper.SetAPIServiceCondition(apiService, apiregistrationv1apihelper.NewLocalAvailableAPIServiceCondition())
+		// 更新APIService资源的状态
 		_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
 		return err
 	}
 
+	// 查找到Server对应的Service
 	service, err := c.serviceLister.Services(apiService.Spec.Service.Namespace).Get(apiService.Spec.Service.Name)
 	if apierrors.IsNotFound(err) {
+		// 如果没有找到，认为APIService是不可用的
 		availableCondition.Status = apiregistrationv1.ConditionFalse
 		availableCondition.Reason = "ServiceNotFound"
 		availableCondition.Message = fmt.Sprintf("service/%s in %q is not present", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
@@ -302,6 +307,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		return err
 	}
 
+	// 如果Service是ClusterIP类型
 	if service.Spec.Type == v1.ServiceTypeClusterIP {
 		// if we have a cluster IP service, it must be listening on configured port and we can check that
 		servicePort := apiService.Spec.Service.Port
@@ -314,6 +320,7 @@ func (c *AvailableConditionController) sync(key string) error {
 				break
 			}
 		}
+		// Service都没有暴露该端口，那么服务一定不可用
 		if !foundPort {
 			availableCondition.Status = apiregistrationv1.ConditionFalse
 			availableCondition.Reason = "ServicePortError"
@@ -323,6 +330,7 @@ func (c *AvailableConditionController) sync(key string) error {
 			return err
 		}
 
+		// 查询Service对应的Endpoint
 		endpoints, err := c.endpointsLister.Endpoints(apiService.Spec.Service.Namespace).Get(apiService.Spec.Service.Name)
 		if apierrors.IsNotFound(err) {
 			availableCondition.Status = apiregistrationv1.ConditionFalse
@@ -362,6 +370,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		}
 	}
 	// actually try to hit the discovery endpoint when it isn't local and when we're routing as a service.
+	// 只有可能Local服务才为空
 	if apiService.Spec.Service != nil && c.serviceResolver != nil {
 		attempts := 5
 		results := make(chan error, attempts)
@@ -390,6 +399,7 @@ func (c *AvailableConditionController) sync(key string) error {
 
 					// setting the system-masters identity ensures that we will always have access rights
 					transport.SetAuthProxyHeaders(newReq, "system:kube-aggregator", []string{"system:masters"}, nil)
+					// 发送HTTP请求
 					resp, err := discoveryClient.Do(newReq)
 					if resp != nil {
 						resp.Body.Close()
@@ -445,6 +455,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		}
 	}
 
+	// 服务没有任何异常
 	availableCondition.Reason = "Passed"
 	availableCondition.Message = "all checks passed"
 	apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)

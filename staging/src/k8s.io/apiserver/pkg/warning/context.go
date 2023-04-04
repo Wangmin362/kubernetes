@@ -39,6 +39,7 @@ type Recorder interface {
 // WithWarningRecorder returns a new context that wraps the provided context and contains the provided Recorder implementation.
 // The returned context can be passed to AddWarning().
 func WithWarningRecorder(ctx context.Context, recorder Recorder) context.Context {
+	// TODO 为什么ctx的key都是0，1这样的数字，而不适用字符串？
 	return context.WithValue(ctx, warningRecorderKey, recorder)
 }
 func warningRecorderFrom(ctx context.Context) (Recorder, bool) {

@@ -25,6 +25,7 @@ import (
 func WithCacheControl(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		// Set the cache-control header if it is not already set
+		// TODO http的Cache-control是干嘛用的？
 		if _, ok := w.Header()["Cache-Control"]; !ok {
 			w.Header().Set("Cache-Control", "no-cache, private")
 		}

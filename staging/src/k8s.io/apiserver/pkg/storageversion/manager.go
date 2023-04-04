@@ -34,15 +34,19 @@ import (
 // ResourceInfo contains the information to register the resource to the
 // storage version API.
 type ResourceInfo struct {
+	// 用于表明是当前哪个group version的资源信息
 	GroupResource schema.GroupResource
 
+	// TODO 什么叫做EncodingVersion
 	EncodingVersion string
 	// Used to calculate decodable versions. Can only be used after all
 	// equivalent versions are registered by InstallREST.
+	// TODO 什么叫做等效资源？ 应该是说的是某些资源同时在多个组下面，这些资源是因为历史的原因后来被移到了另外的组
 	EquivalentResourceMapper runtime.EquivalentResourceRegistry
 
 	// DirectlyDecodableVersions is a list of versions that the converter for REST storage knows how to convert.  This
 	// contains items like apiextensions.k8s.io/v1beta1 even if we don't serve that version.
+	// TODO 这个属性干嘛用的？
 	DirectlyDecodableVersions []schema.GroupVersion
 }
 
@@ -101,6 +105,7 @@ func (s *defaultManager) AddResourceInfo(resources ...*ResourceInfo) {
 }
 
 func (s *defaultManager) addPendingManagedStatusLocked(r *ResourceInfo) {
+	// TODO 这里实在干嘛？
 	gvrs := r.EquivalentResourceMapper.EquivalentResourcesFor(r.GroupResource.WithVersion(""), "")
 	for _, gvr := range gvrs {
 		gr := gvr.GroupResource()

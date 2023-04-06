@@ -146,11 +146,13 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	if err != nil {
 		return nil, err
 	}
-	// TODO ?
+	// TODO 监听APIServiceInformer，注册发现的APIService服务
+	// TODO autoRegistrationController被称之为APIService的注册中心，ApiServer以及ExtensionServer的API都会注册进来
 	autoRegistrationController := autoregister.NewAutoRegisterController(aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
-	// TODO 这里相当重要，这里就是把APIServer以及ExtensionServer转为了AggregatorServer的APIService
+	// TODO 这里相当重要，这里就是把APIServer的所有API转为了AggregatorServer的APIService
+	// TODO APIServer的API不需要动态注册，因为APIServer是固定的，不会动态修改
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
-	// TODO 由于ExtensionServer就是我们常说的CRD，而CRD会被增删改查，因此需要动态注册为APIService
+	// TODO ExtensionServer就是我们常说的CRD，由于CRD会被增删改查，因此需要同步增删改查对应的APIService
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),
 		autoRegistrationController)
@@ -163,6 +165,7 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 			// this prevents the autoregistration controller's initial sync from deleting APIServices for CRDs that still exist.
 			// we only need to do this if CRDs are enabled on this server.  We can't use discovery because we are the source for discovery.
 			if aggregatorConfig.GenericConfig.MergedResourceConfig.ResourceEnabled(apiextensionsv1.SchemeGroupVersion.WithResource("customresourcedefinitions")) {
+				// 等待CRD初始化同步完成
 				crdRegistrationController.WaitForInitialSync()
 			}
 			autoRegistrationController.Run(5, context.StopCh)
@@ -173,6 +176,7 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 		return nil, err
 	}
 
+	// TODO 检测APIServer的所有API是否健康
 	err = aggregatorServer.GenericAPIServer.AddBootSequenceHealthChecks(
 		makeAPIServiceAvailableHealthCheck(
 			"autoregister-completion",
@@ -300,14 +304,17 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 	// Version can be set to 9 (to have space around) for a new group.
 }
 
+// 把DelegateServer的所有路径注册为APIService,实际上这里的DelegateAPIServer就是APIServer
 func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 	registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
 	var apiServices []*v1.APIService
 
 	for _, curr := range delegateAPIServer.ListedPaths() {
-		// TODO APIServer的Legacy API
+		// APIServer的Legacy API
 		if curr == "/api/v1" {
+			// 生成APIService
 			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"})
+			// 注册到注册中心
 			registration.AddAPIServiceToSyncOnStart(apiService)
 			apiServices = append(apiServices, apiService)
 			continue
@@ -323,10 +330,12 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 			continue
 		}
 
+		// 生成APIService
 		apiService := makeAPIService(schema.GroupVersion{Group: tokens[2], Version: tokens[3]})
 		if apiService == nil {
 			continue
 		}
+		// 注册到注册中心当中
 		registration.AddAPIServiceToSyncOnStart(apiService)
 		apiServices = append(apiServices, apiService)
 	}

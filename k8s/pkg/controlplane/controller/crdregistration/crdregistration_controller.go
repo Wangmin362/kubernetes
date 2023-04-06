@@ -61,13 +61,15 @@ type crdRegistrationController struct {
 
 // NewCRDRegistrationController returns a controller which will register CRD GroupVersions with the auto APIService registration
 // controller so they automatically stay in sync.
+// TODO 该Controller根据CRD的增删改查同步生成对应的APIService，并把生成好的APIService推送到APIServiceRegistration当中
 func NewCRDRegistrationController(crdinformer crdinformers.CustomResourceDefinitionInformer, apiServiceRegistration AutoAPIServiceRegistration) *crdRegistrationController {
 	c := &crdRegistrationController{
 		crdLister:              crdinformer.Lister(),
 		crdSynced:              crdinformer.Informer().HasSynced,
 		apiServiceRegistration: apiServiceRegistration,
 		syncedInitialSet:       make(chan struct{}),
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "crd_autoregistration_controller"),
+		// 存放的是schema.GroupVersion
+		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "crd_autoregistration_controller"),
 	}
 	c.syncHandler = c.handleVersionUpdate
 
@@ -219,11 +221,13 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 					VersionPriority:      100,  // CRDs will be sorted by kube-like versions like any other APIService with the same VersionPriority
 				},
 			})
+			// APIService添加完成，就退出
 			return nil
 		}
 	}
 
-	// TODO 为啥这里又要移除？
+	// TODO 为啥这里又要移除？  没看懂啊
+	// 答： 因为逻辑到了这里，所有的CRD都没有找到当前的group, version,说明这个CRD已经被删除了，所以需要同步删除
 	c.apiServiceRegistration.RemoveAPIServiceToSync(apiServiceName)
 	return nil
 }

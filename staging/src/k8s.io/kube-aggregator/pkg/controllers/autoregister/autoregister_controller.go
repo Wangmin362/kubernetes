@@ -42,12 +42,14 @@ import (
 
 const (
 	// AutoRegisterManagedLabel is a label attached to the APIService that identifies how the APIService wants to be synced.
-	// TODO 这个注解有啥用？
+	// TODO 这个注解有啥用？ 答：通过ApiServer以及ExtesionServer的API创建的APIService会打赏这个标签，值为onstart以及true其中的一个
 	AutoRegisterManagedLabel = "kube-aggregator.kubernetes.io/automanaged"
 
 	// manageOnStart is a value for the AutoRegisterManagedLabel that indicates the APIService wants to be synced one time when the controller starts.
+	// TODO 通过APIServer的API生成的APIService会打上 kube-aggregator.kubernetes.io/automanaged=onstart的注解
 	manageOnStart = "onstart"
 	// manageContinuously is a value for the AutoRegisterManagedLabel that indicates the APIService wants to be synced continuously.
+	// TODO 通过ExtensionServer的API生成的APIService会打上kube-aggregator.kubernetes.io/automanaged=true的注解
 	manageContinuously = "true"
 )
 
@@ -71,14 +73,17 @@ type autoRegisterController struct {
 	apiServiceClient apiregistrationclient.APIServicesGetter
 
 	apiServicesToSyncLock sync.RWMutex
-	// TODO 核心就是这里了
+	// TODO 核心就是这里了 key为APIService的名字 这个属性中记录的是所有需要同步创建的APIService
+	// TODO 这里的来源只有两种：1、来自于APIServer的API  2、来自于ExtesionServer的API
 	apiServicesToSync map[string]*v1.APIService
 
 	syncHandler func(apiServiceName string) error
 
 	// track which services we have synced
 	syncedSuccessfullyLock *sync.RWMutex
-	// syncHandler会修改这个属性
+	// 判断APIService是否已经同步成功，key为APIService的名字
+	// TODO Sync表达了什么含义？意思是路由注册成功？
+	// 答：Sync表示已经成功创建了APIService, 并不表表示路由注册成功
 	syncedSuccessfully map[string]bool
 
 	// remember names of services that existed when we started
@@ -104,6 +109,7 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer,
 		syncedSuccessfullyLock: &sync.RWMutex{},
 		syncedSuccessfully:     map[string]bool{},
 
+		// 存放的是APIService
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoregister"),
 	}
 	c.syncHandler = c.checkAPIService
@@ -112,8 +118,10 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer,
 	apiServiceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cast := obj.(*v1.APIService)
+			// APIService是Cluster级别的资源，直接放名字即可
 			c.queue.Add(cast.Name)
 		},
+		// TODO 为什么这里又不需要关心oldObj
 		UpdateFunc: func(_, obj interface{}) {
 			cast := obj.(*v1.APIService)
 			c.queue.Add(cast.Name)
@@ -150,6 +158,7 @@ func (c *autoRegisterController) Run(workers int, stopCh <-chan struct{}) {
 	defer klog.Info("Shutting down autoregister controller")
 
 	// wait for your secondary caches to fill before starting your work
+	// 等待APIService同步完成
 	if !controllers.WaitForCacheSync("autoregister", stopCh, c.apiServiceSynced) {
 		return
 	}
@@ -222,9 +231,9 @@ func (c *autoRegisterController) processNextWorkItem() bool {
 // 5. current: sync on start, present at start     | delete once           | update once               | update once
 // 6. current: sync always                         | delete                | update once               | update
 func (c *autoRegisterController) checkAPIService(name string) (err error) {
-	// 从apiServicesToSync这个Map中获取
+	// 从apiServicesToSync这个Map中获取，判断APIService注册没有，找到了就是已经注册过
 	desired := c.GetAPIServiceToSync(name)
-	// 查询informer，通过名字查询APIService
+	// 查询informer，通过名字查询APIService，实际上可以理解为就是查询的apiserver
 	curr, err := c.apiServiceLister.Get(name)
 
 	// if we've never synced this service successfully, record a successful sync.
@@ -232,7 +241,7 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 	hasSynced := c.hasSyncedSuccessfully(name)
 	if !hasSynced {
 		defer func() {
-			if err == nil {
+			if err == nil { // 没有错误，说明Sync成功
 				c.setSyncedSuccessfully(name)
 			}
 		}()
@@ -254,6 +263,7 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 
 	// we don't have an entry and we do want one (2B,2C)
 	case apierrors.IsNotFound(err) && desired != nil:
+		// TODO 没有找到的话就创建一个APIService，LegacyAPI以及ExtensionServer应该都会进入到这里
 		_, err := c.apiServiceClient.APIServices().Create(context.TODO(), desired, metav1.CreateOptions{})
 		if apierrors.IsAlreadyExists(err) {
 			// created in the meantime, we'll get called again

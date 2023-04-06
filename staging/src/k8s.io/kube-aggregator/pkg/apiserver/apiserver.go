@@ -304,7 +304,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		})
 	}
 
-	// TODO AvailableConditionController为了评估APIService指向的服务是否可用，并且修改APIService的状态
+	// TODO 为了评估APIService指向的服务是否可用，并且修改APIService的状态
 	availableController, err := statuscontrollers.NewAvailableConditionController(
 		informerFactory.Apiregistration().V1().APIServices(),
 		c.GenericConfig.SharedInformerFactory.Core().V1().Services(),

@@ -125,6 +125,7 @@ type APIAggregator struct {
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
 	// provided for easier embedding
+	// APIServiceInformer
 	APIRegistrationInformers informers.SharedInformerFactory
 
 	// TODO 猜测这个属性就是ApiServer，因为当aggregator server无法处理的时候，它应该委派给ApiServer
@@ -217,10 +218,10 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 
 	s := &APIAggregator{
 		GenericAPIServer: genericServer,
-		// 这里委派的应该就是APIServer
+		// Aggregator无法处理的请求交给APIServer
 		delegateHandler: delegationTarget.UnprotectedHandler(),
 		proxyTransport:  c.ExtraConfig.ProxyTransport,
-		// 代理
+		// 代理Handler
 		proxyHandlers:              map[string]*proxyHandler{},
 		handledGroups:              sets.String{},
 		lister:                     informerFactory.Apiregistration().V1().APIServices().Lister(),
@@ -234,7 +235,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	}
 
 	// used later  to filter the served resource by those that have expired.
-	// TODO ResourceExpirationEvaluator干了啥？ 似乎是为了评估某个版本是否支持某个版本
+	// TODO ResourceExpirationEvaluator干了啥？ 似乎是为了评估K8S某个版本是否支持某个API版本
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*c.GenericConfig.Version)
 	if err != nil {
 		return nil, err

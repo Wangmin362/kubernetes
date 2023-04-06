@@ -134,7 +134,7 @@ func createAggregatorConfig(
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget,
 	apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
-	// TODO 实例化AggregatorServer，重点应该分析WithDelegate
+	// TODO 这里相当重要， aggregator-server会监听APIService并且会把APIService转为路由
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err

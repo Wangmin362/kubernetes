@@ -54,7 +54,7 @@ import (
 )
 
 func createAggregatorConfig(
-	kubeAPIServerConfig genericapiserver.Config,
+	kubeAPIServerConfig genericapiserver.Config, // 拷贝了一个generic-apiserver-config
 	commandOptions *options.ServerRunOptions,
 	externalInformers kubeexternalinformers.SharedInformerFactory,
 	serviceResolver aggregatorapiserver.ServiceResolver,

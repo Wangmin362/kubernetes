@@ -305,10 +305,10 @@ type GenericAPIServer struct {
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
 // TODO 如何理解委派目标这个接口的设计？ k8s为啥设计了这么多的接口方法？
-// TODO 实际上GenericAPIServer就是一个委派目标
+// TODO 实际上GenericAPIServer就是DelegationTarget的一个实现
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
-	// TODO 什么叫做未保护的Handler? 未保护的Handler似乎意味着不做认证、鉴权
+	// TODO 什么叫做未保护的Handler? 未保护的Handler意味着不做认证、鉴权、审计相关动作
 	UnprotectedHandler() http.Handler
 
 	// PostStartHooks returns the post-start hooks that need to be combined
@@ -332,6 +332,7 @@ type DelegationTarget interface {
 	PrepareRun() preparedGenericAPIServer
 
 	// MuxAndDiscoveryCompleteSignals exposes registered signals that indicate if all known HTTP paths have been installed.
+	// TODO 如何理解这里的设计？
 	MuxAndDiscoveryCompleteSignals() map[string]<-chan struct{}
 
 	// Destroy cleans up its resources on shutdown.
@@ -595,6 +596,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		}
 	}
 
+	// TODO 重点是这个
 	stoppedCh, listenerStoppedCh, err := s.NonBlockingRun(stopHttpServerCh, shutdownTimeout)
 	if err != nil {
 		return err

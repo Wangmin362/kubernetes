@@ -63,6 +63,7 @@ type APIServiceSpec struct {
 
 	// InsecureSkipTLSVerify disables TLS certificate verification when communicating with this server.
 	// This is strongly discouraged.  You should use the CABundle instead.
+	// TODO 跳过证书校验，不过这个字段已经被弃用
 	InsecureSkipTLSVerify bool `json:"insecureSkipTLSVerify,omitempty" protobuf:"varint,4,opt,name=insecureSkipTLSVerify"`
 	// CABundle is a PEM encoded CA bundle which will be used to validate an API server's serving certificate.
 	// If unspecified, system trust roots on the apiserver are used.

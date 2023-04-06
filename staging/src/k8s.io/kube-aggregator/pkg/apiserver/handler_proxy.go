@@ -121,7 +121,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	handlingInfo := value.(proxyHandlingInfo)
-	// 如果找到了代理信息，但是是Local的还是委派给LocalDelegate
+	// 如果当前要处理的是ApiServer或者是ExtensionServer的API，那么直接委派即可
 	if handlingInfo.local {
 		if r.localDelegate == nil {
 			http.Error(w, "", http.StatusNotFound)
@@ -133,7 +133,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// 否则就是APIService
 
-	if !handlingInfo.serviceAvailable {
+	if !handlingInfo.serviceAvailable { // 服务不可用，直接报错
 		proxyError(w, req, "service unavailable", http.StatusServiceUnavailable)
 		return
 	}
@@ -143,6 +143,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 获取用户信息
 	user, ok := genericapirequest.UserFrom(req.Context())
 	if !ok {
 		proxyError(w, req, "missing user", http.StatusInternalServerError)
@@ -160,9 +161,11 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	// APIService的endpoint
 	location.Host = rloc.Host
-	// 代理路径
+	// 代理URL设置
 	location.Path = req.URL.Path
+	// 代理参数设置
 	location.RawQuery = req.URL.Query().Encode()
+	// TODO 为什么没有BODY的设置？
 
 	newReq, cancelFn := newRequestForProxy(location, req)
 	defer cancelFn()
@@ -189,7 +192,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		handler.RejectForwardingRedirects = true
 	}
 	utilflowcontrol.RequestDelegated(req.Context())
-	// 执行代理
+	// 执行代理，代理的结果直接写入到w当中
 	handler.ServeHTTP(w, newReq)
 }
 
@@ -242,12 +245,14 @@ func (r *responder) Error(_ http.ResponseWriter, _ *http.Request, err error) {
 // these methods provide locked access to fields
 
 func (r *proxyHandler) updateAPIService(apiService *apiregistrationv1api.APIService) {
-	// TODO 应该只有当注册APIServer到AggregatorServer中时才会进入这个逻辑吧
+	// TODO ApiServer以及ExtensionServer的Service都是nil,所以都是本地服务
 	if apiService.Spec.Service == nil {
+		// 由于是Local,所以其余属性并不需要，因为并不需要aggregator-server处理，只需要它透传即可
 		r.handlingInfo.Store(proxyHandlingInfo{local: true})
 		return
 	}
 
+	// 证书，所以自定义的AggregatorServer必须是HTTPS服务
 	proxyClientCert, proxyClientKey := r.proxyCurrentCertKeyContent()
 
 	// 实例化clientset客户端

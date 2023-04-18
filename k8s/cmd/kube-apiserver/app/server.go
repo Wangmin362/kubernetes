@@ -415,8 +415,8 @@ func buildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
-	// 实例化一个generic apiserver配置
-	// TODO 重点关注 DefaultBuildHandlerChain
+	// 实例化generic apiserver配置,该配置基本可以认为是一个空的配置,仅仅配置了一些默认的参数，用户配置的参数通过下面的Apply机制进行初始化
+	// TODO 重点关注BuildHandlerChainFunc属性的初始化，也就是DefaultBuildHandlerChain函数
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 	// 默认启用稳定版本的资源，譬如v1, v2，禁用处于beta, alpha阶段的资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()

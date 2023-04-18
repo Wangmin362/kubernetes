@@ -32,6 +32,7 @@ import (
 )
 
 // LongRunningRequestCheck is a predicate which is true for long-running http requests.
+// TODO 如何理解这个函数，它检查了啥？
 type LongRunningRequestCheck func(r *http.Request, requestInfo *RequestInfo) bool
 
 type RequestInfoResolver interface {
@@ -40,6 +41,7 @@ type RequestInfoResolver interface {
 }
 
 // RequestInfo holds information parsed from the http.Request
+// 请求信息通过解析标准的 http.Request 获取
 type RequestInfo struct {
 	// IsResourceRequest indicates whether or not the request is for an API resource or subresource
 	// 当前请求是否是请求K8S资源或者是子资源
@@ -58,6 +60,7 @@ type RequestInfo struct {
 	APIVersion string
 	Namespace  string
 	// Resource is the name of the resource being requested.  This is not the kind.  For example: pods
+	// 请求哪个资源，这个应该相当重要
 	Resource string
 	// Subresource is the name of the subresource being requested.  This is a different resource, scoped to the parent resource, but it may have a different kind.
 	// For instance, /pods has the resource "pods" and the kind "Pod", while /pods/foo/status has the resource "pods", the sub resource "status", and the kind "Pod"
@@ -73,6 +76,7 @@ type RequestInfo struct {
 // CRUDdy GET/POST/PUT/DELETE actions on REST objects.
 // TODO: find a way to keep this up to date automatically.  Maybe dynamically populate list as handlers added to
 // master's Mux.
+// TODO K8S对于proxy以及watch两个动作做了什么特殊处理？
 var specialVerbs = sets.NewString("proxy", "watch")
 
 // specialVerbsNoSubresources contains root verbs which do not allow subresources

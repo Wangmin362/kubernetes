@@ -122,17 +122,17 @@ type Config struct {
 	// to set values and determine whether its allowed
 	// 准入控制
 	AdmissionControl admission.Interface
-	// TODO CROS控制
+	// TODO CORS控制
 	CorsAllowedOriginList []string
-	// TODO 啥事HSTS
+	// TODO 啥是HSTS
 	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
 	// TODO apiserver的流控到底是怎么设计的?
 	FlowControl utilflowcontrol.Interface
 
-	// TODO 这玩意有啥用？和Informer是否有关？ 答：和informer并不相关 这里的index指的是K8S首页面
+	// 这玩意有啥用？和Informer是否有关？ 答：和informer并不相关 这里的index指的是K8S首页面
 	EnableIndex bool
-	// TODO 什么叫做Profiling?  实际上就是开启了/debug/pprof/相关的api
+	// 什么叫做Profiling?  实际上就是开启了/debug/pprof/相关的api
 	EnableProfiling bool
 	// TODO 发现是发现的啥？
 	EnableDiscovery bool
@@ -141,8 +141,10 @@ type Config struct {
 	EnableContentionProfiling bool
 	EnableMetrics             bool
 
+	// TODO 禁用的后置处理器的名称集合
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
+	// TODO 后置处理器，发生在哪个时间点？
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
@@ -165,7 +167,7 @@ type Config struct {
 	//===========================================================================
 
 	// BuildHandlerChainFunc allows you to build custom handler chains by decorating the apiHandler.
-	// todo 构建请求链，主要是认证、限速、鉴权
+	// TODO 构建请求链，主要是认证、限速、鉴权、审计、CORS、日志
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// HandlerChainWaitGroup allows you to wait for all chain handlers exit after the server shutdown.
 	HandlerChainWaitGroup *utilwaitgroup.SafeWaitGroup
@@ -188,7 +190,7 @@ type Config struct {
 	RequestInfoResolver apirequest.RequestInfoResolver
 	// Serializer is required and provides the interface for serializing and converting objects to and from the wire
 	// The default (api.Codecs) usually works fine.
-	// 序列化、反序列化
+	// 资源的序列化、反序列化，因为数据最终是需要存储到ETCD的，所以必须要把资源数据系列化为byte数组
 	Serializer runtime.NegotiatedSerializer
 	// OpenAPIConfig will be used in generating OpenAPI spec. This is nil by default. Use DefaultOpenAPIConfig for "working" defaults.
 	OpenAPIConfig *openapicommon.Config
@@ -228,9 +230,11 @@ type Config struct {
 	MaxRequestBodyBytes int64
 	// MaxRequestsInFlight is the maximum number of parallel non-long-running requests. Every further
 	// request has to wait. Applies only to non-mutating requests.
+	// TODO apiserver限速相关
 	MaxRequestsInFlight int
 	// MaxMutatingRequestsInFlight is the maximum number of parallel mutating requests. Every further
 	// request has to wait.
+	// TODO apiserver限速相关
 	MaxMutatingRequestsInFlight int
 	// Predicate which is true for paths of long-running http requests
 	// 譬如log, watch, exec, proxy等等操作
@@ -245,7 +249,7 @@ type Config struct {
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
 	// This is composed of genericapiserver defaultAPIResourceConfig and those parsed from flags.
 	// If not specify any in flags, then genericapiserver will only enable defaultAPIResourceConfig.
-	// TODO 用于标识K8S资源或者子资源的启用或者禁用
+	// 用于标识K8S资源或者子资源的启用或者禁用
 	MergedResourceConfig *serverstore.ResourceConfig
 
 	// lifecycleSignals provides access to the various signals
@@ -255,6 +259,7 @@ type Config struct {
 
 	// StorageObjectCountTracker is used to keep track of the total number of objects
 	// in the storage per resource, so we can estimate width of incoming requests.
+	// TODO 似乎是和流控相关
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -280,9 +285,11 @@ type Config struct {
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// APIServerID is the ID of this API server
+	// TODO API的ID是用来干嘛的？
 	APIServerID string
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
+	// TODO 这玩意干嘛的？
 	StorageVersionManager storageversion.Manager
 }
 
@@ -307,6 +314,7 @@ type SecureServingInfo struct {
 
 	// Cert is the main server cert which is used if SNI does not match. Cert must be non-nil and is
 	// allowed to be in SNICerts.
+	// TODO 如何理解这个属性，这个属性干嘛的？
 	Cert dynamiccertificates.CertKeyContentProvider
 
 	// SNICerts are the TLS certificates used for SNI.
@@ -321,10 +329,12 @@ type SecureServingInfo struct {
 
 	// CipherSuites optionally overrides the list of allowed cipher suites for the server.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// TLS加密套件
 	CipherSuites []uint16
 
 	// HTTP2MaxStreamsPerConnection is the limit that the api server imposes on each client.
 	// A value of zero means to use the default provided by golang's HTTP/2 support.
+	// TODO 这个属性干嘛的？
 	HTTP2MaxStreamsPerConnection int
 
 	// DisableHTTP2 indicates that http2 should not be enabled.
@@ -395,6 +405,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 
 		// Default to treating watch as a long-running operation
 		// Generic API servers have no inherent long-running subresources
+		// TODO 为什么默认只有Watch操作被认为是长时间的请求，为什么没有EXEC? 是因为EXEC可以被禁用？
 		LongRunningFunc:           genericfilters.BasicLongRunningRequestCheck(sets.NewString("watch"), sets.NewString()),
 		lifecycleSignals:          lifecycleSignals,
 		StorageObjectCountTracker: flowcontrolrequest.NewStorageObjectCountTracker(),

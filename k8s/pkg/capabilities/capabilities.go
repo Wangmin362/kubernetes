@@ -46,6 +46,7 @@ type PrivilegedSources struct {
 	HostIPCSources []string
 }
 
+// TODO 牛逼，居然还有这种写法，直接定义一个变量，但是这个结构体类型只在这里使用一次
 var capInstance struct {
 	once         sync.Once
 	lock         sync.Mutex

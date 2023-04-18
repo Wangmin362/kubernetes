@@ -41,6 +41,7 @@ func (s *SecureServingOptionsWithLoopback) ApplyTo(secureServingInfo **server.Se
 		return nil
 	}
 
+	// 设置端口、协议等等
 	if err := s.SecureServingOptions.ApplyTo(secureServingInfo); err != nil {
 		return err
 	}

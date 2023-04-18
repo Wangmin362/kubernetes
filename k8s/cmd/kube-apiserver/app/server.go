@@ -294,7 +294,6 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	}
 
 	// TODO linux的capabilities
-	// TODO 怎么没有看懂这里的写法，似乎没啥用啊
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: s.AllowPrivileged,
 		// TODO(vmarmol): Implement support for HostNetworkSources.
@@ -427,6 +426,7 @@ func buildGenericConfig(
 	}
 
 	// TODO 配置HTTPS、证书相关的
+	// LoopbackClientConfig实际上就是k8s clientset配置
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
@@ -456,7 +456,8 @@ func buildGenericConfig(
 		genericConfig.OpenAPIV3Config.Info.Title = "Kubernetes"
 	}
 
-	// todo 什么叫做langRunningRequest? 从下面代码中可以猜测应该是需要长时间建立TCP连接的操作
+	// 什么叫做langRunningRequest? 答：从下面代码中可以猜测应该是需要长时间建立TCP连接的操作
+	// 创建generic config的时候也对于这个属性进行了初始化，这里进行了覆盖
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
 		sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"),
@@ -501,12 +502,13 @@ func buildGenericConfig(
 	genericConfig.LoopbackClientConfig.DisableCompression = true
 
 	kubeClientConfig := genericConfig.LoopbackClientConfig
+	// 实例化clientset
 	clientgoExternalClient, err := clientgoclientset.NewForConfig(kubeClientConfig)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
 		return
 	}
-	// 实际上就是k8s clientset, 重新同步资源的时间为10分钟
+	// 实例化ShardInformerFactory, 重新同步资源的时间为10分钟
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
@@ -518,7 +520,8 @@ func buildGenericConfig(
 
 	// genericConfig.Authorization.Authorizer K8S的授权策略
 	// genericConfig.RuleResolver TODO 估计是授权策略的规则解析
-	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver, err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
+	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver,
+		err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
 		lastErr = fmt.Errorf("invalid authorization config: %v", err)
 		return
@@ -541,7 +544,8 @@ func buildGenericConfig(
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
 	// TODO 准入控制相关
-	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
+	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
+		serviceResolver, genericConfig.TracerProvider)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create admission plugin initializer: %v", err)
 		return

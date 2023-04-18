@@ -271,6 +271,7 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 		c.Cert = s.ServerCert.GeneratedCert
 	}
 
+	// TLS加密套件
 	if len(s.CipherSuites) != 0 {
 		cipherSuites, err := cliflag.TLSCipherSuites(s.CipherSuites)
 		if err != nil {
@@ -357,6 +358,7 @@ func CreateListener(network, addr string, config net.ListenConfig) (net.Listener
 		network = "tcp"
 	}
 
+	// 监听apiserver的端口，一般配置为6443端口
 	ln, err := config.Listen(context.TODO(), network, addr)
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to listen on %v: %v", addr, err)

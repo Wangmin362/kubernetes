@@ -22,6 +22,7 @@ import (
 )
 
 // SafeWaitGroup must not be copied after first use.
+// TODO 自定义这个数据结构的作用是啥？如何使用？
 type SafeWaitGroup struct {
 	wg sync.WaitGroup
 	mu sync.RWMutex

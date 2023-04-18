@@ -109,6 +109,7 @@ func NewDefaultAuthenticationInfoResolverWrapper(
 
 // AuthenticationInfoResolver builds rest.Config base on the server or service
 // name and service namespace.
+// TODO 为什么授权信息解析器会被抽象为这么两个接口？
 type AuthenticationInfoResolver interface {
 	// ClientConfigFor builds rest.Config based on the hostPort.
 	ClientConfigFor(hostPort string) (*rest.Config, error)

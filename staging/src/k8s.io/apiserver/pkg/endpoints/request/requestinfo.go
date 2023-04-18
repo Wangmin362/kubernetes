@@ -32,7 +32,9 @@ import (
 )
 
 // LongRunningRequestCheck is a predicate which is true for long-running http requests.
-// TODO 如何理解这个函数，它检查了啥？
+// 1、如何理解这个函数，它检查了啥？ 答：判断一个请求是否是长时间运行的只需要判断这个请求的动词即可（也就是requestInfo.Verb）
+// 如果发现当前请求是Watch, Exec请求，就说明当前请求是一个长时间运行的请求
+// 2、TODO K8S对于需要长时间运行的请求做了什么事情？
 type LongRunningRequestCheck func(r *http.Request, requestInfo *RequestInfo) bool
 
 type RequestInfoResolver interface {

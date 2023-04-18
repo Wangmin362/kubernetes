@@ -376,19 +376,23 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 
 // ToAuthenticationConfig convert BuiltInAuthenticationOptions to kubeauthenticator.Config
 func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticator.Config, error) {
+	// Token认证
 	ret := kubeauthenticator.Config{
 		TokenSuccessCacheTTL: o.TokenSuccessCacheTTL,
 		TokenFailureCacheTTL: o.TokenFailureCacheTTL,
 	}
 
+	// 匿名访问
 	if o.Anonymous != nil {
 		ret.Anonymous = o.Anonymous.Allow
 	}
 
+	// TODO 如何理解BootstrapToken
 	if o.BootstrapToken != nil {
 		ret.BootstrapToken = o.BootstrapToken.Enable
 	}
 
+	// TODO 如何理解这里的ClientCAContentProvider
 	if o.ClientCert != nil {
 		var err error
 		ret.ClientCAContentProvider, err = o.ClientCert.GetClientCAContentProvider()
@@ -456,6 +460,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		return nil
 	}
 
+	// TODO 认证为什么需要考虑OpenAPI配置？
 	if openAPIConfig == nil {
 		return errors.New("uninitialized OpenAPIConfig")
 	}

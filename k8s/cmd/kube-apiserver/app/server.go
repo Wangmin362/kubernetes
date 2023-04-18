@@ -421,6 +421,7 @@ func buildGenericConfig(
 	// 默认启用稳定版本的资源，譬如v1, v2，禁用处于beta, alpha阶段的资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
+	// 设置apiserver的启动参数
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
@@ -429,16 +430,18 @@ func buildGenericConfig(
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
+	// 设置apiserver的特性开关
 	if lastErr = s.Features.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
+	//
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); lastErr != nil {
 		return
 	}
 	if lastErr = s.EgressSelector.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
-	// TODO apiserver的tracing是干嘛的？
+	// TODO apiserver的tracing是干嘛的？ 应该是和分布式链路追踪有关，譬如opentelemety
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		if lastErr = s.Traces.ApplyTo(genericConfig.EgressSelector, genericConfig); lastErr != nil {
 			return
@@ -503,11 +506,13 @@ func buildGenericConfig(
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
 		return
 	}
-	// 实际上就是k8s clientset, 重新同步资源的事件为10分钟
+	// 实际上就是k8s clientset, 重新同步资源的时间为10分钟
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
-	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector, genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
+	// TODO 认证
+	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector,
+		genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
 	}
 
@@ -535,13 +540,14 @@ func buildGenericConfig(
 	}
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
-	// 准入控制相关
+	// TODO 准入控制相关
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create admission plugin initializer: %v", err)
 		return
 	}
 
+	// 准入控制相关
 	err = s.Admission.ApplyTo(
 		genericConfig,
 		versionedInformers,
@@ -553,6 +559,7 @@ func buildGenericConfig(
 		return
 	}
 
+	// TODO 流控相关，这是apiserver的限速特性
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) && s.GenericServerRunOptions.EnablePriorityAndFairness {
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}

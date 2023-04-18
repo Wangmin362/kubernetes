@@ -48,22 +48,25 @@ import (
 
 // Config contains the data on how to authenticate a request to the Kube API Server
 type Config struct {
-	Anonymous      bool
+	// 是否允许匿名访问
+	Anonymous bool
+	// TODO BootstrapToken的作用是啥？
 	BootstrapToken bool
 
-	TokenAuthFile               string
-	OIDCIssuerURL               string
-	OIDCClientID                string
-	OIDCCAFile                  string
-	OIDCUsernameClaim           string
-	OIDCUsernamePrefix          string
-	OIDCGroupsClaim             string
-	OIDCGroupsPrefix            string
-	OIDCSigningAlgs             []string
-	OIDCRequiredClaims          map[string]string
-	ServiceAccountKeyFiles      []string
-	ServiceAccountLookup        bool
-	ServiceAccountIssuers       []string
+	TokenAuthFile          string
+	OIDCIssuerURL          string
+	OIDCClientID           string
+	OIDCCAFile             string
+	OIDCUsernameClaim      string
+	OIDCUsernamePrefix     string
+	OIDCGroupsClaim        string
+	OIDCGroupsPrefix       string
+	OIDCSigningAlgs        []string
+	OIDCRequiredClaims     map[string]string
+	ServiceAccountKeyFiles []string
+	ServiceAccountLookup   bool
+	ServiceAccountIssuers  []string
+	// TODO 这玩意到底是啥？
 	APIAudiences                authenticator.Audiences
 	WebhookTokenAuthnConfigFile string
 	WebhookTokenAuthnVersion    string
@@ -79,11 +82,13 @@ type Config struct {
 	RequestHeaderConfig *authenticatorfactory.RequestHeaderConfig
 
 	// TODO, this is the only non-serializable part of the entire config.  Factor it out into a clientconfig
-	ServiceAccountTokenGetter   serviceaccount.ServiceAccountTokenGetter
+	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
+	// TODO 作用？
 	BootstrapTokenAuthenticator authenticator.Token
 	// ClientCAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this value is nil, then mutual TLS is disabled.
+	// TODO 作用？
 	ClientCAContentProvider dynamiccertificates.CAContentProvider
 
 	// Optional field, custom dial function used to connect to webhook

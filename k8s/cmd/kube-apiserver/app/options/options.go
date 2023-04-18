@@ -52,11 +52,12 @@ type ServerRunOptions struct {
 	Authorization  *kubeoptions.BuiltInAuthorizationOptions  // 授权相关
 	// TODO cloudProvider是啥？
 	CloudProvider *kubeoptions.CloudProviderOptions
-	// TODO 什么叫做APIEnablement?
+	// TODO 什么叫做APIEnablement? 答：所谓的APIEnablement，实际上就是启用哪些资源，禁用那些资源
+	// 用于可以通过runtime-config配置参数来配置
 	APIEnablement *genericoptions.APIEnablementOptions
 	// TODO EgressSelector是啥？有啥作用？
 	EgressSelector *genericoptions.EgressSelectorOptions
-	// TODO apiserver的指标可以配置啥？
+	// TODO 指标参数，通过此参数可以配置开启哪些资源的指标，或者禁用哪些资源的指标
 	Metrics *metrics.Options
 	Logs    *logs.Options
 	Traces  *genericoptions.TracingOptions

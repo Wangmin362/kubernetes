@@ -27,6 +27,7 @@ import (
 )
 
 // EgressSelectorOptions holds the api server egress selector options.
+// TODO 想要理解EgressSelector，应该着重理解下面这篇文章
 // See https://github.com/kubernetes/enhancements/blob/master/keps/sig-api-machinery/1281-network-proxy/README.md
 type EgressSelectorOptions struct {
 	// ConfigFile is the file path with api-server egress selector configuration.

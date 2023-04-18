@@ -225,6 +225,7 @@ func (s *EtcdOptions) ApplyWithStorageFactoryTo(factory serverstorage.StorageFac
 	// use the StorageObjectCountTracker interface instance from server.Config
 	s.StorageConfig.StorageObjectCountTracker = c.StorageObjectCountTracker
 
+	// TODO 相当重要的初始化
 	c.RESTOptionsGetter = &StorageFactoryRestOptionsFactory{Options: *s, StorageFactory: factory}
 	return nil
 }

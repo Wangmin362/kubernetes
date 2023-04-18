@@ -488,10 +488,12 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		versionedInformer.Core().V1().Pods().Lister(),
 	)
 
+	// TODO 理解BootstrapToken机制
 	authenticatorConfig.BootstrapTokenAuthenticator = bootstrap.NewTokenAuthenticator(
 		versionedInformer.Core().V1().Secrets().Lister().Secrets(metav1.NamespaceSystem),
 	)
 
+	// TODO 如何理解egress selector
 	if egressSelector != nil {
 		egressDialer, err := egressSelector.Lookup(egressselector.ControlPlane.AsNetworkContext())
 		if err != nil {

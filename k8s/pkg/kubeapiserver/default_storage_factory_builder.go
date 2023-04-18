@@ -85,14 +85,16 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 type StorageFactoryConfig struct {
 	// 后端存储配置
 	StorageConfig storagebackend.Config
-	// API资源配置 TODO 如何理解这个参数
-	APIResourceConfig         *serverstorage.ResourceConfig
-	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig
+	// API资源配置 用于设置启用哪些资源，禁用哪些资源
+	APIResourceConfig       *serverstorage.ResourceConfig
+	DefaultResourceEncoding *serverstorage.DefaultResourceEncodingConfig
+	// 默认存储媒体类型为：application/vnd.kubernetes.protobuf
 	DefaultStorageMediaType   string
 	Serializer                runtime.StorageSerializer
 	ResourceEncodingOverrides []schema.GroupVersionResource
 	// TODO 如何理解这个参数
-	EtcdServersOverrides             []string
+	EtcdServersOverrides []string
+	// TODO 如何理解这个参数
 	EncryptionProviderConfigFilepath string
 }
 

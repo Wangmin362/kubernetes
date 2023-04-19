@@ -79,6 +79,7 @@ func createAPIExtensionsConfig(
 	genericConfig.RESTOptionsGetter = &genericoptions.SimpleRestOptionsFactory{Options: etcdOptions}
 
 	// override MergedResourceConfig with apiextensions defaults and registry
+	// 设置启用或者禁用的资源
 	if err := commandOptions.APIEnablement.ApplyTo(
 		&genericConfig,
 		apiextensionsapiserver.DefaultAPIResourceConfigSource(),
@@ -93,13 +94,14 @@ func createAPIExtensionsConfig(
 		},
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{
 			CRDRESTOptionsGetter: apiextensionsoptions.NewCRDRESTOptionsGetter(etcdOptions),
-			MasterCount:          masterCount, // master节点数量
-			AuthResolverWrapper:  authResolverWrapper,
-			ServiceResolver:      serviceResolver,
+			MasterCount:          masterCount,         // master节点数量
+			AuthResolverWrapper:  authResolverWrapper, // TODO 暂时还不清楚授权包装器的作用
+			ServiceResolver:      serviceResolver,     // 根据服务的name,namespace,port解析为正确的服务访问地址
 		},
 	}
 
 	// we need to clear the poststarthooks so we don't add them multiple times to all the servers (that fails)
+	// TODO 为什么这里需要清空后置处理器？
 	apiextensionsConfig.GenericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
 
 	return apiextensionsConfig, nil

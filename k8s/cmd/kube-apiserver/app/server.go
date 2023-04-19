@@ -200,7 +200,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// 初始化extension-apiserver的配置
 	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers,
 		pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount, serviceResolver,
-		// TODO webhook wrapper是干嘛用的？
+		// TODO webhook wrapper是干嘛用的？ 答：是为了修改授权解析器
 		webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport,
 			kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig,
 			kubeAPIServerConfig.GenericConfig.TracerProvider),

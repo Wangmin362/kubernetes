@@ -173,6 +173,7 @@ type Config struct {
 	HandlerChainWaitGroup *utilwaitgroup.SafeWaitGroup
 	// DiscoveryAddresses is used to build the IPs pass to discovery. If nil, the ExternalAddress is
 	// always reported
+	// TODO 什么叫做DiscoveryAddress?
 	DiscoveryAddresses discovery.Addresses
 	// The default set of healthz checks. There might be more added via AddHealthChecks dynamically.
 	HealthzChecks []healthz.HealthChecker
@@ -282,6 +283,7 @@ type Config struct {
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
 	// and the kind associated with a given resource. As resources are installed, they are registered here.
+	// TODO 等效资源应该指的是同一个资源，由于历史原因，出现在了两个group当中
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// APIServerID is the ID of this API server
@@ -639,7 +641,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
 	}
-	// TODO 这个配置到底如何理解？
+	// 这个配置到底如何理解？ 答：实际上这个配置就是实例化clientset需要的配置
 	if c.LoopbackClientConfig == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.LoopbackClientConfig == nil")
 	}
@@ -649,7 +651,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	}
 
 	// handlerChainBuilder类似Java中的Filter，或者Gin中的中间件，实际上就是在请求被真正处理前处理了一道，主要是增加了认证、审计、限速、鉴权等通用工作
-	// TODO 真正的资源处理是通过handler放进去的
+	// 真正的资源处理是通过handler放进去的
 	handlerChainBuilder := func(handler http.Handler) http.Handler {
 		// 请求处理的逻辑，认证、审计、限速等等 extension-apiserver复用了之前的generic-apiserver的初始化逻辑
 		return c.BuildHandlerChainFunc(handler, c.Config)

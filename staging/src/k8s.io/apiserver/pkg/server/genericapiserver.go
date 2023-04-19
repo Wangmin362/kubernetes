@@ -305,10 +305,10 @@ type GenericAPIServer struct {
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
 // TODO 如何理解委派目标这个接口的设计？ k8s为啥设计了这么多的接口方法？
-// TODO 实际上GenericAPIServer就是DelegationTarget的一个实现
+// 实际上GenericAPIServer就是DelegationTarget的一个实现
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
-	// TODO 什么叫做未保护的Handler? 未保护的Handler意味着不做认证、鉴权、审计相关动作
+	// TODO 什么叫做未保护的Handler? 未保护的Handler意味着不做认证、鉴权、审计相关动作,即原生的请求，没有做任何处理
 	UnprotectedHandler() http.Handler
 
 	// PostStartHooks returns the post-start hooks that need to be combined
@@ -322,6 +322,7 @@ type DelegationTarget interface {
 
 	// ListedPaths returns the paths for supporting an index
 	// TODO APIServer以及ExtensionServer是如何实现的？
+	// 列出所有的资源路径
 	ListedPaths() []string
 
 	// NextDelegate returns the next delegationTarget in the chain of delegations

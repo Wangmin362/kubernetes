@@ -78,6 +78,7 @@ func init() {
 
 // ExtraConfig TODO 每种apiserver都有自己的额外配置信息
 type ExtraConfig struct {
+	// TODO CRD的后端存储
 	CRDRESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// MasterCount is used to detect whether cluster is HA, and if it is
@@ -85,8 +86,10 @@ type ExtraConfig struct {
 	MasterCount int
 
 	// ServiceResolver is used in CR webhook converters to resolve webhook's service names
+	// 根据服务的name, namespace, port解析出正确的服务访问地址
 	ServiceResolver webhook.ServiceResolver
 	// AuthResolverWrapper is used in CR webhook converters
+	// TODO wrapper的具体作用是啥？
 	AuthResolverWrapper webhook.AuthenticationInfoResolverWrapper
 }
 

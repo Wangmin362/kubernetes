@@ -23,6 +23,7 @@ import (
 )
 
 // ServiceResolver knows how to convert a service reference into an actual location.
+// 根据服务的name ,namespace, port解析出正确的服务访问地址
 type ServiceResolver interface {
 	ResolveEndpoint(namespace, name string, port int32) (*url.URL, error)
 }
@@ -44,5 +45,6 @@ func (sr defaultServiceResolver) ResolveEndpoint(namespace, name string, port in
 	if len(name) == 0 || len(namespace) == 0 || port == 0 {
 		return nil, errors.New("cannot resolve an empty service name or namespace or port")
 	}
+	// TODO 为什么addr一定要加上.svc，不加上.svc也可也找到正确的地址，加上.svc有什么好处？
 	return &url.URL{Scheme: "https", Host: fmt.Sprintf("%s.%s.svc:%d", name, namespace, port)}, nil
 }

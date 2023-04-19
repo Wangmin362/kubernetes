@@ -180,6 +180,7 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 		fn(&options)
 	}
 
+	// TODO 实例化json, yaml, protobuf序列化器
 	serializers := newSerializersForScheme(scheme, json.DefaultMetaFactory, options)
 	return newCodecFactory(scheme, serializers)
 }

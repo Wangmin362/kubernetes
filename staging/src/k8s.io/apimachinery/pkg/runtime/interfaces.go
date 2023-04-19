@@ -32,6 +32,7 @@ const (
 )
 
 // GroupVersioner refines a set of possible conversion targets into a single option.
+// TODO 如何理解这个接口的设计？
 type GroupVersioner interface {
 	// KindForGroupVersionKinds returns a desired target group version kind for the given input, or returns ok false if no
 	// target is known. In general, if the return target is not in the input list, the caller is expected to invoke
@@ -55,6 +56,7 @@ type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
 	// 把obj对象序列化，然后把数据写入到w当中
+	// TODO 需要注意的是obj对象是K8S内部对象（Internal）,K8S资源都需要先转为内部对象，然后才能序列化保存到ETCD当中
 	Encode(obj Object, w io.Writer) error
 	// Identifier returns an identifier of the encoder.
 	// Identifiers of two different encoders should be equal if and only if for every input
@@ -77,6 +79,7 @@ type Encoder interface {
 // MemoryAllocator is responsible for allocating memory.
 // By encapsulating memory allocation into its own interface, we can reuse the memory
 // across many operations in places we know it can significantly improve the performance.
+// TODO 如何理解这个接口的设计？ 什么场合下需要这个接口？
 type MemoryAllocator interface {
 	// Allocate reserves memory for n bytes.
 	// Note that implementations of this method are not required to zero the returned array.
@@ -106,6 +109,7 @@ type Decoder interface {
 	// TODO 如果用户提供了 defaults gvk，这个gvk是如何影响反序列化的流程的呢？ defaults参数是为了能够提供一些默认值，主要原因是因为data二进制
 	// TODO 数据当中可能没有提供kind , group ,group全部信息，而是提供了其中的一部分，这个时候就需要通过defaults参数补全默认
 	// TODO into参数的作用是啥？
+	// TODO 注意，返回的Object对象是内部版本对象，后续要转为需要的K8S资源对象
 	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error)
 }
 
@@ -142,8 +146,10 @@ type ParameterCodec interface {
 }
 
 // Framer is a factory for creating readers and writers that obey a particular framing pattern.
+// TODO 如何理解这个接口的设计？
 type Framer interface {
 	NewFrameReader(r io.ReadCloser) io.ReadCloser
+	// NewFrameWriter TODO 为什么这里不是io.WriterCloser
 	NewFrameWriter(w io.Writer) io.Writer
 }
 
@@ -167,6 +173,7 @@ type SerializerInfo struct {
 	StrictSerializer Serializer
 	// StreamSerializer, if set, describes the streaming serialization format
 	// for this media type.
+	// TODO 什么叫做流序列化器
 	StreamSerializer *StreamSerializerInfo
 }
 
@@ -203,6 +210,7 @@ type NegotiatedSerializer interface {
 // ClientNegotiator handles turning an HTTP content type into the appropriate encoder.
 // Use NewClientNegotiator or NewVersionedClientNegotiator to create this interface from
 // a NegotiatedSerializer.
+// TODO 用于根据HTTP的MIME类型找到此类型合适的encoder以及decoder
 type ClientNegotiator interface {
 	// Encoder returns the appropriate encoder for the provided contentType (e.g. application/json)
 	// and any optional mediaType parameters (e.g. pretty=1), or an error. If no serializer is found
@@ -226,6 +234,7 @@ type ClientNegotiator interface {
 // StorageSerializer is an interface used for obtaining encoders, decoders, and serializers
 // that can read and write data at rest. This would commonly be used by client tools that must
 // read files, or server side storage interfaces that persist restful objects.
+// TODO 这个接口似乎和 NegotiatedSerializer 接口非常类似，就多了一个UniversalDeserializer方法
 type StorageSerializer interface {
 	// SupportedMediaTypes are the media types supported for reading and writing objects.
 	SupportedMediaTypes() []SerializerInfo
@@ -275,6 +284,7 @@ type ObjectVersioner interface {
 }
 
 // ObjectConvertor converts an object to a different version.
+// TODO 用于K8S资源和内部资源之间的转换
 type ObjectConvertor interface {
 	// Convert attempts to convert one object into another, or returns an error. This
 	// method does not mutate the in object, but the in and out object might share data structures,
@@ -292,6 +302,8 @@ type ObjectConvertor interface {
 
 // ObjectTyper contains methods for extracting the APIVersion and Kind
 // of objects.
+// TODO ObjectTyper的一个实现就是: Scheme
+// ObjectTyper的作用就是根据K8S资源对象，拿到这个对象的GVK
 type ObjectTyper interface {
 	// ObjectKinds returns the all possible group,version,kind of the provided object, true if
 	// the object is unversioned, or an error if the object is not recognized
@@ -301,10 +313,12 @@ type ObjectTyper interface {
 	// Recognizes returns true if the scheme is able to handle the provided version and kind,
 	// or more precisely that the provided version is a possible conversion or decoding
 	// target.
+	// TODO 能够被识别的GVK一定是通过Scheme提前进行注册了
 	Recognizes(gvk schema.GroupVersionKind) bool
 }
 
 // ObjectCreater contains methods for instantiating an object by kind and version.
+// TODO ObjectCreate比较简单，就是根据gvk创建K8S对象
 type ObjectCreater interface {
 	New(kind schema.GroupVersionKind) (out Object, err error)
 }
@@ -356,6 +370,7 @@ type Object interface {
 
 // CacheableObject allows an object to cache its different serializations
 // to avoid performing the same serialization multiple times.
+// TODO CacheableObject接口主要是用在什么场景下？
 type CacheableObject interface {
 	// CacheEncode writes an object to a stream. The <encode> function will
 	// be used in case of cache miss. The <encode> function takes ownership

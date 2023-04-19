@@ -113,7 +113,7 @@ type Serializer struct {
 	options SerializerOptions
 	// 根据名字不难理解，实际上就是为了创建一个go struct，然后通过序列化的方式进行字段填充
 	creater runtime.ObjectCreater
-	// TODO 这个参数还有待理解  runtime.Serializer.Decode()接口注释说的很清楚，在json数据和默认GVK无法提供的类型元数据需要用输出类型补全。
+	// 根据资源对象拿到对象的GVK
 	typer runtime.ObjectTyper
 
 	// TODO 暂时还不理解这个参数的含义
@@ -143,12 +143,17 @@ func gvkWithDefaults(actual, defaultGVK schema.GroupVersionKind) schema.GroupVer
 // Decode attempts to convert the provided data into YAML or JSON, extract the stored schema kind, apply the provided default gvk, and then
 // load that data into an object matching the desired schema kind or the provided into.
 // If into is *runtime.Unknown, the raw data will be extracted and no decoding will be performed.
+// 如果into对象是 *runtime.Unknown 类型，那么originalData数据将不会被解码
 // If into is not registered with the typer, then the object will be straight decoded using normal JSON/YAML unmarshalling.
+// 如果into对象没有被注册，那么直接把originalData数据按照into的结构进行反序列化
 // If into is provided and the original data is not fully qualified with kind/version/group, the type of the into will be used to alter the returned gvk.
+// 如果originalData中没有完整的GVK数据，并且into对象不为空，那么会使用Into的GVK设置originalData的GVK
 // If into is nil or data's gvk different from into's gvk, it will generate a new Object with ObjectCreater.New(gvk)
+// 如果into是空的，但是提供了默认的gvk，将会使用提供的gvk补全originalData的gvk
 // On success or most errors, the method will return the calculated schema kind.
 // The gvk calculate priority will be originalData > default gvk > into
 func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, into runtime.Object) (runtime.Object, *schema.GroupVersionKind, error) {
+	// TODO 这里应该是data的一份拷贝
 	data := originalData
 	if s.options.Yaml { // 如果原始数据是通过yaml格式存储的，那么先把数据转为json格式的二进制数据
 		// TODO 既然数据是通过YAML格式存储的，而接口调用方仅仅是为了得到go struct，那为什么这里不直接调用 YAML Serializer的Decode方法？
@@ -188,6 +193,8 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 		_, isUnstructured := into.(runtime.Unstructured)
 		types, _, err := s.typer.ObjectKinds(into)
 		switch {
+		// TODO 如何理解这个case语句的条件
+		// TODO 什么情况下into对象会是一个没有注册的对象
 		case runtime.IsNotRegisteredError(err), isUnstructured:
 			strictErrs, err := s.unmarshal(into, data, originalData)
 			if err != nil {
@@ -224,13 +231,13 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 	}
 
 	// use the target if necessary
-	// 创建资源对象
+	// 创建资源对象，如果into对象的GVK和通过字节数组解析出来的一样，可以直接使用into对象
 	obj, err := runtime.UseOrCreateObject(s.typer, s.creater, *actual, into)
 	if err != nil {
 		return nil, actual, err
 	}
 
-	// 反序列化
+	// 反序列化 originalData有可能是yaml格式，此时data就是转换为json格式的数据。
 	strictErrs, err := s.unmarshal(obj, data, originalData)
 	if err != nil {
 		return nil, actual, err
@@ -241,6 +248,7 @@ func (s *Serializer) Decode(originalData []byte, gvk *schema.GroupVersionKind, i
 }
 
 // Encode serializes the provided object to the given writer.
+// 把obj对象json序列化，然后把序列化数据写入到w当中
 func (s *Serializer) Encode(obj runtime.Object, w io.Writer) error {
 	if co, ok := obj.(runtime.CacheableObject); ok {
 		return co.CacheEncode(s.Identifier(), s.doEncode, w)

@@ -260,6 +260,8 @@ func CreateKubeAPIServer(kubeAPIServerConfig *controlplane.Config, delegateAPISe
 }
 
 // CreateProxyTransport creates the dialer infrastructure to connect to the nodes.
+// http.Transport 主要用于连接复用，并且缓存了长连接
+// TODO 什么叫做ProxyTransport? 难道是用于proxy动词？
 func CreateProxyTransport() *http.Transport {
 	var proxyDialerFn utilnet.DialFunc
 	// Proxying to pods and services is IP-based... don't expect to be able to verify the hostname

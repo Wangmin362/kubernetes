@@ -27,6 +27,7 @@ const (
 	// APIVersionInternal may be used if you are registering a type that should not
 	// be considered stable or serialized - it is a convention only and has no
 	// special behavior in this package.
+	// TODO 如何理解K8S的internal版本
 	APIVersionInternal = "__internal"
 )
 
@@ -53,7 +54,7 @@ type Identifier string
 type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
-	// 把obj对象序列化，然后把数据发送到w当中
+	// 把obj对象序列化，然后把数据写入到w当中
 	Encode(obj Object, w io.Writer) error
 	// Identifier returns an identifier of the encoder.
 	// Identifiers of two different encoders should be equal if and only if for every input
@@ -103,7 +104,7 @@ type Decoder interface {
 	// type of the into may be used to guide conversion decisions.
 	// 把二进制data数据反序列化到Object当中
 	// TODO 如果用户提供了 defaults gvk，这个gvk是如何影响反序列化的流程的呢？ defaults参数是为了能够提供一些默认值，主要原因是因为data二进制
-	// 数据当中可能没有提供kind , group ,group全部信息，而是提供了其中的一部分，这个时候就需要通过defaults参数补全默认
+	// TODO 数据当中可能没有提供kind , group ,group全部信息，而是提供了其中的一部分，这个时候就需要通过defaults参数补全默认
 	// TODO into参数的作用是啥？
 	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error)
 }
@@ -185,6 +186,9 @@ type StreamSerializerInfo struct {
 // TODO 什么叫做协商序列化器？ 猜测应该是根据HTTP的请求头类型自动选择合适的序列化器
 type NegotiatedSerializer interface {
 	// SupportedMediaTypes is the media types supported for reading and writing single objects.
+	// TODO 列出当前序列化器支持的媒体类型，这里的媒体类型指的是HTTP MIME
+	// 可以参考：https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types
+	// 不同的媒体类型其序列化的方式可能不一样，因此需要不同的序列化器
 	SupportedMediaTypes() []SerializerInfo
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided
@@ -204,6 +208,7 @@ type ClientNegotiator interface {
 	// and any optional mediaType parameters (e.g. pretty=1), or an error. If no serializer is found
 	// a NegotiateError will be returned. The current client implementations consider params to be
 	// optional modifiers to the contentType and will ignore unrecognized parameters.
+	// TODO contentType就是MIME，譬如application/json
 	Encoder(contentType string, params map[string]string) (Encoder, error)
 	// Decoder returns the appropriate decoder for the provided contentType (e.g. application/json)
 	// and any optional mediaType parameters (e.g. pretty=1), or an error. If no serializer is found
@@ -227,6 +232,7 @@ type StorageSerializer interface {
 
 	// UniversalDeserializer returns a Serializer that can read objects in multiple supported formats
 	// by introspecting the data at rest.
+	// TODO 什么情况下会使用通用解码器？
 	UniversalDeserializer() Decoder
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided

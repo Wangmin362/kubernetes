@@ -1,0 +1,1 @@
+# pkg/apis下的所有资源都是K8S所谓的内部资源（Internal Version），内部资源不会暴露给开发者使用

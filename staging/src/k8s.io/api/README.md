@@ -1,3 +1,5 @@
+# staging/src/k8s.io/api中的资源都是K8S对外的资源，用户在提交和使用YAML的时候实际上就是使用的这个包下的所有资源
+
 # api
 
 Schema of the external API types that are served by the Kubernetes API server.

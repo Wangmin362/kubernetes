@@ -86,7 +86,7 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 	if hook == nil {
 		return fmt.Errorf("hook func may not be nil: %q", name)
 	}
-	// 如果当前类型的后置处理器被仅用了，那么放弃对于该后置处理器的添加动作
+	// 如果当前类型的后置处理器被禁用了，那么放弃对于该后置处理器的添加动作
 	if s.disabledPostStartHooks.Has(name) {
 		klog.V(1).Infof("skipping %q because it was explicitly disabled", name)
 		return nil

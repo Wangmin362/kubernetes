@@ -165,6 +165,7 @@ type ServiceReference struct {
 }
 
 // CustomResourceDefinitionVersion describes a version for CRD.
+// TODO 这个结构体是对于什么的抽象？ 为啥需要？
 type CustomResourceDefinitionVersion struct {
 	// name is the version name, e.g. “v1”, “v2beta1”, etc.
 	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.

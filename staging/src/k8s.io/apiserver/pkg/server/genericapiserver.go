@@ -282,6 +282,7 @@ type GenericAPIServer struct {
 
 	// destroyFns contains a list of functions that should be called on shutdown to clean up resources.
 	// TODO 这玩意和preShutdownHooks有何区别？ 调用的时间点不一样？
+	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？
 	destroyFns []func()
 
 	// muxAndDiscoveryCompleteSignals holds signals that indicate all known HTTP paths have been registered.

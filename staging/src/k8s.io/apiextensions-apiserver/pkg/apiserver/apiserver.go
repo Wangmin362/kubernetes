@@ -151,6 +151,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
+	// 实例化Extension server
 	s := &CustomResourceDefinitions{
 		GenericAPIServer: genericServer,
 	}
@@ -231,11 +232,14 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if err != nil {
 		return nil, err
 	}
+	// TODO 为啥需要两个同时注册？
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", crdHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.HandlePrefix("/apis/", crdHandler)
+	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
 	// 定时查询所有的CRD，并添加group handler，以及version handler
+	// TODO 详细说明此Controller的作用？
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
 	// TODO ?
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

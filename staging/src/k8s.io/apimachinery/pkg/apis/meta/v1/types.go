@@ -1083,14 +1083,15 @@ type GroupVersionForDiscovery struct {
 }
 
 // APIResource specifies the name of a resource and whether it is namespaced.
+// TODO 抽象的是K8S的一个资源
 type APIResource struct {
-	// name is the plural name of the resource.
+	// name is the plural name of the resource. 资源名
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// singularName is the singular name of the resource.  This allows clients to handle plural and singular opaquely.
 	// The singularName is more correct for reporting status on a single item and both singular and plural are allowed
-	// from the kubectl CLI interface.
+	// from the kubectl CLI interface. 资源的单数名称
 	SingularName string `json:"singularName" protobuf:"bytes,6,opt,name=singularName"`
-	// namespaced indicates if a resource is namespaced or not.
+	// namespaced indicates if a resource is namespaced or not. 资源是否是名称空间级别的
 	Namespaced bool `json:"namespaced" protobuf:"varint,2,opt,name=namespaced"`
 	// group is the preferred group of the resource.  Empty implies the group of the containing resource list.
 	// For subresources, this may have a different value, for example: Scale".
@@ -1101,11 +1102,13 @@ type APIResource struct {
 	// kind is the kind for the resource (e.g. 'Foo' is the kind for a resource 'foo')
 	Kind string `json:"kind" protobuf:"bytes,3,opt,name=kind"`
 	// verbs is a list of supported kube verbs (this includes get, list, watch, create,
-	// update, patch, delete, deletecollection, and proxy)
+	// update, patch, delete, deletecollection, and proxy) 当前资源支持的动作
 	Verbs Verbs `json:"verbs" protobuf:"bytes,4,opt,name=verbs"`
 	// shortNames is a list of suggested short names of the resource.
+	// TODO 资源的缩写，可以有多个，方便kubectl控制
 	ShortNames []string `json:"shortNames,omitempty" protobuf:"bytes,5,rep,name=shortNames"`
 	// categories is a list of the grouped resources this resource belongs to (e.g. 'all')
+	// TODO 如何理解这个字段
 	Categories []string `json:"categories,omitempty" protobuf:"bytes,7,rep,name=categories"`
 	// The hash value of the storage version, the version this resource is
 	// converted to when written to the data store. Value must be treated
@@ -1115,6 +1118,7 @@ type APIResource struct {
 	// StorageVersionHash feature gate is enabled.
 	// This field will remain optional even if it graduates.
 	// +optional
+	// TODO 这玩意干嘛的？  有啥作用？ 为啥需要？
 	StorageVersionHash string `json:"storageVersionHash,omitempty" protobuf:"bytes,10,opt,name=storageVersionHash"`
 }
 

@@ -95,7 +95,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	foundVersion := false
 	foundGroup := false
 	for _, crd := range crds {
-		// TODO Established状态意味着CRD已经成功注册
+		// TODO Established状态意味着当前CRD已经成功注册
 		if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 			continue
 		}
@@ -109,7 +109,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		foundThisVersion := false
 		var storageVersionHash string
 		for _, v := range crd.Spec.Versions {
-			// TODO CRD的当前版本没有暴露REST API
+			// TODO CRD的当前版本没有暴露REST API  如何理解Served属性
 			if !v.Served {
 				continue
 			}
@@ -127,6 +127,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			if v.Name == version.Version {
 				foundThisVersion = true
 			}
+			// TODO 如何立即Storage属性？
 			if v.Storage {
 				storageVersionHash = discovery.StorageVersionHash(gv.Group, gv.Version, crd.Spec.Names.Kind)
 			}
@@ -140,8 +141,8 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 		verbs := metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"})
 		// if we're terminating we don't allow some verbs
-		// 如果当前的CRD正在终止，那么中有些动作回会被禁止
 		// TODO 为什么CRD资源都处于Terminating了，还需要注册呢？
+		// TODO 当前CRD处于Terminating，那么此CRD不需要支持patch, create, update
 		if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating) {
 			verbs = metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "watch"})
 		}
@@ -163,25 +164,25 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		if err != nil {
 			return err
 		}
-		// status子资源
+		// status子资源 TODO 自定义CRD默认都有Status资源么？
 		if subresources != nil && subresources.Status != nil {
 			apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 				Name:       crd.Status.AcceptedNames.Plural + "/status",
 				Namespaced: crd.Spec.Scope == apiextensionsv1.NamespaceScoped,
 				Kind:       crd.Status.AcceptedNames.Kind,
-				Verbs:      metav1.Verbs([]string{"get", "patch", "update"}),
+				Verbs:      metav1.Verbs([]string{"get", "patch", "update"}), // TODO 为啥status子资源只允许get, patch, update操作？
 			})
 		}
 
+		// scale子资源 TODO 自定义CRD如何使用Scale资源
 		if subresources != nil && subresources.Scale != nil {
-			// sacle子资源
 			apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 				Group:      autoscaling.GroupName,
 				Version:    "v1",
 				Kind:       "Scale",
 				Name:       crd.Status.AcceptedNames.Plural + "/scale",
 				Namespaced: crd.Spec.Scope == apiextensionsv1.NamespaceScoped,
-				Verbs:      metav1.Verbs([]string{"get", "patch", "update"}),
+				Verbs:      metav1.Verbs([]string{"get", "patch", "update"}), // TODO 为啥scale子资源只允许get, patch, update操作？
 			})
 		}
 	}
@@ -201,6 +202,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		Versions: apiVersionsForDiscovery,
 		// the preferred versions for a group is the first item in
 		// apiVersionsForDiscovery after it put in the right ordered
+		// TODO 什么叫做优先选择的版本？ 有啥作用？ 啥时候需要？ 为啥需要？
 		PreferredVersion: apiVersionsForDiscovery[0],
 	}
 	// TODO 暴露出group的endpoint

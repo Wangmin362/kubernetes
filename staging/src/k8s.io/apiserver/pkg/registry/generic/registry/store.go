@@ -208,6 +208,7 @@ type Store struct {
 
 	// TableConvertor is an optional interface for transforming items or lists
 	// of items into tabular output. If unset, the default will be used.
+	// TODO 如何理解TableConvertor接口设计
 	TableConvertor rest.TableConvertor
 
 	// ResetFieldsStrategy provides the fields reset by the strategy that

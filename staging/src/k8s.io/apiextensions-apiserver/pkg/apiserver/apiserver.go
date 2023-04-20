@@ -155,6 +155,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		GenericAPIServer: genericServer,
 	}
 
+	// MergedResourceConfig用于标识禁用哪些资源，启用哪些资源
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 	// 实例化APIGroupInfo
 	// TODO ExtensionAPIServer会注册哪些资源？ 主要是在注册 [__internal, v1, v1beta1].[CRD CRDList]资源
@@ -195,10 +196,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		delegateHandler = http.NotFoundHandler()
 	}
 
+	// 用于暴露 /apis/extension/v1beta1下的所有资源
 	versionDiscoveryHandler := &versionDiscoveryHandler{
 		discovery: map[schema.GroupVersion]*discovery.APIVersionHandler{},
 		delegate:  delegateHandler,
 	}
+	// 用于暴露 /apis/extension下的所有版本信息
 	groupDiscoveryHandler := &groupDiscoveryHandler{
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,

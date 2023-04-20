@@ -25,6 +25,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/discovery"
 )
 
+// TODO 如何理解VersionDiscoveryHandler结构体定义？
 type versionDiscoveryHandler struct {
 	// TODO, writing is infrequent, optimize this
 	discoveryLock sync.RWMutex
@@ -36,16 +37,19 @@ type versionDiscoveryHandler struct {
 func (r *versionDiscoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	pathParts := splitPath(req.URL.Path)
 	// only match /apis/<group>/<version>
+	// TODO ExtensionServer的所有API一定是以 /apis开头的
 	if len(pathParts) != 3 || pathParts[0] != "apis" {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
+	// 根据group, version信息，获取到APIVersionHandler
 	discovery, ok := r.getDiscovery(schema.GroupVersion{Group: pathParts[1], Version: pathParts[2]})
 	if !ok {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
+	// 利用得到的APIVersionHandler，返回其group, version下的所有资源的信息
 	discovery.ServeHTTP(w, req)
 }
 

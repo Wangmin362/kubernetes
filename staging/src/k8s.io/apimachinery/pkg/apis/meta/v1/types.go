@@ -39,7 +39,8 @@ import (
 // Structures that are versioned or persisted should inline TypeMeta.
 //
 // +k8s:deepcopy-gen=false
-// TODO 许多人说TtpeMeta实现了runtime.Object接口,可是实际上TypeMeta只实现了runtime.Object.GetObjectKind接口,另外一个runtime.Object.DeepCopyObject并没有实现
+// TODO 许多人说TypeMeta实现了runtime.Object接口,可是实际上TypeMeta只实现了runtime.Object.GetObjectKind接口,另外一个runtime.Object.DeepCopyObject并没有实现
+// TODO runtime.Object的DeepCopyObject接口并没有通过meta.TypeMeta实现，而是每个资源对象单独实现了这个接口，这个接口是通过自动生成代码实现的
 type TypeMeta struct {
 	// Kind is a string value representing the REST resource this object represents.
 	// Servers may infer this from the endpoint the client submits requests to.
@@ -109,6 +110,7 @@ const (
 
 // ObjectMeta is metadata that all persisted resources must have, which includes all objects
 // users must create.
+// TODO 实现了 meta.Object 接口
 type ObjectMeta struct {
 	// Name must be unique within a namespace. Is required when creating resources, although
 	// some resources may allow a client to request the generation of an appropriate name

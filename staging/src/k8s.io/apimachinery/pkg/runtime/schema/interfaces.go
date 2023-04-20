@@ -16,7 +16,7 @@ limitations under the License.
 
 package schema
 
-// All objects that are serialized from a Scheme encode their type information. This interface is used
+// ObjectKind All objects that are serialized from a Scheme encode their type information. This interface is used
 // by serialization to set type information from the Scheme onto the serialized version of an object.
 // For objects that cannot be serialized or have unique requirements, this interface may be a no-op.
 // TODO 和runtime.Object接口同样重要,TypeMeta实现了这个接口

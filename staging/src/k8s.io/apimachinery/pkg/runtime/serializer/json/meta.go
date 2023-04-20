@@ -28,6 +28,7 @@ import (
 type MetaFactory interface {
 	// Interpret should return the version and kind of the wire-format of
 	// the object.
+	// TODO 用于TypeMeta的反序列化，即根据二进制数据反序列化得到它的GVK
 	Interpret(data []byte) (*schema.GroupVersionKind, error)
 }
 

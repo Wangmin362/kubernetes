@@ -191,6 +191,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// CRDInformer, 每五分钟重新同步一次所有的CRD资源
 	s.Informers = externalinformers.NewSharedInformerFactory(crdClient, 5*time.Minute)
 
+	// extension-server的delegator是NofFound, NotFoundHandler实现了UnprotectedHandler
 	delegateHandler := delegationTarget.UnprotectedHandler()
 	if delegateHandler == nil {
 		delegateHandler = http.NotFoundHandler()

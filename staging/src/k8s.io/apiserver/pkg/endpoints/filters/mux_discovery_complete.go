@@ -24,7 +24,9 @@ import (
 type muxAndDiscoveryIncompleteKeyType int
 
 const (
-	// muxAndDiscoveryIncompleteKey is a key under which a protection signal for all requests made before the server have installed all known HTTP paths is stored in the request's context
+	// muxAndDiscoveryIncompleteKey is a key under which a protection signal for all requests made before the
+	// server have installed all known HTTP paths is stored in the request's context
+	// TODO muxAndDiscoveryIncompleteKey是一个标志，用于表示Server是否已经安装了所有的API
 	muxAndDiscoveryIncompleteKey muxAndDiscoveryIncompleteKeyType = iota
 )
 

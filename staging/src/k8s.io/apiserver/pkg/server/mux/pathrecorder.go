@@ -34,11 +34,15 @@ import (
 // PathRecorderMux wraps a mux object and records the registered exposedPaths.
 type PathRecorderMux struct {
 	// name is used for logging so you can trace requests through
+	// Mux的名字，主要用于打印日志
 	name string
 
-	lock            sync.Mutex
+	lock sync.Mutex
+	// 如果根据pathToHandler以及prefixToHandler没有找到，那么当前请求只能委派给notFoundHandler了
 	notFoundHandler http.Handler
-	// 核心就是这两个属性
+	// 核心就是这两个属性，实际上这不就是路由的核心么，根据不同的URL路径，把当前请求交给不同的处理器进行处理
+	// 显然，首先应该匹配的是pathToHandler，然后才会匹配prefixToHandler，因为pathToHandler更加准确一些
+	// 这种匹配方式也就是我们常说的最长匹配原则
 	pathToHandler   map[string]http.Handler
 	prefixToHandler map[string]http.Handler
 
@@ -49,7 +53,7 @@ type PathRecorderMux struct {
 	mux atomic.Value
 
 	// exposedPaths is the list of paths that should be shown at /
-	// TODO 什么叫做Expose Path?
+	// TODO 所谓ExposedPaths，就是注册的URL，这些URL外部是可以访问到的
 	exposedPaths []string
 
 	// pathStacks holds the stacks of all registered paths.  This allows us to show a more helpful message
@@ -114,6 +118,7 @@ func (m *PathRecorderMux) trackCallers(path string) {
 
 // refreshMuxLocked creates a new mux and must be called while locked.  Otherwise the view of handlers may
 // not be consistent
+// 重新计算Mux
 func (m *PathRecorderMux) refreshMuxLocked() {
 	newMux := &pathHandler{
 		muxName:         m.name,
@@ -145,12 +150,14 @@ func (m *PathRecorderMux) NotFoundHandler(notFoundHandler http.Handler) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
 
+	// 更新notFoundHandler
 	m.notFoundHandler = notFoundHandler
 
 	m.refreshMuxLocked()
 }
 
 // Unregister removes a path from the mux.
+// 注销对于一个路径的支持
 func (m *PathRecorderMux) Unregister(path string) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -165,11 +172,13 @@ func (m *PathRecorderMux) Unregister(path string) {
 		}
 	}
 
+	// 重新计算mux
 	m.refreshMuxLocked()
 }
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
+// 注册对于一个URL的处理
 func (m *PathRecorderMux) Handle(path string, handler http.Handler) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -188,6 +197,7 @@ func (m *PathRecorderMux) HandleFunc(path string, handler func(http.ResponseWrit
 
 // UnlistedHandle registers the handler for the given pattern, but doesn't list it.
 // If a handler already exists for pattern, Handle panics.
+// TODO 和 Handle 方法相比， UnlistedHandle 没有把URL放入到m.exposedPaths当中
 func (m *PathRecorderMux) UnlistedHandle(path string, handler http.Handler) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -204,6 +214,7 @@ func (m *PathRecorderMux) UnlistedHandleFunc(path string, handler func(http.Resp
 }
 
 // HandlePrefix is like Handle, but matches for anything under the path.  Like a standard golang trailing slash.
+// 前缀注册
 func (m *PathRecorderMux) HandlePrefix(path string, handler http.Handler) {
 	if !strings.HasSuffix(path, "/") {
 		panic(fmt.Sprintf("%q must end in a trailing slash", path))
@@ -219,6 +230,7 @@ func (m *PathRecorderMux) HandlePrefix(path string, handler http.Handler) {
 }
 
 // UnlistedHandlePrefix is like UnlistedHandle, but matches for anything under the path.  Like a standard golang trailing slash.
+// 注销前缀Handler
 func (m *PathRecorderMux) UnlistedHandlePrefix(path string, handler http.Handler) {
 	if !strings.HasSuffix(path, "/") {
 		panic(fmt.Sprintf("%q must end in a trailing slash", path))
@@ -239,12 +251,14 @@ func (m *PathRecorderMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ServeHTTP makes it an http.Handler
 func (h *pathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 先找准确路径，如果在准确路径中找到响应的处理器，直接委派给该处理器
 	if exactHandler, ok := h.pathToHandler[r.URL.Path]; ok {
 		klog.V(5).Infof("%v: %q satisfied by exact match", h.muxName, r.URL.Path)
 		exactHandler.ServeHTTP(w, r)
 		return
 	}
 
+	// 前缀匹配
 	for _, prefixHandler := range h.prefixHandlers {
 		if strings.HasPrefix(r.URL.Path, prefixHandler.prefix) {
 			klog.V(5).Infof("%v: %q satisfied by prefix %v", h.muxName, r.URL.Path, prefixHandler.prefix)
@@ -253,6 +267,7 @@ func (h *pathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// 如果都没有找到那只能委派给NotFoundHandler
 	klog.V(5).Infof("%v: %q satisfied by NotFoundHandler", h.muxName, r.URL.Path)
 	h.notFoundHandler.ServeHTTP(w, r)
 }

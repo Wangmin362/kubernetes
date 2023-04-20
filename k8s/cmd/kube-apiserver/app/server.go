@@ -210,12 +210,13 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// 第一步：创建notFoundHandler 当用户的请求进来时，Extend Server , Apiserver, Aggregrate Server都处理不了时就只能委托给NotFoundHandler
-	// 这个handler返回的就是404
+	// 这个handler返回的就是404, notFoundHandler是一个HTTP Handler，实现了http.Handler接口
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 	// 第二步：创建Extend Server，并且把notfoundHander作为ExtendServer下一任的委派，也就是说notFoundHandler时请求处理的兜底
 	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
 	// TODO ExtendApiserver是如何解决动态发现CRD并注册的？
 	// TODO 动态准入控制是通过CRD的原理进行支持的么？
+	// genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler)用于把notFoundHandler包装为一个Delegator
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err

@@ -39,11 +39,13 @@ func New(serializer runtime.NegotiatedSerializer, isMuxAndDiscoveryCompleteFn fu
 }
 
 type Handler struct {
-	serializer                  runtime.NegotiatedSerializer
+	serializer runtime.NegotiatedSerializer
+	// TODO 似乎是用来判断Server是否已经装载所有的API资源
 	isMuxAndDiscoveryCompleteFn func(ctx context.Context) bool
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// 如果Server还没有装载完成，就返回提示信息
 	if !h.isMuxAndDiscoveryCompleteFn(req.Context()) {
 		errMsg := "the request has been made before all known HTTP paths have been installed, please try again"
 		err := apierrors.NewServiceUnavailable(errMsg)

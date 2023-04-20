@@ -34,7 +34,8 @@ import (
 type APIGroupHandler struct {
 	// 根据Group, Version协商出序列化、反序列化器
 	serializer runtime.NegotiatedSerializer
-	group      metav1.APIGroup
+	// TODO 标识一个group下包含了哪些
+	group metav1.APIGroup
 }
 
 func NewAPIGroupHandler(serializer runtime.NegotiatedSerializer, group metav1.APIGroup) *APIGroupHandler {
@@ -70,6 +71,7 @@ func (s *APIGroupHandler) handle(req *restful.Request, resp *restful.Response) {
 	s.ServeHTTP(resp.ResponseWriter, req.Request)
 }
 
+// 把一个组下的所有version，全部序列化并返回
 func (s *APIGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions,
 		schema.GroupVersion{}, w, req, http.StatusOK, &s.group)

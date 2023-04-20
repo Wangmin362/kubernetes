@@ -52,6 +52,7 @@ type Scheme struct {
 
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
+	// TODO 为什么value设计为一个数据？
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
 	// unversionedTypes are transformed without conversion in ConvertToVersion.
@@ -72,6 +73,7 @@ type Scheme struct {
 
 	// defaulterFuncs is a map to funcs to be called with an object to provide defaulting
 	// the provided object must be a pointer.
+	// TODO 某种资源对象的默认值回调
 	defaulterFuncs map[reflect.Type]func(interface{})
 
 	// converter stores all registered conversion functions. It also has

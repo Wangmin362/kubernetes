@@ -45,7 +45,9 @@ func (f APIResourceListerFunc) ListAPIResources() []metav1.APIResource {
 type APIVersionHandler struct {
 	serializer runtime.NegotiatedSerializer
 
-	groupVersion      schema.GroupVersion
+	// 需要暴露的API的group, version信息，譬如暴露端点为：/apis/extensions/v1beta1
+	groupVersion schema.GroupVersion
+	// group, version下面的所有资源信息
 	apiResourceLister APIResourceLister
 }
 

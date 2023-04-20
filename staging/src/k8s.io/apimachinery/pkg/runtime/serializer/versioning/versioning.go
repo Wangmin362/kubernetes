@@ -74,13 +74,20 @@ func NewCodec(
 
 // TODO codec主要完成了以下两个事情: 1,资源对象的序列化和反序列化  2, 资源对象和internal object的转换
 type codec struct {
-	encoder   runtime.Encoder
-	decoder   runtime.Decoder
+	// 用于把K8S的内部版本资源对象序列化
+	encoder runtime.Encoder
+	// 反序列化为K8S内部版本资源
+	decoder runtime.Decoder
+	// 用于K8S资源和内部版本资源之间的转换
 	convertor runtime.ObjectConvertor
-	creater   runtime.ObjectCreater
-	typer     runtime.ObjectTyper
+	// 用于根据GVK创建一个K8S资源对象
+	creater runtime.ObjectCreater
+	// 用于获取K8S资源对象的GVK
+	typer runtime.ObjectTyper
+	// 用于设置对象的默认值
 	defaulter runtime.ObjectDefaulter
 
+	// TODO 暂时没有看懂这两个属性的作用
 	encodeVersion runtime.GroupVersioner
 	decodeVersion runtime.GroupVersioner
 

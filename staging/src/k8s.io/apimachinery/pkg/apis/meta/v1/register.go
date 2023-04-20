@@ -48,9 +48,11 @@ func Kind(kind string) schema.GroupKind {
 }
 
 // scheme is the registry for the common types that adhere to the meta v1 API spec.
+// TODO ExtensionServer自己实例化的scheme
 var scheme = runtime.NewScheme()
 
 // ParameterCodec knows about query parameters used with the meta v1 API spec.
+// TODO ExtensionServer自己实例化的参数编解码器
 var ParameterCodec = runtime.NewParameterCodec(scheme)
 
 var optionsTypes = []runtime.Object{
@@ -82,6 +84,7 @@ func AddToGroupVersion(scheme *runtime.Scheme, groupVersion schema.GroupVersion)
 	)
 
 	// register manually. This usually goes through the SchemeBuilder, which we cannot use here.
+	// TODO 如何理解这里的注册
 	utilruntime.Must(RegisterConversions(scheme))
 	utilruntime.Must(RegisterDefaults(scheme))
 }

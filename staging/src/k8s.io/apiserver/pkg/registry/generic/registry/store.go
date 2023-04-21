@@ -144,6 +144,7 @@ type Store struct {
 	// PredicateFunc returns a matcher corresponding to the provided labels
 	// and fields. The SelectionPredicate returned should return true if the
 	// object matches the given field and label selectors.
+	// TODO 这个方法干嘛的？
 	PredicateFunc func(label labels.Selector, field fields.Selector) storage.SelectionPredicate
 
 	// EnableGarbageCollection affects the handling of Update and Delete

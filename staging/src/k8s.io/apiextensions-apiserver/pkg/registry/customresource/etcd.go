@@ -41,7 +41,8 @@ type CustomResourceStorage struct {
 	Scale          *ScaleREST
 }
 
-func NewStorage(resource schema.GroupResource, kind, listKind schema.GroupVersionKind, strategy customResourceStrategy, optsGetter generic.RESTOptionsGetter, categories []string, tableConvertor rest.TableConvertor, replicasPathMapping fieldmanager.ResourcePathMappings) CustomResourceStorage {
+func NewStorage(resource schema.GroupResource, kind, listKind schema.GroupVersionKind, strategy customResourceStrategy, optsGetter generic.RESTOptionsGetter,
+	categories []string, tableConvertor rest.TableConvertor, replicasPathMapping fieldmanager.ResourcePathMappings) CustomResourceStorage {
 	var storage CustomResourceStorage
 	store := &genericregistry.Store{
 		NewFunc: func() runtime.Object {

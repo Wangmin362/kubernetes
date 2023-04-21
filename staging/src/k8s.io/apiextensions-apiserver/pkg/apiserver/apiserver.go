@@ -213,8 +213,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		crdClient.ApiextensionsV1())
 	// TODO crdHandler是如何处理的？
 	crdHandler, err := NewCustomResourceDefinitionHandler(
-		versionDiscoveryHandler,
-		groupDiscoveryHandler,
+		versionDiscoveryHandler, // 组的服务发现
+		groupDiscoveryHandler,   // group的服务发现
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		delegateHandler,
 		c.ExtraConfig.CRDRESTOptionsGetter,

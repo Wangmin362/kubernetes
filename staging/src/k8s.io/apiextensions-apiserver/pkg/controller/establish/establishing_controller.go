@@ -65,7 +65,7 @@ func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInf
 }
 
 // QueueCRD adds CRD into the establishing queue.
-// CRD的生产者
+// TODO CRD的生产者 调用者是谁？ 什么时候会放入一个CRD?
 func (ec *EstablishingController) QueueCRD(key string, timeout time.Duration) {
 	ec.queue.AddAfter(key, timeout)
 }
@@ -129,6 +129,7 @@ func (ec *EstablishingController) sync(key string) error {
 		return nil
 	}
 
+	// 深拷贝一个CRD
 	crd := cachedCRD.DeepCopy()
 	establishedCondition := apiextensionsv1.CustomResourceDefinitionCondition{
 		Type:    apiextensionsv1.Established,
@@ -136,6 +137,7 @@ func (ec *EstablishingController) sync(key string) error {
 		Reason:  "InitialNamesAccepted",
 		Message: "the initial names have been accepted",
 	}
+	// 更新CRD的Condition
 	apiextensionshelpers.SetCRDCondition(crd, establishedCondition)
 
 	// Update server with new CRD condition.

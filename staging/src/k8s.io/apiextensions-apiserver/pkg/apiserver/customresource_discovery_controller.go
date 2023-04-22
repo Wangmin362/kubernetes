@@ -40,12 +40,12 @@ import (
 	listers "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
 )
 
-// DiscoveryController  TODO 监听CRD资源，并维护versionHandler以及groupHandler
+// DiscoveryController 完成了对于CRD资源的/apis/<group>/<version>以及/apis/<group> endpoint的动态更新
 type DiscoveryController struct {
-	// TODO 本质上就是关于group的HTTP Handler
+	// TODO 本质上就是关于group的HTTP Handler，主要是为了维护 /apis/<group>/version endpoint
 	// 实际上versionHandler以及groupHandler是由外部传进来的
 	versionHandler *versionDiscoveryHandler
-	// TODO 本质上就是关于version的HTTP Handler
+	// TODO 本质上就是关于version的HTTP Handler 主要是为了维护/apis/<group> endpoint
 	groupHandler *groupDiscoveryHandler
 
 	// 通过Informer获取CRD资源

@@ -375,6 +375,7 @@ type CustomResourceDefinitionList struct {
 }
 
 // CustomResourceValidation is a list of validation methods for CustomResources.
+// TODO 这玩意干嘛的？
 type CustomResourceValidation struct {
 	// OpenAPIV3Schema is the OpenAPI v3 schema to be validated against.
 	OpenAPIV3Schema *JSONSchemaProps

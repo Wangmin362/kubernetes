@@ -208,7 +208,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
-	// TODO 这个controller干了啥？  EstablishingController 主要是为了更新CRD的Condition
+	// EstablishingController 更新入队CRD状态的Condition, 主要是新增Established状态
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
 	// TODO crdHandler是如何处理的？
@@ -232,7 +232,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if err != nil {
 		return nil, err
 	}
-	// TODO 为啥需要两个同时注册？
+	// TODO 为啥需要两个同时注册？ 因为第一个是精确匹配，而第一个是前缀匹配
+	// 第一个只能处理 /apis endpoint，而第二个可以处理所有以/apis/开头的所有endpoint
+	// TODO 这里是extension-server比较重要的操作
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", crdHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.HandlePrefix("/apis/", crdHandler)
 	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？

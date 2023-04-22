@@ -144,6 +144,7 @@ type crdHandler struct {
 }
 
 // crdInfo stores enough information to serve the storage for the custom resource
+// TODO 主要用于保存一个CRD的相关信息，这个信息会被放入到 crdHandler.customStorage 当中
 type crdInfo struct {
 	// spec and acceptedNames are used to compare against if a change is made on a CRD. We only update
 	// the storage if one of these changes.
@@ -220,6 +221,7 @@ func NewCustomResourceDefinitionHandler(
 			ret.removeDeadStorage()
 		},
 	})
+	// TODO NewCRConverterFactory 是干嘛的？
 	crConverterFactory, err := conversion.NewCRConverterFactory(serviceResolver, authResolverWrapper)
 	if err != nil {
 		return nil, err
@@ -243,7 +245,7 @@ var possiblyAcrossAllNamespacesVerbs = sets.NewString("list", "watch")
 // TODO 重点就是这里， 这里是CRD动态支持访问的原因么
 func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
-	// 获取请求信息
+	// 从上下文中获取RequestInfo信息 TODO 问题来了,这个RequestInfo是由谁放进去的？
 	requestInfo, ok := apirequest.RequestInfoFrom(ctx)
 	if !ok {
 		responsewriters.ErrorNegotiated(
@@ -253,6 +255,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	// 如果不是资源请求，那很有可能就是请求的一些组信息、或者是版本信息
+	// 譬如/apis, /apis/<group>, /apis/<group>/<version>，这些请求都没有请求一个具体的资源，而是获取一些endpoint相关信息
 	if !requestInfo.IsResourceRequest {
 		pathParts := splitPath(requestInfo.Path)
 		// only match /apis/<group>/<version>
@@ -267,14 +270,20 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		// 如果既不是/apis/<group>, 也不是/apis/<group>/<version> api,那只能委派给 notFoundHandler进行处理了
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
+	// 否则，当前请求应该是对于一个具体资源的请求，譬如 /apis/<group>/<version>/<resource>
+	// TODO 如果是legacy api，譬如/api 开头的所有endpoint，该如何处理？ 答：实际上这些api都是在apiserver中处理的，只有当apiserver处理
+	// 不了，一个HTTP请求才会被委派给extension-server进行处理，换言之，这种担心完全是多虑的，因为apiserver可以处理 /api开头的所有endpoint
+
 	crdName := requestInfo.Resource + "." + requestInfo.APIGroup
-	// 查询crd
+	// 从本地缓存的Informer中查询crd
 	crd, err := r.crdLister.Get(crdName)
 	if apierrors.IsNotFound(err) {
+		// 如果没有找到只能委派给 notFoundHandler
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
@@ -291,15 +300,17 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// for namespaced resources), pass request to the delegate, which is supposed to lead to a 404.
 	namespacedCRD, namespacedReq := crd.Spec.Scope == apiextensionsv1.NamespaceScoped, len(requestInfo.Namespace) > 0
 	if !namespacedCRD && namespacedReq {
+		// 如果CRD资源是Cluster级别的，但是指定了名称空间，那么委派给Delegator
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 	if namespacedCRD && !namespacedReq && !possiblyAcrossAllNamespacesVerbs.Has(requestInfo.Verb) {
+		// 如果CRD是名称空间级别，但是没有指定名称空间，并且当前操作不是LIST, WATCH操作，就委派给Delegator
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
-	// 是否支持CRD的某个版本
+	// 用户定义的CRD是否支持当前HTTP请求的版本，如果不支持，委派给Delegator
 	if !apiextensionshelpers.HasServedCRDVersion(crd, requestInfo.APIVersion) {
 		r.delegate.ServeHTTP(w, req)
 		return
@@ -309,15 +320,19 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// but it becomes "unserved" because another names update leads to a conflict
 	// and EstablishingController wasn't fast enough to put the CRD into the Established condition.
 	// We accept this as the problem is small and self-healing.
+	// 如果当前的CRD的Condition没有NamesAccepted以及Established，委派给Delegator
+	// TODO 对于CRD而言，NamesAccepted以及Established 条件到底意味着什么？
 	if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.NamesAccepted) &&
 		!apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
+	// 如果当前CRD处于被删除的过程当中
 	terminating := apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating)
 
-	// 查询CRD信息
+	// TODO 从crdHandler.customerStorage中获取crdInfo，如果没有就创建
+	// TODO 这里的创建流程是相当的复杂，后面好好研究下
 	crdInfo, err := r.getOrCreateServingInfoFor(crd.UID, crd.Name)
 	if apierrors.IsNotFound(err) {
 		r.delegate.ServeHTTP(w, req)
@@ -331,6 +346,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		)
 		return
 	}
+	// 如果生成的crdInfo不支持当前请求的版本，委派给Delegator
 	if !hasServedCRDVersion(crdInfo.spec, requestInfo.APIVersion) {
 		r.delegate.ServeHTTP(w, req)
 		return
@@ -341,11 +357,11 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		warning.AddWarning(req.Context(), "", w)
 	}
 
-	verb := strings.ToUpper(requestInfo.Verb)
-	resource := requestInfo.Resource
-	subresource := requestInfo.Subresource
-	scope := metrics.CleanScope(requestInfo)
-	supportedTypes := []string{
+	verb := strings.ToUpper(requestInfo.Verb) // 当前动作，譬如GET, LIST, CREATE, PUT, PATCH, WATCH, EXEC
+	resource := requestInfo.Resource          // 资源名称
+	subresource := requestInfo.Subresource    // 子资源名称
+	scope := metrics.CleanScope(requestInfo)  // 当前资源的作用域，是Cluster级别还是Namespaced级别
+	supportedTypes := []string{               // 支持的PATCH操作
 		string(types.JSONPatchType),
 		string(types.MergePatchType),
 	}
@@ -354,7 +370,7 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	var handlerFunc http.HandlerFunc
-	// TODO 获取子资源
+	// 拿到当前资源的子资源
 	subresources, err := apiextensionshelpers.GetSubresourcesForVersion(crd, requestInfo.APIVersion)
 	if err != nil {
 		utilruntime.HandleError(err)
@@ -366,11 +382,17 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	switch {
 	case subresource == "status" && subresources != nil && subresources.Status != nil:
+		// TODO 处理状态子资源
 		handlerFunc = r.serveStatus(w, req, requestInfo, crdInfo, terminating, supportedTypes)
+
 	case subresource == "scale" && subresources != nil && subresources.Scale != nil:
+		// TODO 处理scale子资源
 		handlerFunc = r.serveScale(w, req, requestInfo, crdInfo, terminating, supportedTypes)
+
 	case len(subresource) == 0:
+		// TODO 没有子资源，所以访问的是当前资源
 		handlerFunc = r.serveResource(w, req, requestInfo, crdInfo, crd, terminating, supportedTypes)
+
 	default:
 		responsewriters.ErrorNegotiated(
 			apierrors.NewNotFound(schema.GroupResource{Group: requestInfo.APIGroup, Resource: requestInfo.Resource}, requestInfo.Name),
@@ -388,9 +410,12 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, requestInfo *apirequest.RequestInfo,
 	crdInfo *crdInfo, crd *apiextensionsv1.CustomResourceDefinition, terminating bool, supportedTypes []string) http.HandlerFunc {
+	// 当前版本的作用域  TODO 从这里可以看出，同一个CRD的不同版本，他们的作用域是可以不同的
 	requestScope := crdInfo.requestScopes[requestInfo.APIVersion]
+	// TODO 后端存储
 	storage := crdInfo.storages[requestInfo.APIVersion].CustomResource
 
+	// TODO 分析其具体原理
 	switch requestInfo.Verb {
 	case "get":
 		return handlers.GetResource(storage, requestScope)
@@ -426,6 +451,7 @@ func (r *crdHandler) serveResource(w http.ResponseWriter, req *http.Request, req
 		checkBody := true
 		return handlers.DeleteCollection(storage, checkBody, requestScope, r.admission)
 	default:
+		// 不支持的操作
 		responsewriters.ErrorNegotiated(
 			apierrors.NewMethodNotSupported(schema.GroupResource{Group: requestInfo.APIGroup, Resource: requestInfo.Resource}, requestInfo.Verb),
 			Codecs, schema.GroupVersion{Group: requestInfo.APIGroup, Version: requestInfo.APIVersion}, w, req,
@@ -644,7 +670,7 @@ func (r *crdHandler) GetCustomResourceListerCollectionDeleter(crd *apiextensions
 // getOrCreateServingInfoFor gets the CRD serving info for the given CRD UID if the key exists in the storage map.
 // Otherwise the function fetches the up-to-date CRD using the given CRD name and creates CRD serving info.
 func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crdInfo, error) {
-	// 从Map中找到哪个CRD
+	// 从Map中找到那个CRD TODO 一个CRD啥时候被放入到customStorage
 	storageMap := r.customStorage.Load().(crdStorageMap)
 	if ret, ok := storageMap[uid]; ok {
 		return ret, nil
@@ -657,6 +683,7 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 	// If updateCustomResourceDefinition sees an update and happens later, the storage will be deleted and
 	// we will re-create the updated storage on demand. If updateCustomResourceDefinition happens before,
 	// we make sure that we observe the same up-to-date CRD.
+	// 再次查询informer
 	crd, err := r.crdLister.Get(name)
 	if err != nil {
 		return nil, err
@@ -666,6 +693,7 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 		return ret, nil
 	}
 
+	// TODO StorageVersion到底是啥？ 为什么是从CustomResourceDefinitionVersion.Name当中获取
 	storageVersion, err := apiextensionshelpers.GetCRDStorageVersion(crd)
 	if err != nil {
 		return nil, err
@@ -682,7 +710,9 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 	equivalentResourceRegistry := runtime.NewEquivalentResourceRegistry()
 
 	structuralSchemas := map[string]*structuralschema.Structural{}
+	// 遍历CRD支持的所有版本
 	for _, v := range crd.Spec.Versions {
+		// 获取当前版本的Schema, 也就是当前版本的定义
 		val, err := apiextensionshelpers.GetSchemaForVersion(crd, v.Name)
 		if err != nil {
 			utilruntime.HandleError(err)
@@ -692,6 +722,7 @@ func (r *crdHandler) getOrCreateServingInfoFor(uid types.UID, name string) (*crd
 			continue
 		}
 		internalValidation := &apiextensionsinternal.CustomResourceValidation{}
+		// TODO 这里是在干嘛？
 		if err := apiextensionsv1.Convert_v1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(val, internalValidation, nil); err != nil {
 			return nil, fmt.Errorf("failed converting CRD validation to internal version: %v", err)
 		}

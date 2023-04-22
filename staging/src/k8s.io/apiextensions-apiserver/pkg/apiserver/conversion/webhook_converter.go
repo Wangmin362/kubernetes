@@ -38,7 +38,9 @@ import (
 	utiltrace "k8s.io/utils/trace"
 )
 
+// TODO 这玩意主要是用来干嘛的？
 type webhookConverterFactory struct {
+	// TODO ClientManager是干嘛用的？
 	clientManager webhook.ClientManager
 }
 

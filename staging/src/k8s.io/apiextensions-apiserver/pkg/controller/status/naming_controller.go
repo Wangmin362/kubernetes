@@ -43,8 +43,9 @@ import (
 	listers "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1"
 )
 
-// This controller is reserving names. To avoid conflicts, be sure to run only one instance of the worker at a time.
+// NamingConditionController This controller is reserving names. To avoid conflicts, be sure to run only one instance of the worker at a time.
 // This could eventually be lifted, but starting simple.
+// TODO 分析具体原理
 type NamingConditionController struct {
 	crdClient client.CustomResourceDefinitionsGetter
 
@@ -121,7 +122,8 @@ func (c *NamingConditionController) getAcceptedNamesForGroup(group string) (allR
 	return allResources, allKinds
 }
 
-func (c *NamingConditionController) calculateNamesAndConditions(in *apiextensionsv1.CustomResourceDefinition) (apiextensionsv1.CustomResourceDefinitionNames, apiextensionsv1.CustomResourceDefinitionCondition, apiextensionsv1.CustomResourceDefinitionCondition) {
+func (c *NamingConditionController) calculateNamesAndConditions(in *apiextensionsv1.CustomResourceDefinition) (
+	apiextensionsv1.CustomResourceDefinitionNames, apiextensionsv1.CustomResourceDefinitionCondition, apiextensionsv1.CustomResourceDefinitionCondition) {
 	// Get the names that have already been claimed
 	allResources, allKinds := c.getAcceptedNamesForGroup(in.Spec.Group)
 
@@ -249,6 +251,7 @@ func (c *NamingConditionController) sync(key string) error {
 
 	// Skip checking names if Spec and Status names are same.
 	// TODO 这里的对比意味着什么？
+	// TODO 如果不相等，说明CRD并非所有的名字都被接受
 	if equality.Semantic.DeepEqual(inCustomResourceDefinition.Spec.Names, inCustomResourceDefinition.Status.AcceptedNames) {
 		return nil
 	}

@@ -55,7 +55,8 @@ type ConditionController struct {
 	// last generation this controller updated the condition per CRD name (to avoid two
 	// different version of the apiextensions-apiservers in HA to fight for the right message)
 	lastSeenGenerationLock sync.Mutex
-	lastSeenGeneration     map[string]int64
+	// TODO 核心属性
+	lastSeenGeneration map[string]int64
 }
 
 // NewConditionController constructs a non-structural schema condition controller.
@@ -130,6 +131,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 }
 
 func (c *ConditionController) sync(key string) error {
+	// 从本地Informer中获取CRD定义
 	inCustomResourceDefinition, err := c.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil

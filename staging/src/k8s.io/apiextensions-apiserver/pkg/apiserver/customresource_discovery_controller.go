@@ -83,11 +83,14 @@ func NewDiscoveryController(crdInformer informers.CustomResourceDefinitionInform
 
 func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
+	// /apis/<group> 的结果保存在这个变量当中
 	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
+	// /apis/<group>/<version>的结果就保存在这个局部变量当中
 	var apiResourcesForDiscovery []metav1.APIResource
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
-	// 查询所有的CRD TODO 这里为什么不查询特定的group, version的CRD，而是查询所有的资源呢？
+	// 查询所有的CRD TODO 这里为什么不查询特定的/apis/<group>/<version>的CRD，而是查询所有的资源呢？
+	// 答：因为/apis/<group>/<version> api的结果就是在这里准备的，因此这里需要找到所有对应group, version下的资源
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -102,6 +105,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 		// 因为是查询的所有的CRD，因此这里需要过滤不关心的组
 		// TODO 上方查询的时候为什么不优化为只查询特定Group/Version的资源呢？ 是有什么原因考虑的呢？还是说作者的疏忽？
+		// 答：因为/apis/<group>/<version> api的结果就是在这里准备的，因此这里需要找到所有对应group, version下的资源
 		if crd.Spec.Group != version.Group {
 			continue
 		}
@@ -124,6 +128,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 					Version:      v.Name,
 				})
 			}
+			// TODO 感觉这里的逻辑有点混乱，为什么不判断如果版本不同，则直接退出呢？ 而是放在外面
 			if v.Name == version.Version {
 				foundThisVersion = true
 			}
@@ -142,12 +147,12 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		verbs := metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"})
 		// if we're terminating we don't allow some verbs
 		// TODO 为什么CRD资源都处于Terminating了，还需要注册呢？
-		// TODO 当前CRD处于Terminating，那么此CRD不需要支持patch, create, update
+		// 当前CRD处于Terminating，那么此CRD不需要支持patch, create, update
 		if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating) {
 			verbs = metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "watch"})
 		}
 
-		// 发现的同一个资源的所有版本
+		// 实例化属于/apis/<group>/<version>下的资源
 		apiResourcesForDiscovery = append(apiResourcesForDiscovery, metav1.APIResource{
 			Name:               crd.Status.AcceptedNames.Plural,
 			SingularName:       crd.Status.AcceptedNames.Singular,
@@ -194,7 +199,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		return nil
 	}
 
-	// TODO 这玩意是干嘛的？
+	// TODO 这玩意是干嘛的？ 看起来应该是版本排序
 	sortGroupDiscoveryByKubeAwareVersion(apiVersionsForDiscovery)
 
 	apiGroup := metav1.APIGroup{
@@ -205,7 +210,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		// TODO 什么叫做优先选择的版本？ 有啥作用？ 啥时候需要？ 为啥需要？
 		PreferredVersion: apiVersionsForDiscovery[0],
 	}
-	// TODO 暴露出group的endpoint
+	// TODO 暴露出/apis/<group> endpoint
 	c.groupHandler.setDiscovery(version.Group, discovery.NewAPIGroupHandler(Codecs, apiGroup))
 
 	if !foundVersion {
@@ -299,6 +304,7 @@ func (c *DiscoveryController) processNextWorkItem() bool {
 }
 
 func (c *DiscoveryController) enqueue(obj *apiextensionsv1.CustomResourceDefinition) {
+	// 加入所有版本
 	for _, v := range obj.Spec.Versions {
 		c.queue.Add(schema.GroupVersion{Group: obj.Spec.Group, Version: v.Name})
 	}

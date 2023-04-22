@@ -177,7 +177,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		apiGroupInfo.VersionedResourcesStorageMap[v1.SchemeGroupVersion.Version] = storage
 	}
 
-	// 向go-restful的container中注册CRD资源路由
+	// 向go-restful的container中注册CRD资源路由，即注册CRD相关的 restful api
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}

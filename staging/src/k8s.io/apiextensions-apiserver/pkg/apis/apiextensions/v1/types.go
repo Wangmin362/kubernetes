@@ -172,6 +172,7 @@ type CustomResourceDefinitionVersion struct {
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// served is a flag enabling/disabling this version from being served via REST APIs
 	// TODO 意思是通过REST API暴露的版本的Served=true,否则就是Served=false
+	// TODO 如何理解这个字段？有啥作用？为啥需要？
 	Served bool `json:"served" protobuf:"varint,2,opt,name=served"`
 	// storage indicates this version should be used when persisting custom resources to storage.
 	// There must be exactly one version with storage=true.
@@ -284,9 +285,11 @@ const (
 	// accepted without a conflict for the first time. A resource stays established until deleted, even during
 	// a later NamesAccepted due to changed names. Note that not all names can be changed.
 	// TODO Established状态是CRD资源已经成功激活的状态，CRD的注册需要经过一系列的步骤，等待所有的步骤完成之后，CRD状态会被设置为Established状态
+	// TODO 什么情况下，CRD会被打上这个Condition
 	Established CustomResourceDefinitionConditionType = "Established"
 	// NamesAccepted means the names chosen for this CustomResourceDefinition do not conflict with others in
 	// the group and are therefore accepted.
+	// TODO CRD什么时候会被打上这个Condition?
 	NamesAccepted CustomResourceDefinitionConditionType = "NamesAccepted"
 	// NonStructuralSchema means that one or more OpenAPI schema is not structural.
 	//
@@ -303,13 +306,16 @@ const (
 	// - read-only
 	// - OpenAPI publishing
 	// - webhook conversion
+	// TODO CRD什么时候会被打上这个Condition?
 	NonStructuralSchema CustomResourceDefinitionConditionType = "NonStructuralSchema"
 	// Terminating means that the CustomResourceDefinition has been deleted and is cleaning up.
+	// TODO CRD什么时候会被打上这个Condition?
 	Terminating CustomResourceDefinitionConditionType = "Terminating"
 	// KubernetesAPIApprovalPolicyConformant indicates that an API in *.k8s.io or *.kubernetes.io is or is not approved.  For CRDs
 	// outside those groups, this condition will not be set.  For CRDs inside those groups, the condition will
 	// be true if .metadata.annotations["api-approved.kubernetes.io"] is set to a URL, otherwise it will be false.
 	// See https://github.com/kubernetes/enhancements/pull/1111 for more details.
+	// TODO CRD什么时候会被打上这个Condition?
 	KubernetesAPIApprovalPolicyConformant CustomResourceDefinitionConditionType = "KubernetesAPIApprovalPolicyConformant"
 )
 

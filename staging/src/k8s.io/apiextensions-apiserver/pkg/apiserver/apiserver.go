@@ -208,23 +208,23 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
-	// 这个controller干了啥？  EstablishingController 主要是为了更新CRD的Condition
+	// TODO 这个controller干了啥？  EstablishingController 主要是为了更新CRD的Condition
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
 	// TODO crdHandler是如何处理的？
 	crdHandler, err := NewCustomResourceDefinitionHandler(
-		versionDiscoveryHandler, // 组的服务发现
-		groupDiscoveryHandler,   // group的服务发现
-		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
-		delegateHandler,
-		c.ExtraConfig.CRDRESTOptionsGetter,
-		c.GenericConfig.AdmissionControl,
-		establishingController,
-		c.ExtraConfig.ServiceResolver,
-		c.ExtraConfig.AuthResolverWrapper,
-		c.ExtraConfig.MasterCount,
-		s.GenericAPIServer.Authorizer,
-		c.GenericConfig.RequestTimeout,
+		versionDiscoveryHandler, // /apis/<group>/<version>的服务发现
+		groupDiscoveryHandler,   // /apis/<group>的服务发现
+		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), // CRD Informer
+		delegateHandler,                    // 如果CRD Handler无法处理，委派给下一个Server处理
+		c.ExtraConfig.CRDRESTOptionsGetter, // TODO 非常重要的属性，和后端存储相关
+		c.GenericConfig.AdmissionControl,   // 准入控制
+		establishingController,             // TODO
+		c.ExtraConfig.ServiceResolver,      // 根据服务的name, namespace, port拼接出服务的访问地址
+		c.ExtraConfig.AuthResolverWrapper,  // 认证
+		c.ExtraConfig.MasterCount,          // master节点数量
+		s.GenericAPIServer.Authorizer,      // 授权
+		c.GenericConfig.RequestTimeout,     // 请求超时时间
 		time.Duration(c.GenericConfig.MinRequestTimeout)*time.Second,
 		apiGroupInfo.StaticOpenAPISpec,
 		c.GenericConfig.MaxRequestBodyBytes,
@@ -238,8 +238,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
-	// 定时查询所有的CRD，并添加group handler，以及version handler
-	// TODO 详细说明此Controller的作用？
+	// 监听CRD，每一个CRD都会定义group, version, resource，甚至一个CRD会有多个version，为了支持查询
+	// DiscoveryController会把监听到的CRD以/apis/<group>/<version> API放入到 versionDiscoveryHandler
+	// 并且把监听到的CRD以/apis/<group> API放入到 groupDiscoveryHandler
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
 	// TODO ?
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

@@ -213,7 +213,8 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		return nil
 	}
 
-	// TODO 暴露出version的endpoint
+	// 暴露出/apis/<group>/<version> endpoint
+	// 这里是以匿名方法的方式来添加的APIResourceLister
 	c.versionHandler.setDiscovery(version, discovery.NewAPIVersionHandler(Codecs, version, discovery.APIResourceListerFunc(func() []metav1.APIResource {
 		return apiResourcesForDiscovery
 	})))

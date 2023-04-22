@@ -26,11 +26,16 @@ import (
 )
 
 // TODO 如何理解VersionDiscoveryHandler结构体定义？
+// 答：versionDiscoveryHandler顾名思义就是专门用来处理/apis/<group>/<version>的Handler，它需要返回当前版本下的所有资源
+// 譬如当用户执行 /apis/skyguard.com.cn/v1beta1,那么说明用户需要返回skyguar.com.cn这个组下的v1beta1版本下的所有资源，譬如
+// ucwi, dsg, ucsslite, tenantAuth CRD
 type versionDiscoveryHandler struct {
 	// TODO, writing is infrequent, optimize this
+	// TODO 如果要优化这里，应该怎么优化？
 	discoveryLock sync.RWMutex
 	discovery     map[schema.GroupVersion]*discovery.APIVersionHandler
 
+	// 如果无法处理当前的/apis/<group>/<version>
 	delegate http.Handler
 }
 
@@ -75,8 +80,12 @@ func (r *versionDiscoveryHandler) unsetDiscovery(gv schema.GroupVersion) {
 	delete(r.discovery, gv)
 }
 
+// TODO 如何理解groupDiscoveryHandler结构体定义？
+// 答：groupDiscoveryHandler顾名思义就是专门用来处理/apis/<group>的Handler，它需要返回当前组下的所有资源
+// 譬如当用户执行 /apis/skyguard.com.cn,那么说明用户需要返回skyguar.com.cn这个组下的所有版本的所有资源
 type groupDiscoveryHandler struct {
 	// TODO, writing is infrequent, optimize this
+	// TODO 思考如何优化？
 	discoveryLock sync.RWMutex
 	discovery     map[string]*discovery.APIGroupHandler
 
@@ -90,8 +99,10 @@ func (r *groupDiscoveryHandler) ServeHTTP(w http.ResponseWriter, req *http.Reque
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
+	// 根据组名找到对应的Handler
 	discovery, ok := r.getDiscovery(pathParts[1])
 	if !ok {
+		// 如果没有找到，就直接委派给delegator
 		r.delegate.ServeHTTP(w, req)
 		return
 	}

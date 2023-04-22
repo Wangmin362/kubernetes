@@ -30,11 +30,12 @@ import (
 
 // APIGroupHandler creates a webservice serving the supported versions, preferred version, and name
 // of a group. E.g., such a web service will be registered at /apis/extensions.
-// TODO 暴露关于一个group的路由，使得用户可以查询一个group相关的信息
+// TODO 暴露关于一个/apis/<group>的路由，使得用户可以查询一个group相关的信息，从定义中来看，APIGroupHandler似乎并没有返回关于资源
+// 的信息，仅仅返回了组下的版本信息
 type APIGroupHandler struct {
 	// 根据Group, Version协商出序列化、反序列化器
 	serializer runtime.NegotiatedSerializer
-	// TODO 标识一个group下包含了哪些
+	// TODO 标识一个group下包含了哪些版本，具体的资源信息应该需到 APIVersionHandler 当中获取
 	group metav1.APIGroup
 }
 

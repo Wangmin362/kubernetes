@@ -134,6 +134,7 @@ type ObjectMeta struct {
 	// Applied only if Name is not specified.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#idempotency
 	// +optional
+	// TODO GenerateName应该是资源的版本号，每次修改资源，k8s都会修改这个属性
 	GenerateName string `json:"generateName,omitempty" protobuf:"bytes,2,opt,name=generateName"`
 
 	// Namespace defines the space within which each name must be unique. An empty namespace is

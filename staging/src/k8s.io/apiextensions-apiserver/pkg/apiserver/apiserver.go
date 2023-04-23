@@ -244,9 +244,10 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// DiscoveryController会把监听到的CRD以/apis/<group>/<version> API放入到 versionDiscoveryHandler
 	// 并且把监听到的CRD以/apis/<group> API放入到 groupDiscoveryHandler
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
-	// TODO ?
+	// TODO 判断当前新曾的CRD的名字是否可以使用，只要当前CRD的命名和已经存在的CRD命名没有任何冲突，当前CRD就会被打上NamesAccepted以及Established Condition
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	// TODO ?
+	// TODO 主要是再处理NonStructuralSchema Condition
+	// NonStructuralSchema Condition含义可以参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO ?
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

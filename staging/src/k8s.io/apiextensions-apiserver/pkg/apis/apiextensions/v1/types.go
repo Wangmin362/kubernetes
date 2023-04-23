@@ -75,6 +75,8 @@ type CustomResourceDefinitionSpec struct {
 	// This field is deprecated in favor of setting `x-preserve-unknown-fields` to true in `spec.versions[*].schema.openAPIV3Schema`.
 	// See https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/#pruning-versus-preserving-unknown-fields for details.
 	// +optional
+	// TODO 这个字段代表着什么？ 有啥影响？ 如何使用？ 为啥需要？
+	// 参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#field-pruning
 	PreserveUnknownFields bool `json:"preserveUnknownFields,omitempty" protobuf:"varint,10,opt,name=preserveUnknownFields"`
 }
 
@@ -172,7 +174,7 @@ type ServiceReference struct {
 }
 
 // CustomResourceDefinitionVersion describes a version for CRD.
-// TODO 这个结构体是对于什么的抽象？ 为啥需要？
+// 这个结构体是对于什么的抽象？ 为啥需要？ 答：一个CRD可能存在不同的，每个版本的定义可能不一样
 type CustomResourceDefinitionVersion struct {
 	// name is the version name, e.g. “v1”, “v2beta1”, etc.
 	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.
@@ -318,6 +320,7 @@ const (
 	// - OpenAPI publishing
 	// - webhook conversion
 	// TODO CRD什么时候会被打上这个Condition?
+	// 这个属性的作用参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
 	NonStructuralSchema CustomResourceDefinitionConditionType = "NonStructuralSchema"
 	// Terminating means that the CustomResourceDefinition has been deleted and is cleaning up.
 	// TODO CRD什么时候会被打上这个Condition?
@@ -361,6 +364,7 @@ type CustomResourceDefinitionStatus struct {
 	// They may be different than the names in spec.
 	// +optional
 	// TODO 什么叫做AcceptedNames? 为什么需要这个状态
+	// 答：AcceptedNames是实际用于服务发现的名称。它们可能与规约（spec）中的名称不同
 	AcceptedNames CustomResourceDefinitionNames `json:"acceptedNames" protobuf:"bytes,2,opt,name=acceptedNames"`
 
 	// storedVersions lists all versions of CustomResources that were ever persisted. Tracking these

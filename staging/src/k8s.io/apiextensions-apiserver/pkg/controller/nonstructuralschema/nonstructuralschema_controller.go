@@ -91,6 +91,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 
 	allErrs := field.ErrorList{}
 
+	// PreserveUnknownFields参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#field-pruning
 	if in.Spec.PreserveUnknownFields {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "preserveUnknownFields"),
 			in.Spec.PreserveUnknownFields,
@@ -103,6 +104,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 		}
 
 		internalSchema := &apiextensionsinternal.CustomResourceValidation{}
+		// TODO 这是在干嘛？
 		if err := apiextensionsv1.Convert_v1_CustomResourceValidation_To_apiextensions_CustomResourceValidation(v.Schema, internalSchema, nil); err != nil {
 			klog.Errorf("failed to convert CRD validation to internal version: %v", err)
 			continue
@@ -144,12 +146,14 @@ func (c *ConditionController) sync(key string) error {
 	c.lastSeenGenerationLock.Lock()
 	lastSeen, seenBefore := c.lastSeenGeneration[inCustomResourceDefinition.Name]
 	c.lastSeenGenerationLock.Unlock()
+	// 说明之前已经处理过
 	if seenBefore && inCustomResourceDefinition.Generation <= lastSeen {
 		return nil
 	}
 
 	// check old condition
 	cond := calculateCondition(inCustomResourceDefinition)
+	// 当前CRD是否存在NonStructuralSchema Condition
 	old := apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NonStructuralSchema)
 
 	if cond == nil && old == nil {

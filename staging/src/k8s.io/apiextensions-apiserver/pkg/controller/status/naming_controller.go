@@ -88,16 +88,19 @@ func NewNamingConditionController(
 	return c
 }
 
+// 找到当前group组下所有已经被使用的CRD的名字
 func (c *NamingConditionController) getAcceptedNamesForGroup(group string) (allResources sets.String, allKinds sets.String) {
 	allResources = sets.String{}
 	allKinds = sets.String{}
 
+	// 查询所有的CRD
 	list, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		panic(err)
 	}
 
 	for _, curr := range list {
+		// 只查看需要的group
 		if curr.Spec.Group != group {
 			continue
 		}
@@ -122,34 +125,42 @@ func (c *NamingConditionController) getAcceptedNamesForGroup(group string) (allR
 	return allResources, allKinds
 }
 
+// 主要是计算可以当前CRD可以使用的名称，以及当前CRD的Condition  不得不说，这个函数的名字取得还是很合理
 func (c *NamingConditionController) calculateNamesAndConditions(in *apiextensionsv1.CustomResourceDefinition) (
 	apiextensionsv1.CustomResourceDefinitionNames, apiextensionsv1.CustomResourceDefinitionCondition, apiextensionsv1.CustomResourceDefinitionCondition) {
 	// Get the names that have already been claimed
+	// 找到当前group下其它CRD所使用过的名字，如果别的CRD已经使用，那么当前的CRD肯定不能再使用了
 	allResources, allKinds := c.getAcceptedNamesForGroup(in.Spec.Group)
 
+	// 实例化一个NamesAccepted条件，并且其状态为Unknown
 	namesAcceptedCondition := apiextensionsv1.CustomResourceDefinitionCondition{
 		Type:   apiextensionsv1.NamesAccepted,
 		Status: apiextensionsv1.ConditionUnknown,
 	}
 
 	requestedNames := in.Spec.Names
+	// TODO 猜测这个名字刚开始应该是空的，经过后续的判断，如果当前CRD和系统中已经存在的CRD的名称如果发生冲突，那么这个对象估计会重新被放入到workqueue当中
 	acceptedNames := in.Status.AcceptedNames
 	newNames := in.Status.AcceptedNames
 
 	// Check each name for mismatches.  If there's a mismatch between spec and status, then try to deconflict.
 	// Continue on errors so that the status is the best match possible
 	if err := equalToAcceptedOrFresh(requestedNames.Plural, acceptedNames.Plural, allResources); err != nil {
+		// 如果有错误，说明当前CRD的复数名字和已有CRD的名字冲突
 		namesAcceptedCondition.Status = apiextensionsv1.ConditionFalse
 		namesAcceptedCondition.Reason = "PluralConflict"
 		namesAcceptedCondition.Message = err.Error()
 	} else {
+		// 否则，如果没有冲突的话，就可以直接使用复数名字
 		newNames.Plural = requestedNames.Plural
 	}
+	// 判断当前CRD的单数名字是否有冲突
 	if err := equalToAcceptedOrFresh(requestedNames.Singular, acceptedNames.Singular, allResources); err != nil {
 		namesAcceptedCondition.Status = apiextensionsv1.ConditionFalse
 		namesAcceptedCondition.Reason = "SingularConflict"
 		namesAcceptedCondition.Message = err.Error()
 	} else {
+		// 如果没有冲突的话，就可以直接使用单数名字
 		newNames.Singular = requestedNames.Singular
 	}
 	if !reflect.DeepEqual(requestedNames.ShortNames, acceptedNames.ShortNames) {
@@ -202,6 +213,7 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 	// The Establishing Controller will see the NamesAccepted condition when it arrives through the shared informer.
 	// At that time the API endpoint handler will serve the endpoint, avoiding a race
 	// which we had if we set Established to true here.
+	// TODO 默认就认为当前CRD的状态为名称冲突
 	establishedCondition := apiextensionsv1.CustomResourceDefinitionCondition{
 		Type:    apiextensionsv1.Established,
 		Status:  apiextensionsv1.ConditionFalse,
@@ -224,6 +236,7 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 }
 
 func equalToAcceptedOrFresh(requestedName, acceptedName string, usedNames sets.String) error {
+	// TODO 如果相等，说明当前名字可以被接接受，我估计刚开始的时候acceptedName是空的
 	if requestedName == acceptedName {
 		return nil
 	}
@@ -256,20 +269,24 @@ func (c *NamingConditionController) sync(key string) error {
 		return nil
 	}
 
+	// 计算当前CRD可以使用的名字（因为当前CRD使用的名字可能会和当前系统中已经存在的CRD名字发生冲突）
 	acceptedNames, namingCondition, establishedCondition := c.calculateNamesAndConditions(inCustomResourceDefinition)
 
 	// nothing to do if accepted names and NamesAccepted condition didn't change
-	// TODO 又是对比啥？
+	// TODO 如果当前CRD的所有名字都被接受（也就是说和其它的CRD命名没有冲突），并且Namespaced Condition相等，说明不需要任何改变
 	if reflect.DeepEqual(inCustomResourceDefinition.Status.AcceptedNames, acceptedNames) &&
 		apiextensionshelpers.IsCRDConditionEquivalent(&namingCondition, apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NamesAccepted)) {
 		return nil
 	}
+
+	// TODO，否则，说明当前CRD的命名和当前已经存在的CRD存在冲突
 
 	crd := inCustomResourceDefinition.DeepCopy()
 	crd.Status.AcceptedNames = acceptedNames
 	apiextensionshelpers.SetCRDCondition(crd, namingCondition)
 	apiextensionshelpers.SetCRDCondition(crd, establishedCondition)
 
+	// 更新CRD， CRD更新之后，马上又会进入到sync当中
 	updatedObj, err := c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again
@@ -280,10 +297,12 @@ func (c *NamingConditionController) sync(key string) error {
 	}
 
 	// if the update was successful, go ahead and add the entry to the mutation cache
+	// 缓存更新后的CRD
 	c.crdMutationCache.Mutation(updatedObj)
 
 	// we updated our status, so we may be releasing a name.  When this happens, we need to rekick everything in our group
 	// if we fail to rekick, just return as normal.  We'll get everything on a resync
+	// TODO 为什么需要这个逻辑？
 	if err := c.requeueAllOtherGroupCRDs(key); err != nil {
 		return err
 	}

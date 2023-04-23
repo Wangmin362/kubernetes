@@ -36,9 +36,11 @@ import (
 //
 // Reflector knows how to watch a server and update a Store.  This
 // package provides a variety of implementations of Store.
+// TODO K8S是如何定义Store接口的？
 type Store interface {
 
 	// Add adds the given object to the accumulator associated with the given object's key
+	// TODO obj对象的key是通过obj对象计算出来的
 	Add(obj interface{}) error
 
 	// Update updates the given object in the accumulator associated with the given object's key

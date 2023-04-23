@@ -36,6 +36,7 @@ import (
 // resourceVersions for comparisons.
 // Implementations must be thread-safe.
 // TODO find a way to layer this into an informer/lister
+// TODO 这个接口是为了干啥？ 是对于啥的抽象？
 type MutationCache interface {
 	GetByKey(key string) (interface{}, bool, error)
 	ByIndex(indexName, indexKey string) ([]interface{}, error)

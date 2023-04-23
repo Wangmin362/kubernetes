@@ -42,11 +42,15 @@ type CustomResourceDefinitionSpec struct {
 	// group is the API group of the defined custom resource.
 	// The custom resources are served under `/apis/<group>/...`.
 	// Must match the name of the CustomResourceDefinition (in the form `<names.plural>.<group>`).
+	// TODO CRD.ObjectMeta.name = Names.Plural 也就是说CRD的名字必须等于<names.plural>.<group>
+	// 譬如我们自定义的：ucwis.skyguard.com.cn
 	Group string `json:"group" protobuf:"bytes,1,opt,name=group"`
 	// names specify the resource and kind names for the custom resource.
+	// 自定义CR的名字,譬如：{kind: Ucwi, listKind: UcwiList, plural: Uciws, singular: ucwi}
 	Names CustomResourceDefinitionNames `json:"names" protobuf:"bytes,3,opt,name=names"`
 	// scope indicates whether the defined custom resource is cluster- or namespace-scoped.
 	// Allowed values are `Cluster` and `Namespaced`.
+	// 自定义CR的作用域，要么是Cluster级别，要么是Namespaced级别，在kubebuilder构建CR时，可以通过指定+kubebuilder:resource:socpe=cluster来指定作用域
 	Scope ResourceScope `json:"scope" protobuf:"bytes,4,opt,name=scope,casttype=ResourceScope"`
 	// versions is the list of all API versions of the defined custom resource.
 	// Version names are used to compute the order in which served versions are listed in API discovery.
@@ -56,10 +60,13 @@ type CustomResourceDefinitionSpec struct {
 	// by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing
 	// major version, then minor version. An example sorted list of versions:
 	// v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.
+	// CRD可能会存在不同的版本，譬如v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10等等
+	// 所以这里需要声明每一个版本的定义是啥，简单来说，就是定义当前版本的CR有哪些字段？
 	Versions []CustomResourceDefinitionVersion `json:"versions" protobuf:"bytes,7,rep,name=versions"`
 
 	// conversion defines conversion settings for the CRD.
 	// +optional
+	// TODO 这各属性时用来干嘛的？ 什么场景下需要使用？
 	Conversion *CustomResourceConversion `json:"conversion,omitempty" protobuf:"bytes,9,opt,name=conversion"`
 
 	// preserveUnknownFields indicates that object fields which are not specified
@@ -169,6 +176,7 @@ type ServiceReference struct {
 type CustomResourceDefinitionVersion struct {
 	// name is the version name, e.g. “v1”, “v2beta1”, etc.
 	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.
+	// 版本名称
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// served is a flag enabling/disabling this version from being served via REST APIs
 	// TODO 意思是通过REST API暴露的版本的Served=true,否则就是Served=false
@@ -176,31 +184,34 @@ type CustomResourceDefinitionVersion struct {
 	Served bool `json:"served" protobuf:"varint,2,opt,name=served"`
 	// storage indicates this version should be used when persisting custom resources to storage.
 	// There must be exactly one version with storage=true.
-	// TODO 这个字段是啥意思？
+	// TODO 这个字段是啥意思？ 有啥作用 什么时候需要？
 	Storage bool `json:"storage" protobuf:"varint,3,opt,name=storage"`
 	// deprecated indicates this version of the custom resource API is deprecated.
 	// When set to true, API requests to this version receive a warning header in the server response.
 	// Defaults to false.
 	// +optional
+	// TODO 当前版本是否已经废弃，如果当前版本已经废弃，当用户创建废弃版本的CR时，时如何处理的？
 	Deprecated bool `json:"deprecated,omitempty" protobuf:"varint,7,opt,name=deprecated"`
 	// deprecationWarning overrides the default warning returned to API clients.
 	// May only be set when `deprecated` is true.
 	// The default warning indicates this version is deprecated and recommends use
 	// of the newest served version of equal or greater stability, if one exists.
 	// +optional
+	// 如果当前版本已经废弃，那么提示给用户的提示信息通过这里来指定
 	DeprecationWarning *string `json:"deprecationWarning,omitempty" protobuf:"bytes,8,opt,name=deprecationWarning"`
 	// schema describes the schema used for validation, pruning, and defaulting of this version of the custom resource.
 	// +optional
-	// TODO 这里应该就是在描述CRD的定义，也就是所谓的Schema
+	// TODO 这里是在描述CRD的定义，也就是所谓的Schema，这里是CRD最核心的地方 简单来说用户提交的CR长什么样子，可以提交哪些字段
 	Schema *CustomResourceValidation `json:"schema,omitempty" protobuf:"bytes,4,opt,name=schema"`
 	// subresources specify what subresources this version of the defined custom resource have.
 	// +optional
-	// TODO 如何理解CRD的子资源
+	// TODO 如何理解CRD的子资源，CRD目前只有Scale以及Status子资源，子资源开启后，用户可以访问子资源，实际上就是新增了子资源的API
 	Subresources *CustomResourceSubresources `json:"subresources,omitempty" protobuf:"bytes,5,opt,name=subresources"`
 	// additionalPrinterColumns specifies additional columns returned in Table output.
 	// See https://kubernetes.io/docs/reference/using-api/api-concepts/#receiving-resources-as-tables for details.
 	// If no columns are specified, a single column displaying the age of the custom resource is used.
 	// +optional
+	// 当执行kubectl get <crd>的时候，需要打印哪些熟悉属性，当K8S管理员查看这个CR时非常有用
 	AdditionalPrinterColumns []CustomResourceColumnDefinition `json:"additionalPrinterColumns,omitempty" protobuf:"bytes,6,rep,name=additionalPrinterColumns"`
 }
 
@@ -343,11 +354,13 @@ type CustomResourceDefinitionStatus struct {
 	// +optional
 	// +listType=map
 	// +listMapKey=type
+	// TODO CRD的Condition似乎非常重要，主要有NameAccepted以及Established条件
 	Conditions []CustomResourceDefinitionCondition `json:"conditions" protobuf:"bytes,1,opt,name=conditions"`
 
 	// acceptedNames are the names that are actually being used to serve discovery.
 	// They may be different than the names in spec.
 	// +optional
+	// TODO 什么叫做AcceptedNames? 为什么需要这个状态
 	AcceptedNames CustomResourceDefinitionNames `json:"acceptedNames" protobuf:"bytes,2,opt,name=acceptedNames"`
 
 	// storedVersions lists all versions of CustomResources that were ever persisted. Tracking these
@@ -357,6 +370,7 @@ type CustomResourceDefinitionStatus struct {
 	// versions from this list.
 	// Versions may not be removed from `spec.versions` while they exist in this list.
 	// +optional
+	// TODO 什么叫做StoredVersion? 为啥需要？ 啥时候需要？
 	StoredVersions []string `json:"storedVersions" protobuf:"bytes,3,rep,name=storedVersions"`
 }
 

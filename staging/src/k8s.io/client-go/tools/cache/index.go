@@ -32,6 +32,8 @@ import (
 //  2. a name of an index, and
 //  3. an "indexed value", which is produced by an IndexFunc and
 //     can be a field value or any other string computed from the object.
+//
+// TODO 如何理解Store接口，在Store接口上增加了什么功能？
 type Indexer interface {
 	Store
 	// Index returns the stored objects whose set of indexed values

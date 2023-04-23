@@ -37,6 +37,7 @@ import (
 )
 
 // KubernetesAPIApprovalPolicyConformantConditionController is maintaining the KubernetesAPIApprovalPolicyConformant condition.
+// TODO 这玩意干啥的？
 type KubernetesAPIApprovalPolicyConformantConditionController struct {
 	crdClient client.CustomResourceDefinitionsGetter
 

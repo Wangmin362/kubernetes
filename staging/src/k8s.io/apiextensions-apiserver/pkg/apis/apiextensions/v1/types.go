@@ -29,6 +29,12 @@ const (
 	// KubeAPIApprovedAnnotation is an annotation that must be set to create a CRD for the k8s.io, *.k8s.io, kubernetes.io, or *.kubernetes.io namespaces.
 	// The value should be a link to a URL where the current spec was approved, so updates to the spec should also update the URL.
 	// If the API is unapproved, you may set the annotation to a string starting with `"unapproved"`.  For instance, `"unapproved, temporarily squatting"` or `"unapproved, experimental-only"`.  This is discouraged.
+	// TODO 这个注解干嘛用的？
+	// 参考：https://github.com/kedacore/keda/issues/552
+	// 红帽发表的博客：https://cloud.redhat.com/blog/a-look-into-the-technical-details-of-kubernetes-1-16
+	// 这个是K8S的增强提议：https://github.com/kubernetes/enhancements/pull/1111
+	// https://github.com/kubernetes/community/blob/master/sig-architecture/api-review-process.md#what-apis-need-to-be-reviewed
+	// https://github.com/kubernetes/community/blob/master/sig-architecture/api-review-process.md#mechanics
 	KubeAPIApprovedAnnotation = "api-approved.kubernetes.io"
 
 	// NoneConverter is a converter that only sets apiversion of the CR and leave everything else unchanged.
@@ -330,6 +336,7 @@ const (
 	// be true if .metadata.annotations["api-approved.kubernetes.io"] is set to a URL, otherwise it will be false.
 	// See https://github.com/kubernetes/enhancements/pull/1111 for more details.
 	// TODO CRD什么时候会被打上这个Condition?
+	// 参考：https://github.com/kubernetes/autoscaler/issues/3069
 	KubernetesAPIApprovalPolicyConformant CustomResourceDefinitionConditionType = "KubernetesAPIApprovalPolicyConformant"
 )
 

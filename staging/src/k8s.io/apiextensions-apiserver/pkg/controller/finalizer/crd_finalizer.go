@@ -70,6 +70,7 @@ type CRDFinalizer struct {
 }
 
 // ListerCollectionDeleter combines rest.Lister and rest.CollectionDeleter.
+// TODO 理解和学习这个接口的设计
 type ListerCollectionDeleter interface {
 	rest.Lister
 	rest.CollectionDeleter
@@ -116,6 +117,7 @@ func (c *CRDFinalizer) sync(key string) error {
 	}
 
 	// no work to do
+	// 如果当前CRD没有被删除，或者CRD不包含customresourcecleanup.apiextensions.k8s.io Finalizer
 	if cachedCRD.DeletionTimestamp.IsZero() || !apiextensionshelpers.CRDHasFinalizer(cachedCRD, apiextensionsv1.CustomResourceCleanupFinalizer) {
 		return nil
 	}
@@ -129,6 +131,7 @@ func (c *CRDFinalizer) sync(key string) error {
 		Reason:  "InstanceDeletionInProgress",
 		Message: "CustomResource deletion is in progress",
 	})
+	// 更新CRD状态，表示当前CRD正在被删除
 	crd, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again
@@ -142,22 +145,27 @@ func (c *CRDFinalizer) sync(key string) error {
 	// Since we control the endpoints, we know that delete collection works. No need to delete if not established.
 	if OverlappingBuiltInResources()[schema.GroupResource{Group: crd.Spec.Group, Resource: crd.Spec.Names.Plural}] {
 		// Skip deletion, explain why, and proceed to remove the finalizer and delete the CRD
+		// TODO 这里是在干嘛?
 		apiextensionshelpers.SetCRDCondition(crd, apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.Terminating,
 			Status:  apiextensionsv1.ConditionFalse,
 			Reason:  "OverlappingBuiltInResource",
 			Message: "instances overlap with built-in resources in storage",
 		})
-	} else if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
+	} else if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) { // 如果当前CRD已经处于Established状态
+		// TODO 仔细研究这里是在干嘛
 		cond, deleteErr := c.deleteInstances(crd)
+		// 给crd设置cond Condition
 		apiextensionshelpers.SetCRDCondition(crd, cond)
 		if deleteErr != nil {
+			// 更新CRD的状态
 			if _, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{}); err != nil {
 				utilruntime.HandleError(err)
 			}
 			return deleteErr
 		}
 	} else {
+		// 如果当前的CRD并没有Established Condition
 		apiextensionshelpers.SetCRDCondition(crd, apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.Terminating,
 			Status:  apiextensionsv1.ConditionFalse,
@@ -166,6 +174,7 @@ func (c *CRDFinalizer) sync(key string) error {
 		})
 	}
 
+	// 把Finalizer移除之后，CRD就被删除了
 	apiextensionshelpers.CRDRemoveFinalizer(crd, apiextensionsv1.CustomResourceCleanupFinalizer)
 	_, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
@@ -202,7 +211,7 @@ func (c *CRDFinalizer) deleteInstances(crd *apiextensionsv1.CustomResourceDefini
 	}
 
 	deletedNamespaces := sets.String{}
-	deleteErrors := []error{}
+	var deleteErrors []error
 	for _, item := range allResources.(*unstructured.UnstructuredList).Items {
 		metadata, err := meta.Accessor(&item)
 		if err != nil {

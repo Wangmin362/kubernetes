@@ -252,9 +252,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 定义的数据，apiserver会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
 	// 如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	// TODO ?
+	// TODO 应该也是和CRD的安装相关的东西，自动的CRD的名称符合*.k8s.io或者*.kubernetes.io的时候，这个CRD就需要审批
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	// TODO ?
+	// TODO 处理CRD的删除逻辑
 	finalizingController := finalizer.NewCRDFinalizer(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1(),
@@ -272,11 +272,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		// and StaticOpenAPISpec are both null. In that case we don't run the CRD OpenAPI controller.
 		if s.GenericAPIServer.StaticOpenAPISpec != nil {
 			if s.GenericAPIServer.OpenAPIVersionedService != nil {
+				// TODO 这里应该是提供 /openapi/v2 接口的swagger文档
 				openapiController := openapicontroller.NewController(s.Informers.Apiextensions().V1().CustomResourceDefinitions())
 				go openapiController.Run(s.GenericAPIServer.StaticOpenAPISpec, s.GenericAPIServer.OpenAPIVersionedService, context.StopCh)
 			}
 
 			if s.GenericAPIServer.OpenAPIV3VersionedService != nil && utilfeature.DefaultFeatureGate.Enabled(features.OpenAPIV3) {
+				// TODO 这里应该是提供 /openapi/v3 接口的swagger文档
 				openapiv3Controller := openapiv3controller.NewController(s.Informers.Apiextensions().V1().CustomResourceDefinitions())
 				go openapiv3Controller.Run(s.GenericAPIServer.OpenAPIV3VersionedService, context.StopCh)
 			}

@@ -339,7 +339,7 @@ const (
 	// outside those groups, this condition will not be set.  For CRDs inside those groups, the condition will
 	// be true if .metadata.annotations["api-approved.kubernetes.io"] is set to a URL, otherwise it will be false.
 	// See https://github.com/kubernetes/enhancements/pull/1111 for more details.
-	// TODO CRD什么时候会被打上这个Condition?
+	// TODO CRD什么时候会被打上这个Condition? 当用于自定CRD的group满足*.k8s.io或者*.kubernetes.io，就会被打上这个Condition
 	// 参考：https://github.com/kubernetes/autoscaler/issues/3069
 	KubernetesAPIApprovalPolicyConformant CustomResourceDefinitionConditionType = "KubernetesAPIApprovalPolicyConformant"
 )

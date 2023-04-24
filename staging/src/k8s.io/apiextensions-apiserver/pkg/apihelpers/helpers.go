@@ -77,11 +77,13 @@ func SetCRDCondition(crd *apiextensionsv1.CustomResourceDefinition, newCondition
 	newCondition.LastTransitionTime = metav1.NewTime(time.Now())
 
 	existingCondition := FindCRDCondition(crd, newCondition.Type)
+	// 如果当前CRD不存在newCondition.Type类型的条件，那么直接添加即可
 	if existingCondition == nil {
 		crd.Status.Conditions = append(crd.Status.Conditions, newCondition)
 		return
 	}
 
+	// 如果当前CRD已经存在newCondition.Type类型的条件，那么需要更新对应的Condition
 	if existingCondition.Status != newCondition.Status || existingCondition.LastTransitionTime.IsZero() {
 		existingCondition.LastTransitionTime = newCondition.LastTransitionTime
 	}

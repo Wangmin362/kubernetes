@@ -55,6 +55,7 @@ type certKeyFunc func() ([]byte, []byte)
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
 	// TODO 什么叫做Local APIService  其实APIServer以及ExtensionServer就是LocalDelegate
+	// TODO 对于LocalDelegate，Aggregator做了什么特殊处理？
 	localDelegate http.Handler
 
 	// proxyCurrentCertKeyContent holds the client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity

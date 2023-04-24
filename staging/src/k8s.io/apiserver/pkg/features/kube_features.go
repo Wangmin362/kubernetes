@@ -167,7 +167,7 @@ const (
 	// alpha: v1.20
 	//
 	// Enable the storage version API.
-	// TODO 这个特性时干嘛用的？
+	// TODO 这个特性是干嘛用的？
 	StorageVersionAPI featuregate.Feature = "StorageVersionAPI"
 
 	// owner: @caesarxuchao
@@ -176,7 +176,7 @@ const (
 	//
 	// Allow apiservers to expose the storage version hash in the discovery
 	// document.
-	// TODO 这个特性时干嘛用的？
+	// TODO 这个特性是干嘛用的？
 	StorageVersionHash featuregate.Feature = "StorageVersionHash"
 
 	// owner: @wojtek-t

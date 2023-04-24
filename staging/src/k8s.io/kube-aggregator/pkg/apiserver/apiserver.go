@@ -212,12 +212,13 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	// Before it might have resulted in a 404 response which could have serious consequences for some controllers like  GC and NS
 	//
 	// Note that the APIServiceRegistrationController waits for APIServiceInformer to synced before doing its work.
-	// TODO 这里究竟是在干嘛？ 答：用于判断Server是否已经注册了所有已知的APIService
+	// TODO 这里究竟是在干嘛？ 答：用于判断AggregatorServer是否已经注册了所有已知的APIService
 	apiServiceRegistrationControllerInitiated := make(chan struct{})
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated", apiServiceRegistrationControllerInitiated); err != nil {
 		return nil, err
 	}
 
+	// APIAggregator实现了APIHandlerManager接口
 	s := &APIAggregator{
 		GenericAPIServer: genericServer,
 		// Aggregator无法处理的请求交给APIServer，之所以交给UnprotectedHandler，是因为请求在aggregator的时候就已经完成了认证、授权相关策略
@@ -273,6 +274,8 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	// APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
 	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
+
+	// TODO AggregatorServer最核心的功能实际上是把流量代理到真实的APIService上去，因此这里需要代理客户端相关的证书
 	if len(c.ExtraConfig.ProxyClientCertFile) > 0 && len(c.ExtraConfig.ProxyClientKeyFile) > 0 {
 		// TODO 这里面是在干嘛？似乎是和证书相关的东西
 		aggregatorProxyCerts, err := dynamiccertificates.NewDynamicServingContentFromFiles("aggregator-proxy-cert",
@@ -290,7 +293,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		aggregatorProxyCerts.AddListener(apiserviceRegistrationController)
 		s.proxyCurrentCertKeyContent = aggregatorProxyCerts.CurrentCertKeyContent
 
-		// TODO 这里是在干嘛？
+		// TODO 这里是在干嘛？ 从名字上来看实在重新加载客户端证书
 		s.GenericAPIServer.AddPostStartHookOrDie("aggregator-reload-proxy-client-cert", func(postStartHookContext genericapiserver.PostStartHookContext) error {
 			// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
 			// TODO: See if we can pass ctx to the current method
@@ -452,6 +455,7 @@ func (s preparedAPIAggregator) Run(stopCh <-chan struct{}) error {
 
 // AddAPIService adds an API service.  It is not thread-safe, so only call it on one thread at a time please.
 // It's a slow moving API, so its ok to run the controller on a single thread
+// APIServiceRegistrationController 会把所有变化（新增/删除/修改）的APIService，都调用这个接口添加进来
 func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	// if the proxyHandler already exists, it needs to be updated. The aggregation bits do not
 	// since they are wired against listers because they require multiple resources to respond
@@ -467,9 +471,11 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		return nil
 	}
 
+	// 如果当前APIService还没有注册到proxyHandler中，就需要注册
+
 	proxyPath := "/apis/" + apiService.Spec.Group + "/" + apiService.Spec.Version
 	// v1. is a special case for the legacy API.  It proxies to a wider set of endpoints.
-	// TODO APIService的Name指定为 v1. 是为了干嘛？
+	// TODO APIService的Name指定为 v1. 是为了干嘛？ 答：只有当APIService是LegacyAPI的时候才是是/api开头
 	if apiService.Name == legacyAPIServiceName {
 		proxyPath = "/api"
 	}

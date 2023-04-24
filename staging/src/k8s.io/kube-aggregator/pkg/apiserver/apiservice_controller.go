@@ -36,7 +36,7 @@ import (
 )
 
 // APIHandlerManager defines the behaviour that an API handler should have.
-// TODO 如何理解和学习这个接口的设计？
+// TODO 如何理解和学习这个接口的设计？ APIAggregator 实现了这个接口
 type APIHandlerManager interface {
 	// AddAPIService 增加一个APIService，这也就意味着K8S中增加一个外部服务
 	AddAPIService(apiService *v1.APIService) error
@@ -46,6 +46,7 @@ type APIHandlerManager interface {
 // APIServiceRegistrationController is responsible for registering and removing API services.
 type APIServiceRegistrationController struct {
 	// TODO APIHandlerManger是用来干嘛的？
+	// 答：APIHandlerManager是用于管理APIService资源的，用于把APIService资源包装为一个Handler，URL为：/apis/<group>/<version>
 	apiHandlerManager APIHandlerManager
 
 	apiServiceLister listers.APIServiceLister
@@ -61,7 +62,9 @@ type APIServiceRegistrationController struct {
 var _ dynamiccertificates.Listener = &APIServiceRegistrationController{}
 
 // NewAPIServiceRegistrationController returns a new APIServiceRegistrationController.
-func NewAPIServiceRegistrationController(apiServiceInformer informers.APIServiceInformer, apiHandlerManager APIHandlerManager) *APIServiceRegistrationController {
+func NewAPIServiceRegistrationController(apiServiceInformer informers.APIServiceInformer,
+	apiHandlerManager APIHandlerManager) *APIServiceRegistrationController {
+
 	c := &APIServiceRegistrationController{
 		apiHandlerManager: apiHandlerManager,
 		apiServiceLister:  apiServiceInformer.Lister(),

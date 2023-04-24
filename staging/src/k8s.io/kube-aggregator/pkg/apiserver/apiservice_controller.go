@@ -36,6 +36,7 @@ import (
 )
 
 // APIHandlerManager defines the behaviour that an API handler should have.
+// TODO 如何理解和学习这个接口的设计？
 type APIHandlerManager interface {
 	// AddAPIService 增加一个APIService，这也就意味着K8S中增加一个外部服务
 	AddAPIService(apiService *v1.APIService) error

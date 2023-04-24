@@ -34,7 +34,7 @@ func SortedByGroupAndVersion(servers []*v1.APIService) [][]*v1.APIService {
 	serversByGroupPriorityMinimum := ByGroupPriorityMinimum(servers)
 	sort.Sort(serversByGroupPriorityMinimum)
 
-	ret := [][]*v1.APIService{}
+	var ret [][]*v1.APIService
 	for _, curr := range serversByGroupPriorityMinimum {
 		// check to see if we already have an entry for this group
 		existingIndex := -1

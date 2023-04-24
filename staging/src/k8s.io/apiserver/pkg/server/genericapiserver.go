@@ -290,6 +290,8 @@ type GenericAPIServer struct {
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
 	// TODO 如何理解这个属性？
+	// 答：从上面的注释可以发现，这个属性是一个标志，用于标识Server的API是否都已经注册,如果在初始化的过程当中，
+	// Server提供服务的API还未来得及注册此时就会返回404
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP

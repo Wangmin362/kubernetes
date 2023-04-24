@@ -120,6 +120,7 @@ type preparedAPIAggregator struct {
 }
 
 // APIAggregator contains state for a Kubernetes cluster master/api server.
+// TODO Aggregator API定义
 type APIAggregator struct {
 	// 本质上就是一个generic-apiserver
 	GenericAPIServer *genericapiserver.GenericAPIServer
@@ -128,10 +129,11 @@ type APIAggregator struct {
 	// APIServiceInformer
 	APIRegistrationInformers informers.SharedInformerFactory
 
-	// TODO 猜测这个属性就是ApiServer，因为当aggregator server无法处理的时候，它应该委派给ApiServer
+	// TODO 这个属性就是ApiServer，因为当aggregator server无法处理的时候，它应该委派给ApiServer
 	delegateHandler http.Handler
 
 	// proxyCurrentCertKeyContent holds he client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
+	// TODO 这两个参数什么时候起作用？
 	proxyCurrentCertKeyContent certKeyFunc
 	proxyTransport             *http.Transport
 
@@ -210,7 +212,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	// Before it might have resulted in a 404 response which could have serious consequences for some controllers like  GC and NS
 	//
 	// Note that the APIServiceRegistrationController waits for APIServiceInformer to synced before doing its work.
-	// TODO 这里究竟是在干嘛？
+	// TODO 这里究竟是在干嘛？ 答：用于判断Server是否已经注册了所有已知的APIService
 	apiServiceRegistrationControllerInitiated := make(chan struct{})
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated", apiServiceRegistrationControllerInitiated); err != nil {
 		return nil, err
@@ -218,9 +220,10 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 
 	s := &APIAggregator{
 		GenericAPIServer: genericServer,
-		// Aggregator无法处理的请求交给APIServer
+		// Aggregator无法处理的请求交给APIServer，之所以交给UnprotectedHandler，是因为请求在aggregator的时候就已经完成了认证、授权相关策略
 		delegateHandler: delegationTarget.UnprotectedHandler(),
-		proxyTransport:  c.ExtraConfig.ProxyTransport,
+		// TODO 这个属性是如何被实例化的
+		proxyTransport: c.ExtraConfig.ProxyTransport,
 		// 代理Handler
 		proxyHandlers:              map[string]*proxyHandler{},
 		handledGroups:              sets.String{},
@@ -241,7 +244,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
-	// 安装/apiservices路由
+	// 注册/apis/apiregistration.k8s.io/v1/apiservices路由
 	apiGroupInfo := apiservicerest.NewRESTStorage(c.GenericConfig.MergedResourceConfig, c.GenericConfig.RESTOptionsGetter,
 		resourceExpirationEvaluator.ShouldServeForVersion(1, 22))
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {

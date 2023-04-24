@@ -58,6 +58,7 @@ func discoveryGroup(enabledVersions sets.String) metav1.APIGroup {
 		},
 	}
 
+	// 如果启用apiservices的v1beta1版本
 	if enabledVersions.Has(apiregistrationv1beta1api.SchemeGroupVersion.Version) {
 		retval.Versions = append(retval.Versions, metav1.GroupVersionForDiscovery{
 			GroupVersion: apiregistrationv1beta1api.SchemeGroupVersion.String(),
@@ -75,6 +76,7 @@ func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		Groups: []metav1.APIGroup{r.discoveryGroup},
 	}
 
+	// 直到所有的apiservice资源
 	apiServices, err := r.lister.List(labels.Everything())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -86,6 +88,7 @@ func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if len(apiGroupServers[0].Spec.Group) == 0 {
 			continue
 		}
+		// TODO 这是在干嘛？
 		discoveryGroup := convertToDiscoveryAPIGroup(apiGroupServers)
 		if discoveryGroup != nil {
 			discoveryGroupList.Groups = append(discoveryGroupList.Groups, *discoveryGroup)

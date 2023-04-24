@@ -248,6 +248,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO 主要是再处理NonStructuralSchema Condition
 	// NonStructuralSchema Condition含义可以参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
+	// NonStructuralSchema 似乎是CRD刚开始使用的策略，后来由于人们意识到NonStructuralSchema定义无法验证，因此并不安全。而且NonStructuralSchema
+	// 定义的数据，apiserver会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
+	// 如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO ?
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

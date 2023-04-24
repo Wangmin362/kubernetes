@@ -327,6 +327,10 @@ const (
 	// - webhook conversion
 	// TODO CRD什么时候会被打上这个Condition?
 	// 这个属性的作用参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
+	// K8S官方博客：https://kubernetes.io/blog/2019/06/20/crd-structural-schema/
+	// NonStructuralSchema 似乎是CRD刚开始使用的策略，后来由于人们意识到NonStructuralSchema定义无法验证，因此并不安全。而且NonStructuralSchema
+	// 定义的数据，apiserver会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
+	// 如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
 	NonStructuralSchema CustomResourceDefinitionConditionType = "NonStructuralSchema"
 	// Terminating means that the CustomResourceDefinition has been deleted and is cleaning up.
 	// TODO CRD什么时候会被打上这个Condition?

@@ -125,6 +125,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 		return nil
 	}
 
+	// TODO 如果有任何的错误，说明当前CRD的定义是非结构化的，因此需要打上NonStructuralSchema Condition
 	cond.Status = apiextensionsv1.ConditionTrue
 	cond.Reason = "Violations"
 	cond.Message = allErrs.ToAggregate().Error()
@@ -168,10 +169,12 @@ func (c *ConditionController) sync(key string) error {
 	if cond == nil {
 		apiextensionshelpers.RemoveCRDCondition(crd, apiextensionsv1.NonStructuralSchema)
 	} else {
+		// 更新NonStructuralSchema Condition的时间
 		cond.LastTransitionTime = metav1.NewTime(time.Now())
 		apiextensionshelpers.SetCRDCondition(crd, *cond)
 	}
 
+	// 更新状态
 	_, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again

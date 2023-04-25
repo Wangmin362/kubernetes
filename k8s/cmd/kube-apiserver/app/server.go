@@ -188,7 +188,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
-	// kubeAPIServerConfig为generic TODO 生成generic-apiserver配置的原理相当重要
+	// kubeAPIServerConfig是APIServer的配置，里面包含了generic server config，以及APIServer自己的配置，也就是ExtraConfig
 	// serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
 	// pluginInitializer  TODO 暂时还没有看懂这个参数意义，似乎是和准入控制相关  准入控制原理是啥？  如何自定义准入控制插件
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)

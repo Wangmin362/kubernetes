@@ -137,7 +137,8 @@ type ExtraConfig struct {
 	KubeletClientConfig      kubeletclient.KubeletClientConfig
 
 	EnableLogsSupport bool
-	ProxyTransport    *http.Transport
+	// TODO 作用一：作为AggregatorServer的Transport
+	ProxyTransport *http.Transport
 
 	// Values to build the IP addresses used by discovery
 	// The range of IPs to be assigned to services with type=ClusterIP or greater
@@ -188,6 +189,7 @@ type ExtraConfig struct {
 	ServiceAccountJWKSURI    string
 	ServiceAccountPublicKeys []interface{}
 
+	// TODO 缓存了APIServer的所有资源
 	VersionedInformers informers.SharedInformerFactory
 
 	// Lease资源定期回收的时间间隔

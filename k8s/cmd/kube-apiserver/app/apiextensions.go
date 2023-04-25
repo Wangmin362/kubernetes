@@ -47,6 +47,8 @@ func createAPIExtensionsConfig(
 ) (*apiextensionsapiserver.Config, error) {
 	// make a shallow copy to let us twiddle a few things
 	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the apiextensions
+	// 由于golang对于结构体是值传递的，因此这里实际上是对于kubeAPIServerConfig的一份拷贝
+	// generic server config大部分配置都是可以直接使用的，只有少量配置是需要重新设置的
 	genericConfig := kubeAPIServerConfig
 	// 清空generic-apiserver的后置处理器
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}

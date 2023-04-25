@@ -137,7 +137,7 @@ type Config struct {
 	// TODO 发现是发现的啥？
 	EnableDiscovery bool
 	// Requires generic profiling enabled
-	// TODO 什么叫做内容Profiling
+	// TODO 什么叫做内容Profiling 答：Profiling主要用于K8S性能分析
 	EnableContentionProfiling bool
 	EnableMetrics             bool
 
@@ -295,18 +295,21 @@ type Config struct {
 	StorageVersionManager storageversion.Manager
 }
 
-// RecommendedConfig TODO 为什么叫做RecommendedConfig,是因为informer的加入，后续的操作都是本地缓存的原因么？
+// RecommendedConfig
+// TODO 为什么叫做RecommendedConfig,是因为informer的加入，后续的操作都是本地缓存的原因么？
 type RecommendedConfig struct {
-	Config // 这就是generic apiserver的配置
+	Config // generic server config
 
 	// SharedInformerFactory provides shared informers for Kubernetes resources. This value is set by
 	// RecommendedOptions.CoreAPI.ApplyTo called by RecommendedOptions.ApplyTo. It uses an in-cluster client config
 	// by default, or the kubeconfig given with kubeconfig command line flag.
+	// TODO 这个缓存，缓存了啥？
 	SharedInformerFactory informers.SharedInformerFactory
 
 	// ClientConfig holds the kubernetes client configuration.
 	// This value is set by RecommendedOptions.CoreAPI.ApplyTo called by RecommendedOptions.ApplyTo.
 	// By default in-cluster client config is used.
+	// restful客户端，用于向APIServer发送HTTP请求
 	ClientConfig *restclient.Config
 }
 

@@ -274,6 +274,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 
 	// TODO APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
 	// TODO 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
+	// 路由为：/apis/<group>/<version> => proxyHandler
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 
 	// TODO AggregatorServer最核心的功能实际上是把流量代理到真实的APIService上去，因此这里需要代理客户端相关的证书

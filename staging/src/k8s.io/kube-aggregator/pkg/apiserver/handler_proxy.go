@@ -66,6 +66,7 @@ type proxyHandler struct {
 	// Endpoints based routing to map from cluster IP to routable IP
 	serviceResolver ServiceResolver
 
+	// TODO 非常重要的属性，保存的是 proxyHandlingInfo 实例对象
 	handlingInfo atomic.Value
 
 	// egressSelector selects the proper egress dialer to communicate with the custom apiserver

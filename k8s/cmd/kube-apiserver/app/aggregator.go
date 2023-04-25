@@ -148,13 +148,16 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	if err != nil {
 		return nil, err
 	}
-	// TODO 监听APIServiceInformer，注册发现的APIService服务
-	// TODO autoRegistrationController被称之为APIService的注册中心，ApiServer以及ExtensionServer的API都会注册进来
+	// autoRegistrationController逻辑比较简单，就是把通过APIServer以及ExtensionServer生成的APIService保存到APIServer (其实就是ETCD) 当中
+	// 同时，如果CRD在使用过程中被删除，autoRegistrationController也是通过APIServer的clientset删除这个APIService (实际上就是删除ETCD中的资源)
 	autoRegistrationController := autoregister.NewAutoRegisterController(aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
-	// TODO 这里相当重要，这里就是把APIServer的所有API转为了AggregatorServer的APIService
-	// TODO APIServer的API不需要动态注册，因为APIServer是固定的，不会动态修改
+	// 这里相当重要，这里就是把APIServer的所有API转为了AggregatorServer的APIService,并且APIService的Service属性是nil
+	// 与此同时，APIServer的生成的每个APIService都会注册到autoRegistrationController当中，同时还会被打上kube-aggregator.kubernetes.io/automanaged=onstart注解
+	// APIServer的API不需要动态注册，因为APIServer是固定的，不会动态修改
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
-	// TODO ExtensionServer就是我们常说的CRD，由于CRD会被增删改查，因此需要同步增删改查对应的APIService
+	// ExtensionServer就是我们常说的CRD，由于CRD会被增删改查，因此需要同步增删改查对应的APIService
+	// 来自于ExtensionServer的APIService会被打上kube-aggregator.kubernetes.io/automanaged=true的注解
+	// 同时，通过CRD生成的APIService会被注册到autoRegistrationController当中
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),
 		autoRegistrationController)
@@ -194,6 +197,7 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 }
 
 func makeAPIService(gv schema.GroupVersion) *v1.APIService {
+	// 获取各个组版本的优先级
 	apiServicePriority, ok := apiVersionPriorities[gv]
 	if !ok {
 		// if we aren't found, then we shouldn't register ourselves because it could result in a CRD group version
@@ -202,8 +206,10 @@ func makeAPIService(gv schema.GroupVersion) *v1.APIService {
 		return nil
 	}
 	return &v1.APIService{
+		// 对于Legacy API, gv.Group="" 所以name等于 v1.
 		ObjectMeta: metav1.ObjectMeta{Name: gv.Version + "." + gv.Group},
 		Spec: v1.APIServiceSpec{
+			// 由于没有指定Service，因此为nil
 			Group:                gv.Group,
 			Version:              gv.Version,
 			GroupPriorityMinimum: apiServicePriority.group,
@@ -311,12 +317,13 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 	registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
 	var apiServices []*v1.APIService
 
+	// 列出当前Delegator支持哪些URL
 	for _, curr := range delegateAPIServer.ListedPaths() {
 		// APIServer的Legacy API
 		if curr == "/api/v1" {
 			// 生成APIService
 			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"})
-			// 注册到注册中心
+			// 把生成的APIService放入到AutoAPIServiceRegistration当中
 			registration.AddAPIServiceToSyncOnStart(apiService)
 			apiServices = append(apiServices, apiService)
 			continue
@@ -337,7 +344,7 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 		if apiService == nil {
 			continue
 		}
-		// 注册到注册中心当中
+		// 把生成的APIService放入到AutoAPIServiceRegistration当中
 		registration.AddAPIServiceToSyncOnStart(apiService)
 		apiServices = append(apiServices, apiService)
 	}

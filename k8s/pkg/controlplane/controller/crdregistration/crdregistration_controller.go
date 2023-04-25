@@ -214,7 +214,7 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 
 			c.apiServiceRegistration.AddAPIServiceToSync(&v1.APIService{
 				ObjectMeta: metav1.ObjectMeta{Name: apiServiceName},
-				Spec: v1.APIServiceSpec{
+				Spec: v1.APIServiceSpec{ // Service属性是nil
 					Group:                groupVersion.Group,
 					Version:              groupVersion.Version,
 					GroupPriorityMinimum: 1000, // CRDs should have relatively low priority

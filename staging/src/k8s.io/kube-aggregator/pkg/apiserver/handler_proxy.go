@@ -246,7 +246,7 @@ func (r *responder) Error(_ http.ResponseWriter, _ *http.Request, err error) {
 // these methods provide locked access to fields
 
 func (r *proxyHandler) updateAPIService(apiService *apiregistrationv1api.APIService) {
-	// TODO ApiServer以及ExtensionServer的Service都是nil,所以都是本地服务
+	// ApiServer以及ExtensionServer的Service都是nil,所以都是本地服务
 	if apiService.Spec.Service == nil {
 		// 由于是Local,所以其余属性并不需要，因为并不需要aggregator-server处理，只需要它透传即可
 		r.handlingInfo.Store(proxyHandlingInfo{local: true})

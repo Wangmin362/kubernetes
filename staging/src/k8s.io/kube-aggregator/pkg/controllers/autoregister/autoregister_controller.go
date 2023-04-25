@@ -58,8 +58,13 @@ const (
 type AutoAPIServiceRegistration interface {
 	// AddAPIServiceToSyncOnStart adds an API service to sync on start.
 	// TODO 看名字，这个接口应该是程序启动的时候就需要执行
+	// TODO 从代码流程上来看，这个API应该是专门给APIServer用的，因为APIServer的API是固定的，只需要在刚开始的时候把所有的
+	// TODO API转换为APIService放入到AutoAPIServiceRegistration即可
 	AddAPIServiceToSyncOnStart(in *v1.APIService)
+
 	// AddAPIServiceToSync adds an API service to sync continuously.
+	// TODO 从代码执行的流程上来看，下面两个API是专门给ExtensionServer使用的，因为CRD是动态变化的，可能新增、可能删除、也可能修改
+	// TODO 所以需要不停的去同步
 	AddAPIServiceToSync(in *v1.APIService)
 	// RemoveAPIServiceToSync removes an API service to auto-register.
 	RemoveAPIServiceToSync(name string)
@@ -74,7 +79,7 @@ type autoRegisterController struct {
 
 	apiServicesToSyncLock sync.RWMutex
 	// TODO 核心就是这里了 key为APIService的名字 这个属性中记录的是所有需要同步创建的APIService
-	// TODO 这里的来源只有两种：1、来自于APIServer的API  2、来自于ExtesionServer的API
+	// TODO 这里的来源只有两种：1、来自于APIServer的API  2、来自于ExtensionServer的API
 	apiServicesToSync map[string]*v1.APIService
 
 	syncHandler func(apiServiceName string) error
@@ -88,9 +93,13 @@ type autoRegisterController struct {
 
 	// remember names of services that existed when we started
 	// 记录aggregator server启动时就存在的APIService
+	// TODO 这玩意有啥用？为啥要记录这个？
 	apiServicesAtStart map[string]bool
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors
+	// TODO 数据来源：
+	// 1、APIServer，APIServer支持的每个路径都会包转为一个Service为nil的APIService
+	// 2、ExtensionServer 每个CRD也会转换为Service属性为nil的APIService
 	queue workqueue.RateLimitingInterface
 }
 
@@ -231,7 +240,7 @@ func (c *autoRegisterController) processNextWorkItem() bool {
 // 5. current: sync on start, present at start     | delete once           | update once               | update once
 // 6. current: sync always                         | delete                | update once               | update
 func (c *autoRegisterController) checkAPIService(name string) (err error) {
-	// 从apiServicesToSync这个Map中获取，判断APIService注册没有，找到了就是已经注册过
+	// 如何desired为非空，说明当前APIService是通过APIServer或者ExtensionServer生成的
 	desired := c.GetAPIServiceToSync(name)
 	// 查询informer，通过名字查询APIService，实际上可以理解为就是查询的apiserver
 	curr, err := c.apiServiceLister.Get(name)
@@ -250,20 +259,23 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 	switch {
 	// we had a real error, just return it (1A,1B,1C)
 	case err != nil && !apierrors.IsNotFound(err):
+		// 如果在ETCD中查询APIService资源出错，并且错误还不是NotFound错误，那只能报错了
 		return err
 
 	// we don't have an entry and we don't want one (2A)
 	case apierrors.IsNotFound(err) && desired == nil:
-		// TODO 这种情况下是正常的
+		// 如果在ETCD中没有找到APIService资源，但是desired也不存在，当然啥事情也不需要干
 		return nil
 
 	// the local object only wants to sync on start and has already synced (2B,5B,6B "once" enforcement)
 	case isAutomanagedOnStart(desired) && hasSynced:
+		// 如果是当前APIService是通过APIServer的API生成的，并且已经通不过了，那么直接退出，不需要做任何事情
 		return nil
 
 	// we don't have an entry and we do want one (2B,2C)
 	case apierrors.IsNotFound(err) && desired != nil:
-		// TODO 没有找到的话就创建一个APIService，LegacyAPI以及ExtensionServer应该都会进入到这里
+		// 如果在ETCD中没有找到当前APIService资源，并且desired非空，就说明通过APIServer或者ExtensionServer生成的APIService
+		// 还没有同步过，此时需要创建对应的APIService资源
 		_, err := c.apiServiceClient.APIServices().Create(context.TODO(), desired, metav1.CreateOptions{})
 		if apierrors.IsAlreadyExists(err) {
 			// created in the meantime, we'll get called again
@@ -273,18 +285,23 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 
 	// we aren't trying to manage this APIService (3A,3B,3C)
 	case !isAutomanaged(curr):
+		// 如果当前的APIService不是通过APIServer或者ExtensionServer生成的，那么不需要管理这些APIService
+		// TODO 实际上，正常情况下能进入到这里的APIService要么是通过APIServer生成的，要么是通过ExtensionServer生成的
 		return nil
 
 	// the remote object only wants to sync on start, but was added after we started (4A,4B,4C)
 	case isAutomanagedOnStart(curr) && !c.apiServicesAtStart[name]:
+		// 如果当前的APIServer是通过APIServer的API生成的，
 		return nil
 
 	// the remote object only wants to sync on start and has already synced (5A,5B,5C "once" enforcement)
 	case isAutomanagedOnStart(curr) && hasSynced:
+		// 如果是当前APIService是通过APIServer的API生成的，并且已经通不过了，那么直接退出，不需要做任何事情
 		return nil
 
 	// we have a spurious APIService that we're managing, delete it (5A,6A)
 	case desired == nil:
+		// 这里因该是对于CRD的支持，因为CRD存在被删除的情况，因此这里也需要删除对应的APIService
 		opts := metav1.DeleteOptions{Preconditions: metav1.NewUIDPreconditions(string(curr.UID))}
 		err := c.apiServiceClient.APIServices().Delete(context.TODO(), curr.Name, opts)
 		if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {

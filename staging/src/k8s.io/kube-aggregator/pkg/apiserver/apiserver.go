@@ -456,6 +456,10 @@ func (s preparedAPIAggregator) Run(stopCh <-chan struct{}) error {
 // AddAPIService adds an API service.  It is not thread-safe, so only call it on one thread at a time please.
 // It's a slow moving API, so its ok to run the controller on a single thread
 // APIServiceRegistrationController 会把所有变化（新增/删除/修改）的APIService，都调用这个接口添加进来
+// TODO apiService的数据来源主要由三个地方：
+// 1、通过APIServer生成的APIService
+// 2、通过ExtensionServer生成的APIService
+// 3、用户手动提交的APIService
 func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	// if the proxyHandler already exists, it needs to be updated. The aggregation bits do not
 	// since they are wired against listers because they require multiple resources to respond

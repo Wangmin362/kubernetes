@@ -37,7 +37,7 @@ type ServiceReference struct {
 	// Namespace is the namespace of the service
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,1,opt,name=namespace"`
 	// Name is the name of the service
-	// TODO ServiceName
+	// 服务名 ServiceName
 	Name string `json:"name,omitempty" protobuf:"bytes,2,opt,name=name"`
 	// If specified, the port on the service that hosting webhook.
 	// Default to 443 for backward compatibility.
@@ -77,6 +77,7 @@ type APIServiceSpec struct {
 	// The secondary sort is based on the alphabetical comparison of the name of the object.  (v1.bar before v1.foo)
 	// We'd recommend something like: *.k8s.io (except extensions) at 18000 and
 	// PaaSes (OpenShift, Deis) are recommended to be in the 2000s
+	// TODO 如何理解这个字段的设计
 	GroupPriorityMinimum int32 `json:"groupPriorityMinimum" protobuf:"varint,7,opt,name=groupPriorityMinimum"`
 
 	// VersionPriority controls the ordering of this API version inside of its group.  Must be greater than zero.

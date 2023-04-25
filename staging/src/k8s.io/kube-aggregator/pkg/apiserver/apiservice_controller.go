@@ -56,6 +56,10 @@ type APIServiceRegistrationController struct {
 	syncFn func(key string) error
 
 	// queue中存放的当前变更的APIService的名字
+	// TODO 数据来源：
+	// 1、APIServer生成的APIService
+	// 2、ExtensionServer生成的APIService
+	// 3、用户自己手动提交的APIService
 	queue workqueue.RateLimitingInterface
 }
 

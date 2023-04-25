@@ -141,6 +141,7 @@ type APIAggregator struct {
 	// TODO 实际上一个ProxyHandler实际上就是一个ProxyHandler key为APIService资源的name
 	proxyHandlers map[string]*proxyHandler
 	// handledGroups are the groups that already have routes
+	// 用于保存已经注册过的路由
 	handledGroups sets.String
 
 	// lister is used to add group handling for /apis/<group> aggregator lookups based on
@@ -271,8 +272,8 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
-	// APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
-	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
+	// TODO APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
+	// TODO 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 
 	// TODO AggregatorServer最核心的功能实际上是把流量代理到真实的APIService上去，因此这里需要代理客户端相关的证书
@@ -464,7 +465,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	// if the proxyHandler already exists, it needs to be updated. The aggregation bits do not
 	// since they are wired against listers because they require multiple resources to respond
 	if proxyHandler, exists := s.proxyHandlers[apiService.Name]; exists {
-		// 如果存在，就更新服务
+		// 根据APIService生成proxyHandlingInfo，并保存到proxyHandler.handlingInfo属性当中
 		proxyHandler.updateAPIService(apiService)
 		if s.openAPIAggregationController != nil {
 			s.openAPIAggregationController.UpdateAPIService(proxyHandler, apiService)
@@ -486,14 +487,14 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 
 	// register the proxy handler
 	proxyHandler := &proxyHandler{
-		localDelegate:              s.delegateHandler,
+		localDelegate:              s.delegateHandler, // 当前Handler无法处理的时候，直接把请求交给APIServer来处理
 		proxyCurrentCertKeyContent: s.proxyCurrentCertKeyContent,
 		proxyTransport:             s.proxyTransport,
 		serviceResolver:            s.serviceResolver,
 		egressSelector:             s.egressSelector,
 		rejectForwardingRedirects:  s.rejectForwardingRedirects,
 	}
-	// TODO 如果原先不存在，也是更新？？？
+	// 根据APIService生成proxyHandlingInfo，并保存到proxyHandler.handlingInfo属性当中
 	proxyHandler.updateAPIService(apiService)
 	if s.openAPIAggregationController != nil {
 		s.openAPIAggregationController.AddAPIService(proxyHandler, apiService)

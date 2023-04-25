@@ -52,6 +52,7 @@ type certKeyFunc func() ([]byte, []byte)
 
 // proxyHandler provides a http.Handler which will proxy traffic to locations
 // specified by items implementing Redirector.
+// TODO 如何理解这个结构体的设计？
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
 	// TODO 什么叫做Local APIService  其实APIServer以及ExtensionServer就是LocalDelegate
@@ -76,9 +77,10 @@ type proxyHandler struct {
 	rejectForwardingRedirects bool
 }
 
+// TODO 如何理解这个结构体的设计？
 type proxyHandlingInfo struct {
 	// local indicates that this APIService is locally satisfied
-	// TODO 一个APIService是什么时候会时Local的？ 当APIService为APIServer以及ExtensionServer的时候就是Local的
+	// TODO 一个APIService是什么时候会时Local的？ 答：当APIService为APIServer以及ExtensionServer的时候就是Local的
 	local bool
 
 	// name is the name of the APIService
@@ -139,6 +141,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 如果构建Transport时出现错误，那么直接报错
 	if handlingInfo.transportBuildingError != nil {
 		proxyError(w, req, handlingInfo.transportBuildingError.Error(), http.StatusInternalServerError)
 		return
@@ -154,6 +157,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// write a new location based on the existing request pointed at the target service
 	location := &url.URL{}
 	location.Scheme = "https"
+	// TODO 这个地址就是用户自定义的AggregatorServer的ServiceName地址
 	rloc, err := r.serviceResolver.ResolveEndpoint(handlingInfo.serviceNamespace, handlingInfo.serviceName, handlingInfo.servicePort)
 	if err != nil {
 		klog.Errorf("error resolving %s/%s: %v", handlingInfo.serviceNamespace, handlingInfo.serviceName, err)
@@ -166,8 +170,8 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	location.Path = req.URL.Path
 	// 代理参数设置
 	location.RawQuery = req.URL.Query().Encode()
-	// TODO 为什么没有BODY的设置？
 
+	// 创建一个http.Request对象 TODO 为什么没有对于BODY的处理？
 	newReq, cancelFn := newRequestForProxy(location, req)
 	defer cancelFn()
 
@@ -177,6 +181,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 
 	proxyRoundTripper := handlingInfo.proxyRoundTripper
+	// TODO 这里是在干嘛？
 	upgrade := httpstream.IsUpgradeRequest(req)
 
 	proxyRoundTripper = transport.NewAuthProxyRoundTripper(user.GetName(), user.GetGroups(), user.GetExtra(), proxyRoundTripper)
@@ -194,6 +199,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	utilflowcontrol.RequestDelegated(req.Context())
 	// 执行代理，代理的结果直接写入到w当中
+	// TODO 分析其具体代理执行动作
 	handler.ServeHTTP(w, newReq)
 }
 

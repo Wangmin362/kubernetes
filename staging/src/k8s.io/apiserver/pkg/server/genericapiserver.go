@@ -607,7 +607,9 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		}
 	}
 
-	// TODO 重点是这个
+	// TODO NonBlockingRun在内部通过SecureServingInfo配置信息实例化了一个http.Server,这个http.Server的Handler属性被
+	// 设置为APIServerHandler，因此请求进来时会首先执行FullHandlerChain,也就是认证、鉴权、限速、审计相关的东西，最后才会被
+	// 代理给APIServerHandler.Director处理
 	stoppedCh, listenerStoppedCh, err := s.NonBlockingRun(stopHttpServerCh, shutdownTimeout)
 	if err != nil {
 		return err

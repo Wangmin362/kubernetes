@@ -157,13 +157,15 @@ func (s *SecureServingInfo) Serve(handler http.Handler, shutdownTimeout time.Dur
 		return nil, nil, fmt.Errorf("listener must not be nil")
 	}
 
+	// 实例化TLS相关配置
 	tlsConfig, err := s.tlsConfig(stopCh)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	secureServer := &http.Server{
-		Addr:           s.Listener.Addr().String(),
+		Addr: s.Listener.Addr().String(),
+		// TODO 核心就是这里，当secureServer收到HTTP请求之后，会使用这个handler来处理请求，而这个handler其实就是APIServerHandler
 		Handler:        handler,
 		MaxHeaderBytes: 1 << 20,
 		TLSConfig:      tlsConfig,
@@ -247,7 +249,7 @@ func RunServer(
 			listener = tls.NewListener(listener, server.TLSConfig)
 		}
 
-		// 最终还是调用了golang的Http运行服务
+		// TODO 最终还是调用了golang的Http运行服务
 		err := server.Serve(listener)
 
 		msg := fmt.Sprintf("Stopped listening on %s", ln.Addr().String())

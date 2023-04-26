@@ -734,6 +734,8 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	}
 
 	// TODO 为什么Delegated的后置处理器需要加进来？
+	// 答：因为实际运行的时候，只有最外层的AggregatorServer会被运行，只有它的postStartHooks会被执行，所以在这里再实例化新的
+	// GenericServer的时候, 需要把Delegator的postStartHooks添加进来
 	// first add poststarthooks from delegated targets
 	for k, v := range delegationTarget.PostStartHooks() {
 		s.postStartHooks[k] = v

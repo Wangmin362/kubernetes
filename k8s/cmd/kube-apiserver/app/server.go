@@ -187,6 +187,9 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 	}
 
 	// TODO 运行AggregatorServer, 主要做了哪些事情？
+	// 答：实际启动的只有AggregatorServer,它被作为一个WEB服务器启动，启动之后会启动所有AggregatorServer的postStartHooks
+	// 实际上再实例化AggregatorServer过程当中，ExtensionServer的postStartHooks被添加到APIServer当中，而在实例化
+	// AggregatorServer的时候，APIServer的所有postStartHooks又被添加到的AggregatorServer当中
 	return prepared.Run(stopCh)
 }
 

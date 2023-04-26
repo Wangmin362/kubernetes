@@ -166,6 +166,7 @@ func (s *GenericAPIServer) RunPostStartHooks(stopCh <-chan struct{}) {
 		StopCh:               stopCh,
 	}
 
+	// 遍历当前generic server的所有postStartHooks,挨个开启一个协程执行
 	for hookName, hookEntry := range s.postStartHooks {
 		go runPostStartHook(hookName, hookEntry, context)
 	}

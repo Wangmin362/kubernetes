@@ -65,7 +65,7 @@ type APIServerHandler struct {
 	// TODO 哪些路由注册到了这里
 	// /, /index.html, /debug/pprof, /debug/flags, /metrics, /debug/api_priority_and_fairness/dump_priority_levels
 	// CRD路由 /apis/<group>/<verson>
-	// /openapi/v2, /openapi/v3
+	// /openapi/v2, /openapi/v3, /health, /livez, /readyz
 	// Aggregator APIService路由
 	NonGoRestfulMux *mux.PathRecorderMux
 

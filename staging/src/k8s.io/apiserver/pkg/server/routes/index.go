@@ -58,6 +58,8 @@ func (i Index) Install(pathProvider ListedPathProvider, mux *mux.PathRecorderMux
 }
 
 // IndexLister lists the available indexes with the status code provided
+// TODO 什么叫例举出首页？
+// 答：看代码应该是列举处当前Server支持哪些路由
 type IndexLister struct {
 	StatusCode   int
 	PathProvider ListedPathProvider

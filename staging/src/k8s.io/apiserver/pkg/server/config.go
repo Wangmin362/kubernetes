@@ -849,14 +849,15 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
-	// TODO generic-apiserver会安装什么东西呢？
-	// 1、增加/index资源
-	// 2、增加/debug/pprof资源
-	// 3、增加/debug/flags
-	// 4、增加/metrics
-	// 5、增加/version
-	// 6、增加/apis
-	// 7、增加/debug/api_priority_and_fairness/dump_priority_levels资源
+	// TODO generic server会安装什么路由呢？
+	// 0、添加/ 路由
+	// 1、增加/index路由
+	// 2、增加/debug/pprof路由
+	// 3、增加/debug/flags路由
+	// 4、增加/metrics路由
+	// 5、增加/version路由
+	// 6、增加/apis路由
+	// 7、增加/debug/api_priority_and_fairness/dump_priority_levels路由
 	installAPI(s, c.Config)
 
 	// use the UnprotectedHandler from the delegation target to ensure that we don't attempt to double authenticator, authorize,
@@ -958,7 +959,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 
 func installAPI(s *GenericAPIServer, c *Config) {
 	if c.EnableIndex {
-		// 安装首页资源的映射
+		// 安装 /, /index.html路由
 		routes.Index{}.Install(s.listedPathProvider, s.Handler.NonGoRestfulMux)
 	}
 	if c.EnableProfiling {
@@ -981,7 +982,7 @@ func installAPI(s *GenericAPIServer, c *Config) {
 	routes.Version{Version: c.Version}.Install(s.Handler.GoRestfulContainer)
 
 	if c.EnableDiscovery {
-		// 资源发现API
+		// 安装/apis路由
 		s.Handler.GoRestfulContainer.Add(s.DiscoveryGroupManager.WebService())
 	}
 	if c.FlowControl != nil && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) {

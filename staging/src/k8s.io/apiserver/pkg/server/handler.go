@@ -51,7 +51,9 @@ type APIServerHandler struct {
 	// 实际上FullHandlerChain并不包含真正的业务处理信息，它仅仅只做认证、授权、限速、审计相关的公共操作
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
-	// TODO 哪些路由信息注册到了这里？ 1、/api 2、/apis
+	// TODO 哪些路由信息注册到了这里？
+	// /version, /apis, /logs, /.well-known/openid-configuration, /openid/v1/jwks
+	// K8S的资源 /apis/<group>, /apis/<group>/<version>, /api, /openapi/v3, /openapi/v2
 	GoRestfulContainer *restful.Container
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling
@@ -61,6 +63,10 @@ type APIServerHandler struct {
 	// 答：目前看来，NonGoRestfulMux主要是为了安装ExtensionServer, AggregatorServer的路由信息，而GoRestfulContainer则是
 	// 为了安装APIServer的路由
 	// TODO 哪些路由注册到了这里
+	// /, /index.html, /debug/pprof, /debug/flags, /metrics, /debug/api_priority_and_fairness/dump_priority_levels
+	// CRD路由 /apis/<group>/<verson>
+	// /openapi/v2, /openapi/v3
+	// Aggregator APIService路由
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.

@@ -34,16 +34,21 @@ import (
 	"k8s.io/apiserver/pkg/server/mux"
 )
 
-// APIServerHandlers holds the different http.Handlers used by the API server.
+// APIServerHandler holds the different http.Handlers used by the API server.
 // This includes the full handler chain, the director (which chooses between gorestful and nonGoRestful,
 // the gorestful handler (used for the API) which falls through to the nonGoRestful handler on unregistered paths,
 // and the nonGoRestful handler (which can contain a fallthrough of its own)
 // FullHandlerChain -> Director -> {GoRestfulContainer,NonGoRestfulMux} based on inspection of registered web services
-// TODO 如何理解这个对象
+// TODO 如何理解APIServerHandler这个对象的设计
+// 答：APIServerHandler可以理解为是一个HTTPMux,也就是一个HTTP路由器，根据URL，找到其对应的处理逻辑(http.Handler)。当请求
+// 交给APIServerHandler时，APIServerHandler会把请求交给FullHandlerChain, FullHandlerChain实际上在请求处理之前包装了认证
+// 授权、限速、审计等等功能，当通过这些过滤器之后，FullHandlerChain会把请求交给Director，实际上Director是一个空壳子，它并没有
+// 干什么事情，而是直接根据当前请求的URL匹配GoRestfulContainer，如果在GoRestfulContainer当中没有找到合适的处理器，再把请求转
+// 交给NonGoRestfulMux进行处理
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
-	// TODO 实际上FullHandlerChain并不包含真正的业务处理信息，它仅仅只做认证、授权、限速、审计相关的公共操作
+	// 实际上FullHandlerChain并不包含真正的业务处理信息，它仅仅只做认证、授权、限速、审计相关的公共操作
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
 	// TODO 哪些路由信息注册到了这里？ 1、/api 2、/apis
@@ -52,9 +57,10 @@ type APIServerHandler struct {
 	// It comes after all filters and the API handling
 	// This is where other servers can attach handler to various parts of the chain.
 	// TODO k8s为什么需要单独开发Mux? restful.Mux有哪些功能不满足？
-	// 本质上，Mux就是多路服用，说白了就是为了实现路由功能
-	// TODO 哪些路由信心注册到了这里
 	// TODO NonGoRestfulMux和GoRestfulContainer的区别是啥？
+	// 答：目前看来，NonGoRestfulMux主要是为了安装ExtensionServer, AggregatorServer的路由信息，而GoRestfulContainer则是
+	// 为了安装APIServer的路由
+	// TODO 哪些路由注册到了这里
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.
@@ -78,27 +84,29 @@ type APIServerHandler struct {
 // It is normally used to apply filtering like authentication and authorization
 type HandlerChainBuilderFn func(apiHandler http.Handler) http.Handler
 
-func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerChainBuilder HandlerChainBuilderFn, notFoundHandler http.Handler) *APIServerHandler {
-	// TODO go-restfule框架的Mux处理不了这个功能么？ 为什么k8s需要自己实现一个
+func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerChainBuilder HandlerChainBuilderFn,
+	notFoundHandler http.Handler) *APIServerHandler {
+	// TODO go-restful框架的Mux处理不了这个功能么？ 为什么k8s需要自己实现一个
 	nonGoRestfulMux := mux.NewPathRecorderMux(name)
 	if notFoundHandler != nil {
-		// extension-apiserver都无法处理这个请求，那么只能报404了
+		// 如果nonGoRestfulMux都无法处理这个请求，就委派给NotFoundHandler，其实就是报404
 		nonGoRestfulMux.NotFoundHandler(notFoundHandler)
 	}
 
-	// 实例化了一个Container
-	// TODO 实际上实例化apiserver，就是为了实例化container，最后通过golang的http.Server("8080", gorestfulContainer).ListenAndServer()运行起来
+	// 实例化了go-restful的Container，这玩意可以简单理解为HTTPMux，也就是根据不同的URL路径选择不同的处理逻辑(handler)
 	gorestfulContainer := restful.NewContainer()
 	gorestfulContainer.ServeMux = http.NewServeMux() // TODO 这一行完全是多此一举嘛，实例化Container的时候已经实例化了Mux
 	gorestfulContainer.Router(restful.CurlyRouter{}) // e.g. for proxy/{kind}/{name}/{*} CurlyRouter主要是为了处理谷歌风格的占位参数
 	gorestfulContainer.RecoverHandler(func(panicReason interface{}, httpWriter http.ResponseWriter) {
+		// 如果在处理请求的过程中发生了panic异常，这里将会捕获
 		logStackOnRecover(s, panicReason, httpWriter)
 	})
 	gorestfulContainer.ServiceErrorHandler(func(serviceErr restful.ServiceError, request *restful.Request, response *restful.Response) {
 		serviceErrorHandler(s, serviceErr, request, response)
 	})
 
-	// TODO 这里的Director到底是为了干啥？
+	// TODO 这里的director到底是为了干啥？
+	// director实际上并没有什么卵用，仅仅是为了把流量代理到内部的goRestfulContainer路由器或者NonGoRestfulMux路由器当中
 	director := director{
 		name:               name,
 		goRestfulContainer: gorestfulContainer,
@@ -115,6 +123,7 @@ func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerCha
 }
 
 // ListedPaths returns the paths that should be shown under /
+// 列举出当前APIServerHandler可以处理的消息
 func (a *APIServerHandler) ListedPaths() []string {
 	var handledPaths []string
 	// Extract the paths handled using restful.WebService
@@ -127,6 +136,9 @@ func (a *APIServerHandler) ListedPaths() []string {
 	return handledPaths
 }
 
+// TODO 分析director的作用
+// director本质上就是一个HTTPServer，当请求进来时，director会先匹配goRestfulContainer中的路由，如果在goRestfulContainer中没有找到
+// 匹配的路由，那么就在nonGoRestfulMux当中寻找合适的路由
 type director struct {
 	name               string
 	goRestfulContainer *restful.Container

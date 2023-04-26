@@ -164,10 +164,12 @@ type GenericAPIServer struct {
 	// Handler holds the handlers being used by this API server
 	// TODO URL + Method => Handler的映射就在这里面了
 	// TODO APIServer AggregatorServer  ExtensionServer是如何初始化这个属性的?
+	// TODO 如何理解K8S APIServerHandler的设计？
 	Handler *APIServerHandler
 
 	// listedPathProvider is a lister which provides the set of paths to show at /
 	// TODO 这玩意是用来干嘛的？ 如何理解？
+	// 答：用于返回当前的generic server可以处理哪些URL开头的路径
 	listedPathProvider routes.ListedPathProvider
 
 	// DiscoveryGroupManager serves /apis
@@ -702,6 +704,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 	if s.SecureServingInfo != nil && s.Handler != nil {
 		var err error
 		// TODO 分析原理
+		// SecureServingInfo在初始化generic server config的时候被设置
 		stoppedCh, listenerStoppedCh, err = s.SecureServingInfo.Serve(s.Handler, shutdownTimeout, internalStopCh)
 		if err != nil {
 			close(internalStopCh)

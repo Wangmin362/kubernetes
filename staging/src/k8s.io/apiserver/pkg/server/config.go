@@ -665,7 +665,8 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		return c.BuildHandlerChainFunc(handler, c.Config)
 	}
 
-	// TODO 如何理解APIServerHandler?  APIServerHandler的核心就是go-restful的Container，只不过为了业务增加了一些属性而已
+	// TODO APIServerHandler是generic server非常核心的东西，掌握了路由信息
+	// 当前创建出来的APIServerHandler是空的，还没有任何的路由信息
 	apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler())
 
 	s := &GenericAPIServer{
@@ -679,7 +680,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		delegationTarget:           delegationTarget,
 		EquivalentResourceRegistry: c.EquivalentResourceRegistry,
 		HandlerChainWaitGroup:      c.HandlerChainWaitGroup,
-		Handler:                    apiServerHandler,
+		Handler:                    apiServerHandler, // 此时的Handler实际上刚刚初始化，并没有任何路由信息
 
 		listedPathProvider: apiServerHandler,
 

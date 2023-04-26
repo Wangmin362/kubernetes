@@ -88,7 +88,8 @@ const (
 
 // Config is a structure used to configure a GenericAPIServer.
 // Its members are sorted roughly in order of importance for composers.
-// TODO k8s认为一个GenericServer应该需要哪些配置呢？
+// TODO generic server config
+// TODO k8s认为一个GenericServer应该需要哪些配置呢？ K8S是如何进行抽象的？
 type Config struct {
 	// SecureServing is required to serve https
 	// 安全信息，实际上就是用于指定HTTPS启用哪个端口？ 证书是啥？ 加密Cihper选择啥？
@@ -112,7 +113,10 @@ type Config struct {
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
 	// It does so based on a EgressSelectorConfiguration which was read at startup.
-	// TODO lookup机制到底是啥意思？
+	// TODO K8S有master, worker两种节点，他们之间的通信需要安全加密 而Konnectivity就是用于解决这个问题的
+	// egressorselector就是在配置Konnectivity
+	// 参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/setup-konnectivity/
+	// https://www.jianshu.com/p/d1528a9d3cfa
 	EgressSelector *egressselector.EgressSelector
 
 	// RuleResolver is required to get the list of rules that apply to a given user
@@ -127,7 +131,7 @@ type Config struct {
 	// TODO 啥是HSTS
 	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
-	// TODO apiserver的流控到底是怎么设计的?
+	// TODO apiserver的流控到底是怎么设计的? apisix限速
 	FlowControl utilflowcontrol.Interface
 
 	// 这玩意有啥用？和Informer是否有关？ 答：和informer并不相关 这里的index指的是K8S首页面
@@ -640,6 +644,7 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // New creates a new server which logically combines the handling chain with the passed server.
 // name is used to differentiate for logging. The handler chain in particular can be difficult as it starts delegating.
 // delegationTarget may not be nil.
+// TODO 实例化一个Generic Server   都做了哪些步骤？
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")

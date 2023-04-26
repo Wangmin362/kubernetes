@@ -47,6 +47,7 @@ import (
 )
 
 // Config contains the data on how to authenticate a request to the Kube API Server
+// TODO 认证配置：用于配置如何认证一个请求
 type Config struct {
 	// 是否允许匿名访问
 	Anonymous bool

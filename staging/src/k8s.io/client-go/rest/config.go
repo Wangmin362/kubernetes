@@ -98,6 +98,7 @@ type Config struct {
 
 	// DisableCompression bypasses automatic GZip compression requests to the
 	// server.
+	// TODO 是否禁用压缩
 	DisableCompression bool
 
 	// Transport may be used for custom HTTP behavior. This attribute may not

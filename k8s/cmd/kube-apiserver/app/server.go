@@ -169,20 +169,24 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
-	// 创建server链，即：Aggregrate Server => Apiserver => Extend Server
-	// 而外部用户的请求进来时Server的执行顺序为：Extend Server (CRD) => Apiserver (K8S资源) => Aggregrate Server (API聚合接口)
+	// 创建了三个Server,创建顺序为ExtensionServer, APIServer, AggregatorServer，再Delegator机制的作用下，实际的请求处理顺序为：
+	// AggregatorServer => APIServer => ExtensionServer, 实际上这三个Server本质上都是GenericServer，仅仅是再GenericServer的
+	// 基础之上增加了额外的功能。而这里的返回值就是AggregatorServer，真正启动的只有AggregatorServer，APIServer和ExtensionServer
+	// 并没有真正启动，而是作为Delegator的方式在合适的时机处理请求
 	server, err := CreateServerChain(completeOptions)
 	if err != nil {
 		return err
 	}
 
-	// todo 在apiserver运行之前干了啥？
+	// PrepareRun主要干了以下几件事情：
+	// 1、启动OpenapiAggregationController，检查用户添加的APIServer是否符合openapi规范
+	// 2、调用AggregatorServer内部GenericServer的PrepareRun方法,生成一个preparedGenericServer
 	prepared, err := server.PrepareRun()
 	if err != nil {
 		return err
 	}
 
-	// 运行Server
+	// TODO 运行AggregatorServer, 主要做了哪些事情？
 	return prepared.Run(stopCh)
 }
 
@@ -284,8 +288,8 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// todo 如何理解golang中的transport  transport似乎是用来做长连接，多路复用的东西
 	proxyTransport := CreateProxyTransport()
 
-	// genericConfig为generic apiserver的配置
-	// versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象
+	// genericConfig为generic server config,后续aggregator server以及extension server都会拷贝该配置作为自己的generic server config
+	// versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象; aggregator/extension server都会拥有一个Informer
 	// serviceResolver 通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
 	// pluginInitializers TODO 暂时搞不懂这个参数的作用，它和K8S准入控制相关
 	// admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
@@ -417,13 +421,15 @@ func buildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
-	// 实例化generic apiserver配置,该配置基本可以认为是一个空的配置,仅仅配置了一些默认的参数，用户配置的参数通过下面的Apply机制进行初始化
+	// 实例化generic server config,该配置基本可以认为是一个空的配置,仅仅配置了一些默认的参数
+	// 后续会使用options.ServerRunOptions实例来初始化这个空的配置，options.ServerRunOptions为用户传进来的参数
+	// 用户给apiserver传参包括：一：命令行参数  二：apiserver的配置文件
 	// TODO 重点关注BuildHandlerChainFunc属性的初始化，也就是DefaultBuildHandlerChain函数
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 	// 默认启用稳定版本的资源，譬如v1, v2，禁用处于beta, alpha阶段的资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
-	// 设置apiserver的启动参数
+	// 初始化generic server config的通用配置
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
@@ -433,14 +439,15 @@ func buildGenericConfig(
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
-	// 设置apiserver的特性开关
+	// 初始化generic server config的EnableProfiling，EnableContentionProfiling开关
 	if lastErr = s.Features.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
-	//
+	// 初始化generic server config的启用禁用资源
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); lastErr != nil {
 		return
 	}
+	// TODO 初始化generic server config的EgressSelector
 	if lastErr = s.EgressSelector.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
@@ -489,7 +496,7 @@ func buildGenericConfig(
 	} else {
 		storageFactory.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
-	// TODO 主要是为了初始化genericConfig.RESTOptionsGetter
+	// TODO 主要是为了初始化genericConfig.RESTOptionsGetter 初始化apisix的后端存储
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}
@@ -515,7 +522,7 @@ func buildGenericConfig(
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
-	// TODO 认证
+	// TODO 初始化generic server config的认证配置
 	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector,
 		genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
@@ -577,6 +584,7 @@ func buildGenericConfig(
 // BuildAuthorizer constructs the authorizer
 func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector,
 	versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
+	// TODO 实例化授权配置
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
 	if EgressSelector != nil {
@@ -587,7 +595,7 @@ func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector
 		authorizationConfig.CustomDial = egressDialer
 	}
 
-	// K8S的授权配置
+	// TODO 实例化授权器，以及规则解析器
 	return authorizationConfig.New()
 }
 

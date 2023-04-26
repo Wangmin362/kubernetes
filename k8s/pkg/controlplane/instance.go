@@ -126,6 +126,7 @@ const (
 )
 
 // ExtraConfig defines extra configuration for the master
+// TODO apiserver 额外需要的配置
 type ExtraConfig struct {
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 
@@ -203,6 +204,7 @@ type ExtraConfig struct {
 
 // Config defines configuration for the master
 type Config struct {
+	// generic server config
 	GenericConfig *genericapiserver.Config
 	ExtraConfig   ExtraConfig
 }

@@ -147,7 +147,7 @@ type GenericAPIServer struct {
 	admissionControl admission.Interface
 
 	// SecureServingInfo holds configuration of the TLS server.
-	// HTTPS相关信息
+	// 启动HTTPS服务所需要的信息
 	SecureServingInfo *SecureServingInfo
 
 	// ExternalAddress is the address (hostname or IP and port) that should be used in
@@ -163,6 +163,7 @@ type GenericAPIServer struct {
 	// "Outputs"
 	// Handler holds the handlers being used by this API server
 	// TODO URL + Method => Handler的映射就在这里面了
+	// TODO APIServer AggregatorServer  ExtensionServer是如何初始化这个属性的?
 	Handler *APIServerHandler
 
 	// listedPathProvider is a lister which provides the set of paths to show at /
@@ -449,6 +450,7 @@ type preparedGenericAPIServer struct {
 }
 
 // PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
+// TODO 为什么需要PrepareRun? K8S是如何设计的？
 func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 	// 递归调用PrepareRun方法
 	s.delegationTarget.PrepareRun()
@@ -535,6 +537,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	// spawn a new goroutine for closing the MuxAndDiscoveryComplete signal
 	// registration happens during construction of the generic api server
 	// the last server in the chain aggregates signals from the previous instances
+	// TODO 分析原理
 	go func() {
 		for _, muxAndDiscoveryCompletedSignal := range s.GenericAPIServer.MuxAndDiscoveryCompleteSignals() {
 			select {
@@ -549,6 +552,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		klog.V(1).Infof("%s has all endpoints registered and discovery information is complete", s.lifecycleSignals.MuxAndDiscoveryComplete.Name())
 	}()
 
+	// 分析原理
 	go func() {
 		defer delayedStopCh.Signal()
 		defer klog.V(1).InfoS("[graceful-termination] shutdown event", "name", delayedStopCh.Name())
@@ -594,6 +598,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	// Start the audit backend before any request comes in. This means we must call Backend.Run
 	// before http server start serving. Otherwise the Backend.ProcessEvents call might block.
 	// AuditBackend.Run will stop as soon as all in-flight requests are drained.
+	// TODO 分析原理
 	if s.AuditBackend != nil {
 		if err := s.AuditBackend.Run(drainedCh.Signaled()); err != nil {
 			return fmt.Errorf("failed to run the audit backend: %v", err)
@@ -616,6 +621,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	// we don't accept new request as soon as both ShutdownDelayDuration has
 	// elapsed and preshutdown hooks have completed.
 	preShutdownHooksHasStoppedCh := s.lifecycleSignals.PreShutdownHooksStopped
+	// TODO 分析原理
 	go func() {
 		defer klog.V(1).InfoS("[graceful-termination] shutdown event", "name", notAcceptingNewRequestCh.Name())
 		defer notAcceptingNewRequestCh.Signal()
@@ -629,6 +635,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		<-preShutdownHooksHasStoppedCh.Signaled()
 	}()
 
+	// TODO 分析原理
 	go func() {
 		defer klog.V(1).InfoS("[graceful-termination] shutdown event", "name", drainedCh.Name())
 		defer drainedCh.Signal()
@@ -694,6 +701,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 	var listenerStoppedCh <-chan struct{}
 	if s.SecureServingInfo != nil && s.Handler != nil {
 		var err error
+		// TODO 分析原理
 		stoppedCh, listenerStoppedCh, err = s.SecureServingInfo.Serve(s.Handler, shutdownTimeout, internalStopCh)
 		if err != nil {
 			close(internalStopCh)
@@ -709,6 +717,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 		close(internalStopCh)
 	}()
 
+	// TODO 分析原理
 	s.RunPostStartHooks(stopCh)
 
 	if _, err := systemd.SdNotify(true, "READY=1\n"); err != nil {

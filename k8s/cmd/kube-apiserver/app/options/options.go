@@ -55,7 +55,10 @@ type ServerRunOptions struct {
 	// TODO 什么叫做APIEnablement? 答：所谓的APIEnablement，实际上就是启用哪些资源，禁用那些资源
 	// 用于可以通过runtime-config配置参数来配置
 	APIEnablement *genericoptions.APIEnablementOptions
-	// TODO EgressSelector是啥？有啥作用？
+	// TODO K8S有master, worker两种节点，他们之间的通信需要安全加密 而Konnectivity就是用于解决这个问题的
+	// egressorselector就是在配置Konnectivity
+	// 参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/setup-konnectivity/
+	// https://www.jianshu.com/p/d1528a9d3cfa
 	EgressSelector *genericoptions.EgressSelectorOptions
 	// TODO 指标参数，通过此参数可以配置开启哪些资源的指标，或者禁用哪些资源的指标
 	Metrics *metrics.Options

@@ -41,10 +41,12 @@ type AdmissionPluginConfiguration struct {
 	// Path is the path to a configuration file that contains the plugin's
 	// configuration
 	// +optional
+	// 当前名字为Name的准入控制插件的配置路径
 	Path string `json:"path"`
 
 	// Configuration is an embedded configuration object to be used as the plugin's
 	// configuration. If present, it will be used instead of the path to the configuration file.
 	// +optional
+	// 也可以直接通过configuration为当前插件写配置
 	Configuration *runtime.Unknown `json:"configuration"`
 }

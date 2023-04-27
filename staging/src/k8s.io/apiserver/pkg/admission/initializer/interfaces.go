@@ -27,6 +27,7 @@ import (
 
 // WantsExternalKubeClientSet defines a function which sets external ClientSet for admission plugins that need it
 type WantsExternalKubeClientSet interface {
+	// SetExternalKubeClientSet 注入clientset客户端
 	SetExternalKubeClientSet(kubernetes.Interface)
 	admission.InitializationValidator
 }

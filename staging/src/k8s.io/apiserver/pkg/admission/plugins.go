@@ -33,10 +33,13 @@ import (
 // The config parameter provides an io.Reader handler to the factory in
 // order to load specific configurations. If no configuration is provided
 // the parameter is nil.
+// TODO 插件工厂为什么会被抽象为这个定义？
 type Factory func(config io.Reader) (Interface, error)
 
+// Plugins 准入控制插件注册中心
 type Plugins struct {
-	lock     sync.Mutex
+	lock sync.Mutex
+	// key为准入控制插件名字
 	registry map[string]Factory
 }
 
@@ -56,10 +59,11 @@ var (
 type PluginEnabledFunc func(name string, config io.Reader) bool
 
 // Registered enumerates the names of all registered plugins.
+// 返回已经注册过的插件
 func (ps *Plugins) Registered() []string {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
-	keys := []string{}
+	var keys []string
 	for k := range ps.registry {
 		keys = append(keys, k)
 	}
@@ -74,10 +78,10 @@ func (ps *Plugins) Register(name string, plugin Factory) {
 	defer ps.lock.Unlock()
 	if ps.registry != nil {
 		_, found := ps.registry[name]
-		if found {
+		if found { // 一个准入控制插件不能注册两次以上
 			klog.Fatalf("Admission plugin %q was registered twice", name)
 		}
-	} else {
+	} else { // 注册中心没有初始化就初始化
 		ps.registry = map[string]Factory{}
 	}
 
@@ -126,15 +130,16 @@ func splitStream(config io.Reader) (io.Reader, io.Reader, error) {
 // NewFromPlugins returns an admission.Interface that will enforce admission control decisions of all
 // the given plugins.
 func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigProvider, pluginInitializer PluginInitializer, decorator Decorator) (Interface, error) {
-	handlers := []Interface{}
-	mutationPlugins := []string{}
-	validationPlugins := []string{}
+	var handlers []Interface
+	var mutationPlugins []string
+	var validationPlugins []string
 	for _, pluginName := range pluginNames {
 		pluginConfig, err := configProvider.ConfigFor(pluginName)
 		if err != nil {
 			return nil, err
 		}
 
+		// 根据插件配置实例化一个插件
 		plugin, err := ps.InitPlugin(pluginName, pluginConfig, pluginInitializer)
 		if err != nil {
 			return nil, err
@@ -164,6 +169,7 @@ func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigPro
 }
 
 // InitPlugin creates an instance of the named interface.
+// 初始化插件
 func (ps *Plugins) InitPlugin(name string, config io.Reader, pluginInitializer PluginInitializer) (Interface, error) {
 	if name == "" {
 		klog.Info("No admission plugin specified.")
@@ -201,6 +207,7 @@ func ValidateInitialization(plugin Interface) error {
 
 type PluginInitializers []PluginInitializer
 
+// Initialize 使用插件初始化器初始化插件
 func (pp PluginInitializers) Initialize(plugin Interface) {
 	for _, p := range pp {
 		p.Initialize(plugin)

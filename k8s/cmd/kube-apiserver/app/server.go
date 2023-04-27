@@ -92,7 +92,7 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
-	// 实例化ServerRunOptions参数
+	// TODO 实例化ServerRunOptions参数都设置了哪些默认值？
 	s := options.NewServerRunOptions()
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -148,6 +148,7 @@ cluster's shared state through which all other components interact.`,
 	}
 
 	fs := cmd.Flags()
+	// TODO 根据用户传入的命令行参数初始化ServerRunOptions
 	namedFlagSets := s.Flags()
 	verflag.AddFlags(namedFlagSets.FlagSet("global"))
 	globalflag.AddGlobalFlags(namedFlagSets.FlagSet("global"), cmd.Name(), logs.SkipLoggingConfigurationFlags())
@@ -291,12 +292,13 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// todo 如何理解golang中的transport  transport似乎是用来做长连接，多路复用的东西
 	proxyTransport := CreateProxyTransport()
 
-	// genericConfig为generic server config,后续aggregator server以及extension server都会拷贝该配置作为自己的generic server config
-	// versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象; aggregator/extension server都会拥有一个Informer
-	// serviceResolver 通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
-	// pluginInitializers TODO 暂时搞不懂这个参数的作用，它和K8S准入控制相关
-	// admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
-	// storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
+	// 1、genericConfig为generic server config,后续aggregator server以及extension server都会拷贝该配置作为自己的generic server config
+	// 2、versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象; aggregator/extension server都会拥有一个Informer
+	// 3、serviceResolver 通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
+	// 4、pluginInitializers 准入控制插件的初始化器，用于初始化准入控制插件。其实主要是根据注入控制插件的不同类型注入一些特定的参数
+	// TODO buildGenericConfig返回了那些注入准入控制插件初始化器？
+	// 5、admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
+	// 6、storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
 		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
@@ -419,8 +421,8 @@ func buildGenericConfig(
 	genericConfig *genericapiserver.Config,
 	versionedInformers clientgoinformers.SharedInformerFactory,
 	serviceResolver aggregatorapiserver.ServiceResolver,
-	pluginInitializers []admission.PluginInitializer,
-	admissionPostStartHook genericapiserver.PostStartHookFunc,
+	pluginInitializers []admission.PluginInitializer, // 注入控制插件初始化器，用于初始化准入控制插件
+	admissionPostStartHook genericapiserver.PostStartHookFunc, // 准入控制的后置回调
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
@@ -556,7 +558,8 @@ func buildGenericConfig(
 	}
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
-	// TODO 准入控制相关
+	// pluginInitializers准入控制插件初始化器，用于准入控制插件的初始化
+	// admissionPostStartHook准入的后置回调
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
 		serviceResolver, genericConfig.TracerProvider)
 	if err != nil {

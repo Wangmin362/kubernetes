@@ -41,6 +41,7 @@ import (
 	"k8s.io/component-base/featuregate"
 )
 
+// 注册不同版本的AdmissionConfiguration，EgressSelectorConfiguration资源
 var configScheme = runtime.NewScheme()
 
 func init() {
@@ -52,20 +53,27 @@ func init() {
 // AdmissionOptions holds the admission options
 type AdmissionOptions struct {
 	// RecommendedPluginOrder holds an ordered list of plugin names we recommend to use by default
+	// TODO 这玩意有啥用？ 再New
 	RecommendedPluginOrder []string
 	// DefaultOffPlugins is a set of plugin names that is disabled by default
+	// 设置默认禁用的插件
 	DefaultOffPlugins sets.String
 
 	// EnablePlugins indicates plugins to be enabled passed through `--enable-admission-plugins`.
+	// 启用的准入控制插件
 	EnablePlugins []string
 	// DisablePlugins indicates plugins to be disabled passed through `--disable-admission-plugins`.
+	// 禁用的注入控制插件
 	DisablePlugins []string
 	// ConfigFile is the file path with admission control configuration.
-	// TODO 准入控制的配置文件是啥？
+	// 准入控制的配置文件是啥？ 答：每个准入控制插件是可以增加配置文件的
+	// 配置文件其实就是AdmissionPluginConfiguration资源，这个配置文件中可以指定不同的准入控制插件所需要的配置
 	ConfigFile string
 	// Plugins contains all registered plugins.
+	// 所有注册的准入控制插件
 	Plugins *admission.Plugins
 	// Decorators is a list of admission decorator to wrap around the admission plugins
+	// TODO 从代码上来看似乎目前是为了Metrics指标
 	Decorators admission.Decorators
 }
 
@@ -87,8 +95,9 @@ func NewAdmissionOptions() *AdmissionOptions {
 		// after all the mutating ones, so their relative order in this list
 		// doesn't matter.
 		RecommendedPluginOrder: []string{lifecycle.PluginName, mutatingwebhook.PluginName, validatingwebhook.PluginName},
-		DefaultOffPlugins:      sets.NewString(),
+		DefaultOffPlugins:      sets.NewString(), // 目前没有默认禁用的插件
 	}
+	// 注册NamespaceLifecycle, ValidatingAdmissionWebhook,MutatingAdmissionWebhook webhook
 	server.RegisterAllAdmissionPlugins(options.Plugins)
 	return options
 }
@@ -135,8 +144,12 @@ func (a *AdmissionOptions) ApplyTo(
 		return fmt.Errorf("admission depends on a Kubernetes core API shared informer, it cannot be nil")
 	}
 
+	// 拿到RecommendedPluginOrder中没有禁用的插件，也就是拿到启用插件
 	pluginNames := a.enabledPluginNames()
 
+	// configScheme是为了能够从GVK找到goType，或者是从goType找到GVK
+	// ConfigFile是AdmissionConfiguration资源，其中定义了不同准入控制插件的配置
+	// pluginsConfigProvider本质上就是AdmissionConfiguration资源，其作用就是根据插件的名字返回插件配置
 	pluginsConfigProvider, err := admission.ReadAdmissionConfiguration(pluginNames, a.ConfigFile, configScheme)
 	if err != nil {
 		return fmt.Errorf("failed to read plugin config: %v", err)
@@ -146,15 +159,19 @@ func (a *AdmissionOptions) ApplyTo(
 	if err != nil {
 		return err
 	}
+	// 通用的准入控制插件初始化器 实际上就是为了给准入控制插件设置client, informer, authorizer, feature这几个参数
 	genericInitializer := initializer.New(clientset, informers, c.Authorization.Authorizer, features, c.DrainedNotify())
 	initializersChain := admission.PluginInitializers{genericInitializer}
 	initializersChain = append(initializersChain, pluginInitializers...)
 
+	// 准入控制插件链，实际上就是按照顺序一个一个执行，一旦有一个准入控制插件决绝，那么就退出
+	// TODO 最终请求到来的时候就是通过这个准入控制链执行的
 	admissionChain, err := a.Plugins.NewFromPlugins(pluginNames, pluginsConfigProvider, initializersChain, a.Decorators)
 	if err != nil {
 		return err
 	}
 
+	// 加上指标
 	c.AdmissionControl = admissionmetrics.WithStepMetrics(admissionChain)
 	return nil
 }
@@ -207,19 +224,23 @@ func (a *AdmissionOptions) Validate() []error {
 // enabledPluginNames makes use of RecommendedPluginOrder, DefaultOffPlugins,
 // EnablePlugins, DisablePlugins fields
 // to prepare a list of ordered plugin names that are enabled.
+// 用于返回RecommendedPluginOrder插件中没有被禁用的插件
 func (a *AdmissionOptions) enabledPluginNames() []string {
+	// 获取到所有禁用的插件，一个来自于默认禁用的插件，一个来自于命令行禁用的插件
 	allOffPlugins := append(a.DefaultOffPlugins.List(), a.DisablePlugins...)
-	disabledPlugins := sets.NewString(allOffPlugins...)
+	disabledPlugins := sets.NewString(allOffPlugins...) // 去重
 	enabledPlugins := sets.NewString(a.EnablePlugins...)
+	// 禁用插件和启用插件的差集，即返回那些在禁用插件中存在，但是不再启用插件中存在的插件；说白了就是计算出需要禁用的插件
 	disabledPlugins = disabledPlugins.Difference(enabledPlugins)
 
-	orderedPlugins := []string{}
+	var orderedPlugins []string
 	for _, plugin := range a.RecommendedPluginOrder {
-		if !disabledPlugins.Has(plugin) {
+		if !disabledPlugins.Has(plugin) { // 从这里可以看出，RecommendedPluginOrder插件也是可以禁用的
 			orderedPlugins = append(orderedPlugins, plugin)
 		}
 	}
 
+	// 返回RecommendedPluginOrder插件中没有被禁用的插件
 	return orderedPlugins
 }
 

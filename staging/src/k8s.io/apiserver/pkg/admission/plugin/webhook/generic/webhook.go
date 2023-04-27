@@ -39,23 +39,32 @@ import (
 )
 
 // Webhook is an abstract admission plugin with all the infrastructure to define Admit or Validate on-top.
+// TODO 如何理解Webhook的插件定义
 type Webhook struct {
+	// TODO 如何理解这个属性
 	*admission.Handler
 
+	// TODO 如何理解这个属性
 	sourceFactory sourceFactory
 
-	hookSource       Source
+	// TODO 如何理解这个属性
+	hookSource Source
+	// TODO 如何理解这个属性
 	clientManager    *webhookutil.ClientManager
 	namespaceMatcher *namespace.Matcher
 	objectMatcher    *object.Matcher
-	dispatcher       Dispatcher
+	// TODO 如何理解这个属性
+	dispatcher Dispatcher
 }
 
 var (
+	// Webhook必须要实现WantsExternalKubeClientSet接口，可以注入clientset
 	_ genericadmissioninit.WantsExternalKubeClientSet = &Webhook{}
-	_ admission.Interface                             = &Webhook{}
+	// Webhook必须实现注入控制
+	_ admission.Interface = &Webhook{}
 )
 
+// TODO 如何理解这个方法的定义？
 type sourceFactory func(f informers.SharedInformerFactory) Source
 type dispatcherFactory func(cm *webhookutil.ClientManager) Dispatcher
 
@@ -77,6 +86,7 @@ func NewWebhook(handler *admission.Handler, configFile io.Reader, sourceFactory 
 	if err != nil {
 		return nil, err
 	}
+	// TODO 分析授权信息解析器
 	authInfoResolver, err := webhookutil.NewDefaultAuthenticationInfoResolver(kubeconfigFile)
 	if err != nil {
 		return nil, err

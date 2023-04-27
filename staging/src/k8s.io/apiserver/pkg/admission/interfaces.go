@@ -131,6 +131,7 @@ type ReinvocationContext interface {
 
 // Interface is an abstract, pluggable interface for Admission Control decisions.
 // TODO 这个接口的核心作用是判断当前的准入控制器是否能够处理当前请求
+// TODO 每个准入控制插件都必须实现这个接口，如何理解这个接口的定义？
 type Interface interface {
 	// Handles returns true if this admission controller can handle the given operation
 	// where operation can be one of CREATE, UPDATE, DELETE, or CONNECT
@@ -159,26 +160,30 @@ type Operation string
 
 // Operation constants
 const (
-	Create  Operation = "CREATE"
-	Update  Operation = "UPDATE"
-	Delete  Operation = "DELETE"
+	Create Operation = "CREATE"
+	Update Operation = "UPDATE"
+	Delete Operation = "DELETE"
+	// Connect TODO CONNECT是干嘛的？
 	Connect Operation = "CONNECT"
 )
 
 // PluginInitializer is used for initialization of shareable resources between admission plugins.
 // After initialization the resources have to be set separately
-// TODO 这玩意到底是干嘛用的？
+// TODO 这玩意到底是干嘛用的？ 答：实际上就是为了个准入控制插件注入某些参数，也可以理解为插件的初始化 即使用插件初始化器初始化传入的插件
+// TODO 这个接口的设计思想可以好好学一下，感觉挺有用的
 type PluginInitializer interface {
 	Initialize(plugin Interface)
 }
 
 // InitializationValidator holds ValidateInitialization functions, which are responsible for validation of initialized
 // shared resources and should be implemented on admission plugins
+// TODO 如何理解这个接口的定义？
 type InitializationValidator interface {
 	ValidateInitialization() error
 }
 
 // ConfigProvider provides a way to get configuration for an admission plugin based on its name
 type ConfigProvider interface {
+	// ConfigFor 返回指定准入控制插件的配置，这个配置是定义再AdmissionConfiguration资源当中
 	ConfigFor(pluginName string) (io.Reader, error)
 }

@@ -42,6 +42,7 @@ type UsageStats struct {
 }
 
 // Evaluator knows how to evaluate quota usage for a particular group resource
+// TODO 这玩意干嘛的？
 type Evaluator interface {
 	// Constraints ensures that each required resource is present on item
 	Constraints(required []corev1.ResourceName, item runtime.Object) error

@@ -45,18 +45,19 @@ type ServerRunOptions struct {
 	Etcd                    *genericoptions.EtcdOptions                      // ETCD的配置
 	SecureServing           *genericoptions.SecureServingOptionsWithLoopback // TLS相关配置
 	// TODO K8S是如何实现审计的？
-	Audit          *genericoptions.AuditOptions              // 审计相关配置
-	Features       *genericoptions.FeatureOptions            // K8S的特性开关
+	Audit    *genericoptions.AuditOptions   // 审计相关配置
+	Features *genericoptions.FeatureOptions // K8S的特性开关
+	// TODO K8S是如何实现准入控制的？ 动态注入控制又是如何实现的？
 	Admission      *kubeoptions.AdmissionOptions             // 准入控制
 	Authentication *kubeoptions.BuiltInAuthenticationOptions // 认证相关
 	Authorization  *kubeoptions.BuiltInAuthorizationOptions  // 授权相关
 	// TODO cloudProvider是啥？
 	CloudProvider *kubeoptions.CloudProviderOptions
-	// TODO 什么叫做APIEnablement? 答：所谓的APIEnablement，实际上就是启用哪些资源，禁用那些资源
+	// 什么叫做APIEnablement? 答：所谓的APIEnablement，实际上就是启用哪些资源，禁用那些资源
 	// 用于可以通过runtime-config配置参数来配置
 	APIEnablement *genericoptions.APIEnablementOptions
 	// TODO K8S有master, worker两种节点，他们之间的通信需要安全加密 而Konnectivity就是用于解决这个问题的
-	// egressorselector就是在配置Konnectivity
+	// TODO egressorselector就是在配置Konnectivity
 	// 参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/setup-konnectivity/
 	// https://www.jianshu.com/p/d1528a9d3cfa
 	EgressSelector *genericoptions.EgressSelectorOptions
@@ -120,7 +121,7 @@ func NewServerRunOptions() *ServerRunOptions {
 		SecureServing:           kubeoptions.NewSecureServingOptions(),
 		Audit:                   genericoptions.NewAuditOptions(),
 		Features:                genericoptions.NewFeatureOptions(),
-		Admission:               kubeoptions.NewAdmissionOptions(),
+		Admission:               kubeoptions.NewAdmissionOptions(), // TODO 准入控制参数，注册了需要的注入控制器
 		Authentication:          kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
 		Authorization:           kubeoptions.NewBuiltInAuthorizationOptions(),
 		CloudProvider:           kubeoptions.NewCloudProviderOptions(),
@@ -166,6 +167,7 @@ func NewServerRunOptions() *ServerRunOptions {
 }
 
 // Flags returns flags for a specific APIServer by section name
+// TODO 根据命令行传入的参数初始化ServerRunOptions
 func (s *ServerRunOptions) Flags() (fss cliflag.NamedFlagSets) {
 	// Add the generic flags.
 	s.GenericServerRunOptions.AddUniversalFlags(fss.FlagSet("generic"))

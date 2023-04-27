@@ -76,6 +76,7 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 		quotainstall.NewQuotaConfigurationForAdmission(),
 	)
 
+	// TODO 准入控制后置处理器
 	admissionPostStartHook := func(context genericapiserver.PostStartHookContext) error {
 		discoveryRESTMapper.Reset()
 		go utilwait.Until(discoveryRESTMapper.Reset, 30*time.Second, context.StopCh)

@@ -136,11 +136,13 @@ type configProvider struct {
 // GetAdmissionPluginConfigurationFor returns a reader that holds the admission plugin configuration.
 func GetAdmissionPluginConfigurationFor(pluginCfg apiserver.AdmissionPluginConfiguration) (io.Reader, error) {
 	// if there is a nest object, return it directly
+	// 从这里可以看得出来 Configuration的优先级更高
 	if pluginCfg.Configuration != nil {
 		return bytes.NewBuffer(pluginCfg.Configuration.Raw), nil
 	}
 	// there is nothing nested, so we delegate to path
 	if pluginCfg.Path != "" {
+		// 读取配置文件的内容，作为准入控制插件的配置
 		content, err := ioutil.ReadFile(pluginCfg.Path)
 		if err != nil {
 			klog.Fatalf("Couldn't open admission plugin configuration %s: %#v", pluginCfg.Path, err)
@@ -164,6 +166,7 @@ func (p configProvider) ConfigFor(pluginName string) (io.Reader, error) {
 		if pluginName != pluginCfg.Name {
 			continue
 		}
+		// 获取准入控制插件的配置
 		pluginConfig, err := GetAdmissionPluginConfigurationFor(pluginCfg)
 		if err != nil {
 			return nil, err

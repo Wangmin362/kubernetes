@@ -36,16 +36,19 @@ type AdmissionConfiguration struct {
 type AdmissionPluginConfiguration struct {
 	// Name is the name of the admission controller.
 	// It must match the registered admission plugin name.
+	// 准入控制插件名字
 	Name string
 
 	// Path is the path to a configuration file that contains the plugin's
 	// configuration
 	// +optional
+	// 当前准入控制插件的配置文件路径
 	Path string
 
 	// Configuration is an embedded configuration object to be used as the plugin's
 	// configuration. If present, it will be used instead of the path to the configuration file.
 	// +optional
+	// 当前准入控制插件的配置，如果此属性和Path同时出现，那么Configuration的优先级更高
 	Configuration *runtime.Unknown
 }
 

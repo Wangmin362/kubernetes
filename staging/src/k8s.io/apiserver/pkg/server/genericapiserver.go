@@ -144,6 +144,7 @@ type GenericAPIServer struct {
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
 	// TODO 准入控制，为什么不是 admissionControls []admission.Interface，K8S不是可以定义多个准入控制的么？ 多个注入控制是如何体现的？
+	// 因为最终传入的是admissionChain，这玩意实现了admission.Interface接口，真正执行审计的时候是执行admissionChain中的准入控制插件
 	admissionControl admission.Interface
 
 	// SecureServingInfo holds configuration of the TLS server.

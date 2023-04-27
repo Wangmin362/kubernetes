@@ -32,6 +32,7 @@ const (
 
 // Register registers a plugin
 func Register(plugins *admission.Plugins) {
+	// 注册MutationWebhook准入控制器
 	plugins.Register(PluginName, func(configFile io.Reader) (admission.Interface, error) {
 		plugin, err := NewMutatingWebhook(configFile)
 		if err != nil {

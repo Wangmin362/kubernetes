@@ -35,6 +35,7 @@ import (
 // It is a wrap of generic AdmissionOptions.
 type AdmissionOptions struct {
 	// GenericAdmission holds the generic admission options.
+	// TODO 通用的准入控制参数
 	GenericAdmission *genericoptions.AdmissionOptions
 	// DEPRECATED flag, should use EnabledAdmissionPlugins and DisabledAdmissionPlugins.
 	// They are mutually exclusive, specify both will lead to an error.
@@ -53,10 +54,12 @@ type AdmissionOptions struct {
 func NewAdmissionOptions() *AdmissionOptions {
 	options := genericoptions.NewAdmissionOptions()
 	// register all admission plugins
+	// 注册所有的注入控制器
 	RegisterAllAdmissionPlugins(options.Plugins)
 	// set RecommendedPluginOrder
 	options.RecommendedPluginOrder = AllOrderedPlugins
 	// set DefaultOffPlugins
+	// 设置默认的准入控制器名字
 	options.DefaultOffPlugins = DefaultOffAdmissionPlugins()
 
 	return &AdmissionOptions{
@@ -116,6 +119,7 @@ func (a *AdmissionOptions) ApplyTo(
 		return nil
 	}
 
+	// 目前此参数已经废弃，应该使用GenericAdmission参数
 	if a.PluginNames != nil {
 		// pass PluginNames to generic AdmissionOptions
 		a.GenericAdmission.EnablePlugins, a.GenericAdmission.DisablePlugins = computePluginNames(a.PluginNames, a.GenericAdmission.RecommendedPluginOrder)

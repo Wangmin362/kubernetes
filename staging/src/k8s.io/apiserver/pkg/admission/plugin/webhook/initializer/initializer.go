@@ -67,6 +67,7 @@ func NewPluginInitializer(
 // Initialize checks the initialization interfaces implemented by each plugin
 // and provide the appropriate initialization data
 func (i *PluginInitializer) Initialize(plugin admission.Interface) {
+	// 注入服务解析器
 	if wants, ok := plugin.(WantsServiceResolver); ok {
 		wants.SetServiceResolver(i.serviceResolver)
 	}

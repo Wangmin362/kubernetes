@@ -27,9 +27,10 @@ import (
 type pluginInitializer struct {
 	externalClient    kubernetes.Interface
 	externalInformers informers.SharedInformerFactory
-	authorizer        authorizer.Authorizer
-	featureGates      featuregate.FeatureGate
-	stopCh            <-chan struct{}
+	// TODO 准入控制插件为什么和授权器是相关的？ 难道授不授权决定了准入控制的行为？
+	authorizer   authorizer.Authorizer
+	featureGates featuregate.FeatureGate
+	stopCh       <-chan struct{}
 }
 
 // New creates an instance of admission plugins initializer.

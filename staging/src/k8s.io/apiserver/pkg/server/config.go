@@ -175,6 +175,7 @@ type Config struct {
 	// TODO 构建请求链，主要是认证、限速、鉴权、审计、CORS、日志
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// HandlerChainWaitGroup allows you to wait for all chain handlers exit after the server shutdown.
+	// TODO 如何理解这玩意？为啥需要？干嘛用的？
 	HandlerChainWaitGroup *utilwaitgroup.SafeWaitGroup
 	// DiscoveryAddresses is used to build the IPs pass to discovery. If nil, the ExternalAddress is
 	// always reported
@@ -250,6 +251,8 @@ type Config struct {
 	// GOAWAY, the in-flight requests will not be affected and new requests will use
 	// a new TCP connection to triggering re-balancing to another server behind the load balance.
 	// Default to 0, means never send GOAWAY. Max is 0.02 to prevent break the apiserver.
+	// TODO 主要作用是啥？
+	// 参考文章：https://www.kubernetes.org.cn/6898.html
 	GoawayChance float64
 
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
@@ -888,13 +891,13 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// 计算鉴权消耗时间
 	// TODO 实际上，apiHandler才是真正的业务处理，也就是K8S的资源处理，只有下面所有的Handler处理完成之后才会执行apiHandler处理器
 	// TODO 一旦下面中的任何一个处理拒绝处理请求，apiHandler将不会被执行
+
+	// TODO 鉴权，如果没有权限直接拒绝
 	handler := filterlatency.TrackCompleted(apiHandler)
-	// 鉴权，如果没有权限直接拒绝
 	handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)
-	// 鉴权开始
 	handler = filterlatency.TrackStarted(handler, "authorization")
 
-	// TODO apiserver限速相关
+	// TODO generic server限速相关
 	if c.FlowControl != nil {
 		workEstimatorCfg := flowcontrolrequest.DefaultWorkEstimatorConfig()
 		requestWorkEstimator := flowcontrolrequest.NewWorkEstimator(
@@ -903,7 +906,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 		handler = genericfilters.WithPriorityAndFairness(handler, c.LongRunningFunc, c.FlowControl, requestWorkEstimator)
 		handler = filterlatency.TrackStarted(handler, "priorityandfairness")
 	} else {
-		// TODO apiserver限速的另外一种策略
+		// TODO generic server限速的另外一种策略
 		handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.LongRunningFunc)
 	}
 
@@ -917,7 +920,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = genericapifilters.WithAudit(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator, c.LongRunningFunc)
 	handler = filterlatency.TrackStarted(handler, "audit")
 
-	// TODO 授权
+	// TODO 判断是否是未授权
 	failedHandler := genericapifilters.Unauthorized(c.Serializer)
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 
@@ -927,21 +930,26 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = genericapifilters.WithAuthentication(handler, c.Authentication.Authenticator, failedHandler, c.Authentication.APIAudiences)
 	handler = filterlatency.TrackStarted(handler, "authentication")
 
-	// TODO CORS
+	// 设置Access-Control-Allow-Origin, Access-Control-Allow-Methods, Access-Control-Allow-Headers,
+	// Access-Control-Expose-Headers, Access-Control-Allow-Credentials响应头支持CORS
 	handler = genericfilters.WithCORS(handler, c.CorsAllowedOriginList, nil, nil, nil, "true")
 
 	// WithTimeoutForNonLongRunningRequests will call the rest of the request handling in a go-routine with the
 	// context with deadline. The go-routine can keep running, while the timeout logic will return a timeout to the client.
+	// TODO 应该也是超时相关的东西，这个和WithRequestDeadline有啥区别？
 	handler = genericfilters.WithTimeoutForNonLongRunningRequests(handler, c.LongRunningFunc)
-
+	// 根据RequestTimeout设置Context的Deadline
 	handler = genericapifilters.WithRequestDeadline(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator,
 		c.LongRunningFunc, c.Serializer, c.RequestTimeout)
+	// TODO 暂时没看懂这玩意干嘛的
 	handler = genericfilters.WithWaitGroup(handler, c.LongRunningFunc, c.HandlerChainWaitGroup)
 	if c.SecureServing != nil && !c.SecureServing.DisableHTTP2 && c.GoawayChance > 0 {
-		// todo probabilistic goaway是啥
+		// todo probabilistic goaway是啥 参考：https://www.kubernetes.org.cn/6898.html
 		handler = genericfilters.WithProbabilisticGoaway(handler, c.GoawayChance)
 	}
+	// 上下文中设置审计Annotations
 	handler = genericapifilters.WithAuditAnnotations(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
+	// 上下文中设置recorder，用于记录warning信息
 	handler = genericapifilters.WithWarningRecorder(handler)
 	// 响应头设置Cache-Control
 	handler = genericapifilters.WithCacheControl(handler)

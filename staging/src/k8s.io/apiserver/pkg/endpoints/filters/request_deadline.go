@@ -93,6 +93,7 @@ func withRequestDeadline(handler http.Handler, sink audit.Sink, policy audit.Pol
 			started = requestStartedTimestamp
 		}
 
+		// 设置Deadline
 		ctx, cancel := context.WithDeadline(ctx, started.Add(timeout))
 		defer cancel()
 

@@ -47,6 +47,7 @@ func withWaitGroup(handler http.Handler, longRunning apirequest.LongRunningReque
 			return
 		}
 
+		// 如果是长时间的请求，那么直接放行
 		if longRunning(req, requestInfo) {
 			handler.ServeHTTP(w, req)
 			return

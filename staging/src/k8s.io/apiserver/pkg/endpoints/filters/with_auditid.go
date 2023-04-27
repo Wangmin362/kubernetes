@@ -44,8 +44,10 @@ func withAuditID(handler http.Handler, newAuditIDFunc func() string) http.Handle
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 
+		// 从请求头中获取审计ID
 		auditID := r.Header.Get(auditinternal.HeaderAuditID)
 		if len(auditID) == 0 {
+			// 如果没有获取到，那么自己实例化一个审计ID
 			auditID = newAuditIDFunc()
 		}
 
@@ -59,10 +61,12 @@ func withAuditID(handler http.Handler, newAuditIDFunc func() string) http.Handle
 		//
 		// This filter will also be used by other aggregated api server(s). For an aggregated API
 		// we don't want to see the same audit ID appearing more than once.
+		// 如果响应头中没有审计ID，那么在响应头中设置审计ID
 		if value := w.Header().Get(auditinternal.HeaderAuditID); len(value) == 0 {
 			w.Header().Set(auditinternal.HeaderAuditID, auditID)
 		}
 
+		// 处理真实请求
 		handler.ServeHTTP(w, r)
 	})
 }

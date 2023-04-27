@@ -43,6 +43,7 @@ func WithLatencyTrackers(handler http.Handler) http.Handler {
 			return
 		}
 
+		// 如果当前请求是Watch操作，那么直接放行
 		if watchVerbs.Has(requestInfo.Verb) {
 			handler.ServeHTTP(w, req)
 			return

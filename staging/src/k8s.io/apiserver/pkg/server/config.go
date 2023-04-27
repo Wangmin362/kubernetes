@@ -128,7 +128,8 @@ type Config struct {
 	AdmissionControl admission.Interface
 	// TODO CORS控制
 	CorsAllowedOriginList []string
-	// TODO 啥是HSTS
+	// TODO 啥是HSTS 答：Strict-Transport-Security
+	// 参考：golang.org/issue/26162
 	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
 	// TODO apiserver的流控到底是怎么设计的? apisix限速
@@ -881,6 +882,8 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 	return DefaultBuildHandlerChain(handler, c)
 }
 
+// DefaultBuildHandlerChain 参数apiHandler实际上就是请求的处理逻辑，DefaultBuildHandlerChain的目的是为了在请求被真正
+// 处理之前增加一些处理逻辑
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// 计算鉴权消耗时间
 	// TODO 实际上，apiHandler才是真正的业务处理，也就是K8S的资源处理，只有下面所有的Handler处理完成之后才会执行apiHandler处理器
@@ -940,21 +943,31 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	}
 	handler = genericapifilters.WithAuditAnnotations(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 	handler = genericapifilters.WithWarningRecorder(handler)
+	// 响应头设置Cache-Control
 	handler = genericapifilters.WithCacheControl(handler)
+	// 响应头设置Strict-Transport-Security
 	handler = genericfilters.WithHSTS(handler, c.HSTSDirectives)
 	if c.ShutdownSendRetryAfter {
+		// 请求重试
 		handler = genericfilters.WithRetryAfter(handler, c.lifecycleSignals.NotAcceptingNewRequest.Signaled())
 	}
 	// HTTP日志
 	handler = genericfilters.WithHTTPLogging(handler)
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
+		// 对于分布式链路追踪OpenTelemetry的支持
 		handler = genericapifilters.WithTracing(handler, c.TracerProvider)
 	}
+	// 用于响应延迟计算
 	handler = genericapifilters.WithLatencyTrackers(handler)
+	// 使用RequestInfoResolver解析请求，把请求信息解析为RequestInfo放入到上下文当中，后续处理可以直接使用这个信息，无需再次解析
 	handler = genericapifilters.WithRequestInfo(handler, c.RequestInfoResolver)
+	// 在上下文中添加请求进来的时间，这个时间将来被用来计算整个请求的处理时间
 	handler = genericapifilters.WithRequestReceivedTimestamp(handler)
+	// 通过MuxAndDiscoveryComplete chan判断是否Server已经完成了所有API的安装，如果已经完成安装，
+	// 那么在上下文当中添加：muxAndDiscoveryIncompleteKey = MuxAndDiscoveryInstallationNotComplete
 	handler = genericapifilters.WithMuxAndDiscoveryComplete(handler, c.lifecycleSignals.MuxAndDiscoveryComplete.Signaled())
 	handler = genericfilters.WithPanicRecovery(handler, c.RequestInfoResolver)
+	// 给请求头和响应头添加审计ID（Audit-ID）
 	handler = genericapifilters.WithAuditID(handler)
 	return handler
 }

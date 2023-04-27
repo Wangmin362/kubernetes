@@ -25,7 +25,7 @@ import (
 
 // Header keys used by the audit system.
 const (
-	// Header to hold the audit ID as the request is propagated through the serving hierarchy. The
+	// HeaderAuditID Header to hold the audit ID as the request is propagated through the serving hierarchy. The
 	// Audit-ID header should be set by the first server to receive the request (e.g. the federation
 	// server or kube-aggregator).
 	//
@@ -35,6 +35,7 @@ const (
 	// pods/exec, pods/attach, pods/proxy, kube-apiserver works like a proxy and redirect the request
 	// to kubelet node, users will only get http headers sent from kubelet node, so no Audit-ID is
 	// sent when users run command like "kubectl exec" or "kubectl attach".
+	// TODO 理解审计ID的设计
 	HeaderAuditID = "Audit-ID"
 )
 

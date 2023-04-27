@@ -40,7 +40,9 @@ const (
 
 // ClientConfig defines parameters required for creating a hook client.
 type ClientConfig struct {
-	Name     string
+	// TODO 猜测这里应该是webhook的名字
+	Name string
+	// 这里是webhook的调用路径
 	URL      string
 	CABundle []byte
 	Service  *ClientConfigService
@@ -48,19 +50,27 @@ type ClientConfig struct {
 
 // ClientConfigService defines service discovery parameters of the webhook.
 type ClientConfigService struct {
-	Name      string
+	// webhook service name
+	Name string
+	// webhook名称空间
 	Namespace string
-	Path      string
-	Port      int32
+	// webhook调用路径
+	Path string
+	// webhook端口
+	Port int32
 }
 
 // ClientManager builds REST clients to talk to webhooks. It caches the clients
 // to avoid duplicate creation.
+// TODO 如何理解这个结构体的定义？
+// 从命名上来说，ClientManager管理的是Client，而从结构上来说ClientManager位于webhook的包下，因此ClientManger管理的一定是
+// 调用webhook的Restful Client。而Manager应该是缓存了不同webhook的Restful client
 type ClientManager struct {
 	authInfoResolver     AuthenticationInfoResolver
 	serviceResolver      ServiceResolver
 	negotiatedSerializer runtime.NegotiatedSerializer
-	cache                *lru.Cache
+	// TODO 这个cache到底存的是啥？
+	cache *lru.Cache
 }
 
 // NewClientManager creates a clientManager.
@@ -117,6 +127,7 @@ func (cm *ClientManager) Validate() error {
 
 // HookClient get a RESTClient from the cache, or constructs one based on the
 // webhook configuration.
+// TODO 根据当前的ClientConfig生成这个webhook的Restful Client
 func (cm *ClientManager) HookClient(cc ClientConfig) (*rest.RESTClient, error) {
 	ccWithNoName := cc
 	ccWithNoName.Name = ""
@@ -128,6 +139,7 @@ func (cm *ClientManager) HookClient(cc ClientConfig) (*rest.RESTClient, error) {
 		return client.(*rest.RESTClient), nil
 	}
 
+	// 没有找到就需要生成client
 	complete := func(cfg *rest.Config) (*rest.RESTClient, error) {
 		// Avoid client-side rate limiting talking to the webhook backend.
 		// Rate limiting should happen when deciding how many requests to serve.

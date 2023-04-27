@@ -132,12 +132,14 @@ type ReinvocationContext interface {
 // Interface is an abstract, pluggable interface for Admission Control decisions.
 // TODO 这个接口的核心作用是判断当前的准入控制器是否能够处理当前请求
 // TODO 每个准入控制插件都必须实现这个接口，如何理解这个接口的定义？
+// 准入控制插件抽象的非常简单，就是用于判断当前插件是否支持某个操作
 type Interface interface {
 	// Handles returns true if this admission controller can handle the given operation
 	// where operation can be one of CREATE, UPDATE, DELETE, or CONNECT
 	Handles(operation Operation) bool
 }
 
+// MutationInterface 修改类型的准入控制插件
 type MutationInterface interface {
 	Interface
 
@@ -147,6 +149,7 @@ type MutationInterface interface {
 }
 
 // ValidationInterface is an abstract, pluggable interface for Admission Control decisions.
+// 验证类型的准入控制插件
 type ValidationInterface interface {
 	Interface
 

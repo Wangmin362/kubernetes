@@ -27,6 +27,7 @@ import (
 )
 
 // WebhookAccessor provides a common interface to both mutating and validating webhook types.
+// TODO 如何理解这个接口？
 type WebhookAccessor interface {
 	// GetUID gets a string that uniquely identifies the webhook.
 	GetUID() string

@@ -76,6 +76,7 @@ func newMutatingDispatcher(p *Plugin) func(cm *webhookutil.ClientManager) generi
 
 var _ generic.Dispatcher = &mutatingDispatcher{}
 
+// Dispatch TODO 分析这里的逻辑
 func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attributes, o admission.ObjectInterfaces, hooks []webhook.WebhookAccessor) error {
 	reinvokeCtx := attr.GetReinvocationContext()
 	var webhookReinvokeCtx *webhookReinvokeContext

@@ -21,6 +21,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // WebhookAdmission provides configuration for the webhook admission controller.
+// TODO 如何理解这个对象的定义?
 type WebhookAdmission struct {
 	metav1.TypeMeta
 

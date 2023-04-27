@@ -41,7 +41,7 @@ import (
 // Webhook is an abstract admission plugin with all the infrastructure to define Admit or Validate on-top.
 // TODO 如何理解Webhook的插件定义
 type Webhook struct {
-	// TODO 如何理解这个属性
+	// Webhook通过组合这个对象，间接实现了admission.Interface这个接口
 	*admission.Handler
 
 	// TODO 如何理解这个属性
@@ -69,12 +69,15 @@ type sourceFactory func(f informers.SharedInformerFactory) Source
 type dispatcherFactory func(cm *webhookutil.ClientManager) Dispatcher
 
 // NewWebhook creates a new generic admission webhook.
-func NewWebhook(handler *admission.Handler, configFile io.Reader, sourceFactory sourceFactory, dispatcherFactory dispatcherFactory) (*Webhook, error) {
+func NewWebhook(handler *admission.Handler, configFile io.Reader, sourceFactory sourceFactory,
+	dispatcherFactory dispatcherFactory) (*Webhook, error) {
+	// configFile实际上应该是准入控制插件的配置文件， 这里似乎当作了kubeconfig配置文件
 	kubeconfigFile, err := config.LoadConfig(configFile)
 	if err != nil {
 		return nil, err
 	}
 
+	// ClientManager主要用于缓存调用webhook的restful client客户端
 	cm, err := webhookutil.NewClientManager(
 		[]schema.GroupVersion{
 			admissionv1beta1.SchemeGroupVersion,

@@ -317,6 +317,7 @@ type MutatingWebhook struct {
 
 	// ClientConfig defines how to communicate with the hook.
 	// Required
+	// 这个属性是Webhook的核心配置，路由到我们自己写的Webhook
 	ClientConfig WebhookClientConfig `json:"clientConfig" protobuf:"bytes,2,opt,name=clientConfig"`
 
 	// Rules describes what operations on what resources/subresources the webhook cares about.

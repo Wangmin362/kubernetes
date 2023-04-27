@@ -44,6 +44,7 @@ func Register(plugins *admission.Plugins) {
 }
 
 // Plugin is an implementation of admission.Interface.
+// TODO Webhook也是准入控制插件的一种，只不过Webhook是K8S留给用户动态增加准入控制的一种方式
 type Plugin struct {
 	*generic.Webhook
 }
@@ -51,10 +52,15 @@ type Plugin struct {
 var _ admission.MutationInterface = &Plugin{}
 
 // NewMutatingWebhook returns a generic admission webhook plugin.
+// 实例化MutatingWebhook, configFile为MutatingWebhook的配置文件
 func NewMutatingWebhook(configFile io.Reader) (*Plugin, error) {
+	// MutationWebhook支持Connect, Create, Delete, Update
 	handler := admission.NewHandler(admission.Connect, admission.Create, admission.Delete, admission.Update)
 	p := &Plugin{}
 	var err error
+
+	// configuration.NewMutatingWebhookConfigurationManager是一个sourceFactory，是为了拿到所有的webhook
+	//
 	p.Webhook, err = generic.NewWebhook(handler, configFile, configuration.NewMutatingWebhookConfigurationManager, newMutatingDispatcher(p))
 	if err != nil {
 		return nil, err
@@ -72,6 +78,7 @@ func (a *Plugin) ValidateInitialization() error {
 }
 
 // Admit makes an admission decision based on the request attributes.
+// TODO webhook实现了准入控制插件的准入(Admit)方法发
 func (a *Plugin) Admit(ctx context.Context, attr admission.Attributes, o admission.ObjectInterfaces) error {
 	return a.Webhook.Dispatch(ctx, attr, o)
 }

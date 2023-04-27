@@ -46,6 +46,7 @@ type mutatingWebhookConfigurationManager struct {
 var _ generic.Source = &mutatingWebhookConfigurationManager{}
 
 func NewMutatingWebhookConfigurationManager(f informers.SharedInformerFactory) generic.Source {
+	// MutatingWebhookConfiguration资源的Informer
 	informer := f.Admissionregistration().V1().MutatingWebhookConfigurations()
 	manager := &mutatingWebhookConfigurationManager{
 		configuration:              &atomic.Value{},
@@ -97,21 +98,25 @@ func (m *mutatingWebhookConfigurationManager) HasSynced() bool {
 }
 
 func (m *mutatingWebhookConfigurationManager) updateConfiguration() {
+	// 拿到所有的MutationWebhookConfiguration
 	configurations, err := m.lister.List(labels.Everything())
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("error updating configuration: %v", err))
 		return
 	}
+	// 把拿到的所有webhook配置封装为WebhookAccessor保存起来
 	m.configuration.Store(mergeMutatingWebhookConfigurations(configurations))
 	m.initialConfigurationSynced.Store(true)
 }
 
+// TODO 这里干了啥？
 func mergeMutatingWebhookConfigurations(configurations []*v1.MutatingWebhookConfiguration) []webhook.WebhookAccessor {
 	// The internal order of webhooks for each configuration is provided by the user
 	// but configurations themselves can be in any order. As we are going to run these
 	// webhooks in serial, they are sorted here to have a deterministic order.
+	// TODO 为什么要通过MutationWebhookConfiguration的名字排序？
 	sort.SliceStable(configurations, MutatingWebhookConfigurationSorter(configurations).ByName)
-	accessors := []webhook.WebhookAccessor{}
+	var accessors []webhook.WebhookAccessor
 	for _, c := range configurations {
 		// webhook names are not validated for uniqueness, so we check for duplicates and
 		// add a int suffix to distinguish between them

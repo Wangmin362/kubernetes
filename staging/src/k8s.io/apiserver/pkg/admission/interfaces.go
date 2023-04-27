@@ -28,7 +28,7 @@ import (
 
 // Attributes is an interface used by AdmissionController to get information about a request
 // that is used to make an admission decision.
-// Attributes用于一个注入控制器从HTTP请求中获取相关的信息，从而用于决策是否通过
+// TODO Attributes用于一个注入控制器从HTTP请求中获取相关的信息，从而用于决策是否通过
 type Attributes interface {
 	// GetName returns the name of the object as presented in the request.  On a CREATE operation, the client
 	// may omit name and rely on the server to generate the name.  If that is the case, this method will return

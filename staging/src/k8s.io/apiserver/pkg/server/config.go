@@ -891,6 +891,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// 计算鉴权消耗时间
 	// TODO 实际上，apiHandler才是真正的业务处理，也就是K8S的资源处理，只有下面所有的Handler处理完成之后才会执行apiHandler处理器
 	// TODO 一旦下面中的任何一个处理拒绝处理请求，apiHandler将不会被执行
+	// TODO 准入控制在哪里实现的？
 
 	// TODO 鉴权，如果没有权限直接拒绝
 	handler := filterlatency.TrackCompleted(apiHandler)

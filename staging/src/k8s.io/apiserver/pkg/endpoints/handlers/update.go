@@ -175,11 +175,15 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 					return nil, fmt.Errorf("unexpected error when extracting UID from oldObj: %v", err.Error())
 				} else if !isNotZeroObject {
 					if mutatingAdmission.Handles(admission.Create) {
-						return newObj, mutatingAdmission.Admit(ctx, admission.NewAttributesRecord(newObj, nil, scope.Kind, namespace, name, scope.Resource, scope.Subresource, admission.Create, updateToCreateOptions(options), dryrun.IsDryRun(options.DryRun), userInfo), scope)
+						return newObj, mutatingAdmission.Admit(ctx,
+							admission.NewAttributesRecord(newObj, nil, scope.Kind, namespace, name, scope.Resource,
+								scope.Subresource, admission.Create, updateToCreateOptions(options), dryrun.IsDryRun(options.DryRun), userInfo), scope)
 					}
 				} else {
 					if mutatingAdmission.Handles(admission.Update) {
-						return newObj, mutatingAdmission.Admit(ctx, admission.NewAttributesRecord(newObj, oldObj, scope.Kind, namespace, name, scope.Resource, scope.Subresource, admission.Update, options, dryrun.IsDryRun(options.DryRun), userInfo), scope)
+						return newObj, mutatingAdmission.Admit(ctx,
+							admission.NewAttributesRecord(newObj, oldObj, scope.Kind, namespace, name, scope.Resource, scope.Subresource,
+								admission.Update, options, dryrun.IsDryRun(options.DryRun), userInfo), scope)
 					}
 				}
 				return newObj, nil

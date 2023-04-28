@@ -43,6 +43,7 @@ import (
 )
 
 // Leases is an interface which assists in managing the set of active masters
+// TODO Leases接口用于帮助管理一组Master节点
 type Leases interface {
 	// ListLeases retrieves a list of the current master IPs
 	ListLeases() ([]string, error)

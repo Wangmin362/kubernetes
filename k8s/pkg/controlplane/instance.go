@@ -179,6 +179,7 @@ type ExtraConfig struct {
 	MasterEndpointReconcileTTL time.Duration
 
 	// Selects which reconciler to use
+	//
 	EndpointReconcilerType reconcilers.Type
 
 	ServiceAccountIssuer        serviceaccount.TokenGenerator
@@ -209,9 +210,12 @@ type Config struct {
 	ExtraConfig   ExtraConfig
 }
 
+// completedConfig APIServer配置
 type completedConfig struct {
+	// generic server config
 	GenericConfig genericapiserver.CompletedConfig
-	ExtraConfig   *ExtraConfig
+	// 额外配置
+	ExtraConfig *ExtraConfig
 }
 
 // CompletedConfig embeds a private pointer that cannot be instantiated outside of this package

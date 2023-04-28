@@ -72,6 +72,7 @@ type Controller struct {
 	SystemNamespaces         []string
 	SystemNamespacesInterval time.Duration
 
+	// TODO APIServer的IP地址
 	PublicIP net.IP
 
 	// ServiceIP indicates where the kubernetes service will live.  It may not be nil.
@@ -84,7 +85,9 @@ type Controller struct {
 }
 
 // NewBootstrapController returns a controller for watching the core capabilities of the master
+// TODO 通过APIServer的配置实例化一个BootstrapController
 func (c *completedConfig) NewBootstrapController(legacyRESTStorage corerest.LegacyRESTStorage, client kubernetes.Interface) (*Controller, error) {
+	// APIServer的端口
 	_, publicServicePort, err := c.GenericConfig.SecureServing.HostPort()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get listener address: %w", err)
@@ -95,12 +98,14 @@ func (c *completedConfig) NewBootstrapController(legacyRESTStorage corerest.Lega
 	// guarantee that the Service ClusterIP and the associated Endpoints have the same IP family, or
 	// it will not work for clients because of the IP family mismatch.
 	// TODO: revisit for dual-stack https://github.com/kubernetes/enhancements/issues/2438
+	// TODO 这里在干嘛？
 	if c.ExtraConfig.EndpointReconcilerType != reconcilers.NoneEndpointReconcilerType {
 		if netutils.IsIPv4CIDR(&c.ExtraConfig.ServiceIPRange) != netutils.IsIPv4(c.GenericConfig.PublicAddress) {
 			return nil, fmt.Errorf("service IP family %q must match public address family %q", c.ExtraConfig.ServiceIPRange.String(), c.GenericConfig.PublicAddress.String())
 		}
 	}
 
+	// K8S认为 kube-system, kube-public, kube-node-lease为默认的名称空间
 	systemNamespaces := []string{metav1.NamespaceSystem, metav1.NamespacePublic, corev1.NamespaceNodeLease}
 
 	return &Controller{
@@ -147,6 +152,7 @@ func (c *Controller) PreShutdownHook() error {
 // Start begins the core controller loops that must exist for bootstrapping
 // a cluster.
 func (c *Controller) Start() {
+	// runner属性必须为空
 	if c.runner != nil {
 		return
 	}

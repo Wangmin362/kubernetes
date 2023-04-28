@@ -24,6 +24,7 @@ import (
 )
 
 // EndpointReconciler knows how to reconcile the endpoints for the apiserver service.
+// TODO 如何理解这个接口的定义
 type EndpointReconciler interface {
 	// ReconcileEndpoints sets the endpoints for the given apiserver service (ro or rw).
 	// ReconcileEndpoints expects that the endpoints objects it manages will all be
@@ -47,6 +48,7 @@ type EndpointReconciler interface {
 }
 
 // Type the reconciler type
+// TODO 这玩意有啥用?
 type Type string
 
 const (

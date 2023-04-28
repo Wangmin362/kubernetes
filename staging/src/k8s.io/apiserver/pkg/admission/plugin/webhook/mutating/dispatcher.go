@@ -57,7 +57,7 @@ const (
 	PatchAuditAnnotationPrefix = "patch.webhook.admission.k8s.io/"
 	// MutationAuditAnnotationPrefix is a prefix for presisting webhook mutation existence in audit annotation.
 	MutationAuditAnnotationPrefix = "mutation.webhook.admission.k8s.io/"
-	// MutationAnnotationFailedOpenKeyPrefix in an annotation indicates
+	// MutationAuditAnnotationFailedOpenKeyPrefix MutationAnnotationFailedOpenKeyPrefix in an annotation indicates
 	// the mutating webhook failed open when the webhook backend connection
 	// failed or returned an internal server error.
 	MutationAuditAnnotationFailedOpenKeyPrefix string = "failed-open." + MutationAuditAnnotationPrefix
@@ -101,6 +101,7 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 		if versionedAttr != nil {
 			attrForCheck = versionedAttr
 		}
+		// 根据objectMatcher以及namespaceMatcher匹配当前hook是否应该被调用
 		invocation, statusErr := a.plugin.ShouldCallHook(hook, attrForCheck, o)
 		if statusErr != nil {
 			return statusErr

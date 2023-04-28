@@ -89,6 +89,7 @@ type Attributes interface {
 // ObjectInterfaces is an interface used by AdmissionController to get object interfaces
 // such as Converter or Defaulter. These interfaces are normally coming from Request Scope
 // to handle special cases like CRDs.
+// TODO 如何理解这个接口的设计？
 type ObjectInterfaces interface {
 	// GetObjectCreater is the ObjectCreator appropriate for the requested object.
 	GetObjectCreater() runtime.ObjectCreater
@@ -103,17 +104,20 @@ type ObjectInterfaces interface {
 }
 
 // privateAnnotationsGetter is a private interface which allows users to get annotations from Attributes.
+// TODO 如何理解这个接口的设计？
 type privateAnnotationsGetter interface {
 	getAnnotations(maxLevel auditinternal.Level) map[string]string
 }
 
 // AnnotationsGetter allows users to get annotations from Attributes. An alternate Attribute should implement
+// TODO 如何理解这个接口的设计？
 // this interface.
 type AnnotationsGetter interface {
 	GetAnnotations(maxLevel auditinternal.Level) map[string]string
 }
 
 // ReinvocationContext provides access to the admission related state required to implement the re-invocation policy.
+// TODO 如何理解这个接口的设计？
 type ReinvocationContext interface {
 	// IsReinvoke returns true if the current admission check is a re-invocation.
 	IsReinvoke() bool
@@ -186,6 +190,7 @@ type InitializationValidator interface {
 }
 
 // ConfigProvider provides a way to get configuration for an admission plugin based on its name
+// ConfigProvider顾名思义，其实就是配置提供者，用于返回具体的某个准入控制插件的配置
 type ConfigProvider interface {
 	// ConfigFor 返回指定准入控制插件的配置，这个配置是定义再AdmissionConfiguration资源当中
 	ConfigFor(pluginName string) (io.Reader, error)

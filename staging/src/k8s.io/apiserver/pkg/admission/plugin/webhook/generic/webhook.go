@@ -44,16 +44,22 @@ type Webhook struct {
 	// Webhook通过组合这个对象，间接实现了admission.Interface这个接口
 	*admission.Handler
 
-	// TODO 如何理解这个属性
+	// sourceFactory是专门生产source的工厂，而这里所谓的source其实就是webhook.WebhookAccessor，可以认为就是
+	// MutatingWebhookConfiguration资源。也就是说Webhook通过sourceFactory拿到所有的MutatingWebhookConfiguration
+	// 当有请求过来的时候，通过遍历MutatingWebhookConfiguration，把请求通过Dispatcher分发到合适的webhook当中
 	sourceFactory sourceFactory
 
-	// TODO 如何理解这个属性
+	// hookSource中的所有webhook.WebhookAccessor就是来自于sourceFactory
 	hookSource Source
-	// TODO 如何理解这个属性
-	clientManager    *webhookutil.ClientManager
+	// clientManager实际上是一个缓存，缓存了restful client。因为每个webhook都是一个web服务，提供了restful api
+	// 所以当需要真正访问webhook的时候，就需要一个restful client。clientManager就是缓存的每个webhook的客户端
+	clientManager *webhookutil.ClientManager
+	// webhook需要再用户感兴趣的资源上起作用，这里的namespaceMatcher就是通过用户指定的名称空间来进行匹配
 	namespaceMatcher *namespace.Matcher
-	objectMatcher    *object.Matcher
-	// TODO 如何理解这个属性
+	// 同样，objectMatcher也是一个选择器，可以让用户指定自己感兴趣的资源
+	objectMatcher *object.Matcher
+	// webhook是一个准入控制插件，但请求来到webhook插件处理时，webhook插件后端有许许多多的webhook，因此需要把当前请求通过
+	// namespaceMatcher以及objectMatcher来进行筛选，找到合适的webhook进行调用，这也就是Dispatcher的作用。
 	dispatcher Dispatcher
 }
 
@@ -64,7 +70,8 @@ var (
 	_ admission.Interface = &Webhook{}
 )
 
-// TODO 如何理解这个方法的定义？
+// sourceFactory 本质上就是监听MutatingWebhookConfiguration Informer，这里的Source本质上就是它。当然随着K8S的发展，没准以后
+// 就有了其他类型的Source
 type sourceFactory func(f informers.SharedInformerFactory) Source
 type dispatcherFactory func(cm *webhookutil.ClientManager) Dispatcher
 

@@ -60,7 +60,7 @@ func NewMutatingWebhook(configFile io.Reader) (*Plugin, error) {
 	var err error
 
 	// configuration.NewMutatingWebhookConfigurationManager是一个sourceFactory，是为了拿到所有的webhook
-	//
+	// newMutatingDispatcher用于转发当前请求到合适的webhook上
 	p.Webhook, err = generic.NewWebhook(handler, configFile, configuration.NewMutatingWebhookConfigurationManager, newMutatingDispatcher(p))
 	if err != nil {
 		return nil, err

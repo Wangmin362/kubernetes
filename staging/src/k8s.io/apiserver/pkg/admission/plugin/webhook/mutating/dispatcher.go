@@ -78,6 +78,7 @@ var _ generic.Dispatcher = &mutatingDispatcher{}
 
 // Dispatch TODO 分析这里的逻辑
 func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attributes, o admission.ObjectInterfaces, hooks []webhook.WebhookAccessor) error {
+	// TODO 这一块逻辑是再干嘛？
 	reinvokeCtx := attr.GetReinvocationContext()
 	var webhookReinvokeCtx *webhookReinvokeContext
 	if v := reinvokeCtx.Value(PluginName); v != nil {
@@ -142,6 +143,7 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 		}
 
 		annotator := newWebhookAnnotator(versionedAttr, round, i, hook.Name, invocation.Webhook.GetConfigurationName())
+		// TODO webhook的调用
 		changed, err := a.callAttrMutatingHook(ctx, hook, invocation, versionedAttr, annotator, o, round, i)
 		ignoreClientCallFailures := hook.FailurePolicy != nil && *hook.FailurePolicy == admissionregistrationv1.Ignore
 		rejected := false

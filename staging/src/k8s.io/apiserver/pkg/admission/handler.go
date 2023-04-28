@@ -33,6 +33,7 @@ type ReadyFunc func() bool
 
 // Handler is a base for admission control handlers that
 // support a predefined set of operations
+// 准入插件的实现
 type Handler struct {
 	// 支持的操作
 	operations sets.String

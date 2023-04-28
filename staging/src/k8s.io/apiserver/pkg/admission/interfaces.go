@@ -117,7 +117,7 @@ type AnnotationsGetter interface {
 }
 
 // ReinvocationContext provides access to the admission related state required to implement the re-invocation policy.
-// TODO 如何理解这个接口的设计？
+// TODO 如何理解这个接口的设计？  一个准入插件为什么需要重新调用？
 type ReinvocationContext interface {
 	// IsReinvoke returns true if the current admission check is a re-invocation.
 	IsReinvoke() bool
@@ -149,6 +149,8 @@ type MutationInterface interface {
 
 	// Admit makes an admission decision based on the request attributes.
 	// Context is used only for timeout/deadline/cancellation and tracing information.
+	// Attributes中包含了当前请求的各种信息
+	// ObjectInterfaces为当前操作的资源对象
 	Admit(ctx context.Context, a Attributes, o ObjectInterfaces) (err error)
 }
 
@@ -159,6 +161,8 @@ type ValidationInterface interface {
 
 	// Validate makes an admission decision based on the request attributes.  It is NOT allowed to mutate
 	// Context is used only for timeout/deadline/cancellation and tracing information.
+	// Attributes中包含了当前请求的各种信息
+	// ObjectInterfaces为当前操作的资源对象
 	Validate(ctx context.Context, a Attributes, o ObjectInterfaces) (err error)
 }
 

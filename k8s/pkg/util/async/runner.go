@@ -22,6 +22,8 @@ import (
 
 // Runner is an abstraction to make it easy to start and stop groups of things that can be
 // described by a single function which waits on a channel close to exit.
+// Runner的逻辑非常简单，就是对于每个loopFunc开启一个协程运行，当协程中运行的loopFunc函数，如果检测到stop
+// 信号被激活，那么需要退出loopFunc函数
 type Runner struct {
 	lock      sync.Mutex
 	loopFuncs []func(stop chan struct{})

@@ -76,6 +76,7 @@ type Controller struct {
 	PublicIP net.IP
 
 	// ServiceIP indicates where the kubernetes service will live.  It may not be nil.
+	// APIServer的IP地址
 	ServiceIP                 net.IP
 	ServicePort               int
 	PublicServicePort         int
@@ -165,7 +166,9 @@ func (c *Controller) Start() {
 		klog.Errorf("Error removing old endpoints from kubernetes service: %v", err)
 	}
 
+	// TODO 什么情况下认为IP是有问题的？ 修复IP需要干啥？
 	repairClusterIPs := servicecontroller.NewRepair(c.ServiceClusterIPInterval, c.client.CoreV1(), c.client.EventsV1(), &c.ServiceClusterIPRange, c.ServiceClusterIPRegistry, &c.SecondaryServiceClusterIPRange, c.SecondaryServiceClusterIPRegistry)
+	// TODO 什么情况下认为端口是有问题的？ 修复端口又干了啥？
 	repairNodePorts := portallocatorcontroller.NewRepair(c.ServiceNodePortInterval, c.client.CoreV1(), c.client.EventsV1(), c.ServiceNodePortRange, c.ServiceNodePortRegistry)
 
 	// We start both repairClusterIPs and repairNodePorts to ensure repair
@@ -187,6 +190,8 @@ func (c *Controller) Start() {
 		repairNodePorts.RunUntil(wg.Done, stopCh)
 	}
 
+	// TODO RunKubernetesNamespaces干了啥？
+	// TODO RunKubernetesService干了啥？
 	c.runner = async.NewRunner(c.RunKubernetesNamespaces, c.RunKubernetesService, runRepairClusterIPs, runRepairNodePorts)
 	c.runner.Start()
 
@@ -232,10 +237,13 @@ func (c *Controller) Stop() {
 }
 
 // RunKubernetesNamespaces periodically makes sure that all internal namespaces exist
+// 保障K8S的系统名称空间总是存在的，每间隔SystemNamespacesInterval时间间隔扫描一次
 func (c *Controller) RunKubernetesNamespaces(ch chan struct{}) {
 	wait.Until(func() {
 		// Loop the system namespace list, and create them if they do not exist
+		// 系统名称空间又：kube-system, kube-public, kube-node-lease名称空间
 		for _, ns := range c.SystemNamespaces {
+			// 如果名称空间不存在，就创建名称空间。如果名称空间存在，就啥也不干
 			if err := createNamespaceIfNeeded(c.client.CoreV1(), ns); err != nil {
 				runtime.HandleError(fmt.Errorf("unable to create required kubernetes system namespace %s: %v", ns, err))
 			}
@@ -248,6 +256,7 @@ func (c *Controller) RunKubernetesService(ch chan struct{}) {
 	// wait until process is ready
 	wait.PollImmediateUntil(100*time.Millisecond, func() (bool, error) {
 		var code int
+		// 当前APIServer是否是工作正常的
 		c.client.CoreV1().RESTClient().Get().AbsPath("/readyz").Do(context.TODO()).StatusCode(&code)
 		return code == http.StatusOK, nil
 	}, ch)
@@ -256,6 +265,7 @@ func (c *Controller) RunKubernetesService(ch chan struct{}) {
 		// Service definition is not reconciled after first
 		// run, ports and type will be corrected only during
 		// start.
+		//
 		if err := c.UpdateKubernetesService(false); err != nil {
 			runtime.HandleError(fmt.Errorf("unable to sync kubernetes service: %v", err))
 		}
@@ -268,10 +278,12 @@ func (c *Controller) UpdateKubernetesService(reconcile bool) error {
 	// TODO: when it becomes possible to change this stuff,
 	// stop polling and start watching.
 	// TODO: add endpoints of all replicas, not just the elected master.
+	// 保证名称空间必须存在
 	if err := createNamespaceIfNeeded(c.client.CoreV1(), metav1.NamespaceDefault); err != nil {
 		return err
 	}
 
+	//
 	servicePorts, serviceType := createPortAndServiceSpec(c.ServicePort, c.PublicServicePort, c.KubernetesServiceNodePort, "https")
 	if err := c.CreateOrUpdateMasterServiceIfNeeded(kubernetesServiceName, c.ServiceIP, servicePorts, serviceType, reconcile); err != nil {
 		return err

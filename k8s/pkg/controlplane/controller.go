@@ -69,7 +69,9 @@ type Controller struct {
 	EndpointReconciler reconcilers.EndpointReconciler
 	EndpointInterval   time.Duration
 
-	SystemNamespaces         []string
+	// K8S系统名称空间，目前又kube-public, kube-system, kube-node-lease
+	SystemNamespaces []string
+	// reconcoler时间间隔，默认为一分钟
 	SystemNamespacesInterval time.Duration
 
 	// TODO APIServer的IP地址
@@ -78,9 +80,9 @@ type Controller struct {
 	// ServiceIP indicates where the kubernetes service will live.  It may not be nil.
 	// APIServer的IP地址
 	ServiceIP                 net.IP
-	ServicePort               int
-	PublicServicePort         int
-	KubernetesServiceNodePort int
+	ServicePort               int // Kubernetes Service使用的端口
+	PublicServicePort         int // apiserver的真实的监听端口
+	KubernetesServiceNodePort int // nodeport端口
 
 	runner *async.Runner
 }
@@ -159,6 +161,7 @@ func (c *Controller) Start() {
 	}
 
 	// Reconcile during first run removing itself until server is ready.
+	// TODO 这里是在干嘛？
 	endpointPorts := createEndpointPortSpec(c.PublicServicePort, "https")
 	if err := c.EndpointReconciler.RemoveEndpoints(kubernetesServiceName, c.PublicIP, endpointPorts); err == nil {
 		klog.Error("Found stale data, removed previous endpoints on kubernetes service, apiserver didn't exit successfully previously")
@@ -190,8 +193,8 @@ func (c *Controller) Start() {
 		repairNodePorts.RunUntil(wg.Done, stopCh)
 	}
 
-	// TODO RunKubernetesNamespaces干了啥？
-	// TODO RunKubernetesService干了啥？
+	// RunKubernetesNamespaces 保障kube-public, kube-system, kube-node-lease名称空间存在，轮询的时间间隔为：SystemNamespacesInterval
+	// RunKubernetesService 保证default名称空间一定是存在的，然后在default名称空间中创建kubernetes service,并为kubernetes service创建endpoint
 	c.runner = async.NewRunner(c.RunKubernetesNamespaces, c.RunKubernetesService, runRepairClusterIPs, runRepairNodePorts)
 	c.runner.Start()
 
@@ -254,6 +257,7 @@ func (c *Controller) RunKubernetesNamespaces(ch chan struct{}) {
 // RunKubernetesService periodically updates the kubernetes service
 func (c *Controller) RunKubernetesService(ch chan struct{}) {
 	// wait until process is ready
+	// 每隔100毫秒查询一次apiserver是否正常工作
 	wait.PollImmediateUntil(100*time.Millisecond, func() (bool, error) {
 		var code int
 		// 当前APIServer是否是工作正常的
@@ -261,6 +265,7 @@ func (c *Controller) RunKubernetesService(ch chan struct{}) {
 		return code == http.StatusOK, nil
 	}, ch)
 
+	// 保证default名称空间一定是存在的，然后在default名称空间中创建kubernetes service,并为kubernetes service创建endpoint
 	wait.NonSlidingUntil(func() {
 		// Service definition is not reconciled after first
 		// run, ports and type will be corrected only during
@@ -278,16 +283,17 @@ func (c *Controller) UpdateKubernetesService(reconcile bool) error {
 	// TODO: when it becomes possible to change this stuff,
 	// stop polling and start watching.
 	// TODO: add endpoints of all replicas, not just the elected master.
-	// 保证名称空间必须存在
+	// 保证default名称空间必须存在
 	if err := createNamespaceIfNeeded(c.client.CoreV1(), metav1.NamespaceDefault); err != nil {
 		return err
 	}
 
-	//
+	// 在Default名称空间当中，创建一个名为Kubernetes的Service，用于暴露APIServer服务
 	servicePorts, serviceType := createPortAndServiceSpec(c.ServicePort, c.PublicServicePort, c.KubernetesServiceNodePort, "https")
 	if err := c.CreateOrUpdateMasterServiceIfNeeded(kubernetesServiceName, c.ServiceIP, servicePorts, serviceType, reconcile); err != nil {
 		return err
 	}
+	// 为kubernetes service创建endpoint
 	endpointPorts := createEndpointPortSpec(c.PublicServicePort, "https")
 	if err := c.EndpointReconciler.ReconcileEndpoints(kubernetesServiceName, c.PublicIP, endpointPorts, reconcile); err != nil {
 		return err

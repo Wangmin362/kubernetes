@@ -580,6 +580,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 	// 实例化K8S的客户端
 	client := kubernetes.NewForConfigOrDie(c.GenericConfig.LoopbackClientConfig)
 	// todo BootstrapController主要是用来干嘛的？
+	// TODO 大致是保障Kubernetes Server正常工作
 	bootstrapController, err := c.NewBootstrapController(legacyRESTStorage, client)
 	if err != nil {
 		return fmt.Errorf("error creating bootstrap controller: %v", err)

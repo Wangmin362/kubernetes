@@ -40,6 +40,7 @@ var FileRefreshDuration = 1 * time.Minute
 // ControllerRunner is a generic interface for starting a controller
 type ControllerRunner interface {
 	// RunOnce runs the sync loop a single time.  This useful for synchronous priming
+	// TODO 只运行一次，似乎还是在Run执行需要执行的方法，感觉这个名字不大合适，应该有更好的名字，譬如PreStartHook
 	RunOnce(ctx context.Context) error
 
 	// Run should be called a go .Run

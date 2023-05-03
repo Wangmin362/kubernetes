@@ -139,16 +139,19 @@ func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig
 // get the verify options for your authenticator.
 type ClientCertAuthenticationOptions struct {
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
+	// TODO 如何理解这个属性？ 为什么时候
 	ClientCA string
 
 	// CAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If non-nil, this takes priority over the ClientCA file.
+	// TODO 如何理解？
 	CAContentProvider dynamiccertificates.CAContentProvider
 }
 
-// GetClientVerifyOptionFn provides verify options for your authenticator while respecting the preferred order of verifiers.
+// GetClientCAContentProvider GetClientVerifyOptionFn provides verify options for your authenticator while respecting the preferred order of verifiers.
 func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamiccertificates.CAContentProvider, error) {
+	// TODO 这个属性啥时候不为空
 	if s.CAContentProvider != nil {
 		return s.CAContentProvider, nil
 	}

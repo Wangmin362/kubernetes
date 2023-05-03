@@ -557,6 +557,7 @@ func buildGenericConfig(
 		CloudConfigFile:      s.CloudProvider.CloudConfigFile,
 	}
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
+	// TODO 细节分析
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
 	// pluginInitializers准入控制插件初始化器，用于准入控制插件的初始化
 	// admissionPostStartHook准入的后置回调

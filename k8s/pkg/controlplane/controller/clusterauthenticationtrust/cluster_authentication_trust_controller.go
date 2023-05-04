@@ -49,7 +49,9 @@ import (
 const (
 	// TODO 为什么只关心kube-system这个名称空间
 	configMapNamespace = "kube-system"
-	// 这个ConfigMap应该需要包含 ClusterAuthenticationInfo 相关信息
+	// 这个ConfigMap应该需要包含 ClusterAuthenticationInfo 相关信息，本质上这个configmap就是client-ca-file文件
+	// TODO 当client-ca-file参数所指向的文件发生变化时，谁来把更新extension-apiserver-authentication.kube-system这个configmap?
+	// TODO extension-apiserver-authentication.kube-system配置文件是由谁生成的？
 	configMapName = "extension-apiserver-authentication"
 )
 
@@ -493,6 +495,7 @@ func filterExpiredCerts(certs ...*x509.Certificate) []*x509.Certificate {
 }
 
 // Enqueue a method to allow separate control loops to cause the controller to trigger and reconcile content.
+// 一旦client-ca-file参数指向的证书发生变化，CAContentProvider就会调用这个方法
 func (c *Controller) Enqueue() {
 	c.queue.Add(keyFn())
 }

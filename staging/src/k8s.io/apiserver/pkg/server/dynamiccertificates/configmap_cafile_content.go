@@ -39,6 +39,7 @@ import (
 
 // ConfigMapCAController provies a CAContentProvider that can dynamically react to configmap changes
 // It also fulfills the authenticator interface to provide verifyoptions
+// 监听kube-system名称空间中的extension-apiserver-authentication configmap
 type ConfigMapCAController struct {
 	name string
 
@@ -50,8 +51,10 @@ type ConfigMapCAController struct {
 	configMapInformer cache.SharedIndexInformer
 
 	// caBundle is a caBundleAndVerifier that contains the last read, non-zero length content of the file
+	// 用于保存证书中的数据
 	caBundle atomic.Value
 
+	// 一旦证书发生变化，就会通知所有的Listener
 	listeners []Listener
 
 	queue workqueue.RateLimitingInterface
@@ -64,6 +67,7 @@ var _ ControllerRunner = &ConfigMapCAController{}
 
 // NewDynamicCAFromConfigMapController returns a CAContentProvider based on a configmap that automatically reloads content.
 // It is near-realtime via an informer.
+// purpose=client-ca   namespace=kube-system   name=extension-apiserver-authentication    key=client-ca-file
 func NewDynamicCAFromConfigMapController(purpose, namespace, name, key string, kubeClient kubernetes.Interface) (*ConfigMapCAController, error) {
 	if len(purpose) == 0 {
 		return nil, fmt.Errorf("missing purpose for ca bundle")
@@ -80,6 +84,7 @@ func NewDynamicCAFromConfigMapController(purpose, namespace, name, key string, k
 	caContentName := fmt.Sprintf("%s::%s::%s::%s", purpose, namespace, name, key)
 
 	// we construct our own informer because we need such a small subset of the information available.  Just one namespace.
+	// 监听kube-system名称空间中的extension-apiserver-authentication configmap
 	uncastConfigmapInformer := corev1informers.NewFilteredConfigMapInformer(kubeClient, namespace, 12*time.Hour, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, func(listOptions *v1.ListOptions) {
 		listOptions.FieldSelector = fields.OneTermEqualSelector("metadata.name", name).String()
 	})
@@ -99,6 +104,7 @@ func NewDynamicCAFromConfigMapController(purpose, namespace, name, key string, k
 	}
 
 	uncastConfigmapInformer.AddEventHandler(cache.FilteringResourceEventHandler{
+		// 只对extension-apiserver-authentication.kube-system configmap感兴趣
 		FilterFunc: func(obj interface{}) bool {
 			if cast, ok := obj.(*corev1.ConfigMap); ok {
 				return cast.Name == c.configmapName && cast.Namespace == c.configmapNamespace
@@ -140,16 +146,19 @@ func (c *ConfigMapCAController) AddListener(listener Listener) {
 
 // loadCABundle determines the next set of content for the file.
 func (c *ConfigMapCAController) loadCABundle() error {
+	// 读取extension-apiserver-authentication.kube-systemc configmap
 	configMap, err := c.configmapLister.ConfigMaps(c.configmapNamespace).Get(c.configmapName)
 	if err != nil {
 		return err
 	}
+	// 读取client-ca-file字段
 	caBundle := configMap.Data[c.configmapKey]
 	if len(caBundle) == 0 {
 		return fmt.Errorf("missing content for CA bundle %q", c.Name())
 	}
 
 	// check to see if we have a change. If the values are the same, do nothing.
+	// 判断client-ca-file中的内容是否发生变化，如果没有变化，就直接退出
 	if !c.hasCAChanged([]byte(caBundle)) {
 		return nil
 	}
@@ -160,6 +169,7 @@ func (c *ConfigMapCAController) loadCABundle() error {
 	}
 	c.caBundle.Store(caBundleAndVerifier)
 
+	// 如果有变化，就通知所有的Listener
 	for _, listener := range c.listeners {
 		listener.Enqueue()
 	}
@@ -234,6 +244,7 @@ func (c *ConfigMapCAController) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(dsKey)
 
+	// 一旦extension-apiserver-authentication.kube-public发生变化，就通知所有的Listener
 	err := c.loadCABundle()
 	if err == nil {
 		c.queue.Forget(dsKey)

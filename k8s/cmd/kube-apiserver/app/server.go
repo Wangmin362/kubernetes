@@ -354,7 +354,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		},
 	}
 
-	// TODO 似乎是和K8S的动态CA证书相关
+	// TODO 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有的Listener
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err

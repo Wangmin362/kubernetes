@@ -50,17 +50,22 @@ type ControllerRunner interface {
 // DynamicFileCAContent provides a CAContentProvider that can dynamically react to new file content
 // It also fulfills the authenticator interface to provide verifyoptions
 type DynamicFileCAContent struct {
+	// TODO 这里的名字指的是什么名字？ 有何作用？
+	// 答：名字通过purpose::filename拼接而成
 	name string
 
 	// filename is the name the file to read.
+	// TODO 这里的文件名指的什么文件？
 	filename string
 
 	// caBundle is a caBundleAndVerifier that contains the last read, non-zero length content of the file
 	caBundle atomic.Value
 
+	// TODO 这里的Listener指的是啥？
 	listeners []Listener
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
+	// TODO 队列里面存放的是什么？
 	queue workqueue.RateLimitingInterface
 }
 
@@ -99,6 +104,7 @@ func (c *DynamicFileCAContent) AddListener(listener Listener) {
 
 // loadCABundle determines the next set of content for the file.
 func (c *DynamicFileCAContent) loadCABundle() error {
+	// 读取CA证书
 	caBundle, err := ioutil.ReadFile(c.filename)
 	if err != nil {
 		return err
@@ -108,10 +114,12 @@ func (c *DynamicFileCAContent) loadCABundle() error {
 	}
 
 	// check to see if we have a change. If the values are the same, do nothing.
+	// 如果CA证书没有发生改变，就直接退出
 	if !c.hasCAChanged(caBundle) {
 		return nil
 	}
 
+	// 否则把读取到的CA证书存储到caBundle属性当中
 	caBundleAndVerifier, err := newCABundleAndVerifier(c.Name(), caBundle)
 	if err != nil {
 		return err
@@ -119,6 +127,7 @@ func (c *DynamicFileCAContent) loadCABundle() error {
 	c.caBundle.Store(caBundleAndVerifier)
 	klog.V(2).InfoS("Loaded a new CA Bundle and Verifier", "name", c.Name())
 
+	// TODO 发现证书更新了，这里是在干嘛？ 通知所有的Listener重新加载CA证书？
 	for _, listener := range c.listeners {
 		listener.Enqueue()
 	}
@@ -147,6 +156,7 @@ func (c *DynamicFileCAContent) hasCAChanged(caBundle []byte) bool {
 
 // RunOnce runs a single sync loop
 func (c *DynamicFileCAContent) RunOnce(ctx context.Context) error {
+	// 读取CA证书，并把证书内容存储到caBundle属性当中
 	return c.loadCABundle()
 }
 
@@ -163,6 +173,7 @@ func (c *DynamicFileCAContent) Run(ctx context.Context, workers int) {
 
 	// start the loop that watches the CA file until stopCh is closed.
 	go wait.Until(func() {
+		// 监听CA证书
 		if err := c.watchCAFile(ctx.Done()); err != nil {
 			klog.ErrorS(err, "Failed to watch CA file, will retry later")
 		}
@@ -173,23 +184,28 @@ func (c *DynamicFileCAContent) Run(ctx context.Context, workers int) {
 
 func (c *DynamicFileCAContent) watchCAFile(stopCh <-chan struct{}) error {
 	// Trigger a check here to ensure the content will be checked periodically even if the following watch fails.
+	// 触发重新加载证书
 	c.queue.Add(workItemKey)
 
+	// 监听证书文件，一旦发生变化，fsnotify就能感知到
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return fmt.Errorf("error creating fsnotify watcher: %v", err)
 	}
 	defer w.Close()
 
+	// 监听CA证书文件
 	if err = w.Add(c.filename); err != nil {
 		return fmt.Errorf("error adding watch for file %s: %v", c.filename, err)
 	}
 	// Trigger a check in case the file is updated before the watch starts.
+	// 触发重新加载证书
 	c.queue.Add(workItemKey)
 
 	for {
 		select {
 		case e := <-w.Events:
+			// 监听到CA证书变化时间，重新读取证书
 			if err := c.handleWatchEvent(e, w); err != nil {
 				return err
 			}
@@ -205,12 +221,15 @@ func (c *DynamicFileCAContent) watchCAFile(stopCh <-chan struct{}) error {
 func (c *DynamicFileCAContent) handleWatchEvent(e fsnotify.Event, w *fsnotify.Watcher) error {
 	// This should be executed after restarting the watch (if applicable) to ensure no file event will be missing.
 	defer c.queue.Add(workItemKey)
+	// 如果不是删除文件或者把文件重命名了，说明fsnotify之前监听的文件还可以正常使用
 	if e.Op&(fsnotify.Remove|fsnotify.Rename) == 0 {
 		return nil
 	}
+	// 否则，就说明我文件被删除了，或者是重命名了
 	if err := w.Remove(c.filename); err != nil {
 		klog.InfoS("Failed to remove file watch, it may have been deleted", "file", c.filename, "err", err)
 	}
+	// 监听重命名的文件
 	if err := w.Add(c.filename); err != nil {
 		return fmt.Errorf("error adding watch for file %s: %v", c.filename, err)
 	}
@@ -229,6 +248,7 @@ func (c *DynamicFileCAContent) processNextWorkItem() bool {
 	}
 	defer c.queue.Done(dsKey)
 
+	// 重新加载证书
 	err := c.loadCABundle()
 	if err == nil {
 		c.queue.Forget(dsKey)

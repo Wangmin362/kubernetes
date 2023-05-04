@@ -21,6 +21,7 @@ import (
 )
 
 // Listener is an interface to use to notify interested parties of a change.
+// TODO 如何理解这个接口的设计？
 type Listener interface {
 	// Enqueue should be called when an input may have changed
 	Enqueue()
@@ -35,7 +36,9 @@ type Notifier interface {
 
 // CAContentProvider provides ca bundle byte content
 // TODO 如何理解CAContentProvider接口设计？
+// TODO ca bundle指的是一个包含根证书以及中间证书的文件
 type CAContentProvider interface {
+	// Notifier 一旦证书发生变化，就需要通知所有listener，证书发生更新了
 	Notifier
 
 	// Name is just an identifier.
@@ -43,8 +46,10 @@ type CAContentProvider interface {
 	// CurrentCABundleContent provides ca bundle byte content. Errors can be
 	// contained to the controllers initializing the value. By the time you get
 	// here, you should always be returning a value that won't fail.
+	// 获取证书的内容
 	CurrentCABundleContent() []byte
 	// VerifyOptions provides VerifyOptions for authenticators.
+	// 获取证书的校验参数
 	VerifyOptions() (x509.VerifyOptions, bool)
 }
 

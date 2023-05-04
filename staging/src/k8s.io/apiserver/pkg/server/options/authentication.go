@@ -139,7 +139,8 @@ func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig
 // get the verify options for your authenticator.
 type ClientCertAuthenticationOptions struct {
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
-	// TODO 如何理解这个属性？ 为什么时候
+	// TODO 如何理解这个属性？
+	// 该属性通过client-ca-file来设置，指向CA数字证书
 	ClientCA string
 
 	// CAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.

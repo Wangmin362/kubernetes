@@ -464,6 +464,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		}
 		// TODO 这里是认证相关,实际上主要是为了能够从extension-apiserver-authentication获取认证数据
 		// TODO 后面有时间详细分析这个Controller到底干了啥
+		// 一旦client-ca-file参数指向的证书发生变化，CAContentProvider就会通知ClusterAuthenticationTrustController
 		controller := clusterauthenticationtrust.NewClusterAuthenticationTrustController(m.ClusterAuthenticationInfo, kubeClient)
 
 		// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver

@@ -33,6 +33,8 @@ var _ headerrequest.RequestHeaderAuthRequestProvider = &DynamicRequestHeaderCont
 
 // DynamicRequestHeaderController combines DynamicCAFromConfigMapController and RequestHeaderAuthRequestController
 // into one controller for dynamically filling RequestHeaderConfig struct
+// 还是监听extension-apiserver-authentication.kube-system configmap，只不过关心的是requestheader-client-ca-file
+// 字段所指向的CA变化
 type DynamicRequestHeaderController struct {
 	*dynamiccertificates.ConfigMapCAController
 	*headerrequest.RequestHeaderAuthRequestController

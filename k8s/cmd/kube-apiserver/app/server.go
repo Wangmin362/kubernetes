@@ -355,6 +355,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	}
 
 	// 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有的Listener
+	// TODO CAContentProvider的Listener会有哪些？
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err
@@ -362,6 +363,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	config.ExtraConfig.ClusterAuthenticationInfo.ClientCA = clientCAProvider
 
 	// TODO 和apiserver的认证方式相关
+	// TODO 仔细分析这几个参数的作用
 	requestHeaderConfig, err := s.Authentication.RequestHeader.ToAuthenticationRequestHeaderConfig()
 	if err != nil {
 		return nil, nil, nil, err
@@ -406,6 +408,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		pubKeys = append(pubKeys, keys...)
 	}
 	// Plumb the required metadata through ExtraConfig.
+	// TODO 这些参数有何作用
 	config.ExtraConfig.ServiceAccountIssuerURL = s.Authentication.ServiceAccounts.Issuers[0]
 	config.ExtraConfig.ServiceAccountJWKSURI = s.Authentication.ServiceAccounts.JWKSURI
 	config.ExtraConfig.ServiceAccountPublicKeys = pubKeys
@@ -535,6 +538,7 @@ func buildGenericConfig(
 
 	// genericConfig.Authorization.Authorizer K8S的授权策略
 	// genericConfig.RuleResolver TODO 估计是授权策略的规则解析
+	// TODO 仔细分析这里
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver,
 		err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {

@@ -26,6 +26,7 @@ import (
 
 // LoopbackClientServerNameOverride is passed to the apiserver from the loopback client in order to
 // select the loopback certificate via SNI if TLS is used.
+// TODO 这玩意干嘛的？
 const LoopbackClientServerNameOverride = "apiserver-loopback-client"
 
 func (s *SecureServingInfo) NewClientConfig(caCert []byte) (*restclient.Config, error) {

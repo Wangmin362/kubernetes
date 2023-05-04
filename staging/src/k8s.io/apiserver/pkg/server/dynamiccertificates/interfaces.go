@@ -67,6 +67,7 @@ type CertKeyContentProvider interface {
 // SNICertKeyContentProvider provides a certificate and matching private key as
 // well as optional explicit names.
 type SNICertKeyContentProvider interface {
+	// Notifier TODO CertKeyContentProvider接口明明都已经包含了Notifiler接口，为什么这里还需要单独申明
 	Notifier
 
 	CertKeyContentProvider

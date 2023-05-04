@@ -74,16 +74,17 @@ type Controller struct {
 	// reconcoler时间间隔，默认为一分钟
 	SystemNamespacesInterval time.Duration
 
-	// TODO APIServer的IP地址
+	// TODO APIServer的IP地址，这个IP地址是由哪个参数确定的？
 	PublicIP net.IP
 
 	// ServiceIP indicates where the kubernetes service will live.  It may not be nil.
 	// APIServer的IP地址
 	ServiceIP                 net.IP
 	ServicePort               int // Kubernetes Service使用的端口
-	PublicServicePort         int // apiserver的真实的监听端口
-	KubernetesServiceNodePort int // nodeport端口
+	PublicServicePort         int // APIServer的真实的监听端口
+	KubernetesServiceNodePort int // NodePort端口
 
+	// 启动一个协程运行任务，所以包名称之为异地任务
 	runner *async.Runner
 }
 

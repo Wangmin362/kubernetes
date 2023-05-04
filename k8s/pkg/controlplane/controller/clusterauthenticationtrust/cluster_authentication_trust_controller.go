@@ -134,6 +134,7 @@ type Controller struct {
 // TODO 这里的认证信息应该适合K8S的认证相关
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
+	// 监听client-ca-file所指向的CA证书，一旦CA证书发生变化，就通知所有的Listener
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// RequestHeaderUsernameHeaders are the headers used by this kube-apiserver to determine username
@@ -152,7 +153,6 @@ type ClusterAuthenticationInfo struct {
 // that holds information about how to aggregated apiservers are recommended (but not required) to configure themselves.
 func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterAuthenticationInfo, kubeClient kubernetes.Interface) *Controller {
 	// we construct our own informer because we need such a small subset of the information available.  Just one namespace.
-	// TODO 为什么只关心kube-system这个名称空间？
 	kubeSystemConfigMapInformer := corev1informers.NewConfigMapInformer(kubeClient, configMapNamespace, 12*time.Hour,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
@@ -168,7 +168,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 
 	kubeSystemConfigMapInformer.AddEventHandler(cache.FilteringResourceEventHandler{
 		FilterFunc: func(obj interface{}) bool {
-			// TODO 为什么只关心extension-apiserver-authentication这个名字的configmap?
+			// 为什么只关心extension-apiserver-authentication这个名字的configmap?
 			if cast, ok := obj.(*corev1.ConfigMap); ok {
 				return cast.Name == configMapName
 			}
@@ -177,7 +177,6 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 					return cast.Name == configMapName
 				}
 			}
-			// TODO 难道还有可能到达这里，应该不可能到达这里吧
 			return true // always return true just in case.  The checks are fairly cheap
 		},
 		Handler: cache.ResourceEventHandlerFuncs{
@@ -199,7 +198,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 }
 
 func (c *Controller) syncConfigMap() error {
-	// 通过configmap缓存查询
+	// 查询extension-apiserver-authentication.kube-public configmap
 	originalAuthConfigMap, err := c.configMapLister.ConfigMaps(configMapNamespace).Get(configMapName)
 	if apierrors.IsNotFound(err) {
 		originalAuthConfigMap = &corev1.ConfigMap{

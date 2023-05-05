@@ -43,11 +43,13 @@ type WantsAuthenticationInfoResolverWrapper interface {
 }
 
 // PluginInitializer is used for initialization of the webhook admission plugin.
-// TODO webhook准入控制器初始化器
+// PluginInitializer的作用非常简单，就是为符合添加的准入控制插件注入serviceResolver属性以及authenticationInfoResolverWrapper属性
 type PluginInitializer struct {
 	// 根据svc的name,namespace,port拼接合法的URL
 	serviceResolver webhook.ServiceResolver
-	//
+	// AuthenticationInfoResolverWrapper主要为了增强AuthenticationInfoResolver的功能，分别是：
+	// 一、增强了AuthenticationInfoResolver的APIServerTracing功能
+	// 二、增强了AuthenticationInfoResolver的EgressSelector功能
 	authenticationInfoResolverWrapper webhook.AuthenticationInfoResolverWrapper
 }
 
@@ -67,11 +69,12 @@ func NewPluginInitializer(
 // Initialize checks the initialization interfaces implemented by each plugin
 // and provide the appropriate initialization data
 func (i *PluginInitializer) Initialize(plugin admission.Interface) {
-	// 注入服务解析器
+	// 如果当前准入控制插件是WantsServiceResolver类型，那么就注入ServiceResolver属性
 	if wants, ok := plugin.(WantsServiceResolver); ok {
 		wants.SetServiceResolver(i.serviceResolver)
 	}
 
+	// 如果当前准入控制插件是WantsAuthenticationInfoResolverWrapper类型，那么就注入authenticationInfoResolverWrapper属性
 	if wants, ok := plugin.(WantsAuthenticationInfoResolverWrapper); ok {
 		if i.authenticationInfoResolverWrapper != nil {
 			wants.SetAuthenticationInfoResolverWrapper(i.authenticationInfoResolverWrapper)

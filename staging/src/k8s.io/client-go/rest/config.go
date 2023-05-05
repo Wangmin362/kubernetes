@@ -51,11 +51,13 @@ var ErrNotInCluster = errors.New("unable to load in-cluster configuration, KUBER
 // Config holds the common attributes that can be passed to a Kubernetes client on
 // initialization.
 // TODO k8s封装的restful客户端配置，说白点就是HTTP客户端配置
+// TODO 这个结构体有啥作用？ 1、通过这个Config，可以实例化clientset，也就是apiserver的客户端
 type Config struct {
 	// Host must be a host string, a host:port pair, or a URL to the base of the apiserver.
 	// If a URL is given then the (optional) Path of that URL represents a prefix that must
 	// be appended to all request URIs used to access the apiserver. This allows a frontend
 	// proxy to easily relocate all of the apiserver endpoints.
+	// TODO 这个属性代表着什么？
 	Host string
 	// APIPath is a sub-path that points to an API root.
 	APIPath string

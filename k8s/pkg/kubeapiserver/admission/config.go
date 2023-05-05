@@ -49,9 +49,11 @@ type Config struct {
 // New sets up the plugins and admission start hooks needed for admission
 func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselector.EgressSelector, serviceResolver webhook.ServiceResolver,
 	tp trace.TracerProvider) ([]admission.PluginInitializer, genericapiserver.PostStartHookFunc, error) {
-	// TODO webhookAuthResolverWrapper有啥作用？
+	// DefaultAuthenticationInfoResolverWrapper主要是为AuthenticationInfoResolver增加了两个重要的功能，分别是：
+	// 一、为AuthenticationInfoResolver增加了APIServerTracing功能
+	// 二、为AuthenticationInfoResolver增加了EgressSelector功能
 	webhookAuthResolverWrapper := webhook.NewDefaultAuthenticationInfoResolverWrapper(proxyTransport, egressSelector, c.LoopbackClientConfig, tp)
-	// TODO webhookPluginInitializer有啥作用？
+	// webhookPluginInitializer的作用非常简单，就是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
 	webhookPluginInitializer := webhookinit.NewPluginInitializer(webhookAuthResolverWrapper, serviceResolver)
 
 	var cloudConfig []byte
@@ -83,5 +85,7 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 		return nil
 	}
 
+	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
+	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
 	return []admission.PluginInitializer{webhookPluginInitializer, kubePluginInitializer}, admissionPostStartHook, nil
 }

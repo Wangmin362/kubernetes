@@ -183,6 +183,7 @@ const (
 // TODO 这玩意到底是干嘛用的？ 答：实际上就是为了个准入控制插件注入某些参数，也可以理解为插件的初始化 即使用插件初始化器初始化传入的插件
 // TODO 这个接口的设计思想可以好好学一下，感觉挺有用的
 type PluginInitializer interface {
+	// Initialize 准入插件初始化器的目的就一个，那就是初始化传入的准入控制插件。实际上就是给准入控制器插件注入某些属性
 	Initialize(plugin Interface)
 }
 

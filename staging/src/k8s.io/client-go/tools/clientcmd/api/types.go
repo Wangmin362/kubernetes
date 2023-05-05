@@ -28,6 +28,7 @@ import (
 // Config holds the information needed to build connect to remote kubernetes clusters as a given user
 // IMPORTANT if you add fields to this struct, please update IsConfigEmpty()
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// TODO Config实际上就是kubeconfig文件的定义
 type Config struct {
 	// Legacy field from pkg/api/types.go TypeMeta.
 	// TODO(jlowdermilk): remove this after eliminating downstream dependencies.
@@ -40,17 +41,23 @@ type Config struct {
 	// +optional
 	APIVersion string `json:"apiVersion,omitempty"`
 	// Preferences holds general information to be use for cli interactions
+	// TODO 这个字段有何使用场景和妙用？
 	Preferences Preferences `json:"preferences"`
 	// Clusters is a map of referencable names to cluster configs
+	// TODO 集群信息
 	Clusters map[string]*Cluster `json:"clusters"`
 	// AuthInfos is a map of referencable names to user configs
+	// TODO 用户信息
 	AuthInfos map[string]*AuthInfo `json:"users"`
 	// Contexts is a map of referencable names to context configs
+	// TODO context信息，一个Kubeconfig文件中可以包含多个Context
 	Contexts map[string]*Context `json:"contexts"`
 	// CurrentContext is the name of the context that you would like to use by default
+	// 指定当前使用的Context
 	CurrentContext string `json:"current-context"`
 	// Extensions holds additional information. This is useful for extenders so that reads and writes don't clobber unknown fields
 	// +optional
+	// TODO 如何理解这个属性？这个属性有何妙用？
 	Extensions map[string]runtime.Object `json:"extensions,omitempty"`
 }
 

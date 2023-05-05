@@ -97,6 +97,7 @@ type ServerRunOptions struct {
 	ProxyClientKeyFile  string
 
 	// TODO 这个应该和aggregate apiserver有关
+	// TODO 这个参数有何作用？
 	EnableAggregatorRouting             bool
 	AggregatorRejectForwardingRedirects bool
 

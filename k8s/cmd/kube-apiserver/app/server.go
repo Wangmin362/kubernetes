@@ -562,9 +562,8 @@ func buildGenericConfig(
 		CloudConfigFile:      s.CloudProvider.CloudConfigFile,
 	}
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
-	// TODO 细节分析
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
-	// pluginInitializers准入控制插件初始化器，用于准入控制插件的初始化
+	// pluginInitializers准入控制插件初始化器，用于准入控制插件的初始化，实际上就是设置准入控制器的某些属性
 	// admissionPostStartHook准入的后置回调
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
 		serviceResolver, genericConfig.TracerProvider)
@@ -745,6 +744,7 @@ func Complete(s *options.ServerRunOptions) (completedServerRunOptions, error) {
 
 func buildServiceResolver(enabledAggregatorRouting bool, hostname string, informer clientgoinformers.SharedInformerFactory) webhook.ServiceResolver {
 	var serviceResolver webhook.ServiceResolver
+	// 如果开启了Aggregator路由 TODO 这个开关的开启和关闭意味着什么？
 	if enabledAggregatorRouting {
 		serviceResolver = aggregatorapiserver.NewEndpointServiceResolver(
 			informer.Core().V1().Services().Lister(),
@@ -756,6 +756,7 @@ func buildServiceResolver(enabledAggregatorRouting bool, hostname string, inform
 		)
 	}
 	// resolve kubernetes.default.svc locally
+	// 如果是访问kubernetes Service，就直接通过Host访问即可
 	if localHost, err := url.Parse(hostname); err == nil {
 		serviceResolver = aggregatorapiserver.NewLoopbackServiceResolver(serviceResolver, localHost)
 	}

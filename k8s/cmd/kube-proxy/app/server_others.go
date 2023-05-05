@@ -86,6 +86,7 @@ func newProxyServer(
 		return nil, errors.New("config is required")
 	}
 
+	// TODO 这里在干嘛？
 	if c, err := configz.New(proxyconfigapi.GroupName); err == nil {
 		c.Set(config)
 	} else {
@@ -98,16 +99,21 @@ func newProxyServer(
 	var ipsetInterface utilipset.Interface
 
 	// Create a iptables utils.
+	// TODO 执行命令，这里执行的命令应该是创建iptable, ipvs规则
 	execer := exec.New()
 
+	// TODO LinuxKernelHandler有啥作用/
 	kernelHandler = ipvs.NewLinuxKernelHandler()
+	// TODO ipset是啥？
 	ipsetInterface = utilipset.New(execer)
+	// TODO K8S时如何判断是否能够使用IPVS代理的？
 	canUseIPVS, err := ipvs.CanUseIPVSProxier(kernelHandler, ipsetInterface, config.IPVS.Scheduler)
 	if string(config.Mode) == proxyModeIPVS && err != nil {
 		klog.ErrorS(err, "Can't use the IPVS proxier")
 	}
 
 	if canUseIPVS {
+		// 如果可以使用IPVS，那么实例化ipvs
 		ipvsInterface = utilipvs.New()
 	}
 
@@ -129,11 +135,13 @@ func newProxyServer(
 		return nil, err
 	}
 
+	// TODO
 	client, eventClient, err := createClients(config.ClientConnection, master)
 	if err != nil {
 		return nil, err
 	}
 
+	// todo 获取nodeIP
 	nodeIP := detectNodeIP(client, hostname, config.BindAddress)
 	klog.InfoS("Detected node IP", "address", nodeIP.String())
 
@@ -150,13 +158,16 @@ func newProxyServer(
 
 	var healthzServer healthcheck.ProxierHealthUpdater
 	if len(config.HealthzBindAddress) > 0 {
+		// TODO 健康检测相关
 		healthzServer = healthcheck.NewProxierHealthServer(config.HealthzBindAddress, 2*config.IPTables.SyncPeriod.Duration, recorder, nodeRef)
 	}
 
 	var proxier proxy.Provider
 	var detectLocalMode proxyconfigapi.LocalMode
 
+	// TODO 获取代理模式
 	proxyMode := getProxyMode(string(config.Mode), canUseIPVS, iptables.LinuxKernelCompatTester{})
+	// TODO LocalMode指的是啥？
 	detectLocalMode, err = getDetectLocalMode(config)
 	if err != nil {
 		return nil, fmt.Errorf("cannot determine detect-local-mode: %v", err)
@@ -178,6 +189,7 @@ func newProxyServer(
 	if netutils.IsIPv6(nodeIP) {
 		primaryProtocol = utiliptables.ProtocolIPv6
 	}
+	// TODO iptables
 	iptInterface = utiliptables.New(execer, primaryProtocol)
 
 	var ipt [2]utiliptables.Interface
@@ -202,6 +214,7 @@ func newProxyServer(
 		}
 	}
 
+	// TODO iptables
 	if proxyMode == proxyModeIPTables {
 		klog.V(0).InfoS("Using iptables Proxier")
 		if config.IPTables.MasqueradeBit == nil {
@@ -266,6 +279,7 @@ func newProxyServer(
 		}
 		proxymetrics.RegisterMetrics()
 	} else if proxyMode == proxyModeIPVS {
+		// TODO ipvs
 		klog.V(0).InfoS("Using ipvs Proxier")
 		if dualStack {
 			klog.V(0).InfoS("Creating dualStackProxier for ipvs")

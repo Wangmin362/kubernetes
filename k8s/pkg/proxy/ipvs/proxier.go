@@ -593,6 +593,7 @@ func newServiceInfo(port *v1.ServicePort, service *v1.Service, baseInfo *proxy.B
 
 // KernelHandler can handle the current installed kernel modules.
 type KernelHandler interface {
+	// GetModules 用于获取运行kube-proxy的机器都安装了哪些模块
 	GetModules() ([]string, error)
 	GetKernelVersion() (string, error)
 }

@@ -314,6 +314,7 @@ func (o *Options) Run() error {
 		return o.writeConfigFile()
 	}
 
+	// TODO 实例化kube-proxy都干了啥？
 	proxyServer, err := NewProxyServer(o)
 	if err != nil {
 		return err
@@ -324,6 +325,7 @@ func (o *Options) Run() error {
 	}
 
 	o.proxyServer = proxyServer
+	// 启动kube-proxy
 	return o.runLoop()
 }
 
@@ -336,11 +338,13 @@ func (o *Options) runLoop() error {
 
 	// run the proxy in goroutine
 	go func() {
+		// 启动kube-proxy
 		err := o.proxyServer.Run()
 		o.errCh <- err
 	}()
 
 	for {
+		// 一旦发生错误，就直接退出
 		err := <-o.errCh
 		if err != nil {
 			return err
@@ -470,6 +474,7 @@ func (o *Options) ApplyDefaults(in *kubeproxyconfig.KubeProxyConfiguration) (*ku
 
 // NewProxyCommand creates a *cobra.Command object with default parameters
 func NewProxyCommand() *cobra.Command {
+	// kube-proxy的参数初始化，主要是对于一些空指针的初始化
 	opts := NewOptions()
 
 	cmd := &cobra.Command{
@@ -497,6 +502,7 @@ with the apiserver API to configure the proxy.`,
 				return fmt.Errorf("failed validate: %w", err)
 			}
 
+			// 运行kube-proxy
 			if err := opts.Run(); err != nil {
 				klog.ErrorS(err, "Error running ProxyServer")
 				return err
@@ -534,7 +540,7 @@ with the apiserver API to configure the proxy.`,
 // ProxyServer represents all the parameters required to start the Kubernetes proxy server. All
 // fields are required.
 type ProxyServer struct {
-	Client                 clientset.Interface
+	Client                 clientset.Interface // k8s clientset
 	EventClient            v1core.EventsGetter
 	IptInterface           utiliptables.Interface
 	IpvsInterface          utilipvs.Interface

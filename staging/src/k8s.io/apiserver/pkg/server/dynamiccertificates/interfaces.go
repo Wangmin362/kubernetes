@@ -60,7 +60,7 @@ type CertKeyContentProvider interface {
 	// Name is just an identifier.
 	Name() string
 	// CurrentCertKeyContent provides cert and key byte content.
-	// TODO 返回证书和私钥
+	// 返回证书和私钥
 	CurrentCertKeyContent() ([]byte, []byte)
 }
 

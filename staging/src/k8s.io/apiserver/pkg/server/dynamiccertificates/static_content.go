@@ -66,6 +66,7 @@ type staticCertKeyContent struct {
 // NewStaticCertKeyContent returns a CertKeyContentProvider that always returns the same value
 func NewStaticCertKeyContent(name string, cert, key []byte) (CertKeyContentProvider, error) {
 	// Ensure that the key matches the cert and both are valid
+	// 确保证书和私钥是配对且有效的
 	_, err := tls.X509KeyPair(cert, key)
 	if err != nil {
 		return nil, err

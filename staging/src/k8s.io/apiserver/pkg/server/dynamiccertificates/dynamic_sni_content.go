@@ -36,6 +36,7 @@ func NewDynamicSNIContentFromFiles(purpose, certFile, keyFile string, sniNames .
 		DynamicCertKeyPairContent: servingContent,
 		sniNames:                  sniNames,
 	}
+	// 初始化加载证书和私钥
 	if err := ret.loadCertKeyPair(); err != nil {
 		return nil, err
 	}

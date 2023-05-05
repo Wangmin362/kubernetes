@@ -52,6 +52,7 @@ func (s *SecureServingOptionsWithLoopback) ApplyTo(secureServingInfo **server.Se
 
 	// create self-signed cert+key with the fake server.LoopbackClientServerNameOverride and
 	// let the server return it when the loopback client connects.
+	// TODO K8S为什么需要自签证书，并且host=apiserver-loopback-client
 	certPem, keyPem, err := certutil.GenerateSelfSignedCertKey(server.LoopbackClientServerNameOverride, nil, nil)
 	if err != nil {
 		return fmt.Errorf("failed to generate self-signed certificate for loopback connection: %v", err)

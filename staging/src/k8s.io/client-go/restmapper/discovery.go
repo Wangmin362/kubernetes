@@ -176,6 +176,7 @@ func GetAPIGroupResources(cl discovery.DiscoveryInterface) ([]*APIGroupResources
 // DeferredDiscoveryRESTMapper is a RESTMapper that will defer
 // initialization of the RESTMapper until the first mapping is
 // requested.
+// TODO 分析这个类的设计
 type DeferredDiscoveryRESTMapper struct {
 	initMu   sync.Mutex
 	delegate meta.RESTMapper
@@ -189,6 +190,18 @@ func NewDeferredDiscoveryRESTMapper(cl discovery.CachedDiscoveryInterface) *Defe
 	return &DeferredDiscoveryRESTMapper{
 		cl: cl,
 	}
+}
+
+// Reset resets the internally cached Discovery information and will
+// cause the next mapping request to re-discover.
+func (d *DeferredDiscoveryRESTMapper) Reset() {
+	klog.V(5).Info("Invalidating discovery information")
+
+	d.initMu.Lock()
+	defer d.initMu.Unlock()
+
+	d.cl.Invalidate()
+	d.delegate = nil
 }
 
 func (d *DeferredDiscoveryRESTMapper) getDelegate() (meta.RESTMapper, error) {
@@ -206,18 +219,6 @@ func (d *DeferredDiscoveryRESTMapper) getDelegate() (meta.RESTMapper, error) {
 
 	d.delegate = NewDiscoveryRESTMapper(groupResources)
 	return d.delegate, nil
-}
-
-// Reset resets the internally cached Discovery information and will
-// cause the next mapping request to re-discover.
-func (d *DeferredDiscoveryRESTMapper) Reset() {
-	klog.V(5).Info("Invalidating discovery information")
-
-	d.initMu.Lock()
-	defer d.initMu.Unlock()
-
-	d.cl.Invalidate()
-	d.delegate = nil
 }
 
 // KindFor takes a partial resource and returns back the single match.

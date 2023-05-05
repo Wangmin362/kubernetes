@@ -72,6 +72,7 @@ type DiscoveryInterface interface {
 // Note that If the ServerResourcesForGroupVersion method returns a cache miss
 // error, the user needs to explicitly call Invalidate to clear the cache,
 // otherwise the same cache miss error will be returned next time.
+// TODO 分析这个接口的设计
 type CachedDiscoveryInterface interface {
 	DiscoveryInterface
 	// Fresh is supposed to tell the caller whether or not to retry if the cache

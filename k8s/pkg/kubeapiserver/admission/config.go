@@ -41,6 +41,7 @@ import (
 
 // Config holds the configuration needed to for initialize the admission plugins
 type Config struct {
+	// TODO The path to the cloud provider configuration file
 	CloudConfigFile      string
 	LoopbackClientConfig *rest.Config
 	ExternalInformers    externalinformers.SharedInformerFactory
@@ -59,6 +60,7 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 	var cloudConfig []byte
 	if c.CloudConfigFile != "" {
 		var err error
+		// cloudConfig The path to the cloud provider configuration file
 		cloudConfig, err = ioutil.ReadFile(c.CloudConfigFile)
 		if err != nil {
 			klog.Fatalf("Error reading from cloud configuration file %s: %#v", c.CloudConfigFile, err)
@@ -69,9 +71,12 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 		return nil, nil, err
 	}
 
+	// TODO 分析discoveryClient
 	discoveryClient := cacheddiscovery.NewMemCacheClient(clientset.Discovery())
 	// RESTMapper 根据GVR找到对应的GVK
+	// TODO 分析discoveryRESTMapper
 	discoveryRESTMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	kubePluginInitializer := NewPluginInitializer(
 		cloudConfig,
 		discoveryRESTMapper,
@@ -80,12 +85,15 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 
 	// TODO 准入控制后置处理器
 	admissionPostStartHook := func(context genericapiserver.PostStartHookContext) error {
+		// TODO 详细分析
 		discoveryRESTMapper.Reset()
+		// TODO 详细分析
 		go utilwait.Until(discoveryRESTMapper.Reset, 30*time.Second, context.StopCh)
 		return nil
 	}
 
 	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
 	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	return []admission.PluginInitializer{webhookPluginInitializer, kubePluginInitializer}, admissionPostStartHook, nil
 }

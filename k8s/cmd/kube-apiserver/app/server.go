@@ -539,7 +539,7 @@ func buildGenericConfig(
 
 	// genericConfig.Authorization.Authorizer K8S的授权策略
 	// genericConfig.RuleResolver TODO 估计是授权策略的规则解析
-	// TODO 仔细分析这里
+	// TODO 仔细分析
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver,
 		err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {

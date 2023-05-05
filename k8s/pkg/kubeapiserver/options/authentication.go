@@ -124,9 +124,9 @@ func NewBuiltInAuthenticationOptions() *BuiltInAuthenticationOptions {
 // WithAll set default value for every build-in authentication option
 func (o *BuiltInAuthenticationOptions) WithAll() *BuiltInAuthenticationOptions {
 	return o.
-		WithAnonymous().
+		WithAnonymous(). // 允许匿名访问
 		WithBootstrapToken().
-		WithClientCert().
+		WithClientCert(). // 监听client-ca-file参数所指向的证书文件，一旦证书发生变化，就通知所有的Listener
 		WithOIDC().
 		WithRequestHeader().
 		WithServiceAccounts().
@@ -392,9 +392,9 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		ret.BootstrapToken = o.BootstrapToken.Enable
 	}
 
-	// TODO 如何理解这里的ClientCAContentProvider
 	if o.ClientCert != nil {
 		var err error
+		// 监听client-ca-file所指向的证书文件，如果此文件发生变化，CAContentProvider会通知所有的Listener
 		ret.ClientCAContentProvider, err = o.ClientCert.GetClientCAContentProvider()
 		if err != nil {
 			return kubeauthenticator.Config{}, err
@@ -415,6 +415,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 
 	if o.RequestHeader != nil {
 		var err error
+		// 初始化ReqeustHeader配置
 		ret.RequestHeaderConfig, err = o.RequestHeader.ToAuthenticationRequestHeaderConfig()
 		if err != nil {
 			return kubeauthenticator.Config{}, err

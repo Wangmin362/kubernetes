@@ -50,22 +50,27 @@ type ControllerRunner interface {
 // DynamicFileCAContent provides a CAContentProvider that can dynamically react to new file content
 // It also fulfills the authenticator interface to provide verifyoptions
 type DynamicFileCAContent struct {
-	// TODO 这里的名字指的是什么名字？ 有何作用？
-	// 答：名字通过purpose::filename拼接而成
+	// 名字通过purpose::filename拼接而成
 	name string
 
 	// filename is the name the file to read.
-	// TODO 这里的文件名指的什么文件？
+	// filename指的是监听的文件，一旦该文件发生变化，就会重新读取文件内容保存到caBundle属性当中，同时会通知所有的listener
+	// 实际上，filename一般指的是证书
 	filename string
 
 	// caBundle is a caBundleAndVerifier that contains the last read, non-zero length content of the file
 	caBundle atomic.Value
 
-	// TODO 这里的Listener指的是啥？
+	// 这里的Listener指的是啥？
+	// 答: 这里的Listener实际上就是哪些关心filename变化的controller,通过DynamicFileCAContent,那些关心filename变化的controller
+	// 就不需要监听这个文件了，而是把自己注册到DynamicFileCAContent.listeners属性当中。DynamicFileCAContent会监听filename文件
+	// 的变化，一旦DynamicFileCAContent监听到filename文件发生变化就会通知所有组测进来的listener
 	listeners []Listener
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
-	// TODO 队列里面存放的是什么？
+	// 队列里面存放的是什么？
+	// 答：队列里可以虽然放入任何一个元素，目的时为了触发DynamicFileCAContent执行loadCABundle方法，从而检测filename是否发生变化
+	// 一旦发现filename发生了变化，就会通知所有注册进来的listener
 	queue workqueue.RateLimitingInterface
 }
 

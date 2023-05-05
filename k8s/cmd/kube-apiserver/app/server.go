@@ -530,7 +530,8 @@ func buildGenericConfig(
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
-	// TODO 初始化generic server config的认证配置
+	// 通过apiserver的命令行反序列化的认证参数初始化generic server config的认证配置
+	// TODO 仔细分析认证参数初始化
 	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector,
 		genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return

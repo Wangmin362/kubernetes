@@ -31,6 +31,8 @@ type RequestHeaderConfig struct {
 	ExtraHeaderPrefixes headerrequest.StringSliceProvider
 	// CAContentProvider the options for verifying incoming connections using mTLS.  Generally this points to CA bundle file which is used verify the identity of the front proxy.
 	//	It may produce different options at will.
+	// 监听requestheader-client-ca-file参数所指向的CA文件，一旦此文件发生变化。就会通知所有对requestheader-client-ca-file文件变化
+	// 感兴趣的所有controller
 	CAContentProvider dynamiccertificates.CAContentProvider
 	// AllowedClientNames is a list of common names that may be presented by the authenticating front proxy.  Empty means: accept any.
 	AllowedClientNames headerrequest.StringSliceProvider

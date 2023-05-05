@@ -40,6 +40,8 @@ import (
 )
 
 // ServerRunOptions runs a kubernetes api server.
+// ServerRunOptions的所有属性是通过启动apiserver时传入的参数初始化的，由于大部分属性都是指针，所以在实例化ServerRunOptions的时候
+// 需要对ServerRunOptions的指针属性初始化，这样后续通过反序列化命令行参数到ServerRunOptions属性的时候就可以正常工作
 type ServerRunOptions struct {
 	GenericServerRunOptions *genericoptions.ServerRunOptions                 // genericServer配置
 	Etcd                    *genericoptions.EtcdOptions                      // ETCD的配置
@@ -121,9 +123,9 @@ func NewServerRunOptions() *ServerRunOptions {
 		SecureServing:           kubeoptions.NewSecureServingOptions(),
 		Audit:                   genericoptions.NewAuditOptions(),
 		Features:                genericoptions.NewFeatureOptions(),
-		Admission:               kubeoptions.NewAdmissionOptions(), // TODO 准入控制参数，注册了需要的注入控制器
-		Authentication:          kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
-		Authorization:           kubeoptions.NewBuiltInAuthorizationOptions(),
+		Admission:               kubeoptions.NewAdmissionOptions(),                       // TODO 准入控制参数，注册了需要的注入控制器
+		Authentication:          kubeoptions.NewBuiltInAuthenticationOptions().WithAll(), // TODO 构建默认的认证参数,主要是将内部的指针属性实例化出来，避免后续通过apiserver参数初始化的时候属性为nil
+		Authorization:           kubeoptions.NewBuiltInAuthorizationOptions(),            // 构建默认的授权参数
 		CloudProvider:           kubeoptions.NewCloudProviderOptions(),
 		APIEnablement:           genericoptions.NewAPIEnablementOptions(),
 		EgressSelector:          genericoptions.NewEgressSelectorOptions(),

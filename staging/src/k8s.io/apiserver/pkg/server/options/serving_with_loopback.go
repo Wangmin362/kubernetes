@@ -57,6 +57,7 @@ func (s *SecureServingOptionsWithLoopback) ApplyTo(secureServingInfo **server.Se
 	if err != nil {
 		return fmt.Errorf("failed to generate self-signed certificate for loopback connection: %v", err)
 	}
+	// TODO 这玩意有啥用？
 	certProvider, err := dynamiccertificates.NewStaticSNICertKeyContent("self-signed loopback", certPem, keyPem, server.LoopbackClientServerNameOverride)
 	if err != nil {
 		return fmt.Errorf("failed to generate self-signed certificate for loopback connection: %v", err)
@@ -64,7 +65,7 @@ func (s *SecureServingOptionsWithLoopback) ApplyTo(secureServingInfo **server.Se
 
 	// Write to the front of SNICerts so that this overrides any other certs with the same name
 	(*secureServingInfo).SNICerts = append([]dynamiccertificates.SNICertKeyContentProvider{certProvider}, (*secureServingInfo).SNICerts...)
-
+	// TODO 这里又在干嘛？
 	secureLoopbackClientConfig, err := (*secureServingInfo).NewLoopbackClientConfig(uuid.New().String(), certPem)
 	switch {
 	// if we failed and there's no fallback loopback client config, we need to fail

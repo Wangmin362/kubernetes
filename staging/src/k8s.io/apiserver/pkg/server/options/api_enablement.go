@@ -92,8 +92,9 @@ func (s *APIEnablementOptions) ApplyTo(c *server.Config, defaultResourceConfig *
 		return nil
 	}
 
+	// TODO K8S是如何Merge API资源配置的？
 	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
-	// TODO 这玩意被重复修改了，初始化的时候是不是可以考虑不进行设置这个属性
+	// 这玩意被重复修改了，初始化的时候是不是可以考虑不进行设置这个属性
 	c.MergedResourceConfig = mergedResourceConfig
 
 	return err

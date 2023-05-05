@@ -121,6 +121,8 @@ func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig
 		return nil, nil
 	}
 
+	// 监听requestheader-client-ca-file参数所指向的文件，一旦此文件发生变化，就会通知那些对该文件变化感兴趣的所有Controller。当然，
+	// 前提是那些对requestheader-client-ca-file文件变化感兴趣的Controller必须要提前注册到DynamicCAContentFromFile当中
 	caBundleProvider, err := dynamiccertificates.NewDynamicCAContentFromFile("request-header", s.ClientCAFile)
 	if err != nil {
 		return nil, err
@@ -151,7 +153,7 @@ type ClientCertAuthenticationOptions struct {
 
 // GetClientCAContentProvider GetClientVerifyOptionFn provides verify options for your authenticator while respecting the preferred order of verifiers.
 func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamiccertificates.CAContentProvider, error) {
-	// TODO 这个属性啥时候不为空
+	// 这个属性啥时候不为空  答：在K8S当中都是空的，后续开发者在使用时可能会自己设置
 	if s.CAContentProvider != nil {
 		return s.CAContentProvider, nil
 	}

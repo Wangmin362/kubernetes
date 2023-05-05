@@ -22,6 +22,7 @@ import (
 	"net/http"
 )
 
+// TODO 这里在干嘛？
 func authenticate(ctx context.Context, implicitAuds Audiences, authenticate func() (*Response, bool, error)) (*Response, bool, error) {
 	targetAuds, ok := AudiencesFrom(ctx)
 	// We can remove this once api audiences is never empty. That will probably
@@ -82,6 +83,7 @@ func (a *audAgnosticTokenAuthenticator) AuthenticateToken(ctx context.Context, t
 
 // WrapAudienceAgnosticToken wraps an audience agnostic token authenticator to
 // restrict its accepted audiences to a set of implicit audiences.
+// TODO 这个wrapper是干嘛用的?
 func WrapAudienceAgnosticToken(implicit Audiences, delegate Token) Token {
 	return &audAgnosticTokenAuthenticator{
 		implicit: implicit,

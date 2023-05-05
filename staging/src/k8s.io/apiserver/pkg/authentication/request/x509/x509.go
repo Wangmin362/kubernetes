@@ -130,6 +130,7 @@ func NewDynamic(verifyOptionsFn VerifyOptionFunc, user UserConversion) *Authenti
 }
 
 // AuthenticateRequest authenticates the request using presented client certificates
+// TODO 仔细研究这里面的验证过程
 func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.Response, bool, error) {
 	if req.TLS == nil || len(req.TLS.PeerCertificates) == 0 {
 		return nil, false, nil
@@ -245,6 +246,7 @@ func DefaultVerifyOptions() x509.VerifyOptions {
 }
 
 // CommonNameUserConversion builds user info from a certificate chain using the subject's CommonName
+// TODO 用于把证书中的CN以及O作为用户信息的名字以及组
 var CommonNameUserConversion = UserConversionFunc(func(chain []*x509.Certificate) (*authenticator.Response, bool, error) {
 	if len(chain[0].Subject.CommonName) == 0 {
 		return nil, false, nil

@@ -33,6 +33,7 @@ type RequestHeaderConfig struct {
 	//	It may produce different options at will.
 	// 监听requestheader-client-ca-file参数所指向的CA文件，一旦此文件发生变化。就会通知所有对requestheader-client-ca-file文件变化
 	// 感兴趣的所有controller
+	// 证书相关可以参考：https://segmentfault.com/a/1190000022272634
 	CAContentProvider dynamiccertificates.CAContentProvider
 	// AllowedClientNames is a list of common names that may be presented by the authenticating front proxy.  Empty means: accept any.
 	AllowedClientNames headerrequest.StringSliceProvider

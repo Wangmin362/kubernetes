@@ -360,6 +360,7 @@ type AuthenticationInfo struct {
 	// TODO 如何理解Audiences?
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
+	// TODO 认证器，用于从HTTP请求当中抽取认证信息
 	Authenticator authenticator.Request
 }
 

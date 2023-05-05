@@ -89,7 +89,8 @@ type Config struct {
 	// ClientCAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this value is nil, then mutual TLS is disabled.
-	// TODO 作用？
+	// 监听client-ca-file参数所指向的证书，一旦证书发生变化，那么ClientCAContentProvider会通知所有对client-ca-file文件感兴趣的
+	// controller；当然，前提是controller已经注册到ClientCAContentProvider当中
 	ClientCAContentProvider dynamiccertificates.CAContentProvider
 
 	// Optional field, custom dial function used to connect to webhook
@@ -99,13 +100,17 @@ type Config struct {
 // New returns an authenticator.Request or an error that supports the standard
 // Kubernetes authentication mechanisms.
 func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, error) {
+	// 通过解析HTTP请求得到用户身份信息，方便后续认证
 	var authenticators []authenticator.Request
+	// 通过解析HTTP请求的Token信息，方便后续认证
 	var tokenAuthenticators []authenticator.Token
+	// TODO openapi相关的东西，可以暂时不用关心
 	securityDefinitions := spec.SecurityDefinitions{}
 
 	// front-proxy, BasicAuth methods, local first, then remote
 	// Add the front proxy authenticator if requested
 	if config.RequestHeaderConfig != nil {
+		// TODO 详细分析
 		requestHeaderAuthenticator := headerrequest.NewDynamicVerifyOptionsSecure(
 			config.RequestHeaderConfig.CAContentProvider.VerifyOptions,
 			config.RequestHeaderConfig.AllowedClientNames,

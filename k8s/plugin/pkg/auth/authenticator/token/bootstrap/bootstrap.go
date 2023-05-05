@@ -86,7 +86,24 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 //
 // Tokens are expected to be of the form:
 //
-//	( token-id ).( token-secret )
+//	TODO token的给是为：( token-id ).( token-secret )
+//
+/* bootstrap token的格式一般长这样
+apiVersion: v1
+kind: Secret
+metadata:
+  name: bootstrap-token-09phqo
+  namespace: kube-system
+type: bootstrap.kubernetes.io/token
+data:
+  auth-extra-groups: c3lzdGVtOmJvb3RzdHJhcHBlcnM6a3ViZWFkbTpkZWZhdWx0LW5vZGUtdG9rZW4= (解码后为：system:bootstrappers:kubeadm:default-node-token)
+  description: a3ViZXNwcmF5IGt1YmVhZG0gYm9vdHN0cmFwIHRva2Vu (解码后为：kubespray kubeadm bootstrap token)
+  token-id: MDlwaHFv (解码后为：09phqo)
+  token-secret: cG54ZzI1MzZudW1xem9wOA== (解码后为：pnxg2536numqzop8)
+  usage-bootstrap-authentication: dHJ1ZQ== (解码后为：true)
+  usage-bootstrap-signing: dHJ1ZQ== (解码后为：true)
+*/
+// TODO token参数指的是什么？
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
 	if err != nil {
@@ -94,6 +111,7 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, nil
 	}
 
+	// bootstrap-token-<token id>
 	secretName := bootstrapapi.BootstrapTokenSecretPrefix + tokenID
 	secret, err := t.lister.Get(secretName)
 	if err != nil {
@@ -109,11 +127,13 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, nil
 	}
 
+	// secret必须是bootstrap.kubernetes.io/token类型
 	if string(secret.Type) != string(bootstrapapi.SecretTypeBootstrapToken) || secret.Data == nil {
 		tokenErrorf(secret, "has invalid type, expected %s.", bootstrapapi.SecretTypeBootstrapToken)
 		return nil, false, nil
 	}
 
+	// 获取token-secret数据
 	ts := bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenSecretKey)
 	if subtle.ConstantTimeCompare([]byte(ts), []byte(tokenSecret)) != 1 {
 		tokenErrorf(secret, "has invalid value for key %s, expected %s.", bootstrapapi.BootstrapTokenSecretKey, tokenSecret)
@@ -126,6 +146,7 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, nil
 	}
 
+	// 判断token是否过期  token的过期时间通过expiration来设置，如果没有设置，那么认为token永不过期
 	if bootstrapsecretutil.HasExpired(secret, time.Now()) {
 		// logging done in isSecretExpired method.
 		return nil, false, nil

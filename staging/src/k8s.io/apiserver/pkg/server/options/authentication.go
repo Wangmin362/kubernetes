@@ -49,6 +49,8 @@ func DefaultAuthWebhookRetryBackoff() *wait.Backoff {
 	}
 }
 
+// RequestHeaderAuthenticationOptions TODO 主要用于身份认证代理  参考：https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/authentication/#authenticating-proxy
+// TODO 详细分析这些参数的意义
 type RequestHeaderAuthenticationOptions struct {
 	// ClientCAFile is the root certificate bundle to verify client certificates on incoming requests
 	// before trusting usernames in headers.
@@ -61,7 +63,7 @@ type RequestHeaderAuthenticationOptions struct {
 }
 
 func (s *RequestHeaderAuthenticationOptions) Validate() []error {
-	allErrors := []error{}
+	var allErrors []error
 
 	if err := checkForWhiteSpaceOnly("requestheader-username-headers", s.UsernameHeaders...); err != nil {
 		allErrors = append(allErrors, err)

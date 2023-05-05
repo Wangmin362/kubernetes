@@ -37,7 +37,7 @@ func NewUnionCAContentProvider(caContentProviders ...CAContentProvider) CAConten
 
 // Name is just an identifier
 func (c unionCAContent) Name() string {
-	names := []string{}
+	var names []string
 	for _, curr := range c {
 		names = append(names, curr.Name())
 	}
@@ -46,7 +46,7 @@ func (c unionCAContent) Name() string {
 
 // CurrentCABundleContent provides ca bundle byte content
 func (c unionCAContent) CurrentCABundleContent() []byte {
-	caBundles := [][]byte{}
+	var caBundles [][]byte
 	for _, curr := range c {
 		if currCABytes := curr.CurrentCABundleContent(); len(currCABytes) > 0 {
 			caBundles = append(caBundles, []byte(strings.TrimSpace(string(currCABytes))))

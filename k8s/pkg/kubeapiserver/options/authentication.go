@@ -415,7 +415,8 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 
 	if o.RequestHeader != nil {
 		var err error
-		// 初始化ReqeustHeader配置
+		// 初始化ReqeustHeader配置，主要用于身份认证代理。参考：https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/authentication/#authenticating-proxy
+		// TODO 详细分析RequestHeader这几个参数的作用
 		ret.RequestHeaderConfig, err = o.RequestHeader.ToAuthenticationRequestHeaderConfig()
 		if err != nil {
 			return kubeauthenticator.Config{}, err
@@ -475,21 +476,25 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 	}
 
 	if authenticatorConfig.ClientCAContentProvider != nil {
+		// TODO 如何理解authInfo属性的初始化
 		if err = authInfo.ApplyClientCert(authenticatorConfig.ClientCAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
 	}
 	if authenticatorConfig.RequestHeaderConfig != nil && authenticatorConfig.RequestHeaderConfig.CAContentProvider != nil {
+		// TODO 如何理解authInfo属性的初始化
 		if err = authInfo.ApplyClientCert(authenticatorConfig.RequestHeaderConfig.CAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
 	}
 
+	// TODO APIAudiences是干嘛用的？
 	authInfo.APIAudiences = o.APIAudiences
 	if o.ServiceAccounts != nil && len(o.ServiceAccounts.Issuers) != 0 && len(o.APIAudiences) == 0 {
 		authInfo.APIAudiences = authenticator.Audiences(o.ServiceAccounts.Issuers)
 	}
 
+	// 用于获取secret, serviceAccount, pod
 	authenticatorConfig.ServiceAccountTokenGetter = serviceaccountcontroller.NewGetterFromClient(
 		extclient,
 		versionedInformer.Core().V1().Secrets().Lister(),
@@ -499,6 +504,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 
 	// TODO 理解BootstrapToken机制
 	authenticatorConfig.BootstrapTokenAuthenticator = bootstrap.NewTokenAuthenticator(
+		// 用于查询kube-system名称空间中的secret
 		versionedInformer.Core().V1().Secrets().Lister().Secrets(metav1.NamespaceSystem),
 	)
 
@@ -511,6 +517,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		authenticatorConfig.CustomDial = egressDialer
 	}
 
+	// TODO 仔细分析
 	authInfo.Authenticator, openAPIConfig.SecurityDefinitions, err = authenticatorConfig.New()
 	if openAPIV3Config != nil {
 		openAPIV3Config.SecurityDefinitions = openAPIConfig.SecurityDefinitions

@@ -24,12 +24,16 @@ const (
 	// ModeAlwaysDeny is the mode to set no requests as authorized
 	ModeAlwaysDeny string = "AlwaysDeny"
 	// ModeABAC is the mode to use Attribute Based Access Control to authorize
+	// TODO 如何理解这种授权模式
 	ModeABAC string = "ABAC"
 	// ModeWebhook is the mode to make an external webhook call to authorize
+	// TODO 如何理解这种授权模式
 	ModeWebhook string = "Webhook"
 	// ModeRBAC is the mode to use Role Based Access Control to authorize
+	// TODO 如何理解这种授权模式
 	ModeRBAC string = "RBAC"
 	// ModeNode is an authorization mode that authorizes API requests made by kubelets.
+	// TODO 如何理解这种授权模式
 	ModeNode string = "Node"
 )
 

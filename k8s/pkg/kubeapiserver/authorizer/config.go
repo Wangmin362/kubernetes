@@ -72,7 +72,7 @@ type Config struct {
 // New returns the right sort of union of multiple authorizer.Authorizer objects
 // based on the authorizationMode or an error.
 func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, error) {
-	if len(config.AuthorizationModes) == 0 {
+	if len(config.AuthorizationModes) == 0 { // K8S至少配置一种授权模式
 		return nil, nil, fmt.Errorf("at least one authorization mode must be passed")
 	}
 

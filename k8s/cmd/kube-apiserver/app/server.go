@@ -596,7 +596,7 @@ func buildGenericConfig(
 // BuildAuthorizer constructs the authorizer
 func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector,
 	versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
-	// TODO 实例化授权配置
+	// 实例化授权配置
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
 	if EgressSelector != nil {

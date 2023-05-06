@@ -117,7 +117,7 @@ func createAggregatorConfig(
 			SharedInformerFactory: externalInformers,
 		},
 		ExtraConfig: aggregatorapiserver.ExtraConfig{
-			// TODO Aggregator apiserver比较重要的两个参数
+			// TODO AggregatorServer比较重要的两个参数
 			ProxyClientCertFile:       commandOptions.ProxyClientCertFile,
 			ProxyClientKeyFile:        commandOptions.ProxyClientKeyFile,
 			ServiceResolver:           serviceResolver,
@@ -135,7 +135,7 @@ func createAggregatorConfig(
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget,
 	apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
-	// TODO 这里相当重要， aggregator-server会监听APIService并且会把APIService转为路由
+	// TODO 这里相当重要， AggregatorServer会监听APIService并且会把APIService转为路由
 	// TODO 这里还干了啥？
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {

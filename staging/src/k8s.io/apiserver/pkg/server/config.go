@@ -941,7 +941,6 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = genericapifilters.WithAudit(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator, c.LongRunningFunc)
 	handler = filterlatency.TrackStarted(handler, "audit")
 
-	// TODO 判断是否是未授权
 	failedHandler := genericapifilters.Unauthorized(c.Serializer)
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 

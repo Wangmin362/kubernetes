@@ -222,10 +222,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// 第一步：创建notFoundHandler 当用户的请求进来时，Extend Server , Apiserver, Aggregrate Server都处理不了时就只能委托给NotFoundHandler
 	// 这个handler返回的就是404, notFoundHandler是一个HTTP Handler，实现了http.Handler接口
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
-	// 第二步：创建ExtensionServer，并且把notfoundHandler作为ExtendServer下一任的委派，也就是说notFoundHandler是请求处理的兜底
 	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
 	// TODO ExtensionServer是如何解决动态发现CRD并注册的？
 	// TODO 动态准入控制是通过CRD的原理进行支持的么？
@@ -235,8 +233,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// 实例化apiserver，k8s内建的资源都是通过apiserver处理的
-	// 第三步：创建Apiserver 实现对于K8S标准资源的处理
+	// 实例化APIServer，k8s内建的资源都是通过APIServer处理的
 	// TODO 标准资源的Handler是如何装载的？ URL+Method是如何与Handler匹配的？
 	// TODO k8s是如何解决相同的对象不同的版本的？ 答：K8S的接口本来就是有版本特性的，相同资源的不同版本完全可以当作不同资源来处理
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
@@ -245,13 +242,12 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// aggregator comes last in the chain
-	// TODO 创建aggregator apiserver的配置
+	// TODO 创建AggregatorServer的配置
 	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, completedOptions.ServerRunOptions,
 		kubeAPIServerConfig.ExtraConfig.VersionedInformers, serviceResolver, kubeAPIServerConfig.ExtraConfig.ProxyTransport, pluginInitializer)
 	if err != nil {
 		return nil, err
 	}
-	// 第四步：创建AggregrateServer，实现对于聚合接口请求的处理？
 	// TODO k8s是如何设计聚合接口的？ 使得用户可以扩展聚合接口？
 	aggregatorServer, err := createAggregatorServer(aggregatorConfig, kubeAPIServer.GenericAPIServer, apiExtensionsServer.Informers)
 	if err != nil {

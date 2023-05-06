@@ -109,8 +109,8 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 
 	// front-proxy, BasicAuth methods, local first, then remote
 	// Add the front proxy authenticator if requested
+	// TODO RequestHeader认证 详细分析
 	if config.RequestHeaderConfig != nil {
-		// TODO 详细分析
 		requestHeaderAuthenticator := headerrequest.NewDynamicVerifyOptionsSecure(
 			config.RequestHeaderConfig.CAContentProvider.VerifyOptions,
 			config.RequestHeaderConfig.AllowedClientNames,
@@ -122,12 +122,14 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	}
 
 	// X509 methods
+	// TODO CA认证 仔细分析
 	if config.ClientCAContentProvider != nil {
 		certAuth := x509.NewDynamic(config.ClientCAContentProvider.VerifyOptions, x509.CommonNameUserConversion)
 		authenticators = append(authenticators, certAuth)
 	}
 
 	// Bearer token methods, local first, then remote
+	// TODO Token认证 仔细分析
 	if len(config.TokenAuthFile) > 0 {
 		tokenAuth, err := newAuthenticatorFromTokenFile(config.TokenAuthFile)
 		if err != nil {
@@ -135,6 +137,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, tokenAuth))
 	}
+	// TODO ServiceAccount认证 仔细分析
 	if len(config.ServiceAccountKeyFiles) > 0 {
 		serviceAccountAuth, err := newLegacyServiceAccountAuthenticator(config.ServiceAccountKeyFiles, config.ServiceAccountLookup, config.APIAudiences, config.ServiceAccountTokenGetter)
 		if err != nil {
@@ -142,6 +145,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
+	// TODO 仔细分析
 	if len(config.ServiceAccountIssuers) > 0 {
 		serviceAccountAuth, err := newServiceAccountAuthenticator(config.ServiceAccountIssuers, config.ServiceAccountKeyFiles, config.APIAudiences, config.ServiceAccountTokenGetter)
 		if err != nil {
@@ -149,6 +153,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
+	// TODO 仔细分析
 	if config.BootstrapToken {
 		if config.BootstrapTokenAuthenticator != nil {
 			// TODO: This can sometimes be nil because of
@@ -161,6 +166,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	// cache misses for all requests using the other. While the service account plugin
 	// simply returns an error, the OpenID Connect plugin may query the provider to
 	// update the keys, causing performance hits.
+	// TODO OIDC认证 仔细分析
 	if len(config.OIDCIssuerURL) > 0 && len(config.OIDCClientID) > 0 {
 		// TODO(enj): wire up the Notifier and ControllerRunner bits when OIDC supports CA reload
 		var oidcCAContent oidc.CAContentProvider
@@ -188,6 +194,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, oidcAuth))
 	}
+	// TODO webhook认证 仔细分析
 	if len(config.WebhookTokenAuthnConfigFile) > 0 {
 		webhookTokenAuth, err := newWebhookTokenAuthenticator(config)
 		if err != nil {
@@ -222,10 +229,13 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		return nil, &securityDefinitions, nil
 	}
 
+	// 认证器数组
 	authenticator := union.New(authenticators...)
 
+	// 实际上就是一个认证器Wrapper，为认证器添加Group相关信息
 	authenticator = group.NewAuthenticatedGroupAdder(authenticator)
 
+	// TODO 匿名认证  仔细分析
 	if config.Anonymous {
 		// If the authenticator chain returns an error, return an error (don't consider a bad bearer token
 		// or invalid username/password combination anonymous).

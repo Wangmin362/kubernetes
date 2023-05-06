@@ -39,7 +39,11 @@ import (
 
 // Config contains the data on how to authorize a request to the Kube API Server
 type Config struct {
-	// TODO Apiserver的授权模式，有AlwaysAllow, AlwaysDeny, ABAC, Webhook, RBAC, Node，每一种授权模式有何区别？
+	// 1、GenericServer的鉴权模式，有AlwaysAllow, AlwaysDeny, ABAC, Webhook, RBAC, Node可以选择
+	// 2、用户可以指定其中的一个或者多个鉴权模式，每一种鉴权模式都会生成一个鉴权器
+	// 3、用户指定的鉴权模式的顺序有非常重要的影响，因为每一种及安全模式都会生成一个鉴权器，当需要对一个HTTP请求进行鉴权的时候，
+	// 会按照顺序执行鉴权器，一旦前面的鉴权器完成了鉴权动作，后续的鉴权器将不会得到执行。
+	// 4、TODO 每一种鉴权模式有何区别？分别用在什么场景当中？
 	AuthorizationModes []string
 
 	// Options for ModeABAC
@@ -84,7 +88,7 @@ func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, erro
 	for _, authorizationMode := range config.AuthorizationModes {
 		// Keep cases in sync with constant list in k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes/modes.go.
 		switch authorizationMode {
-		// TODO node授权模式用在什么场景当中？
+		// TODO node鉴权模式用在什么场景当中？
 		case modes.ModeNode:
 			node.RegisterMetrics()
 			graph := node.NewGraph()

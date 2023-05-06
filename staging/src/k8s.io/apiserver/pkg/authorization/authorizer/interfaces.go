@@ -67,6 +67,8 @@ type Attributes interface {
 // Authorizer makes an authorization decision based on information gained by making
 // zero or more calls to methods of the Attributes interface.  It returns nil when an action is
 // authorized, otherwise it returns an error.
+// Attributes为从HTTP请求中解析出来的属性，主要是用户信息、请求资源的信息
+// Authorizer也就是所谓的鉴权器，即用于判断发起当前HTTP请求的用户是否有权限访问K8S资源，Decision就是鉴权器的授权结果
 type Authorizer interface {
 	Authorize(ctx context.Context, a Attributes) (authorized Decision, reason string, err error)
 }
@@ -78,6 +80,7 @@ func (f AuthorizerFunc) Authorize(ctx context.Context, a Attributes) (Decision, 
 }
 
 // RuleResolver provides a mechanism for resolving the list of rules that apply to a given user within a namespace.
+// TODO 如何理解这个接口
 type RuleResolver interface {
 	// RulesFor get the list of cluster wide rules, the list of rules in the specific namespace, incomplete status and errors.
 	RulesFor(user user.Info, namespace string) ([]ResourceRuleInfo, []NonResourceRuleInfo, bool, error)

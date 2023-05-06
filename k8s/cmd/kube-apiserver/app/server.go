@@ -537,16 +537,16 @@ func buildGenericConfig(
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
-	// 通过apiserver的命令行反序列化的认证参数初始化generic server config的认证配置
-	// TODO 仔细分析认证参数初始化
+	// 为用户配置的每一种认证方式都生成一个认证器，并且初始化GenericConfig的Authentication属性
+	// TODO 详细分析各种认证方式生成的认证器的认证原理
 	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector,
 		genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
 	}
 
-	// genericConfig.Authorization.Authorizer K8S的授权策略
-	// genericConfig.RuleResolver TODO 估计是授权策略的规则解析
-	// TODO 仔细分析
+	// Authorizer K8S的鉴权器，用于鉴别发起HTTP请求的用户是否有权限访问K8S的某个资源
+	// RuleResolver TODO 估计是授权策略的规则解析
+	// TODO 仔细分析每一种鉴权器的工作原理
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver,
 		err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
@@ -608,6 +608,7 @@ func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector
 	// 实例化授权配置
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
+	// TODO EgressSelector
 	if EgressSelector != nil {
 		egressDialer, err := EgressSelector.Lookup(egressselector.ControlPlane.AsNetworkContext())
 		if err != nil {

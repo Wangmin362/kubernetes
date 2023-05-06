@@ -127,7 +127,8 @@ type GenericAPIServer struct {
 	discoveryAddresses discovery.Addresses
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
-	// TODO 什么叫做loopback连接？
+	// 什么叫做loopback连接？ 可以理解为本地环回地址，也就是lo网卡；实际上就是127.0.0.1
+	// TODO 为什么说LoopbackClientConfig可以拥有一个特权级别的环回地址连接？ 这样配置有啥好处
 	LoopbackClientConfig *restclient.Config
 
 	// minRequestTimeout is how short the request timeout can be.  This is used to build the RESTHandler
@@ -143,8 +144,9 @@ type GenericAPIServer struct {
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
-	// TODO 准入控制，为什么不是 admissionControls []admission.Interface，K8S不是可以定义多个准入控制的么？ 多个注入控制是如何体现的？
-	// 因为最终传入的是admissionChain，这玩意实现了admission.Interface接口，真正执行审计的时候是执行admissionChain中的准入控制插件
+	// 实际上，这里的admissionControl是一个准入控制插件数组，只不过这个数组实现了Admit, Validate, Handles接口，对于GenericServer来说，
+	// 就是一个准入控制插件，只不过这个插件本质上是准入控制插件数组，在真正执行内部的注入控制函数时，准入控制数组依次遍历内部的准入控制插件完成
+	// 准入控制逻辑
 	admissionControl admission.Interface
 
 	// SecureServingInfo holds configuration of the TLS server.
@@ -214,8 +216,9 @@ type GenericAPIServer struct {
 	disabledPostStartHooks sets.String
 
 	// 在停止server之前，需要做的收尾工作
-	// TODO apiserver, extend server, aggregrate server都是如何利用这些Hook点的呢？
-	preShutdownHookLock    sync.Mutex
+	// TODO APIServer, ExtendServer, AggregatorServer都是如何利用这些Hook点的呢？
+	preShutdownHookLock sync.Mutex
+	// GenericServer停止的时候会执行这些HOOK点
 	preShutdownHooks       map[string]preShutdownHookEntry
 	preShutdownHooksCalled bool
 
@@ -241,7 +244,11 @@ type GenericAPIServer struct {
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
 	// authorization check using the request URI but it may be necessary to make additional checks, such as in
 	// the create-on-update case
-	// TODO 授权是如何工作的？
+	// 1、K8S有AlwaysAllow,AlwaysDeny,ABAC,Webhook,RBAC,Node这几种模式，用户可以选择配置其中的一个或者几个，甚至可以全部配置；
+	// 2、AuthorizationInfo本质上就是Authorizer，也就是是我们所谓的鉴权器。
+	// 3、GenericServer的鉴权器本质上是一个[]Authorizer，也就是一个鉴权器数组。这个鉴权器数组实现了Authorize方法，也就是说鉴权其数组实际上
+	// 就是一个鉴权器，只不过在判断一个HTTP请求是否有权限访问K8S资源的时候鉴权器数组会依次委托给内部的鉴权器
+	// 4、从第三点可以看出，鉴权器数组的顺序非常重要，前面的鉴权器只要做除了鉴权决定吗，后面的鉴权器将永远不会得到执行
 	Authorizer authorizer.Authorizer
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
@@ -285,8 +292,8 @@ type GenericAPIServer struct {
 	lifecycleSignals lifecycleSignals
 
 	// destroyFns contains a list of functions that should be called on shutdown to clean up resources.
-	// TODO 这玩意和preShutdownHooks有何区别？ 调用的时间点不一样？
-	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？
+	// 这玩意和preShutdownHooks有何区别？ 调用的时间点不一样？ 两者都是GenericServer停止之后执行，preShutdownHooks先执行，
+	// 而destroyFns后执行
 	destroyFns []func()
 
 	// muxAndDiscoveryCompleteSignals holds signals that indicate all known HTTP paths have been registered.
@@ -535,6 +542,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	shutdownInitiatedCh := s.lifecycleSignals.ShutdownInitiated
 
 	// Clean up resources on shutdown.
+	// 执行清理动作
 	defer s.Destroy()
 
 	// spawn a new goroutine for closing the MuxAndDiscoveryComplete signal

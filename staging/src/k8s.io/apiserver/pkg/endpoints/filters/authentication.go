@@ -53,7 +53,9 @@ func withAuthentication(handler http.Handler, auth authenticator.Request, failed
 		if len(apiAuds) > 0 {
 			req = req.WithContext(authenticator.WithAudiences(req.Context(), apiAuds))
 		}
-		// TODO 认证当前请求 如果开启了K8S的多种认证方式，K8S会默认使用哪一种认证？
+		// 1、K8S支持多种认证方式，譬如Token认证、匿名认证、OIDC认证、CA认证、Webhook认证、RequestHeader认证、Service认证
+		// 2、K8S会为每一种认证方式实例化一个认证器，也就是说这里的Authenticator是一个认证器数组，并且这个数组实现了 authenticator.Request 接口，
+		// 所以这个认证器数组还是一个认证器，只不过在真正认证一个HTTP请求时，认证器数组会依次遍历内部的认证器进行认证
 		resp, ok, err := auth.AuthenticateRequest(req)
 		authenticationFinish := time.Now()
 		defer func() {

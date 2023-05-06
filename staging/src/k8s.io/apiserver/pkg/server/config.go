@@ -98,17 +98,28 @@ type Config struct {
 	SecureServing *SecureServingInfo
 
 	// Authentication is the configuration for authentication
-	// TODO 如何认证？
+	// 1、Authentication中包含APIAudiences以及一个Authenticator
+	// 2、K8S支持多种认证方式，譬如Token认证、匿名认证、OIDC认证、CA认证、Webhook认证、RequestHeader认证、Service认证
+	// 3、K8S会为每一种认证方式实例化一个认证器，也就是说这里的Authentication.Authenticator是一个认证器数组，并且这个数组实现了 authenticator.Request 接口，
+	// 所以这个认证器数组还是一个认证器，只不过在真正认证一个HTTP请求时，认证器数组会依次遍历内部的认证器进行认证
+	// 4、TODO 认证器发生的时间
 	Authentication AuthenticationInfo
 
 	// Authorization is the configuration for authorization
-	// TODO 如何授权？ 授权的话一般是通过RBAC进行授权的，应该是在HandlerChain中进行的
+	// 1、K8S有AlwaysAllow,AlwaysDeny,ABAC,Webhook,RBAC,Node这几种模式，用户可以选择配置其中的一个或者几个，甚至可以全部配置；
+	// 2、AuthorizationInfo本质上就是Authorizer，也就是是我们所谓的鉴权器。
+	// 3、GenericServer的鉴权器本质上是一个[]Authorizer，也就是一个鉴权器数组。这个鉴权器数组实现了Authorize方法，也就是说鉴权其数组实际上
+	// 就是一个鉴权器，只不过在判断一个HTTP请求是否有权限访问K8S资源的时候鉴权器数组会依次委托给内部的鉴权器
+	// 4、从第三点可以看出，鉴权器数组的顺序非常重要，前面的鉴权器只要做除了鉴权决定吗，后面的鉴权器将永远不会得到执行
+	// 5、TODO K8S鉴权发生的时间
+	// 6、TODO K8S支持的集中鉴权模式有何区别？分别适用于什么场景？
 	Authorization AuthorizationInfo
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
 	// TODO 什么叫做Loopback客户端？ 它应该有什么样的功能？ 实际上就是K8S的客户端工具的配置
+	// 这个属性是什么时候初始化的？ 答：buildGenericConfig函数的时候进行了一些初始化
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
@@ -335,6 +346,10 @@ type SecureServingInfo struct {
 	SNICerts []dynamiccertificates.SNICertKeyContentProvider
 
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
+	// 1、监听client-ca-file参数所指向的证书，如果此证书发生变化，那么CAContentProvider会通知所有对该文件感兴趣的Controller，当然，前提是
+	// 这些Controller需要注册到CAContentProvider当中
+	// 2、实际上这里的ClientCA参数是一个unionCAContent类型，而unionCAContent是[]CAContentProvider类型。同时unionCAContent实现了
+	// CAContentProvider接口，也就是所unionCAContent会监听多个文件，并非监听一个文件
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// MinTLSVersion optionally overrides the minimum TLS version supported.
@@ -361,13 +376,17 @@ type AuthenticationInfo struct {
 	// TODO 如何理解Audiences?
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
-	// TODO 认证器，用于从HTTP请求当中抽取认证信息
+	// 1、认证器，用于从HTTP请求当中抽取认证信息
+	// 2、K8S支持多种认证方式，譬如Token认证、匿名认证、OIDC认证、CA认证、Webhook认证、RequestHeader认证、Service认证
+	// 3、K8S会为每一种认证方式实例化一个认证器，也就是说这里的Authenticator是一个认证器数组，并且这个数组实现了 authenticator.Request 接口，
+	// 所以这个认证器数组还是一个认证器，只不过在真正认证一个HTTP请求时，认证器数组会依次遍历内部的认证器进行认证
 	Authenticator authenticator.Request
 }
 
 type AuthorizationInfo struct {
 	// Authorizer determines whether the subject is allowed to make the request based only
 	// on the RequestURI
+	// 用于判断发起当前HTTP请求的用户是否有权限访问K8S资源
 	Authorizer authorizer.Authorizer
 }
 

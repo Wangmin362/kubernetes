@@ -218,7 +218,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), // CRD Informer
 		delegateHandler,                    // 如果CRD Handler无法处理，委派给下一个Server处理
 		c.ExtraConfig.CRDRESTOptionsGetter, // TODO 非常重要的属性，和后端存储相关
-		c.GenericConfig.AdmissionControl,   // 准入控制
+		c.GenericConfig.AdmissionControl,   // 准入控制，本质上是一个准入控制插件链
 		establishingController,             // TODO
 		c.ExtraConfig.ServiceResolver,      // 根据服务的name, namespace, port拼接出服务的访问地址
 		c.ExtraConfig.AuthResolverWrapper,  // 认证
@@ -234,10 +234,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	// TODO 为啥需要两个同时注册？ 因为第一个是精确匹配，而第一个是前缀匹配
 	// 第一个只能处理 /apis endpoint，而第二个可以处理所有以/apis/开头的所有endpoint
-	// TODO 这里是extension-server比较重要的操作
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", crdHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.HandlePrefix("/apis/", crdHandler)
-	// TODO GenericAPIServer的DestroyFunc啥时候会被执行？
+	// 当GenericServer停止运行之后会执行销毁方法，实际上就是一些清理动作
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
 	// 监听CRD，每一个CRD都会定义group, version, resource，甚至一个CRD会有多个version，为了支持查询

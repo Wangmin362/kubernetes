@@ -41,7 +41,9 @@ func New(authorizationHandlers ...authorizer.Authorizer) authorizer.Authorizer {
 	return unionAuthzHandler(authorizationHandlers)
 }
 
-// Authorizes against a chain of authorizer.Authorizer objects and returns nil if successful and returns error if unsuccessful
+// Authorize against a chain of authorizer.Authorizer objects and returns nil if successful and returns error if unsuccessful
+// 本质上unionAuthzHandler是一个鉴权器数组，当unionAuthzHandler鉴权一个HTTP请求时，会依次委托内部的健全其进行鉴权。只要前面的鉴权器做出了
+// 鉴权决定，后续的鉴权器将不会得到执行
 func (authzHandler unionAuthzHandler) Authorize(ctx context.Context, a authorizer.Attributes) (authorizer.Decision, string, error) {
 	var (
 		errlist    []error
@@ -58,6 +60,7 @@ func (authzHandler unionAuthzHandler) Authorize(ctx context.Context, a authorize
 			reasonlist = append(reasonlist, reason)
 		}
 		switch decision {
+		// 一旦某个鉴权器做出了决定，那么对于当前的HTTP请求的鉴权就完成了，后续的鉴权器将永远不会执行
 		case authorizer.DecisionAllow, authorizer.DecisionDeny:
 			return decision, reason, err
 		case authorizer.DecisionNoOpinion:

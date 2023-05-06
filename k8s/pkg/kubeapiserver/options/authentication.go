@@ -469,20 +469,20 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		return errors.New("uninitialized OpenAPIConfig")
 	}
 
-	// 实例化认证配置
+	// 实例化认证配置，主要是在初始化各种认证方式，譬如Token认证、匿名认证、OIDC认证、CA认证、Webhook认证、RequestHeader认证、Service认证
 	authenticatorConfig, err := o.ToAuthenticationConfig()
 	if err != nil {
 		return err
 	}
 
 	if authenticatorConfig.ClientCAContentProvider != nil {
-		// TODO 如何理解authInfo属性的初始化
+		// 这里主要是为了使用authenticatorConfig.ClientCAContentProvider设置secureServing.ClientCA参数
 		if err = authInfo.ApplyClientCert(authenticatorConfig.ClientCAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
 	}
 	if authenticatorConfig.RequestHeaderConfig != nil && authenticatorConfig.RequestHeaderConfig.CAContentProvider != nil {
-		// TODO 如何理解authInfo属性的初始化
+		// 这里主要是为了使用authenticatorConfig.RequestHeaderConfig.CAContentProvider设置secureServing.ClientCA参数
 		if err = authInfo.ApplyClientCert(authenticatorConfig.RequestHeaderConfig.CAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
@@ -517,7 +517,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		authenticatorConfig.CustomDial = egressDialer
 	}
 
-	// TODO 仔细分析
+	// TODO 仔细分析每一种方式生成的认证器的工作原理
 	authInfo.Authenticator, openAPIConfig.SecurityDefinitions, err = authenticatorConfig.New()
 	if openAPIV3Config != nil {
 		openAPIV3Config.SecurityDefinitions = openAPIConfig.SecurityDefinitions

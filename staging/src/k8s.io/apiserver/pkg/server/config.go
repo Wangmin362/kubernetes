@@ -124,7 +124,8 @@ type Config struct {
 	RuleResolver authorizer.RuleResolver
 	// AdmissionControl performs deep inspection of a given request (including content)
 	// to set values and determine whether its allowed
-	// 准入控制
+	// 准入控制，实际上AdmissionControl是一个准入控制插件链，简单来说就是一个准入控制插件数组，实现了Admit以及Validate方法
+	// 当请求到来时，会一次执行每个准入控制插件
 	AdmissionControl admission.Interface
 	// TODO CORS控制
 	CorsAllowedOriginList []string
@@ -741,7 +742,6 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	// TODO 为什么Delegated的后置处理器需要加进来？
 	// 答：因为实际运行的时候，只有最外层的AggregatorServer会被运行，只有它的postStartHooks会被执行，所以在这里再实例化新的
 	// GenericServer的时候, 需要把Delegator的postStartHooks添加进来
-	// first add poststarthooks from delegated targets
 	for k, v := range delegationTarget.PostStartHooks() {
 		s.postStartHooks[k] = v
 	}

@@ -162,10 +162,15 @@ func (a *AdmissionOptions) ApplyTo(
 	// 通用的准入控制插件初始化器 实际上就是为了给准入控制插件设置client, informer, authorizer, feature这几个参数
 	genericInitializer := initializer.New(clientset, informers, c.Authorization.Authorizer, features, c.DrainedNotify())
 	initializersChain := admission.PluginInitializers{genericInitializer}
+	// 把外部生成的准入控制插件初始化器也添加进来
+	// pluginInitializers 准入控制插件初始化器，用于准入控制插件的初始化，实际上就是设置准入控制器的某些属性
+	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
+	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	initializersChain = append(initializersChain, pluginInitializers...)
 
 	// 准入控制插件链，实际上就是按照顺序一个一个执行，一旦有一个准入控制插件决绝，那么就退出
-	// TODO 最终请求到来的时候就是通过这个准入控制链执行的
+	// 最终请求到来的时候就是通过这个准入控制链执行的
 	admissionChain, err := a.Plugins.NewFromPlugins(pluginNames, pluginsConfigProvider, initializersChain, a.Decorators)
 	if err != nil {
 		return err

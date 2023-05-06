@@ -198,17 +198,22 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
 	// kubeAPIServerConfig是APIServer的配置，里面包含了generic server config，以及APIServer自己的配置，也就是ExtraConfig
 	// serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
-	// pluginInitializer  TODO 暂时还没有看懂这个参数意义，似乎是和准入控制相关  准入控制原理是啥？  如何自定义准入控制插件
+	// pluginInitializers 准入控制插件的初始化器，用于初始化准入控制插件。其实主要是根据注入控制插件的不同类型注入一些特定的参数
+	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
+	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	// If additional API servers are added, they should be gated.
-	// 初始化extension-apiserver的配置
+	// 初始化extension server的配置
 	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers,
 		pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount, serviceResolver,
-		// TODO webhook wrapper是干嘛用的？ 答：是为了修改授权解析器
+		// AuthenticationInfoResolverWrapper主要是给AuthenticationInfoResolver增加了两种功能：
+		// 1、为AuthenticationInfoResolver增加了APIServerTracing功能
+		// 2、为AuthenticationInfoResolver增加了EgressSelector
 		webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport,
 			kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig,
 			kubeAPIServerConfig.GenericConfig.TracerProvider),
@@ -220,11 +225,11 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// 第一步：创建notFoundHandler 当用户的请求进来时，Extend Server , Apiserver, Aggregrate Server都处理不了时就只能委托给NotFoundHandler
 	// 这个handler返回的就是404, notFoundHandler是一个HTTP Handler，实现了http.Handler接口
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
-	// 第二步：创建Extend Server，并且把notfoundHander作为ExtendServer下一任的委派，也就是说notFoundHandler时请求处理的兜底
+	// 第二步：创建ExtensionServer，并且把notfoundHandler作为ExtendServer下一任的委派，也就是说notFoundHandler是请求处理的兜底
 	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
-	// TODO ExtendApiserver是如何解决动态发现CRD并注册的？
+	// TODO ExtensionServer是如何解决动态发现CRD并注册的？
 	// TODO 动态准入控制是通过CRD的原理进行支持的么？
-	// genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler)用于把notFoundHandler包装为一个Delegator
+	// NewEmptyDelegateWithCustomHandler(notFoundHandler)用于把notFoundHandler包装为一个Delegator
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err
@@ -296,7 +301,9 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// 2、versionedInformers 实际上就是informerFactory，可以缓存K8S所有的资源对象; aggregator/extension server都会拥有一个Informer
 	// 3、serviceResolver 通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
 	// 4、pluginInitializers 准入控制插件的初始化器，用于初始化准入控制插件。其实主要是根据注入控制插件的不同类型注入一些特定的参数
-	// TODO buildGenericConfig返回了那些注入准入控制插件初始化器？
+	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
+	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	// 5、admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
 	// 6、storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
@@ -354,8 +361,8 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		},
 	}
 
-	// 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有的Listener
-	// TODO CAContentProvider的Listener会有哪些？
+	// 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有对client-ca-file文件该兴趣的controller,当前
+	// 前提是这些controller必须提前注册到ClientCAContentProvider当中
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err
@@ -564,7 +571,10 @@ func buildGenericConfig(
 	// 所谓的服务解析器，实际上就是根据服务svc的name,namespace,port解析出来合法的URL，譬如：apisix.gator-cloud.svc:5432
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
 	// pluginInitializers准入控制插件初始化器，用于准入控制插件的初始化，实际上就是设置准入控制器的某些属性
-	// admissionPostStartHook准入的后置回调
+	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
+	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
+	// admissionPostStartHook准入的后置回调 TODO 到底做了哪些事情
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
 		serviceResolver, genericConfig.TracerProvider)
 	if err != nil {

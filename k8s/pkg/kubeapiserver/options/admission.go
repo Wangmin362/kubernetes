@@ -125,7 +125,9 @@ func (a *AdmissionOptions) ApplyTo(
 		a.GenericAdmission.EnablePlugins, a.GenericAdmission.DisablePlugins = computePluginNames(a.PluginNames, a.GenericAdmission.RecommendedPluginOrder)
 	}
 
-	// TODO 分析此代码
+	// 实例化准入控制插件，然后使用准入控制插件初始化器初始化所有的准入控制插件，并把所有的准入控制插件放到一个数组当中，这个数组也实现了
+	// Admit、Validation以及Handles接口，换言之，这个准入控制插件数组就是一个一个准入控制插件，只不过在这个数组准入控制插件在执行准入
+	// 控制的时候，是挨个遍历内部的准入控制插件实现的
 	return a.GenericAdmission.ApplyTo(c, informers, kubeAPIServerClientConfig, features, pluginInitializers...)
 }
 

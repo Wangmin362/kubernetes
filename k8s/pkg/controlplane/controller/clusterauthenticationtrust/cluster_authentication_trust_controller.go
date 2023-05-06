@@ -134,7 +134,8 @@ type Controller struct {
 // TODO 这里的认证信息应该适合K8S的认证相关
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
-	// 监听client-ca-file所指向的CA证书，一旦CA证书发生变化，就通知所有的Listener
+	// 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有对client-ca-file文件该兴趣的controller,当前
+	// 前提是这些controller必须提前注册到ClientCAContentProvider当中
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// RequestHeaderUsernameHeaders are the headers used by this kube-apiserver to determine username

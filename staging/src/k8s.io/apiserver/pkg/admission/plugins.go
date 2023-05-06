@@ -130,16 +130,18 @@ func splitStream(config io.Reader) (io.Reader, io.Reader, error) {
 // NewFromPlugins returns an admission.Interface that will enforce admission control decisions of all
 // the given plugins.
 func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigProvider, pluginInitializer PluginInitializer, decorator Decorator) (Interface, error) {
+	// 保存所有初始化后的准入控制插件
 	var handlers []Interface
 	var mutationPlugins []string
 	var validationPlugins []string
 	for _, pluginName := range pluginNames {
+		// 通过ConfigProvider获取当前准入控制插件的配置
 		pluginConfig, err := configProvider.ConfigFor(pluginName)
 		if err != nil {
 			return nil, err
 		}
 
-		// 根据插件配置实例化一个插件
+		// 实例化一个插件，然后使用所有准入控制插件初始化器把当前实例化的准入控制插件初始化一遍
 		plugin, err := ps.InitPlugin(pluginName, pluginConfig, pluginInitializer)
 		if err != nil {
 			return nil, err
@@ -165,6 +167,7 @@ func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigPro
 	if len(validationPlugins) != 0 {
 		klog.Infof("Loaded %d validating admission controller(s) successfully in the following order: %s.", len(validationPlugins), strings.Join(validationPlugins, ","))
 	}
+	// 把当前准入控制插件数组当成一个准入控制插件链
 	return newReinvocationHandler(chainAdmissionHandler(handlers)), nil
 }
 
@@ -184,8 +187,10 @@ func (ps *Plugins) InitPlugin(name string, config io.Reader, pluginInitializer P
 		return nil, fmt.Errorf("unknown admission plugin: %s", name)
 	}
 
+	// 当前的pluginInitializer实际上是一个准入控制插件初始化链，内部会一次遍历每个准入控制插件初始化器，对当前的准入控制插件进行初始化
 	pluginInitializer.Initialize(plugin)
 	// ensure that plugins have been properly initialized
+	// 确保当前的准入控制插件被合适的初始化
 	if err := ValidateInitialization(plugin); err != nil {
 		return nil, fmt.Errorf("failed to initialize admission plugin %q: %v", name, err)
 	}

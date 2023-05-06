@@ -37,7 +37,7 @@ import (
 )
 
 func createAPIExtensionsConfig(
-	kubeAPIServerConfig genericapiserver.Config, // TODO 注意，这里传递的是一个实体，因此extension apiserver初始化的修改并不会影响外面
+	kubeAPIServerConfig genericapiserver.Config, // TODO 注意，这里传递的是一个实体，因此extension server初始化的修改并不会影响外面
 	externalInformers kubeexternalinformers.SharedInformerFactory,
 	pluginInitializers []admission.PluginInitializer,
 	commandOptions *options.ServerRunOptions,
@@ -50,14 +50,16 @@ func createAPIExtensionsConfig(
 	// 由于golang对于结构体是值传递的，因此这里实际上是对于kubeAPIServerConfig的一份拷贝
 	// generic server config大部分配置都是可以直接使用的，只有少量配置是需要重新设置的
 	genericConfig := kubeAPIServerConfig
-	// 清空generic-apiserver的后置处理器
+	// 清空generic server的后置处理器
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
 	// TODO 为什么这里后端存储也重置为空
 	genericConfig.RESTOptionsGetter = nil
 
 	// override genericConfig.AdmissionControl with apiextensions' scheme,
 	// because apiextensions apiserver should use its own scheme to convert resources.
-	// TODO 初始化extension-apiserver的准入配置信息
+	// 实例化准入控制插件，然后使用准入控制插件初始化器初始化所有的准入控制插件，并把所有的准入控制插件放到一个数组当中，这个数组也实现了
+	// Admit、Validation以及Handles接口，换言之，这个准入控制插件数组就是一个一个准入控制插件，只不过在这个数组准入控制插件在执行准入
+	// 控制的时候，是挨个遍历内部的准入控制插件实现的
 	err := commandOptions.Admission.ApplyTo(
 		&genericConfig,
 		externalInformers,
@@ -73,7 +75,7 @@ func createAPIExtensionsConfig(
 	// TODO APILISTChunking是啥？
 	etcdOptions.StorageConfig.Paging = utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
 	// this is where the true decodable levels come from.
-	// 实例化extension-apiserver的编解码器
+	// 实例化extension server的编解码器
 	etcdOptions.StorageConfig.Codec = apiextensionsapiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion, v1.SchemeGroupVersion)
 	// prefer the more compact serialization (v1beta1) for storage until http://issue.k8s.io/82292 is resolved for objects whose v1 serialization is too big but whose v1beta1 serialization can be stored
 	// TODO MultiGroupVersioner是干嘛的？
@@ -82,7 +84,7 @@ func createAPIExtensionsConfig(
 	genericConfig.RESTOptionsGetter = &genericoptions.SimpleRestOptionsFactory{Options: etcdOptions}
 
 	// override MergedResourceConfig with apiextensions defaults and registry
-	// 设置启用或者禁用的资源
+	// 设置启用或者禁用的K8S资源
 	if err := commandOptions.APIEnablement.ApplyTo(
 		&genericConfig,
 		apiextensionsapiserver.DefaultAPIResourceConfigSource(),
@@ -97,9 +99,12 @@ func createAPIExtensionsConfig(
 		},
 		ExtraConfig: apiextensionsapiserver.ExtraConfig{
 			CRDRESTOptionsGetter: apiextensionsoptions.NewCRDRESTOptionsGetter(etcdOptions),
-			MasterCount:          masterCount,         // master节点数量
-			AuthResolverWrapper:  authResolverWrapper, // TODO 暂时还不清楚授权包装器的作用
-			ServiceResolver:      serviceResolver,     // 根据服务的name,namespace,port解析为正确的服务访问地址
+			MasterCount:          masterCount, // master节点数量
+			// AuthenticationInfoResolverWrapper主要是给AuthenticationInfoResolver增加了两种功能：
+			// 1、为AuthenticationInfoResolver增加了APIServerTracing功能
+			// 2、为AuthenticationInfoResolver增加了EgressSelector
+			AuthResolverWrapper: authResolverWrapper,
+			ServiceResolver:     serviceResolver, // 根据服务的name,namespace,port解析为正确的服务访问地址
 		},
 	}
 

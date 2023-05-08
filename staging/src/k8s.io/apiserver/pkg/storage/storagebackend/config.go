@@ -116,7 +116,7 @@ type ConfigForResource struct {
 	Config
 
 	// GroupResource is the relevant one
-	// TODO 用于标识当前配置是哪种资源配置  为什么不需要Version?
+	// TODO 用于标识当前配置是哪种资源配置  为什么不需要Version?  难道是K8S通过这一特性强制规定了相同的资源，不同的版本其存储配置必须一样？
 	GroupResource schema.GroupResource
 }
 

@@ -70,7 +70,7 @@ type StorageFactory interface {
 	// Backends gets all backends for all registered storage destinations.
 	// Used for getting all instances for health validations.
 	// 1、K8S的资源可以同时保存在多个存储后端当中
-	// 2、TODO 当给K8S制定了多个存储后端的时候，每个后端都会存储数据么？那如果其中一个后端存储存储失败了，另外要给成功了该如何处理？
+	// 2、TODO 当给K8S制定了多个存储后端的时候，每个后端都会存储数据么？那如果其中一个后端存储存储失败了，另外一个成功了该如何处理？
 	Backends() []Backend
 }
 
@@ -271,8 +271,9 @@ func (s *DefaultStorageFactory) getStorageGroupResource(groupResource schema.Gro
 
 // NewConfig New finds the storage destination for the given group and resource. It will
 // return an error if the group has no storage destination configured.
-// 为当前传入的groupResource生成后端的存储配置
+// 为当前传入的资源生成后端的存储配置
 func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error) {
+	// TODO 这里在干嘛？
 	chosenStorageResource := s.getStorageGroupResource(groupResource)
 
 	// operate on copy
@@ -340,7 +341,7 @@ func (s *DefaultStorageFactory) Backends() []Backend {
 		}
 	}
 
-	backends := []Backend{}
+	var backends []Backend
 	for server := range servers {
 		backends = append(backends, Backend{
 			Server: server,

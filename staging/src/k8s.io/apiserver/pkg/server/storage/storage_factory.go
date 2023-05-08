@@ -44,22 +44,33 @@ type Backend struct {
 }
 
 // StorageFactory is the interface to locate the storage for a given GroupResource
-// TODO 什么叫做StorageFactory，
+// StorageFactory接口的设计还是比较容易理解的，比较中规中矩。简单想来，想要把一个K8S资源对象存储到存储系统当中我们需要考虑以下几个问题，
+// 1、K8S资源应该存储到哪里，MySQL, PostgresSQL, Redis, ETCD亦或者是其它类型的存储系统，Backends就是用于解决这个问题的，只不过K8S的
+// 设计者考虑的更加全面，大神们还考虑到了可能需要存储到多个存储系统当中
+// 2、解决了K8S资源的存储问题，接下来我们就需要思考如何存储一个K8S资源对象了。即如何把一个内存中的数据持久化到存储系统当中。K8S设计者为
+// 这一行为抽象为了资源存储配置(storagebackend.Config)。即我们可以通过NewConfig方法得到一个资源到底如何从内存数据序列化为可以存储的
+// 数据。其中至少需要考虑到这个资源的序列化、反序列化问题；K8S设计者甚至还在持久化数据持久化存储之前加入了一层数据转换层，可以把当前需要
+// 存储的数据转换为另一种方式，譬如加密
+// 3、最值得我们学习的是，K8S设计者门考虑到了K8S所使用的后端存储可能不仅仅是K8S使用，可能用户还会有其它的程序需要共同使用存储系统。因此
+// K8S设计者增加了一个ResourcePrefix方法，用于获取某个资源的存储前缀。这可以很好的解决资源冲突问题
 type StorageFactory interface {
-	// New finds the storage destination for the given group and resource. It will
+	// NewConfig finds the storage destination for the given group and resource. It will
 	// return an error if the group has no storage destination configured.
-	// 用于返回groupResource资源的存储后端
+	// 1、用于返回资源的存储后端配置，即当K8S需要存储一个资源的时候，这个资源到底该怎么存储？前缀是啥？如何序列化？这个资源的存储后端是谁？
 	NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error)
 
 	// ResourcePrefix returns the overridden resource prefix for the GroupResource
 	// This allows for cohabitation of resources with different native types and provides
 	// centralized control over the shape of etcd directories
-	// TODO NewConfig函数的返回值中已经有了Prefix，为什么还需要一个方法来获取Prefix，难道是直接从NewConfig返回值中获取的？
+	// 1、用于返回K8S某个资源在后端存储中所使用的前缀。对于KV类型的存储系统，通过不同Key来定位不同的资源，而很多K8S所使用的KV存储系统，用户的其它
+	// 应用也可能使用，因此需要前缀来进行区分。防止和其它应用保存的数据发生冲突。
+	// 2、资源在后端存储系统中的前缀可以理解为存储系统中的名称空间，可以起到简单的逻辑隔离作用
 	ResourcePrefix(groupResource schema.GroupResource) string
 
 	// Backends gets all backends for all registered storage destinations.
 	// Used for getting all instances for health validations.
-	// 后端存储
+	// 1、K8S的资源可以同时保存在多个存储后端当中
+	// 2、TODO 当给K8S制定了多个存储后端的时候，每个后端都会存储数据么？那如果其中一个后端存储存储失败了，另外要给成功了该如何处理？
 	Backends() []Backend
 }
 

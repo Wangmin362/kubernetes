@@ -182,7 +182,7 @@ func NewNodeConnectionInfoGetter(nodes NodeGetter, config KubeletClientConfig) (
 		return nil, err
 	}
 
-	types := []v1.NodeAddressType{}
+	var types []v1.NodeAddressType
 	for _, t := range config.PreferredAddressTypes {
 		types = append(types, v1.NodeAddressType(t))
 	}

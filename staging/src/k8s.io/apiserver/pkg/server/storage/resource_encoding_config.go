@@ -23,8 +23,9 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// ResourceEncodingConfig TODO 如何理解这个接口的设计？
 type ResourceEncodingConfig interface {
-	// StorageEncoding returns the serialization format for the resource.
+	// StorageEncodingFor returns the serialization format for the resource.
 	// TODO this should actually return a GroupVersionKind since you can logically have multiple "matching" Kinds
 	// For now, it returns just the GroupVersion for consistency with old behavior
 	StorageEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
@@ -35,13 +36,17 @@ type ResourceEncodingConfig interface {
 
 type DefaultResourceEncodingConfig struct {
 	// resources records the overriding encoding configs for individual resources.
+	// TODO 如何理解这个属性？
 	resources map[schema.GroupResource]*OverridingResourceEncoding
 	scheme    *runtime.Scheme
 }
 
-// TODO K8S的External以及Internal资源
+// OverridingResourceEncoding TODO 为什么这个类的命名都是关于编解码？如何理解Overriding?
 type OverridingResourceEncoding struct {
+	// 指的是K8S对外资源，也就是用户可以通过kubectl访问到的资源
 	ExternalResourceEncoding schema.GroupVersion
+	// 指的是K8S内部资源，外部资源想要存储到ETCD中，需要转化为K8S内部资源，然后才能保存到ETCD当中。
+	// 同样，ETCD中的数据想要反序列化到外部资源也必须先反序列化为内部资源，然后才能转化为K8S外部资源
 	InternalResourceEncoding schema.GroupVersion
 }
 

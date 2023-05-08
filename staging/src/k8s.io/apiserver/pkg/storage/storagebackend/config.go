@@ -56,10 +56,10 @@ type TransportConfig struct {
 }
 
 // Config is configuration for creating a storage backend.
-// 该配置为K8S后端存储配置
+// 该配置为K8S资源的后端存储配置，每个资源都应该有一个这样的配置，因为每个资源的存储配置极有可能是不同的
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
-	// K8S的后端存储类型，空默认为ETCD3存储
+	// K8S的后端存储类型，空默认为ETCD3存储  TODO 这个类型有啥作用
 	Type string
 	// Prefix is the prefix to all keys passed to storage.Interface methods.
 	// K8S存储ETCD的KEY的前缀，原因是K8S用户搭建的ETCD集群可能不单单是给K8S使用，可能还会有其它应用
@@ -80,9 +80,12 @@ type Config struct {
 	// storage encoder. Given a list of kinds the input object might belong
 	// to, the EncodeVersioner outputs the gvk the object will be
 	// converted to before persisted in etcd.
+	// TODO 如何理解这个属性？
 	EncodeVersioner runtime.GroupVersioner
 	// Transformer allows the value to be transformed prior to persisting into etcd.
-	// 在把K8S资源对象序列化为二进制数据存储ETCD之前可能需要转换，譬如数据加密
+	// 1、在把K8S资源对象序列化为二进制数据存储ETCD之前可能需要转换，譬如数据加密
+	// 2、自然而然，Transformer接口内部有两个方法，其一是需要把数据通过某种方式转换为另外的数据，譬如加密
+	// 其二是需要把加密的数据机型解密，正好是其一的逆过程
 	Transformer value.Transformer
 
 	// CompactionInterval is an interval of requesting compaction from apiserver.
@@ -97,16 +100,19 @@ type Config struct {
 	// ReadycheckTimeout specifies the timeout used when checking readiness
 	ReadycheckTimeout time.Duration
 
+	// TODO ETCD的租约
 	LeaseManagerConfig etcd3.LeaseManagerConfig
 
 	// StorageObjectCountTracker is used to keep track of the total
 	// number of objects in the storage per resource.
+	// 用于统计跟踪一个对象的存储情况
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
 
 // ConfigForResource is a Config specialized to a particular `schema.GroupResource`
 type ConfigForResource struct {
 	// Config is the resource-independent configuration
+	// K8S资源的存储后端配置，即当K8S需要存储一个资源的时候，这个资源到底该怎么存储？前缀是啥？如何序列化？这个资源的存储后端是谁？
 	Config
 
 	// GroupResource is the relevant one

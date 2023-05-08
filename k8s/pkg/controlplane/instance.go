@@ -135,7 +135,7 @@ type ExtraConfig struct {
 	StorageFactory           serverstorage.StorageFactory
 	EndpointReconcilerConfig EndpointReconcilerConfig
 	EventTTL                 time.Duration
-	// TODO APIServer也需要访问kubelet
+	// APIServer也需要访问kubelet，获取Node的连接信息
 	KubeletClientConfig kubeletclient.KubeletClientConfig
 
 	EnableLogsSupport bool

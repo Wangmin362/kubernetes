@@ -329,7 +329,7 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget,
 			continue
 		}
 
-		// TODO 不管是APIServer还是ExtensionServer，他们的API都是以/apis开头
+		// 不管是APIServer还是ExtensionServer，他们的API都是以/apis开头
 		if !strings.HasPrefix(curr, "/apis/") {
 			continue
 		}

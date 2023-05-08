@@ -94,6 +94,7 @@ func init() {
 func NewAPIServerCommand() *cobra.Command {
 	// TODO 实例化ServerRunOptions参数都设置了哪些默认值？
 	s := options.NewServerRunOptions()
+
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
 		Long: `The Kubernetes API server validates and configures data
@@ -365,7 +366,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	}
 	config.ExtraConfig.ClusterAuthenticationInfo.ClientCA = clientCAProvider
 
-	// TODO 和apiserver的认证方式相关
+	// 初始化K8S RequestHeader代理认证
 	// TODO 仔细分析这几个参数的作用
 	requestHeaderConfig, err := s.Authentication.RequestHeader.ToAuthenticationRequestHeaderConfig()
 	if err != nil {
@@ -379,7 +380,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		config.ExtraConfig.ClusterAuthenticationInfo.RequestHeaderUsernameHeaders = requestHeaderConfig.UsernameHeaders
 	}
 
-	// 给generic apiserver添加后置处理器
+	// 给GenericServer添加后置处理器
 	if err := config.GenericConfig.AddPostStartHook("start-kube-apiserver-admission-initializer", admissionPostStartHook); err != nil {
 		return nil, nil, nil, err
 	}
@@ -425,44 +426,44 @@ func buildGenericConfig(
 	proxyTransport *http.Transport,
 ) (
 	genericConfig *genericapiserver.Config,
-	versionedInformers clientgoinformers.SharedInformerFactory,
-	serviceResolver aggregatorapiserver.ServiceResolver,
+	versionedInformers clientgoinformers.SharedInformerFactory, // 其实就是SharedInformerFactory，简单来说就是ETCD缓存
+	serviceResolver aggregatorapiserver.ServiceResolver, // 服务解析器，根据service的name,namespace,port拼接出服务访问地址
 	pluginInitializers []admission.PluginInitializer, // 注入控制插件初始化器，用于初始化准入控制插件
 	admissionPostStartHook genericapiserver.PostStartHookFunc, // 准入控制的后置回调
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
-	// 实例化generic server config,该配置基本可以认为是一个空的配置,仅仅配置了一些默认的参数
-	// 后续会使用options.ServerRunOptions实例来初始化这个空的配置，options.ServerRunOptions为用户传进来的参数
-	// 用户给apiserver传参包括：一：命令行参数  二：apiserver的配置文件
+	// 实例化GenericServerConfig,该配置基本可以认为是一个空的配置,仅仅配置了一些默认的参数
+	// 后续会使用ServerRunOptions实例来初始化这个空的配置，ServerRunOptions为用户传进来的参数
+	// 用户指定参数有两种方式：1、命令行参数 2、APIServer配置文件
 	// TODO 重点关注BuildHandlerChainFunc属性的初始化，也就是DefaultBuildHandlerChain函数
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 	// 默认启用稳定版本的资源，譬如v1, v2，禁用处于beta, alpha阶段的资源
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
-	// 初始化generic server config的通用配置
+	// 初始化GenericServer Config的通用配置
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
 
 	// TODO 配置HTTPS、证书相关的
-	// LoopbackClientConfig实际上就是k8s clientset配置
+	// LoopbackClientConfig实际上就是K8S ClientSet配置
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
-	// 初始化generic server config的EnableProfiling，EnableContentionProfiling开关
+	// 初始化GenericServerConfig的EnableProfiling，EnableContentionProfiling开关
 	if lastErr = s.Features.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
-	// 初始化generic server config的启用禁用资源
+	// 初始化GenericServerConfig的启用禁用资源
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); lastErr != nil {
 		return
 	}
-	// TODO 初始化generic server config的EgressSelector
+	// TODO 初始化GenericServerConfig的EgressSelector
 	if lastErr = s.EgressSelector.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
-	// TODO apiserver的tracing是干嘛的？ 应该是和分布式链路追踪有关，譬如opentelemety
+	// TODO APIServer的Tracing是干嘛的？ 应该是和分布式链路追踪有关，譬如OpenTelemetry
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		if lastErr = s.Traces.ApplyTo(genericConfig.EgressSelector, genericConfig); lastErr != nil {
 			return
@@ -478,7 +479,7 @@ func buildGenericConfig(
 	}
 
 	// 什么叫做langRunningRequest? 答：从下面代码中可以猜测应该是需要长时间建立TCP连接的操作
-	// 创建generic config的时候也对于这个属性进行了初始化，这里进行了覆盖
+	// 创建GenericServerConfig的时候也对于这个属性进行了初始化，这里进行了覆盖
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
 		sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"),
@@ -489,12 +490,15 @@ func buildGenericConfig(
 
 	// TODO 构建K8S的后端存储
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
+	// 设置K8S启用、禁用哪些资源
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
+	// 利用ETCD的参数配置初始化storageFactoryConfig，并生成completedStorageFactoryConfig
 	completedStorageFactoryConfig, err := storageFactoryConfig.Complete(s.Etcd)
 	if err != nil {
 		lastErr = err
 		return
 	}
+	// 利用已经参数补全的StorageFactoryConfig实例化一个StorageFactory
 	storageFactory, lastErr = completedStorageFactoryConfig.New()
 	if lastErr != nil {
 		return
@@ -507,7 +511,7 @@ func buildGenericConfig(
 	} else {
 		storageFactory.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
-	// TODO 主要是为了初始化genericConfig.RESTOptionsGetter 初始化apisix的后端存储
+	// TODO 主要是为了初始化GenericServerConfig.RESTOptionsGetter 初始化APIServer的后端存储
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}
@@ -523,7 +527,7 @@ func buildGenericConfig(
 	genericConfig.LoopbackClientConfig.DisableCompression = true
 
 	kubeClientConfig := genericConfig.LoopbackClientConfig
-	// 实例化clientset
+	// 实例化ClientSet
 	clientgoExternalClient, err := clientgoclientset.NewForConfig(kubeClientConfig)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)

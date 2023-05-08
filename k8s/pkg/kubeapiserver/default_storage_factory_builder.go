@@ -59,6 +59,7 @@ func DefaultWatchCacheSizes() map[schema.GroupResource]int {
 // NewStorageFactoryConfig returns a new StorageFactoryConfig set up with necessary resource overrides.
 func NewStorageFactoryConfig() *StorageFactoryConfig {
 
+	// TODO 如何理解这里的设计？
 	resources := []schema.GroupVersionResource{
 		// If a resource has to be stored in a version that is not the
 		// latest, then it can be listed here. Usually this is the case
@@ -76,21 +77,24 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 
 	return &StorageFactoryConfig{
 		Serializer:                legacyscheme.Codecs,
-		DefaultResourceEncoding:   serverstorage.NewDefaultResourceEncodingConfig(legacyscheme.Scheme),
+		DefaultResourceEncoding:   serverstorage.NewDefaultResourceEncodingConfig(legacyscheme.Scheme), // 这个属性目前是空的
 		ResourceEncodingOverrides: resources,
 	}
 }
 
 // StorageFactoryConfig is a configuration for creating storage factory.
 type StorageFactoryConfig struct {
-	// 后端存储配置
+	// TODO 如何理解后端存储配置？
 	StorageConfig storagebackend.Config
 	// API资源配置 用于设置启用哪些资源，禁用哪些资源
-	APIResourceConfig       *serverstorage.ResourceConfig
+	APIResourceConfig *serverstorage.ResourceConfig
+	// TODO 如何理解这个属性
 	DefaultResourceEncoding *serverstorage.DefaultResourceEncodingConfig
 	// 默认存储媒体类型为：application/vnd.kubernetes.protobuf
-	DefaultStorageMediaType   string
-	Serializer                runtime.StorageSerializer
+	DefaultStorageMediaType string
+	// 序列化器，用于对象的序列化与反序列化
+	Serializer runtime.StorageSerializer
+	// TODO 如何理解这个属性？
 	ResourceEncodingOverrides []schema.GroupVersionResource
 	// TODO 如何理解这个参数
 	EtcdServersOverrides []string
@@ -120,7 +124,9 @@ type completedStorageFactoryConfig struct {
 
 // New returns a new storage factory created from the completed storage factory configuration.
 func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFactory, error) {
+	// TODO 利用ResourceEncodingOverrides初始化DefaultResourceEncoding
 	resourceEncodingConfig := resourceconfig.MergeResourceEncodingConfigs(c.DefaultResourceEncoding, c.ResourceEncodingOverrides)
+	// 实例化StorageFactory
 	storageFactory := serverstorage.NewDefaultStorageFactory(
 		c.StorageConfig,
 		c.DefaultStorageMediaType,

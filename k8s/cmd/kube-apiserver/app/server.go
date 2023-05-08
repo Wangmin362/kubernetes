@@ -506,6 +506,7 @@ func buildGenericConfig(
 	if genericConfig.EgressSelector != nil {
 		storageFactory.StorageConfig.Transport.EgressLookup = genericConfig.EgressSelector.Lookup
 	}
+	// 如果启用了ServerTracing特性，就是初始化TracerProvider属性
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		storageFactory.StorageConfig.Transport.TracerProvider = genericConfig.TracerProvider
 	} else {

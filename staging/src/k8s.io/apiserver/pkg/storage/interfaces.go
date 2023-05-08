@@ -35,6 +35,7 @@ import (
 // a no-op. A resourceVersion of type uint64 is a 'raw' resourceVersion,
 // intended to be sent directly to or from the backend. A resourceVersion of
 // type string is a 'safe' resourceVersion, intended for consumption by users.
+// TODO 如何理解这个接口的设计?
 type Versioner interface {
 	// UpdateObject sets storage metadata into an API object. Returns an error if the object
 	// cannot be updated correctly. May return nil if the requested object does not need metadata
@@ -163,13 +164,20 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 // TODO 同时，通过K8S Interface接口的定义，可以推测出K8S的资源对象的存储都是以KV的方式存储的
 // TODO 显然,相对于结构化的数据库，KV数据库对于关系型数据的查询就不是那么又好了，不过K8S的资源
 // TODO 之间的基本没有啥联系
+// 1、storage.Interface 接口是对于K8S后端存储的抽象设计。这个接口规定了K8S资源可以进行的所有操作。任何实现这个接口的存储系统，都可以
+// 作为K8S的后端存储
 type Interface interface {
-	// Returns Versioner associated with this interface.
+	// Versioner Returns Versioner associated with this interface.
+	// TODO 如何理解这个方法的设计？
 	Versioner() Versioner
 
 	// Create adds a new object at a key unless it already exists. 'ttl' is time-to-live
 	// in seconds (0 means forever). If no error is returned and out is not nil, out will be
 	// set to the read value from database.
+	// 把K8S资源存储到存储系统当中，key为存储路径，obj为需要存储的数据。当obj存如到存储系统中时，K8S会修改obj的一些元
+	// 数据，譬如创建时间、版本号等等，out对象是返回给调用者使用的。 ttl（time to live）为当前对象的存活时间，当前的K8S资源可能需要短暂
+	// 存在一段时间，一段时间过后需要自动删除，此时就需要TTL参数；而当把ttl设置为0时，表示当前对象需要一直存在。
+	// 当然，如果存储系统之已经存在了key, Create方法就会报错
 	Create(ctx context.Context, key string, obj, out runtime.Object, ttl uint64) error
 
 	// Delete removes the specified key and returns the value that existed at that spot.
@@ -177,7 +185,11 @@ type Interface interface {
 	// If 'cachedExistingObject' is non-nil, it can be used as a suggestion about the
 	// current version of the object to avoid read operation from storage to get it.
 	// However, the implementations have to retry in case suggestion is stale.
-	// TODO out为被删除的对象
+	// TODO 根据key删除存储系统中的资源
+	// out
+	// preconditions
+	// validateDeletion
+	// cachedExistingObject
 	Delete(
 		ctx context.Context, key string, out runtime.Object, preconditions *Preconditions,
 		validateDeletion ValidateObjectFunc, cachedExistingObject runtime.Object) error

@@ -25,6 +25,7 @@ import (
 )
 
 // DestroyFunc is to destroy any resources used by the storage returned in Create() together.
+// TODO 如何理解这个方法设计？
 type DestroyFunc func()
 
 // Create creates a storage backend based on given config.

@@ -94,6 +94,7 @@ type GenericStore interface {
 // TODO: make the default exposed methods exactly match a generic RESTStorage
 // 这个类对象是对于staging/src/k8s.io/apiserver/pkg/registry/rest/rest.go StandardStorage的标准实现
 // 每个资源对象都会使用这个类去封装自己
+// TODO 如何理解这个类的设计？
 type Store struct {
 	// NewFunc returns a new instance of the type this registry returns for a
 	// GET of a single object, e.g.:

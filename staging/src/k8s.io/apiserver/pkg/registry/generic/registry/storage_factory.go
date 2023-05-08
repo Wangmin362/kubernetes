@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// Creates a cacher based given storageConfig.
+// StorageWithCacher Creates a cacher based given storageConfig.
 // TODO 缓存一定是为了能够加速查询逻辑
 func StorageWithCacher() generic.StorageDecorator {
 	return func(

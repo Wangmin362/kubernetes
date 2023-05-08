@@ -27,12 +27,17 @@ import (
 )
 
 // RESTOptions is set of resource-specific configuration options to generic registries.
-// TODO 特定资源配置
+// TODO 特定资源的存储配置
+// 1、StorageConfig：K8S资源的存储后端配置，即当K8S需要存储一个资源的时候，这个资源到底该怎么存储？前缀是啥？如何序列化？这个资源的存储后端是谁？
+// 2、Decorator：
+// 3、EnableGarbageCollection
+// 4、DeleteCollectionWorkers
+// 5、ResourcePrefix
+// 6、CountMetricPollPeriod
+// 7、StorageObjectCountTracker
 type RESTOptions struct {
-	// TODO 后端存储的配置
 	StorageConfig *storagebackend.ConfigForResource
-	// 后端存储配置，针对于某个资源
-	Decorator StorageDecorator
+	Decorator     StorageDecorator
 
 	EnableGarbageCollection   bool
 	DeleteCollectionWorkers   int
@@ -41,18 +46,23 @@ type RESTOptions struct {
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
 
-// Implement RESTOptionsGetter so that RESTOptions can directly be used when available (i.e. tests)
+// GetRESTOptions Implement RESTOptionsGetter so that RESTOptions can directly be used when available (i.e. tests)
 func (opts RESTOptions) GetRESTOptions(schema.GroupResource) (RESTOptions, error) {
 	return opts, nil
 }
 
 // RESTOptionsGetter TODO 这个接口是对于K8S资源RESTFul接口参数的抽象，主要是为了获取resource资源对象的存储方式
+// 获取资源的
 type RESTOptionsGetter interface {
 	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
 }
 
 // StoreOptions is set of configuration options used to complete generic registries.
 // TODO 存储配置
+// 1、RESTOptions
+// 2、TriggerFunc
+// 3、AttrFunc
+// 4、Indexers
 type StoreOptions struct {
 	RESTOptions RESTOptionsGetter
 	TriggerFunc storage.IndexerFuncs

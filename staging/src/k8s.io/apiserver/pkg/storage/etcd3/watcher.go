@@ -68,6 +68,7 @@ func TestOnlySetFatalOnDecodeError(b bool) {
 	fatalOnDecodeError = b
 }
 
+// TODO 如何理解这个类的抽象
 type watcher struct {
 	client      *clientv3.Client
 	codec       runtime.Codec
@@ -119,7 +120,9 @@ func (w *watcher) Watch(ctx context.Context, key string, rev int64, recursive, p
 	if recursive && !strings.HasSuffix(key, "/") {
 		key += "/"
 	}
+	// 创建WatchChan
 	wc := w.createWatchChan(ctx, key, rev, recursive, progressNotify, pred)
+	// 启动WatchChan
 	go wc.run()
 
 	// For etcd watch we don't have an easy way to answer whether the watch

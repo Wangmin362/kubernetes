@@ -26,15 +26,26 @@ import (
 
 // StorageDecorator is a function signature for producing a storage.Interface
 // and an associated DestroyFunc from given parameters.
-type StorageDecorator func( // TODO 为啥叫做存储装饰
-	config *storagebackend.ConfigForResource, // 后端存储配置(针对所有资源)
-	resourcePrefix string, // 资源的前缀配置（针对某个资源）
-	keyFunc func(obj runtime.Object) (string, error), // 用于生成当前资源对象的key,一般都是 namespace/name (针对某个资源)
-	newFunc func() runtime.Object, // 生成资源对象
-	newListFunc func() runtime.Object, // 生成资源对象列表
-	getAttrsFunc storage.AttrFunc, // TODO 暂时看不出来是干嘛用的
-	trigger storage.IndexerFuncs, // TODO 暂时看不出来是干嘛的
-	indexers *cache.Indexers, // 缓存
+// TODO 如何理解这个方法的设计？ 如何理解这个方法的命名？
+// 1、config：K8S资源的存储后端配置，即当K8S需要存储一个资源的时候，这个资源到底该怎么存储？前缀是啥？如何序列化？这个资源的存储后端是谁？
+// 2、resourcePrefix：当前资源的存储前缀是啥
+// 3、keyFunc：用于生成当前资源对象的key,一般都是 namespace/name
+// 4、newFunc：用于实例化当前资源
+// 5、newListFunc：用于实例化当前资源列表
+// 6、getAttrsFunc：TODO
+// 7、trigger：TODO
+// 8、indexer：TODO
+// 9、storage.Interface：当前资源是如何存储的，可以理解为标准存储
+// 10、factory.DestroyFunc
+type StorageDecorator func(
+	config *storagebackend.ConfigForResource,
+	resourcePrefix string,
+	keyFunc func(obj runtime.Object) (string, error),
+	newFunc func() runtime.Object,
+	newListFunc func() runtime.Object,
+	getAttrsFunc storage.AttrFunc,
+	trigger storage.IndexerFuncs,
+	indexers *cache.Indexers,
 ) (storage.Interface, factory.DestroyFunc, error)
 
 // UndecoratedStorage returns the given a new storage from the given config

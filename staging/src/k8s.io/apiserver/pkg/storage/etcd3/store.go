@@ -70,10 +70,21 @@ func (d authenticatedDataString) AuthenticatedData() []byte {
 
 var _ value.Context = authenticatedDataString("")
 
-// TODO k8s资源存储接口的实现，该存储类实现了 StandardStorage 接口
+// TODO k8s资源存储接口的实现，该存储类实现了 storage.Interface 接口
+// 1、client：K8S资源存储的目的就是为了持久化，而K8S默认就是存储在ETCD当中的，因此需要ETCD的客户端
+// 2、codec：K8S资源存储时，数据时保存在内存中的，因此需要将K8S的数据进行序列化与反序列化
+// 3、versioner TODO
+// 4、transformer：K8S资源对象序列化之后可以通过Transformer转换，转换之后的数据再存储到ETCD当中
+// 5、pathPrefix：当前资源的存储路径前缀
+// 6、groupResource：当前要存储的是哪个资源
+// 7、groupResourceString：这个值应该等于groupResource.String()
+// 8、wacher：监听当前的资源对象
+// 9、pagingEnabled：是否开启分页
+// 9、leaseManager：租户管理器 TODO 为什么每个资源都需要一个租约管理器？
+// 10、
 type store struct {
-	client              *clientv3.Client // ETCD的客户端
-	codec               runtime.Codec    // value的编解码器
+	client              *clientv3.Client
+	codec               runtime.Codec
 	versioner           storage.Versioner
 	transformer         value.Transformer
 	pathPrefix          string

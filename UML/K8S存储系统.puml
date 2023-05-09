@@ -2,197 +2,197 @@
 set namespaceSeparator ::
 
 package k8s.io::apiserver::pkg::registry::rest {
-interface Getter {
-    +Get()
-}
+    interface Getter {
+        +Get()
+    }
 
-interface TableConvertor {
-	+ConvertToTable()
-}
+    interface TableConvertor {
+        +ConvertToTable()
+    }
 
-interface Lister {
-    +TableConvertor
-    +NewList()
-    +List(}
-}
-TableConvertor <-[#blue,bold]- Lister
+    interface Lister {
+        +TableConvertor
+        +NewList()
+        +List(}
+    }
+    TableConvertor <-[#blue,bold]- Lister
 
-interface Creater {
-	+New() runtime.Object
-	+Create()
-}
+    interface Creater {
+        +New() runtime.Object
+        +Create()
+    }
 
-interface CreaterUpdater {
-	+Creater
-	+Update()
-}
-Creater <-[#blue,bold]- CreaterUpdater
+    interface CreaterUpdater {
+        +Creater
+        +Update()
+    }
+    Creater <-[#blue,bold]- CreaterUpdater
 
-interface GracefulDeleter {
-    +Delete()
-}
+    interface GracefulDeleter {
+        +Delete()
+    }
 
-interface CollectionDeleter {
-    +DeleteCollection()
-}
+    interface CollectionDeleter {
+        +DeleteCollection()
+    }
 
 
-interface Updater {
-	+New() runtime.Object
-	+Update()
-}
+    interface Updater {
+        +New() runtime.Object
+        +Update()
+    }
 
-interface Patcher {
-    +Getter
-    +Updater
-}
-Updater <-[#blue,bold]- Patcher
-Getter <-[#blue,bold]- Patcher
+    interface Patcher {
+        +Getter
+        +Updater
+    }
+    Updater <-[#blue,bold]- Patcher
+    Getter <-[#blue,bold]- Patcher
 
-interface Watcher {
-    +Watch()
-}
+    interface Watcher {
+        +Watch()
+    }
 
-interface StandardStorage{
-	+Getter
-	+Lister
-	+CreaterUpdater
-	+GracefulDeleter
-	+CollectionDeleter
-	+Watcher
-	+Destroy()
-}
-Getter <-[#blue,bold]- StandardStorage
-Lister <-[#blue,bold]- StandardStorage
-CreaterUpdater <-[#blue,bold]- StandardStorage
-GracefulDeleter <-[#blue,bold]- StandardStorage
-CollectionDeleter <-[#blue,bold]- StandardStorage
-Watcher <-[#blue,bold]- StandardStorage
+    interface StandardStorage{
+        +Getter
+        +Lister
+        +CreaterUpdater
+        +GracefulDeleter
+        +CollectionDeleter
+        +Watcher
+        +Destroy()
+    }
+    Getter <-[#blue,bold]- StandardStorage
+    Lister <-[#blue,bold]- StandardStorage
+    CreaterUpdater <-[#blue,bold]- StandardStorage
+    GracefulDeleter <-[#blue,bold]- StandardStorage
+    CollectionDeleter <-[#blue,bold]- StandardStorage
+    Watcher <-[#blue,bold]- StandardStorage
 }
 
 package k8s.io::apiserver::pkg::storage {
-interface Versioner {
-    +UpdateObject()
-    +UpdateList()
-    +PrepareObjectForStorage()
-    +ObjectResourceVersion()
-    +ParseResourceVersion()
-}
+    interface Versioner {
+        +UpdateObject()
+        +UpdateList()
+        +PrepareObjectForStorage()
+        +ObjectResourceVersion()
+        +ParseResourceVersion()
+    }
 
-interface Interface {
-    +Versioner():Versioner
-    +Create()
-    +Delete()
-    +Watch()
-    +Get()
-    +GetList()
-    +GuaranteedUpdate()
-    +Count()
-}
-Versioner <-[#red,bold]- Interface
+    interface Interface {
+        +Versioner():Versioner
+        +Create()
+        +Delete()
+        +Watch()
+        +Get()
+        +GetList()
+        +GuaranteedUpdate()
+        +Count()
+    }
+    Versioner <-[#red,bold]- Interface
 
-class etcd::store {
-	client: *clientv3.Client
-	codec: runtime.Codec
-	versioner: storage.Versioner
-	transformer: value.Transformer
-	pathPrefix: string
-	groupResource: schema.GroupResource
-	groupResourceString: string
-	watcher: *watcher
-	pagingEnabled: bool
-	leaseManager: *leaseManager
-}
+    class etcd::store {
+        client: *clientv3.Client
+        codec: runtime.Codec
+        versioner: storage.Versioner
+        transformer: value.Transformer
+        pathPrefix: string
+        groupResource: schema.GroupResource
+        groupResourceString: string
+        watcher: *watcher
+        pagingEnabled: bool
+        leaseManager: *leaseManager
+    }
 
-Interface <-[#red,bold]- store
+    Interface <-[#red,bold]- store
 }
 
 package k8s.io::apiserver::pkg::registry::generic::registry {
-class Store {
-NewFunc func() runtime.Object
-	NewListFunc: func() runtime.Object
-	DefaultQualifiedResource: schema.GroupResource
-	KeyRootFunc:func(ctx) string
-	KeyFunc:func(ctx, name string) (string, error)
-	ObjectNameFunc: func(obj runtime.Object) (string, error)
-	TTLFunc: func(obj runtime.Object, existing uint64, update bool) (uint64, error)
-	PredicateFunc: func(label,field Selector) storage.SelectionPredicate
-	EnableGarbageCollection: bool
-	DeleteCollectionWorkers: int
-	Decorator: func(runtime.Object)
-	CreateStrategy: rest.RESTCreateStrategy
-	BeginCreate: BeginCreateFunc
-	AfterCreate: AfterCreateFunc
-	UpdateStrategy: rest.RESTUpdateStrategy
-	BeginUpdate: BeginUpdateFunc
-	AfterUpdate: AfterUpdateFunc
-	DeleteStrategy: rest.RESTDeleteStrategy
-	AfterDelete: AfterDeleteFunc
-	ReturnDeletedObject: bool
-	ShouldDeleteDuringUpdate: func(ctx, key string, obj, existing Object) bool
-	TableConvertor: rest.TableConvertor
-	ResetFieldsStrategy: rest.ResetFieldsStrategy
-	Storage: DryRunnableStorage
-	StorageVersioner: runtime.GroupVersioner
-	DestroyFunc: func()
-}
-StandardStorage <-[#blue,bold]- Store
+    class Store {
+    NewFunc func() runtime.Object
+        NewListFunc: func() runtime.Object
+        DefaultQualifiedResource: schema.GroupResource
+        KeyRootFunc:func(ctx) string
+        KeyFunc:func(ctx, name string) (string, error)
+        ObjectNameFunc: func(obj runtime.Object) (string, error)
+        TTLFunc: func(obj runtime.Object, existing uint64, update bool) (uint64, error)
+        PredicateFunc: func(label,field Selector) storage.SelectionPredicate
+        EnableGarbageCollection: bool
+        DeleteCollectionWorkers: int
+        Decorator: func(runtime.Object)
+        CreateStrategy: rest.RESTCreateStrategy
+        BeginCreate: BeginCreateFunc
+        AfterCreate: AfterCreateFunc
+        UpdateStrategy: rest.RESTUpdateStrategy
+        BeginUpdate: BeginUpdateFunc
+        AfterUpdate: AfterUpdateFunc
+        DeleteStrategy: rest.RESTDeleteStrategy
+        AfterDelete: AfterDeleteFunc
+        ReturnDeletedObject: bool
+        ShouldDeleteDuringUpdate: func(ctx, key string, obj, existing Object) bool
+        TableConvertor: rest.TableConvertor
+        ResetFieldsStrategy: rest.ResetFieldsStrategy
+        Storage: DryRunnableStorage
+        StorageVersioner: runtime.GroupVersioner
+        DestroyFunc: func()
+    }
+    StandardStorage <-[#blue,bold]- Store
 }
 
 package k8s.io::apiserver::pkg::storage::storagebackend{
-interface Config {
-	Type: string // 默认是ETCD3
-	Prefix: string // 存储前缀
-	Transport TransportConfig
-	Paging bool // 分页
-	Codec runtime.Codec // 编解码器
-	EncodeVersioner runtime.GroupVersioner
-	Transformer value.Transformer // 转换器
-	CompactionInterval time.Duration
-	CountMetricPollPeriod time.Duration
-	DBMetricPollInterval time.Duration
-	HealthcheckTimeout time.Duration
-	ReadycheckTimeout time.Duration
-	LeaseManagerConfig etcd3.LeaseManagerConfig
-	StorageObjectCountTracker StorageObjectCountTracker
-}
+    interface Config {
+        Type: string // 默认是ETCD3
+        Prefix: string // 存储前缀
+        Transport TransportConfig
+        Paging bool // 分页
+        Codec runtime.Codec // 编解码器
+        EncodeVersioner runtime.GroupVersioner
+        Transformer value.Transformer // 转换器
+        CompactionInterval time.Duration
+        CountMetricPollPeriod time.Duration
+        DBMetricPollInterval time.Duration
+        HealthcheckTimeout time.Duration
+        ReadycheckTimeout time.Duration
+        LeaseManagerConfig etcd3.LeaseManagerConfig
+        StorageObjectCountTracker StorageObjectCountTracker
+    }
 
-interface ConfigForResource{
-	Config
-	GroupResource schema.GroupResource
-}
-Config <-[#red,bold]- ConfigForResource
+    interface ConfigForResource{
+        Config
+        GroupResource schema.GroupResource
+    }
+    Config <-[#red,bold]- ConfigForResource
 }
 
 package k8s.io::apiserver::pkg::registry::generic{
-interface StorageDecorator {
-    func(config *storagebackend.ConfigForResource,resourcePrefix string,
-	keyFunc func(obj runtime.Object) (string, error),
-	newFunc func() runtime.Object,
-	newListFunc func() runtime.Object,
-	getAttrsFunc storage.AttrFunc,
-	trigger storage.IndexerFuncs,
-	indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error)
-}
-Interface <-[#red,bold]- StorageDecorator
+    interface StorageDecorator {
+        func(config *storagebackend.ConfigForResource,resourcePrefix string,
+        keyFunc func(obj runtime.Object) (string, error),
+        newFunc func() runtime.Object,
+        newListFunc func() runtime.Object,
+        getAttrsFunc storage.AttrFunc,
+        trigger storage.IndexerFuncs,
+        indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error)
+    }
+    Interface <-[#red,bold]- StorageDecorator
 
-class RESTOptions {
-	StorageConfig: *storagebackend.ConfigForResource
-	Decorator:     StorageDecorator
+    class RESTOptions {
+        StorageConfig: *storagebackend.ConfigForResource
+        Decorator:     StorageDecorator
 
-	EnableGarbageCollection:   bool
-	DeleteCollectionWorkers:   int
-	ResourcePrefix:            string
-	CountMetricPollPeriod:     time.Duration
-	StorageObjectCountTracker: flowcontrolrequest.StorageObjectCountTracker
-}
-StorageDecorator <-[#red,bold]- RESTOptions
-ConfigForResource <-[#red,bold]- RESTOptions
+        EnableGarbageCollection:   bool
+        DeleteCollectionWorkers:   int
+        ResourcePrefix:            string
+        CountMetricPollPeriod:     time.Duration
+        StorageObjectCountTracker: flowcontrolrequest.StorageObjectCountTracker
+    }
+    StorageDecorator <-[#red,bold]- RESTOptions
+    ConfigForResource <-[#red,bold]- RESTOptions
 
-interface RESTOptionsGetter {
-	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
-}
-RESTOptions <-[#red,bold]- RESTOptionsGetter
+    interface RESTOptionsGetter {
+        GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
+    }
+    RESTOptions <-[#red,bold]- RESTOptionsGetter
 }
 
 package k8s.io::apiserver::pkg::server::options {

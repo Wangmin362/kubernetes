@@ -195,13 +195,5 @@ class REST {
 Store <-- REST
 'RESTOptionsGetter <-- REST
 }
-
-package pkg::registry::apps::daemonset::storage {
-class REST {
-	*genericregistry.Store
-	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
-}
-Store <-- REST
-'RESTOptionsGetter <-- REST
 }
 @enduml

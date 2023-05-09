@@ -15,7 +15,7 @@ interface Lister {
     +NewList()
     +List(}
 }
-TableConvertor <-- Lister
+TableConvertor <-[#blue,bold]- Lister
 
 interface Creater {
 	+New() runtime.Object
@@ -26,7 +26,7 @@ interface CreaterUpdater {
 	+Creater
 	+Update()
 }
-Creater <-- CreaterUpdater
+Creater <-[#blue,bold]- CreaterUpdater
 
 interface GracefulDeleter {
     +Delete()
@@ -46,8 +46,8 @@ interface Patcher {
     +Getter
     +Updater
 }
-Updater <-- Patcher
-Getter <-- Patcher
+Updater <-[#blue,bold]- Patcher
+Getter <-[#blue,bold]- Patcher
 
 interface Watcher {
     +Watch()
@@ -62,12 +62,12 @@ interface StandardStorage{
 	+Watcher
 	+Destroy()
 }
-Getter <-- StandardStorage
-Lister <-- StandardStorage
-CreaterUpdater <-- StandardStorage
-GracefulDeleter <-- StandardStorage
-CollectionDeleter <-- StandardStorage
-Watcher <-- StandardStorage
+Getter <-[#blue,bold]- StandardStorage
+Lister <-[#blue,bold]- StandardStorage
+CreaterUpdater <-[#blue,bold]- StandardStorage
+GracefulDeleter <-[#blue,bold]- StandardStorage
+CollectionDeleter <-[#blue,bold]- StandardStorage
+Watcher <-[#blue,bold]- StandardStorage
 }
 
 package k8s.io::apiserver::pkg::storage {
@@ -89,7 +89,7 @@ interface Interface {
     +GuaranteedUpdate()
     +Count()
 }
-Versioner <-- Interface
+Versioner <-[#red,bold]- Interface
 
 class etcd::store {
 	client: *clientv3.Client
@@ -104,7 +104,7 @@ class etcd::store {
 	leaseManager: *leaseManager
 }
 
-Interface <-- store
+Interface <-[#red,bold]- store
 }
 
 package k8s.io::apiserver::pkg::registry::generic::registry {
@@ -136,7 +136,32 @@ NewFunc func() runtime.Object
 	StorageVersioner: runtime.GroupVersioner
 	DestroyFunc: func()
 }
-StandardStorage <-- Store
+StandardStorage <-[#blue,bold]- Store
+}
+
+package k8s.io::apiserver::pkg::storage::storagebackend{
+interface Config {
+	Type: string // 默认是ETCD3
+	Prefix: string // 存储前缀
+	Transport TransportConfig
+	Paging bool // 分页
+	Codec runtime.Codec // 编解码器
+	EncodeVersioner runtime.GroupVersioner
+	Transformer value.Transformer // 转换器
+	CompactionInterval time.Duration
+	CountMetricPollPeriod time.Duration
+	DBMetricPollInterval time.Duration
+	HealthcheckTimeout time.Duration
+	ReadycheckTimeout time.Duration
+	LeaseManagerConfig etcd3.LeaseManagerConfig
+	StorageObjectCountTracker StorageObjectCountTracker
+}
+
+interface ConfigForResource{
+	Config
+	GroupResource schema.GroupResource
+}
+Config <-[#red,bold]- ConfigForResource
 }
 
 package k8s.io::apiserver::pkg::registry::generic{
@@ -149,7 +174,7 @@ interface StorageDecorator {
 	trigger storage.IndexerFuncs,
 	indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error)
 }
-Interface <-- StorageDecorator
+Interface <-[#red,bold]- StorageDecorator
 
 class RESTOptions {
 	StorageConfig: *storagebackend.ConfigForResource
@@ -161,12 +186,13 @@ class RESTOptions {
 	CountMetricPollPeriod:     time.Duration
 	StorageObjectCountTracker: flowcontrolrequest.StorageObjectCountTracker
 }
-StorageDecorator <-- RESTOptions
+StorageDecorator <-[#red,bold]- RESTOptions
+ConfigForResource <-[#red,bold]- RESTOptions
 
 interface RESTOptionsGetter {
 	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
 }
-RESTOptions <-- RESTOptionsGetter
+RESTOptions <-[#red,bold]- RESTOptionsGetter
 }
 
 package k8s.io::apiserver::pkg::server::options {
@@ -174,26 +200,25 @@ class StorageFactoryRestOptionsFactory {
 	Options        EtcdOptions
 	StorageFactory serverstorage.StorageFactory
 }
-RESTOptionsGetter <-- StorageFactoryRestOptionsFactory
+RESTOptionsGetter <-[#red,bold]- StorageFactoryRestOptionsFactory
 }
 
 
-package pkg::registry::batch::cronjob::storage {
-class REST {
-	*genericregistry.Store
-	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
-}
-Store <-- REST
-'RESTOptionsGetter <-- REST
-}
+package pkg.registry {
+    package batch.cronjob.storage {
+        class REST {
+            *genericregistry.Store
+            {static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+        }
+        Store <-[#blue,bold]- REST
+    }
 
-package pkg::registry::apps::deployment::storage {
-class REST {
-	*genericregistry.Store
-	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
-}
-Store <-- REST
-'RESTOptionsGetter <-- REST
-}
+    package apps.deployment.storage {
+        class REST {
+            *genericregistry.Store
+            {static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+        }
+        Store <-[#blue,bold]- REST
+    }
 }
 @enduml

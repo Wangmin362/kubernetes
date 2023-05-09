@@ -219,7 +219,9 @@ type Config struct {
 	SkipOpenAPIInstallation bool
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
-	//
+	// 通过RESTOptionsGetter可以获取到每个资源的后端存储，主要包含两个方面：
+	// 1、后端存储的存储配置，具体来说包含：如何序列化、反序列化、存储前缀、使用哪种类型的后端存储、转化器、租约管理器
+	// 2、后端存储，简单来说就是ETCD
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// If specified, all requests except those which match the LongRunningFunc predicate will timeout

@@ -191,6 +191,7 @@ func newETCD3Check(c storagebackend.Config, timeout time.Duration, stopCh <-chan
 	}, nil
 }
 
+// 生成ETCD客户端
 var newETCD3Client = func(c storagebackend.TransportConfig) (*clientv3.Client, error) {
 	tlsInfo := transport.TLSInfo{
 		CertFile:      c.CertFile,

@@ -91,6 +91,7 @@ type DefaultStorageFactory struct {
 	DefaultResourcePrefixes map[schema.GroupResource]string
 
 	// DefaultMediaType is the media type used to store resources. If it is not set, "application/json" is used.
+	// TODO 默认的媒体类型，这玩意有啥用？
 	DefaultMediaType string
 
 	// DefaultSerializer is used to create encoders and decoders for the storage.Interface.
@@ -312,6 +313,7 @@ func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*
 
 // Backends returns all backends for all registered storage destinations.
 // Used for getting all instances for health validations.
+// TODO 这个函数是如何工作的？
 func (s *DefaultStorageFactory) Backends() []Backend {
 	servers := sets.NewString(s.StorageConfig.Transport.ServerList...)
 

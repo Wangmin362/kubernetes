@@ -304,7 +304,7 @@ type StorageFactoryRestOptionsFactory struct {
 }
 
 func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
-	// 构建当前资源的存储后端
+	// 通过StorageFactory获取当前资源的存储后端存储配置
 	storageConfig, err := f.StorageFactory.NewConfig(resource)
 	if err != nil {
 		return generic.RESTOptions{}, fmt.Errorf("unable to find storage destination for %v, due to %v", resource, err.Error())

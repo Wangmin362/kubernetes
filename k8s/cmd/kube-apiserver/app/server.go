@@ -302,7 +302,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
 	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	// 5、admissionPostStartHook TODO 看起来是一个Hook点，似乎是准入控制插件运行之后需要执行的代码
-	// 6、storageFactory TODO k8s的资源存储在哪里，怎么存储，就是由这个参数决定的
+	// 6、storageFactory 用于返回K8S某个资源的存储配置，譬如序列化、反序列化、存储路径前缀、转化器、租约管理器等等
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
 		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
@@ -488,7 +488,7 @@ func buildGenericConfig(
 	kubeVersion := version.Get()
 	genericConfig.Version = &kubeVersion
 
-	// TODO 构建K8S的后端存储
+	// TODO 实例化RestOptionsGetter (实际上可以等价为ETCD后端存储)
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	// 设置K8S启用、禁用哪些资源
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
@@ -512,7 +512,7 @@ func buildGenericConfig(
 	} else {
 		storageFactory.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
-	// TODO 主要是为了初始化GenericServerConfig.RESTOptionsGetter 初始化APIServer的后端存储
+	// TODO 主要是为了初始化GenericServerConfig.RESTOptionsGetter
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}

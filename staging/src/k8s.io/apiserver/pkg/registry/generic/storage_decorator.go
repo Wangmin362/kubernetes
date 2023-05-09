@@ -60,6 +60,7 @@ func UndecoratedStorage(
 	getAttrsFunc storage.AttrFunc,
 	trigger storage.IndexerFuncs,
 	indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error) {
+	// 可以看到，这里目前只有两个参数有作用
 	return NewRawStorage(config, newFunc)
 }
 

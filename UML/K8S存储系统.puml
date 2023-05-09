@@ -1,0 +1,207 @@
+@startuml
+set namespaceSeparator ::
+
+package k8s.io::apiserver::pkg::registry::rest {
+interface Getter {
+    +Get()
+}
+
+interface TableConvertor {
+	+ConvertToTable()
+}
+
+interface Lister {
+    +TableConvertor
+    +NewList()
+    +List(}
+}
+TableConvertor <-- Lister
+
+interface Creater {
+	+New() runtime.Object
+	+Create()
+}
+
+interface CreaterUpdater {
+	+Creater
+	+Update()
+}
+Creater <-- CreaterUpdater
+
+interface GracefulDeleter {
+    +Delete()
+}
+
+interface CollectionDeleter {
+    +DeleteCollection()
+}
+
+
+interface Updater {
+	+New() runtime.Object
+	+Update()
+}
+
+interface Patcher {
+    +Getter
+    +Updater
+}
+Updater <-- Patcher
+Getter <-- Patcher
+
+interface Watcher {
+    +Watch()
+}
+
+interface StandardStorage{
+	+Getter
+	+Lister
+	+CreaterUpdater
+	+GracefulDeleter
+	+CollectionDeleter
+	+Watcher
+	+Destroy()
+}
+Getter <-- StandardStorage
+Lister <-- StandardStorage
+CreaterUpdater <-- StandardStorage
+GracefulDeleter <-- StandardStorage
+CollectionDeleter <-- StandardStorage
+Watcher <-- StandardStorage
+}
+
+package k8s.io::apiserver::pkg::storage {
+interface Versioner {
+    +UpdateObject()
+    +UpdateList()
+    +PrepareObjectForStorage()
+    +ObjectResourceVersion()
+    +ParseResourceVersion()
+}
+
+interface Interface {
+    +Versioner():Versioner
+    +Create()
+    +Delete()
+    +Watch()
+    +Get()
+    +GetList()
+    +GuaranteedUpdate()
+    +Count()
+}
+Versioner <-- Interface
+
+class etcd::store {
+	client: *clientv3.Client
+	codec: runtime.Codec
+	versioner: storage.Versioner
+	transformer: value.Transformer
+	pathPrefix: string
+	groupResource: schema.GroupResource
+	groupResourceString: string
+	watcher: *watcher
+	pagingEnabled: bool
+	leaseManager: *leaseManager
+}
+
+Interface <-- store
+}
+
+package k8s.io::apiserver::pkg::registry::generic::registry {
+class Store {
+NewFunc func() runtime.Object
+	NewListFunc: func() runtime.Object
+	DefaultQualifiedResource: schema.GroupResource
+	KeyRootFunc:func(ctx) string
+	KeyFunc:func(ctx, name string) (string, error)
+	ObjectNameFunc: func(obj runtime.Object) (string, error)
+	TTLFunc: func(obj runtime.Object, existing uint64, update bool) (uint64, error)
+	PredicateFunc: func(label,field Selector) storage.SelectionPredicate
+	EnableGarbageCollection: bool
+	DeleteCollectionWorkers: int
+	Decorator: func(runtime.Object)
+	CreateStrategy: rest.RESTCreateStrategy
+	BeginCreate: BeginCreateFunc
+	AfterCreate: AfterCreateFunc
+	UpdateStrategy: rest.RESTUpdateStrategy
+	BeginUpdate: BeginUpdateFunc
+	AfterUpdate: AfterUpdateFunc
+	DeleteStrategy: rest.RESTDeleteStrategy
+	AfterDelete: AfterDeleteFunc
+	ReturnDeletedObject: bool
+	ShouldDeleteDuringUpdate: func(ctx, key string, obj, existing Object) bool
+	TableConvertor: rest.TableConvertor
+	ResetFieldsStrategy: rest.ResetFieldsStrategy
+	Storage: DryRunnableStorage
+	StorageVersioner: runtime.GroupVersioner
+	DestroyFunc: func()
+}
+StandardStorage <-- Store
+}
+
+package k8s.io::apiserver::pkg::registry::generic{
+interface StorageDecorator {
+    func(config *storagebackend.ConfigForResource,resourcePrefix string,
+	keyFunc func(obj runtime.Object) (string, error),
+	newFunc func() runtime.Object,
+	newListFunc func() runtime.Object,
+	getAttrsFunc storage.AttrFunc,
+	trigger storage.IndexerFuncs,
+	indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error)
+}
+Interface <-- StorageDecorator
+
+class RESTOptions {
+	StorageConfig: *storagebackend.ConfigForResource
+	Decorator:     StorageDecorator
+
+	EnableGarbageCollection:   bool
+	DeleteCollectionWorkers:   int
+	ResourcePrefix:            string
+	CountMetricPollPeriod:     time.Duration
+	StorageObjectCountTracker: flowcontrolrequest.StorageObjectCountTracker
+}
+StorageDecorator <-- RESTOptions
+
+interface RESTOptionsGetter {
+	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
+}
+RESTOptions <-- RESTOptionsGetter
+}
+
+package k8s.io::apiserver::pkg::server::options {
+class StorageFactoryRestOptionsFactory {
+	Options        EtcdOptions
+	StorageFactory serverstorage.StorageFactory
+}
+RESTOptionsGetter <-- StorageFactoryRestOptionsFactory
+}
+
+
+package pkg::registry::batch::cronjob::storage {
+class REST {
+	*genericregistry.Store
+	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+}
+Store <-- REST
+'RESTOptionsGetter <-- REST
+}
+
+package pkg::registry::apps::deployment::storage {
+class REST {
+	*genericregistry.Store
+	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+}
+Store <-- REST
+'RESTOptionsGetter <-- REST
+}
+
+package pkg::registry::apps::daemonset::storage {
+class REST {
+	*genericregistry.Store
+	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+}
+Store <-- REST
+'RESTOptionsGetter <-- REST
+}
+@enduml

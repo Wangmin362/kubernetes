@@ -1,7 +1,8 @@
 @startuml
 set namespaceSeparator ::
 
-package k8s.io::apiserver::pkg::registry::rest {
+package k8s.io.apiserver.pkg{
+package registry::rest {
     interface Getter {
         +Get()
     }
@@ -70,7 +71,7 @@ package k8s.io::apiserver::pkg::registry::rest {
     Watcher <-[#blue,bold]- StandardStorage
 }
 
-package k8s.io::apiserver::pkg::storage {
+package storage {
     interface Versioner {
         +UpdateObject()
         +UpdateList()
@@ -104,10 +105,10 @@ package k8s.io::apiserver::pkg::storage {
         leaseManager: *leaseManager
     }
 
-    Interface <-[#red,bold]- store
+    Interface <-[#red,bold]- store: 实现
 }
 
-package k8s.io::apiserver::pkg::registry::generic::registry {
+package registry::generic::registry {
     class Store {
     NewFunc func() runtime.Object
         NewListFunc: func() runtime.Object
@@ -136,11 +137,11 @@ package k8s.io::apiserver::pkg::registry::generic::registry {
         StorageVersioner: runtime.GroupVersioner
         DestroyFunc: func()
     }
-    StandardStorage <-[#blue,bold]- Store
+    StandardStorage <-[#blue,bold]- Store: 实现
 }
 
-package k8s.io::apiserver::pkg::storage::storagebackend{
-    interface Config {
+package storage::storagebackend{
+    class Config {
         Type: string // 默认是ETCD3
         Prefix: string // 存储前缀
         Transport TransportConfig
@@ -161,10 +162,10 @@ package k8s.io::apiserver::pkg::storage::storagebackend{
         Config
         GroupResource schema.GroupResource
     }
-    Config <-[#red,bold]- ConfigForResource
+    Config <-[#red,bold]- ConfigForResource: 组合
 }
 
-package k8s.io::apiserver::pkg::registry::generic{
+package registry::generic{
     interface StorageDecorator {
         func(config *storagebackend.ConfigForResource,resourcePrefix string,
         keyFunc func(obj runtime.Object) (string, error),
@@ -195,14 +196,43 @@ package k8s.io::apiserver::pkg::registry::generic{
     RESTOptions <-[#red,bold]- RESTOptionsGetter
 }
 
-package k8s.io::apiserver::pkg::server::options {
-class StorageFactoryRestOptionsFactory {
-	Options        EtcdOptions
-	StorageFactory serverstorage.StorageFactory
-}
-RESTOptionsGetter <-[#red,bold]- StorageFactoryRestOptionsFactory
-}
+package server {
+    package storage {
+        class Backend {
+            Server string
+            TLSConfig *tls.Config
+        }
 
+        interface StorageFactory {
+            NewConfig(groupResource): *storagebackend.ConfigForResource
+            ResourcePrefix(groupResource) string
+            Backends() []Backend
+        }
+        Backend <-[#red,bold]- StorageFactory: 组合
+    }
+
+
+    class EtcdOptions{
+        StorageConfig:                    storagebackend.Config
+        EncryptionProviderConfigFilepath: string
+        EtcdServersOverrides: []string
+        DefaultStorageMediaType: string
+        DeleteCollectionWorkers: int
+        EnableGarbageCollection: bool
+        EnableWatchCache: bool
+        DefaultWatchCacheSize: int
+        WatchCacheSizes: []string
+    }
+
+    class StorageFactoryRestOptionsFactory {
+        Options        EtcdOptions
+        StorageFactory serverstorage.StorageFactory
+    }
+    RESTOptionsGetter <-[#red,bold]- StorageFactoryRestOptionsFactory: 实现
+    EtcdOptions <-[#red,bold]- StorageFactoryRestOptionsFactory: 组合
+    StorageFactory <-[#red,bold]- StorageFactoryRestOptionsFactory: 组合
+}
+}
 
 package pkg.registry {
     package batch.cronjob.storage {
@@ -210,7 +240,7 @@ package pkg.registry {
             *genericregistry.Store
             {static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
         }
-        Store <-[#blue,bold]- REST
+        Store <-[#blue,bold]- REST: 组合
     }
 
     package apps.deployment.storage {
@@ -218,7 +248,7 @@ package pkg.registry {
             *genericregistry.Store
             {static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
         }
-        Store <-[#blue,bold]- REST
+        Store <-[#blue,bold]- REST: 组合
     }
 }
 @enduml

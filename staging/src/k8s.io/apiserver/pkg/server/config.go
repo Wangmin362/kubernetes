@@ -219,8 +219,7 @@ type Config struct {
 	SkipOpenAPIInstallation bool
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
-	// 实际上目前所有的资源都是公用的一个存储后端 参考实现：staging/src/k8s.io/apiserver/pkg/server/options/etcd.go
-	// TODO 这玩意相当重要，可以理解为资源的后端存储
+	//
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// If specified, all requests except those which match the LongRunningFunc predicate will timeout

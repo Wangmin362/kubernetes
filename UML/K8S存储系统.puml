@@ -181,7 +181,7 @@ RESTOptionsGetter <-- StorageFactoryRestOptionsFactory
 package pkg::registry::batch::cronjob::storage {
 class REST {
 	*genericregistry.Store
-	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
 }
 Store <-- REST
 'RESTOptionsGetter <-- REST
@@ -190,7 +190,7 @@ Store <-- REST
 package pkg::registry::apps::deployment::storage {
 class REST {
 	*genericregistry.Store
-	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
 }
 Store <-- REST
 'RESTOptionsGetter <-- REST
@@ -199,7 +199,7 @@ Store <-- REST
 package pkg::registry::apps::daemonset::storage {
 class REST {
 	*genericregistry.Store
-	NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
+	{static} NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, error)
 }
 Store <-- REST
 'RESTOptionsGetter <-- REST

@@ -197,12 +197,12 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
-	// kubeAPIServerConfig是APIServer的配置，里面包含了generic server config，以及APIServer自己的配置，也就是ExtraConfig
-	// serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
-	// pluginInitializers 准入控制插件的初始化器，用于初始化准入控制插件。其实主要是根据注入控制插件的不同类型注入一些特定的参数
+	// 1、kubeAPIServerConfig是APIServer的配置，里面包含了generic server config，以及APIServer自己的配置，也就是ExtraConfig
+	// 2、serviceResolver是通过svc的名字，所在名称空间以及端口拼接出合法的URL，譬如 apisix.gator-cloud.svc:5432
+	// 3、pluginInitializers 准入控制插件的初始化器，用于初始化准入控制插件。其实主要是根据注入控制插件的不同类型注入一些特定的参数
 	// 可以看到，准入控制插件初始化器有两个，分别是：webhookPluginInitializer、kubePluginInitializer
-	// webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
-	// kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
+	// 4、webhookPluginInitializer主要是为符合条件的准入控制插件注入webhookAuthResolverWrapper以及serviceResolver属性
+	// 5、kubePluginInitializer用于给符合条件的注入控制插件注入CloudConfig, RestMapper, QuotaConfiguration属性
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err

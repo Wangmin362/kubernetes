@@ -126,12 +126,14 @@ const (
 )
 
 // ExtraConfig defines extra configuration for the master
-// TODO apiserver 额外需要的配置
+// APIServer 额外需要的配置
 type ExtraConfig struct {
+	// K8S集群CA、RequestHeader认证参数
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 
-	// 用于判断某个资源是否启用
-	APIResourceConfigSource  serverstorage.APIResourceConfigSource
+	// 用于判断某个资源是否启用还是禁用；或者是判断某个组是否启用还是禁用
+	APIResourceConfigSource serverstorage.APIResourceConfigSource
+	// 存储工厂，后端存储为ETCD，实际上就是各个资源的增删改查Handler
 	StorageFactory           serverstorage.StorageFactory
 	EndpointReconcilerConfig EndpointReconcilerConfig
 	EventTTL                 time.Duration
@@ -144,8 +146,10 @@ type ExtraConfig struct {
 
 	// Values to build the IP addresses used by discovery
 	// The range of IPs to be assigned to services with type=ClusterIP or greater
+	// APIServer的生成ServiceIP的地址范围
 	ServiceIPRange net.IPNet
 	// The IP address for the GenericAPIServer service (must be inside ServiceIPRange)
+	// TODO 这个参数和SecondaryAPIServerServiceIP作用有何不同？
 	APIServerServiceIP net.IP
 
 	// dual stack services, the range represents an alternative IP range for service IP
@@ -161,12 +165,14 @@ type ExtraConfig struct {
 	// the API server items and `Extra*` fields likely fit nicely together.
 
 	// The range of ports to be assigned to services with type=NodePort or greater
+	// K8S Service端口范围
 	ServiceNodePortRange utilnet.PortRange
 	// If non-zero, the "kubernetes" services uses this port as NodePort.
 	KubernetesServiceNodePort int
 
 	// Number of masters running; all masters must be started with the
 	// same value for this field. (Numbers > 1 currently untested.)
+	// K8S Master节点的数量
 	MasterCount int
 
 	// MasterEndpointReconcileTTL sets the time to live in seconds of an
@@ -180,7 +186,7 @@ type ExtraConfig struct {
 	MasterEndpointReconcileTTL time.Duration
 
 	// Selects which reconciler to use
-	//
+	// TODO 这玩意干嘛的？
 	EndpointReconcilerType reconcilers.Type
 
 	ServiceAccountIssuer        serviceaccount.TokenGenerator
@@ -205,10 +211,12 @@ type ExtraConfig struct {
 }
 
 // Config defines configuration for the master
+// APIServer配置
 type Config struct {
-	// generic server config
+	// GenericServer配置
 	GenericConfig *genericapiserver.Config
-	ExtraConfig   ExtraConfig
+	// APIServer还需要的额外配置
+	ExtraConfig ExtraConfig
 }
 
 // completedConfig APIServer配置
@@ -226,6 +234,7 @@ type CompletedConfig struct {
 
 // EndpointReconcilerConfig holds the endpoint reconciler and endpoint reconciliation interval to be
 // used by the master.
+// TODO 这个配置干嘛用的？
 type EndpointReconcilerConfig struct {
 	Reconciler reconcilers.EndpointReconciler
 	Interval   time.Duration

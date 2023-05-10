@@ -154,7 +154,7 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		}
 
 		userInfo, _ := request.UserFrom(ctx)
-		transformers := []rest.TransformFunc{}
+		var transformers []rest.TransformFunc
 
 		// allows skipping managedFields update if the resulting object is too big
 		shouldUpdateManagedFields := true
@@ -220,6 +220,7 @@ func UpdateResource(r rest.Updater, scope *RequestScope, admit admission.Interfa
 		trace.Step("About to store object in database")
 		wasCreated := false
 		requestFunc := func() (runtime.Object, error) {
+			// 请求后端存储
 			obj, created, err := r.Update(
 				ctx,
 				name,

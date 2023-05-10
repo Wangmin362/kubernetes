@@ -215,7 +215,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	group, version := a.group.GroupVersion.Group, a.group.GroupVersion.Version
 
-	// TODO 获取资源的GVK
+	// 获取资源的GVK
 	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
 	if err != nil {
 		return nil, nil, err
@@ -232,8 +232,9 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	isSubresource := len(subresource) > 0
 
 	// If there is a subresource, namespace scoping is defined by the parent resource
-	var namespaceScoped bool
+	var namespaceScoped bool // 当前资源是否是namespace级别
 	if isSubresource {
+		// 子资源的作用域和父资源的作用域相同
 		parentStorage, ok := a.group.Storage[resource]
 		if !ok {
 			return nil, nil, fmt.Errorf("missing parent storage: %q", resource)
@@ -284,6 +285,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 
 	var versionedList interface{}
 	if isLister {
+		// 如果实现了List接口，那么List接口获取到的数据就通过这里生成的对象类型，进行反序列化
 		list := lister.NewList()
 		listGVKs, _, err := a.group.Typer.ObjectKinds(list)
 		if err != nil {
@@ -395,6 +397,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	pathParam := ws.PathParameter("path", "path to the resource").DataType("string")
 
 	var params []*restful.Parameter
+	// TODO 每种资源可以支持的行为，譬如List, Get, Watch, Update, Patch, Delete等等
 	var actions []action
 
 	var resourceKind string
@@ -426,15 +429,15 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	switch {
 	case !namespaceScoped: // 如果是Cluster级别的资源，譬如Node资源
 		// Handle non-namespace scoped resources like nodes.
-		resourcePath := resource
+		resourcePath := resource // 譬如 deployment, pod, service
 		resourceParams := params
-		itemPath := resourcePath + "/{name}"
+		itemPath := resourcePath + "/{name}" // 譬如 deployment/nginx
 		nameParams := append(params, nameParam)
 		proxyParams := append(nameParams, pathParam)
 		suffix := ""
 		if isSubresource {
-			suffix = "/" + subresource
-			itemPath = itemPath + suffix
+			suffix = "/" + subresource   // 譬如 /status
+			itemPath = itemPath + suffix // 譬如 deployment/nginx/status
 			resourcePath = itemPath
 			resourceParams = nameParams
 		}
@@ -521,6 +524,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		}
 	}
 
+	// TODO StorageVersionAPI和APIServerIdentity特性是用来干嘛的？
 	var resourceInfo *storageversion.ResourceInfo
 	if utilfeature.DefaultFeatureGate.Enabled(features.StorageVersionAPI) &&
 		utilfeature.DefaultFeatureGate.Enabled(features.APIServerIdentity) &&
@@ -583,6 +587,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 	ws.Produces(allMediaTypes...)
 
 	kubeVerbs := map[string]struct{}{}
+	// TODO 什么叫做RequestScope?
 	reqScope := handlers.RequestScope{
 		Serializer:      a.group.Serializer,
 		ParameterCodec:  a.group.ParameterCodec,
@@ -742,7 +747,8 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 			if isSubresource {
 				doc = "list " + subresource + " of objects of kind " + kind
 			}
-			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, restfulListResource(lister, watcher, reqScope, false, a.minRequestTimeout))
+			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent,
+				deprecated, removedRelease, restfulListResource(lister, watcher, reqScope, false, a.minRequestTimeout))
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 			route := ws.GET(action.Path).To(handler).
 				Doc(doc).

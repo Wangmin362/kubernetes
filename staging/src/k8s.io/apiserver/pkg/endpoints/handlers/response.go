@@ -129,7 +129,8 @@ func targetEncodingForTransform(scope *RequestScope, mediaType negotiation.Media
 
 // transformResponseObject takes an object loaded from storage and performs any necessary transformations.
 // Will write the complete response object.
-func transformResponseObject(ctx context.Context, scope *RequestScope, trace *utiltrace.Trace, req *http.Request, w http.ResponseWriter, statusCode int, mediaType negotiation.MediaTypeOptions, result runtime.Object) {
+func transformResponseObject(ctx context.Context, scope *RequestScope, trace *utiltrace.Trace, req *http.Request, w http.ResponseWriter,
+	statusCode int, mediaType negotiation.MediaTypeOptions, result runtime.Object) {
 	options, err := optionsForTransform(mediaType, req)
 	if err != nil {
 		scope.err(err, w, req)

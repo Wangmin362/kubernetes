@@ -73,6 +73,7 @@ type Manager interface {
 
 // FieldManager updates the managed fields and merge applied
 // configurations.
+// TODO FieldManager的具体作用是啥？
 type FieldManager struct {
 	fieldManager Manager
 	subresource  string

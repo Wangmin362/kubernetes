@@ -149,7 +149,7 @@ type GetterWithOptions interface {
 	NewGetOptions() (runtime.Object, bool, string)
 }
 
-// TableConvertor 这个接口到底是干嘛用的，也没有写注释
+// TableConvertor TODO 这个接口到底是干嘛用的，也没有写注释
 type TableConvertor interface {
 	ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error)
 }

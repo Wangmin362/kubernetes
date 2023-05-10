@@ -155,12 +155,14 @@ const (
 	// Server-side apply. Merging happens on the server.
 	ServerSideApply featuregate.Feature = "ServerSideApply"
 
+	// ServerSideFieldValidation
 	// owner: @kevindelgado
 	// kep: http://kep.k8s.io/2885
 	// alpha: v1.23
 	// beta: v1.24
 	//
 	// Enables server-side field validation.
+	// TODO 这个特性的作用
 	ServerSideFieldValidation featuregate.Feature = "ServerSideFieldValidation"
 
 	// owner: @caesarxuchao @roycaihw

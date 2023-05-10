@@ -474,7 +474,8 @@ func RecordLongRunning(req *http.Request, requestInfo *request.RequestInfo, comp
 
 // MonitorRequest handles standard transformations for client and the reported verb and then invokes Monitor to record
 // a request. verb must be uppercase to be backwards compatible with existing monitoring tooling.
-func MonitorRequest(req *http.Request, verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, httpCode, respSize int, elapsed time.Duration) {
+func MonitorRequest(req *http.Request, verb, group, version, resource, subresource, scope, component string,
+	deprecated bool, removedRelease string, httpCode, respSize int, elapsed time.Duration) {
 	// We don't use verb from <requestInfo>, as this may be propagated from
 	// InstrumentRouteFunc which is registered in installer.go with predefined
 	// list of verbs (different than those translated to RequestInfo).
@@ -513,7 +514,8 @@ func MonitorRequest(req *http.Request, verb, group, version, resource, subresour
 
 // InstrumentRouteFunc works like Prometheus' InstrumentHandlerFunc but wraps
 // the go-restful RouteFunction instead of a HandlerFunc plus some Kubernetes endpoint specific information.
-func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, routeFunc restful.RouteFunction) restful.RouteFunction {
+func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool,
+	removedRelease string, routeFunc restful.RouteFunction) restful.RouteFunction {
 	return restful.RouteFunction(func(req *restful.Request, response *restful.Response) {
 		requestReceivedTimestamp, ok := request.ReceivedTimestampFrom(req.Request.Context())
 		if !ok {
@@ -527,12 +529,14 @@ func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, com
 
 		routeFunc(req, response)
 
-		MonitorRequest(req.Request, verb, group, version, resource, subresource, scope, component, deprecated, removedRelease, delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
+		MonitorRequest(req.Request, verb, group, version, resource, subresource, scope, component, deprecated,
+			removedRelease, delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
 	})
 }
 
 // InstrumentHandlerFunc works like Prometheus' InstrumentHandlerFunc but adds some Kubernetes endpoint specific information.
-func InstrumentHandlerFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, handler http.HandlerFunc) http.HandlerFunc {
+func InstrumentHandlerFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool,
+	removedRelease string, handler http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		requestReceivedTimestamp, ok := request.ReceivedTimestampFrom(req.Context())
 		if !ok {

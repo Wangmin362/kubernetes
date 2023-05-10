@@ -275,13 +275,14 @@ func ListResource(r rest.Lister, rw rest.Watcher, scope *RequestScope, forceWatc
 		// Log only long List requests (ignore Watch).
 		defer trace.LogIfLong(500 * time.Millisecond)
 		trace.Step("About to List from storage")
+		// 向后端存储发出请求
 		result, err := r.List(ctx, &opts)
 		if err != nil {
 			scope.err(err, w, req)
 			return
 		}
 		trace.Step("Listing from storage done")
-		defer trace.Step("Writing http response done", utiltrace.Field{"count", meta.LenList(result)})
+		defer trace.Step("Writing http response done", utiltrace.Field{Key: "count", Value: meta.LenList(result)})
 		transformResponseObject(ctx, scope, trace, req, w, http.StatusOK, outputMediaType, result)
 	}
 }

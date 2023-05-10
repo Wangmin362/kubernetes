@@ -104,6 +104,7 @@ func NewREST(optsGetter generic.RESTOptionsGetter) (*REST, *StatusREST, *Rollbac
 		TableConvertor: printerstorage.TableConvertor{TableGenerator: printers.NewTableGenerator().With(printersinternal.AddHandlers)},
 	}
 	options := &generic.StoreOptions{RESTOptions: optsGetter}
+	// 初始化store对象，该对象实现了标准资源的增删改查接口
 	if err := store.CompleteWithOptions(options); err != nil {
 		return nil, nil, nil, err
 	}

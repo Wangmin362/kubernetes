@@ -39,9 +39,10 @@ import (
 // RESTCreateStrategy defines the minimum validation, accepted input, and
 // name generation behavior to create an object that follows Kubernetes
 // API conventions.
+// TODO 如何理解这个接口的设计？
 type RESTCreateStrategy interface {
 	runtime.ObjectTyper
-	// The name generator is used when the standard GenerateName field is set.
+	// NameGenerator The name generator is used when the standard GenerateName field is set.
 	// The NameGenerator will be invoked prior to validation.
 	names.NameGenerator
 

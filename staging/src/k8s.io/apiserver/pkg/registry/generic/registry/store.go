@@ -92,9 +92,10 @@ type GenericStore interface {
 // specific to the API.
 //
 // TODO: make the default exposed methods exactly match a generic RESTStorage
-// 这个类对象是对于staging/src/k8s.io/apiserver/pkg/registry/rest/rest.go StandardStorage的标准实现
-// 每个资源对象都会使用这个类去封装自己
 // TODO 如何理解这个类的设计？
+// 1、StandardStorage接口规定了一个资源对外暴露的增删改查接口，而Store则实现了StandardStorage标准接口
+// 2、K8S各个资源都是借助Store标准实现，从而实现了StandardStorage标准接口
+// 3、TODO 思考K8S是如何设计这个类做到通用资源的增删改查的？
 type Store struct {
 	// NewFunc returns a new instance of the type this registry returns for a
 	// GET of a single object, e.g.:
@@ -171,6 +172,7 @@ type Store struct {
 	Decorator func(runtime.Object)
 
 	// CreateStrategy implements resource-specific behavior during creation.
+	// TODO 详细分析
 	CreateStrategy rest.RESTCreateStrategy
 	// BeginCreate is an optional hook that returns a "transaction-like"
 	// commit/revert function which will be called at the end of the operation,
@@ -215,6 +217,7 @@ type Store struct {
 
 	// ResetFieldsStrategy provides the fields reset by the strategy that
 	// should not be modified by the user.
+	// TODO 详细分析
 	ResetFieldsStrategy rest.ResetFieldsStrategy
 
 	// Storage is the interface for the underlying storage for the
@@ -749,14 +752,18 @@ func newDeleteOptionsFromUpdateOptions(in *metav1.UpdateOptions) *metav1.DeleteO
 
 // Get retrieves the item from storage.
 func (e *Store) Get(ctx context.Context, name string, options *metav1.GetOptions) (runtime.Object, error) {
+	// 实例化当前资源
 	obj := e.NewFunc()
+	// 计算出当前资源的Key
 	key, err := e.KeyFunc(ctx, name)
 	if err != nil {
 		return nil, err
 	}
+	// 通过底层的存储获取该资源对象
 	if err := e.Storage.Get(ctx, key, storage.GetOptions{ResourceVersion: options.ResourceVersion}, obj); err != nil {
 		return nil, storeerr.InterpretGetError(err, e.qualifiedResourceFromContext(ctx), name)
 	}
+	// TODO 这里可以干嘛？ 如何理解这个设计？
 	if e.Decorator != nil {
 		e.Decorator(obj)
 	}
@@ -1327,6 +1334,7 @@ func (e *Store) calculateTTL(obj runtime.Object, defaultTTL int64, update bool) 
 
 // CompleteWithOptions updates the store with the provided options and
 // defaults common fields.
+// CompleteWithOptions的主要作用就是根据options参数，补全Store的参数
 func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 	if e.DefaultQualifiedResource.Empty() {
 		return fmt.Errorf("store %#v must have a non-empty qualified resource", e)
@@ -1345,6 +1353,7 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 		return fmt.Errorf("store for %s must set TableConvertor; rest.NewDefaultTableConvertor(e.DefaultQualifiedResource) can be used to output just name/creation time", e.DefaultQualifiedResource.String())
 	}
 
+	// 判断是否是名称空间级别的资源
 	var isNamespaced bool
 	switch {
 	case e.CreateStrategy != nil:
@@ -1364,6 +1373,7 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 	}
 
 	attrFunc := options.AttrFunc
+	// TODO 为什么默认值不为空才进行覆盖？
 	if attrFunc == nil {
 		if isNamespaced {
 			attrFunc = storage.DefaultNamespaceScopedAttr
@@ -1386,7 +1396,7 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 		return err
 	}
 
-	// TODO ETCD的后端存储就是在这里了
+	// 获取当前资源存储配置
 	opts, err := options.RESTOptions.GetRESTOptions(e.DefaultQualifiedResource)
 	if err != nil {
 		return err
@@ -1397,11 +1407,12 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	if prefix == "/" {
+	if prefix == "/" { // 每个资源都必须有前缀，没有前缀的肯定是有问题的
 		return fmt.Errorf("store for %s has an invalid prefix %q", e.DefaultQualifiedResource.String(), opts.ResourcePrefix)
 	}
 
 	// Set the default behavior for storage key generation
+	// TODO 这一段逻辑明显是对于的鸭，函数开始的位置就判断了，KeyRootFunc和KeyFunc两个必须有一个不为空
 	if e.KeyRootFunc == nil && e.KeyFunc == nil {
 		if isNamespaced {
 			e.KeyRootFunc = func(ctx context.Context) string {
@@ -1451,6 +1462,7 @@ func (e *Store) CompleteWithOptions(options *generic.StoreOptions) error {
 		}
 	}
 
+	// 后端存储初始化
 	if e.Storage.Storage == nil {
 		e.Storage.Codec = opts.StorageConfig.Codec
 		var err error

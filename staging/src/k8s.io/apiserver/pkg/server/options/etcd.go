@@ -39,26 +39,33 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// EtcdOptions 是通过参数命令行赋值参数
 type EtcdOptions struct {
 	// The value of Paging on StorageConfig will be overridden by the
 	// calculated feature gate value.
 	// 后端存储配置
-	StorageConfig                    storagebackend.Config
+	StorageConfig storagebackend.Config
+	// TODO 这个参数如何使用？有啥作用？
 	EncryptionProviderConfigFilepath string
 
+	// TODO 这个参数如何使用？有啥作用？
 	EtcdServersOverrides []string
 
 	// To enable protobuf as storage format, it is enough
 	// to set it to "application/vnd.kubernetes.protobuf".
 	DefaultStorageMediaType string
 	DeleteCollectionWorkers int
+	// TODO 这个参数如何使用？有啥作用？
 	EnableGarbageCollection bool
 
 	// Set EnableWatchCache to false to disable all watch caches
+	// TODO 这个参数如何使用？有啥作用？
 	EnableWatchCache bool
 	// Set DefaultWatchCacheSize to zero to disable watch caches for those resources that have no explicit cache size set
+	// TODO 这个参数如何使用？有啥作用？
 	DefaultWatchCacheSize int
 	// WatchCacheSizes represents override to a given resource
+	// TODO 这个参数如何使用？有啥作用？
 	WatchCacheSizes []string
 }
 
@@ -111,7 +118,7 @@ func (s *EtcdOptions) Validate() []error {
 	return allErrors
 }
 
-// AddEtcdFlags adds flags related to etcd storage for a specific APIServer to the specified FlagSet
+// AddFlags adds flags related to etcd storage for a specific APIServer to the specified FlagSet
 func (s *EtcdOptions) AddFlags(fs *pflag.FlagSet) {
 	if s == nil {
 		return
@@ -299,6 +306,7 @@ func (f *SimpleRestOptionsFactory) GetRESTOptions(resource schema.GroupResource)
 }
 
 type StorageFactoryRestOptionsFactory struct {
+	// EtcdOptions属性是通过用户传递的命令行赋值的
 	Options        EtcdOptions
 	StorageFactory serverstorage.StorageFactory
 }
@@ -333,6 +341,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 		if ok && size <= 0 {
 			ret.Decorator = generic.UndecoratedStorage
 		} else {
+			// 返回带缓存的实现
 			ret.Decorator = genericregistry.StorageWithCacher()
 		}
 	}

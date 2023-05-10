@@ -512,7 +512,7 @@ func buildGenericConfig(
 	} else {
 		storageFactory.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
-	// TODO 主要是为了初始化GenericServerConfig.RESTOptionsGetter
+	// TODO 通过ETCD参数以及StorageFactory初始化GenericServerConfig.RESTOptionsGetter
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}

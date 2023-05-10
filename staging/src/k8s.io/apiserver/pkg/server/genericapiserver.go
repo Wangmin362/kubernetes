@@ -59,7 +59,7 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// Info about an API group.
+// APIGroupInfo Info about an API group.
 // TODO VersionedResourcesStorageMap中会存储所有资源的存储信息，但是并没有保存组相关的信息 而PrioritizedVersions则保存了组相关的信息
 // TODO 同时PrioritizedVersions还保存注册的顺序，即哪个组先注册，哪个组后注册
 type APIGroupInfo struct {

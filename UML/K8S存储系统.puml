@@ -3,6 +3,11 @@ set namespaceSeparator ::
 
 package k8s.io.apiserver.pkg{
 package registry::rest {
+    interface Storage {
+        New() runtime.Object
+        Destroy()
+    }
+
     interface Getter {
         +Get()
     }
@@ -92,6 +97,37 @@ package storage {
     }
     Versioner <-[#red,bold]- Interface
 
+    class cacher::Cacher{
+        incomingHWM: storage.HighWaterMark
+        incoming: chan watchCacheEvent
+        resourcePrefix: string
+        sync.RWMutex
+        ready *ready
+        storage: storage.Interface
+        objectType: reflect.Type
+        watchCache: *watchCache
+        reflector:  *cache.Reflector
+        versioner: storage.Versioner
+        newFunc: func() runtime.Object
+        indexedTrigger: *indexedTriggerFunc
+        watcherIdx: int
+        watchers:   indexedWatchers
+        dispatchTimeoutBudget: timeBudget
+        stopLock: sync.RWMutex
+        stopped:  bool
+        stopCh:   chan struct{}
+        stopWg:   sync.WaitGroup
+        clock: clock.Clock
+        timer: *time.Timer
+        dispatching: bool
+        watchersBuffer: []*cacheWatcher
+        blockedWatchers: []*cacheWatcher
+        watchersToStop: []*cacheWatcher
+        bookmarkWatchers: *watcherBookmarkTimeBuckets
+        expiredBookmarkWatchers: []*cacheWatcher
+    }
+    Interface <-[#red,bold]- Cacher: 实现
+
     class etcd::store {
         client: *clientv3.Client
         codec: runtime.Codec
@@ -110,7 +146,7 @@ package storage {
 
 package registry::generic::registry {
     class Store {
-    NewFunc func() runtime.Object
+        NewFunc func() runtime.Object
         NewListFunc: func() runtime.Object
         DefaultQualifiedResource: schema.GroupResource
         KeyRootFunc:func(ctx) string
@@ -138,6 +174,9 @@ package registry::generic::registry {
         DestroyFunc: func()
     }
     StandardStorage <-[#blue,bold]- Store: 实现
+    Patcher <-[#blue,bold]- Store: 实现
+    Storage <-[#blue,bold]- Store: 实现
+    Interface <-[#green,dashed,thickness=12]- Store: 通过DryRunnableStorage属性组合后端存储
 }
 
 package storage::storagebackend{
@@ -175,7 +214,7 @@ package registry::generic{
         trigger storage.IndexerFuncs,
         indexers *cache.Indexers) (storage.Interface, factory.DestroyFunc, error)
     }
-    Interface <-[#red,bold]- StorageDecorator
+    Interface <-[#red,bold]- StorageDecorator: 方法返回
 
     class RESTOptions {
         StorageConfig: *storagebackend.ConfigForResource

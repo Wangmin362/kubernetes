@@ -105,7 +105,7 @@ type Config struct {
 
 	// StorageObjectCountTracker is used to keep track of the total
 	// number of objects in the storage per resource.
-	// 用于统计跟踪一个对象的存储情况
+	// 用于统计跟踪一个对象的存储情况 TODO 详细分析
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
 

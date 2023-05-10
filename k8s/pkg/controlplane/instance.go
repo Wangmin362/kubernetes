@@ -428,7 +428,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// with specific priorities.
 	// TODO: describe the priority all the way down in the RESTStorageProviders and plumb it back through the various discovery
 	// handlers that we have.
-	// 所谓的Rest Storage Provider实际上就是解决各个REST资源如何存储的问题
+	// 所谓的RestStorageProvider实际上就是解决各个REST资源如何存储的问题
 	// 除了核心资源，还有许多标准GVR资源需要安装
 	restStorageProviders := []RESTStorageProvider{
 		apiserverinternalrest.StorageProvider{},
@@ -610,8 +610,11 @@ type RESTStorageProvider interface {
 }
 
 // InstallAPIs will install the APIs for the restStorageProviders if they are enabled.
+// 1、所谓的安装API，实际上就把把各个资源的增删改查对应的Handler添加到go-restful的Container当中
+// 2、apiResourceConfigSource用于获取资源的启用、禁用情况下
+// 3、restOptionsGetter
 func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter, restStorageProviders ...RESTStorageProvider) error {
-	apiGroupsInfo := []*genericapiserver.APIGroupInfo{}
+	var apiGroupsInfo []*genericapiserver.APIGroupInfo
 
 	// used later in the loop to filter the served resource by those that have expired.
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*m.GenericAPIServer.Version)

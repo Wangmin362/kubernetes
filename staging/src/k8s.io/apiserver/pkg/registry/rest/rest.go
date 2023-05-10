@@ -53,6 +53,7 @@ import (
 // Resources which are exported to the RESTful API of apiserver need to implement this interface. It is expected
 // that objects may implement any of the below interfaces.
 // TODO Storage接口和StandardStorage接口有啥区别？
+// TODO 如何理解这个接口的设计？ 和StandardStorage接口有关关联？
 type Storage interface {
 	// New returns an empty object that can be used with Create and Update after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -211,7 +212,7 @@ type NamedCreater interface {
 // UpdatedObjectInfo provides information about an updated object to an Updater.
 // It requires access to the old object in order to return the newly updated object.
 type UpdatedObjectInfo interface {
-	// Returns preconditions built from the updated object, if applicable.
+	// Preconditions Returns preconditions built from the updated object, if applicable.
 	// May return nil, or a preconditions object containing nil fields,
 	// if no preconditions can be determined from the updated object.
 	Preconditions() *metav1.Preconditions
@@ -255,6 +256,7 @@ type Updater interface {
 
 // CreaterUpdater is a storage object that must support both create and update.
 // Go prevents embedded interfaces that implement the same method.
+// TODO 为什么 CreaterUpdater 接口没有组合 Updater 接口？而是单独拷贝了以下 Updater.Update 方法？
 type CreaterUpdater interface {
 	Creater
 	Update(ctx context.Context, name string, objInfo UpdatedObjectInfo, createValidation ValidateObjectFunc, updateValidation ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error)
@@ -272,7 +274,7 @@ type Patcher interface {
 // Watcher should be implemented by all Storage objects that
 // want to offer the ability to watch for changes through the watch api.
 type Watcher interface {
-	// 'label' selects on labels; 'field' selects on the object's fields. Not all fields
+	// Watch 'label' selects on labels; 'field' selects on the object's fields. Not all fields
 	// are supported; an error should be returned if 'field' tries to select on a field that
 	// isn't supported. 'resourceVersion' allows for continuing/starting a watch at a
 	// particular version.
@@ -281,9 +283,16 @@ type Watcher interface {
 
 // StandardStorage is an interface covering the common verbs. Provided for testing whether a
 // resource satisfies the normal storage methods. Use Storage when passing opaque storage objects.
-// TODO 这个接口主要是面向K8S的资源，用于提供对于K8S各个资源对象的存储抽象接口
-// TODO 每个K8S资源对象都应该实现StandardStorage接口，用于对于数据的增删改查
-// TODO 这个抽象接口是面向K8S资源的，真正的存储则是依赖staging/src/k8s.io/apiserver/pkg/storage/interfaces.go接口完成
+// 1、StandardStorage接口是用于暴露K8S资源给外部使用的，因此该接口规定了对于K8S资源的各种增删改查API
+// 2、每种K8S资源都需要实现这个接口，而 registry.Store 接口则是StandardStorage接口的标准实现，因此每种K8S资源都是借助 registry.Store
+// 标准实现完成增删改查动作
+// 3、StandardStorage接口仅仅是描述了对外暴露的API，实际上，这些API的实现是需要一个持久化存储来进行支持的，不然K8S所有的数据只能保存在内存
+// 当中。因此K8S对于标准的后端存储抽象为了storage.Interface接口，这个接口规定了K8S需要的后端存储需要支持哪些API，实际上也是对于数据的增删
+// 改查。K8S把后端持久化存储抽象为storage.Interface接口的好处显而易见，那就是可以很方便的从ETCD切换到另外一套持久化存储（虽然目前K8S唯一
+// 的持久化存储只有ETCD，但是向K3S这样的发行版就使用了其它类型的存储）
+// 4、为了把K8S资源持久化，registry.Store 标准实现就通过Storage属性组合了storage.Interface接口，从而实现当用户调用StandardStorage的
+// 各种API接口的时候 registry.Store 可以把数据存储到后端存储当中。
+// 5、TODO 思考 StandardStorage 接口和 Storage 接口有何关联？有了 StandardStorage 接口为何还需要 Storage 接口？
 type StandardStorage interface {
 	Getter
 	Lister

@@ -71,10 +71,9 @@ type APIGroupInfo struct {
 	// TODO PrioritizedVersions中保存了组的信息，同时还保证了资源注册是按顺序进行的
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
-	// TODO 这个属性应该就是API组信息中最重要的信息了,它决定了如何存储一个对象
-	// TODO 这个对象的key是啥？ 组下面保存的是version以及resource相关的信息，猜测第一级的key为version，第二级的key为resource
-	// TODO 譬如第一级的key为v1, 第二级的key为：pods
-	// TODO 为什么是rest.Storage接口，而不是rest.StandardStorage接口
+	// 1、用于设置每种资源的增删改查Handler,第一级key为version, 第二级key为resource， value为增删改查Handler, 实际上是 rest.StandardStorage
+	// 接口，每个资源都是通过 rest.StandardStorage 接口的标注实现 registry.Store 来实现的。
+	// 2、TODO 为什么是rest.Storage接口，而不是rest.StandardStorage接口
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may

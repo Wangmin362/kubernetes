@@ -38,5 +38,6 @@ func Install(scheme *runtime.Scheme) {
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
 	utilruntime.Must(v1beta2.AddToScheme(scheme))
 	utilruntime.Must(v1.AddToScheme(scheme))
+	// 设置优先级 v1 > v1beta2 > v1beta1
 	utilruntime.Must(scheme.SetVersionPriority(v1.SchemeGroupVersion, v1beta2.SchemeGroupVersion, v1beta1.SchemeGroupVersion))
 }

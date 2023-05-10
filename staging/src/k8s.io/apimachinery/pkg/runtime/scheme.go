@@ -45,6 +45,7 @@ import (
 // registration is complete.
 // 策略中保存了goType到GVK以及GVK到goType的映射
 // TODO 各个资源是如何注册的？
+// APIServer的注册入口：k8s/pkg/controlplane/import_known_versions.go
 type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.
@@ -82,7 +83,11 @@ type Scheme struct {
 
 	// versionPriority is a map of groups to ordered lists of versions for those groups indicating the
 	// default priorities of these versions as registered in the scheme
-	// TODO 版本优先级，这个属性决定了一个资源优先使用哪个版本的对象
+	// 1、用于指定不同group的版本优先级
+	// 2、譬如对于apps组来说，其优先级为：v1, v1beta2, v1beta1; 而对于autoscaling组来说，其优先级为：v2, v1, v2beta1, v2beta2
+	// 3、可以看到，优先级是以group的维度来设置的，也就是说对于apps组来说，deployment, daemonset, job的优先级顺序都是v1, v1beta2,
+	// v1beta1，不区分组下的资源。
+	// 4、TODO 思考，优先级顺序有何作用？何时起作用？
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
@@ -582,7 +587,7 @@ func setTargetKind(obj Object, kind schema.GroupVersionKind) {
 // and the specified order overwrites any previously specified order for this group
 func (s *Scheme) SetVersionPriority(versions ...schema.GroupVersion) error {
 	groups := sets.String{}
-	order := []string{}
+	var order []string
 	for _, version := range versions {
 		if len(version.Version) == 0 || version.Version == APIVersionInternal {
 			return fmt.Errorf("internal versions cannot be prioritized: %v", version)
@@ -591,18 +596,21 @@ func (s *Scheme) SetVersionPriority(versions ...schema.GroupVersion) error {
 		groups.Insert(version.Group)
 		order = append(order, version.Version)
 	}
+
+	// 需要设置优先级的GV，必须是属于同一个组，否则直接报错
 	if len(groups) != 1 {
 		return fmt.Errorf("must register versions for exactly one group: %v", strings.Join(groups.List(), ", "))
 	}
 
+	// 设置优先级
 	s.versionPriority[groups.List()[0]] = order
 	return nil
 }
 
 // PrioritizedVersionsForGroup returns versions for a single group in priority order
-// 通过组名，找到组下的所有的版本信息
+// 获取某个组的版本优先级顺序列表
 func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion {
-	ret := []schema.GroupVersion{}
+	var ret []schema.GroupVersion
 	for _, version := range s.versionPriority[group] {
 		ret = append(ret, schema.GroupVersion{Group: group, Version: version})
 	}

@@ -611,9 +611,13 @@ type RESTStorageProvider interface {
 
 // InstallAPIs will install the APIs for the restStorageProviders if they are enabled.
 // 1、所谓的安装API，实际上就把把各个资源的增删改查对应的Handler添加到go-restful的Container当中
-// 2、apiResourceConfigSource用于获取资源的启用、禁用情况下
-// 3、restOptionsGetter
-func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter, restStorageProviders ...RESTStorageProvider) error {
+// 2、apiResourceConfigSource：用于获取资源的启用、禁用情况下
+// 3、restOptionsGetter：用于获取某种资源的后端存储，包括存储配置（譬如序列化、反序列化、转换器等等）
+// 4、restStorageProviders：用于获取某个组的信息，包括这个组中每个资源的后端存储，可以简单理解为组下每个资源的增删改查的Handler
+// 5、InstallAPIs函数的三个参数的核心目的是为了构造每个组的 genericapiserver.APIGroupInfo 信息
+// 6、这里安装的是除了LegacyAPI以外的所有APIServer资源，AggregatorServer以及ExtensionServer的资源并不在这里安装
+func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter,
+	restStorageProviders ...RESTStorageProvider) error {
 	var apiGroupsInfo []*genericapiserver.APIGroupInfo
 
 	// used later in the loop to filter the served resource by those that have expired.
@@ -622,10 +626,9 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 		return err
 	}
 
-	// TODO restStorageProviders实际上就是K8S中的资源，只不过被抽象为了工厂而已
 	for _, restStorageBuilder := range restStorageProviders {
 		groupName := restStorageBuilder.GroupName()
-		// TODO restStorageProviders工厂的最终目标是为了产生APIGroupInfo信息
+		// 通过RESTStorageProvider实例化当前组的APIGroupInfo信息
 		apiGroupInfo, err := restStorageBuilder.NewRESTStorage(apiResourceConfigSource, restOptionsGetter)
 		if err != nil {
 			return fmt.Errorf("problem initializing API group %q : %v", groupName, err)
@@ -659,13 +662,14 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 			if err != nil {
 				klog.Fatalf("Error building PostStartHook: %v", err)
 			}
-			// 向generic-apiserver中添加后置处理器
+			// 向GenericAPIServer中添加后置处理器
 			m.GenericAPIServer.AddPostStartHookOrDie(name, hook)
 		}
 
 		apiGroupsInfo = append(apiGroupsInfo, &apiGroupInfo)
 	}
 
+	// 把组信息注册到go-restful的Container当中
 	if err := m.GenericAPIServer.InstallAPIGroups(apiGroupsInfo...); err != nil {
 		return fmt.Errorf("error in registering group versions: %v", err)
 	}
@@ -709,6 +713,7 @@ func (n nodeAddressProvider) externalAddresses() ([]string, error) {
 
 var (
 	// stableAPIGroupVersionsEnabledByDefault is a list of our stable versions.
+	// 默认启用所有稳定版本的资源
 	stableAPIGroupVersionsEnabledByDefault = []schema.GroupVersion{
 		admissionregistrationv1.SchemeGroupVersion,
 		apiv1.SchemeGroupVersion,
@@ -743,6 +748,7 @@ var (
 		flowcontrolv1beta2.SchemeGroupVersion.WithResource("prioritylevelconfigurations"), // remove in 1.29
 	}
 	// betaAPIGroupVersionsDisabledByDefault is for all future beta groupVersions.
+	// 默认禁用Beta版本的所有资源
 	betaAPIGroupVersionsDisabledByDefault = []schema.GroupVersion{
 		autoscalingapiv2beta1.SchemeGroupVersion,
 		autoscalingapiv2beta2.SchemeGroupVersion,
@@ -757,6 +763,7 @@ var (
 	}
 
 	// alphaAPIGroupVersionsDisabledByDefault holds the alpha APIs we have.  They are always disabled by default.
+	// 默认禁用所有处于Alpha版本的资源
 	alphaAPIGroupVersionsDisabledByDefault = []schema.GroupVersion{
 		apiserverinternalv1alpha1.SchemeGroupVersion,
 		networkingapiv1alpha1.SchemeGroupVersion,
@@ -767,17 +774,20 @@ var (
 
 // DefaultAPIResourceConfigSource returns default configuration for an APIResource.
 func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
+	// 实例化资源配置，此时该配置是空的
 	ret := serverstorage.NewResourceConfig()
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha or beta versions in the list.
+	// 默认启用所有稳定版本的资源
 	ret.EnableVersions(stableAPIGroupVersionsEnabledByDefault...)
 
 	// disable alpha and beta versions explicitly so we have a full list of what's possible to serve
-	// TODO 默认禁用beta资源
+	// 默认禁用beta资源
 	ret.DisableVersions(betaAPIGroupVersionsDisabledByDefault...)
-	// TODO 默认禁用alpha资源
+	// 默认禁用alpha资源
 	ret.DisableVersions(alphaAPIGroupVersionsDisabledByDefault...)
 
 	// enable the legacy beta resources that were present before stopped serving new beta APIs by default.
+	// 默认启用Legacy资源的一些Beta版本
 	ret.EnableResources(legacyBetaEnabledByDefaultResources...)
 
 	return ret

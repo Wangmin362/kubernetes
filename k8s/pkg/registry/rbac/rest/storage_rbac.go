@@ -140,6 +140,7 @@ func (p RESTStorageProvider) PostStartHook() (string, genericapiserver.PostStart
 	return PostStartHookName, policy.EnsureRBACPolicy(), nil
 }
 
+// PolicyData TODO 如何理解PolicyData的抽象
 type PolicyData struct {
 	ClusterRoles        []rbacapiv1.ClusterRole
 	ClusterRoleBindings []rbacapiv1.ClusterRoleBinding
@@ -165,7 +166,7 @@ func (p *PolicyData) EnsureRBACPolicy() genericapiserver.PostStartHookFunc {
 		// starts, the roles don't initialize, and nothing works.
 		// 每一秒钟执行一遍
 		err := wait.Poll(1*time.Second, 30*time.Second, func() (done bool, err error) {
-			// 生成K8S apiserver的客户端
+			// 实例化K8S ClientSet客户端
 			client, err := clientset.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				utilruntime.HandleError(fmt.Errorf("unable to initialize client set: %v", err))

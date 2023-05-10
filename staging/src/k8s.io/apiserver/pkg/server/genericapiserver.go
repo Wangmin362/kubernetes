@@ -60,15 +60,14 @@ import (
 )
 
 // APIGroupInfo Info about an API group.
-// TODO VersionedResourcesStorageMap中会存储所有资源的存储信息，但是并没有保存组相关的信息 而PrioritizedVersions则保存了组相关的信息
-// TODO 同时PrioritizedVersions还保存注册的顺序，即哪个组先注册，哪个组后注册
+// 1、APIGroupInfo是K8S抽象出来关于一个组的信息，该信息中包含了以下信息：
+// 1.1：当前组的优先级版本信息
+// 1.2：当前组不同版本资源的后端存储，这个后端存储本质上是 rest.StandardStorage 接口实现。最终传递的是各个资源通过genericregistry.Store
+// 的实现。简单来说，保存的是各个资源增删改查Handler，譬如GET /api/v1/pod/namesapce/default/xxxxx路径的http.Handler
 type APIGroupInfo struct {
-	// todo 版本优先级，这里应该是在用户没有指定版本的时候，默认使用一个资源的哪个优先级
-	// TODO 如何理解这个字段的含义,为什么是一个slice而不是一个map? 如何理解Priority这个关键字? 这个属性实现了什么功能?
-	// 答：这里的设计其实比较常规，因为map是没有顺序的，即VersionedResourcesStorageMap没有顺序相关的信息，而数组是有序的，选注册的会
-	// 先遍历，后注册的会后遍历到，从而体现顺序性。即我们可以通过遍历PrioritizedVersions中的值作为VersionedResourcesStorageMap的key
-	// 这样就能保证顺序性
-	// TODO PrioritizedVersions中保存了组的信息，同时还保证了资源注册是按顺序进行的
+	// 1、当前组的版本优先级，PrioritizedVersions中所有元素的Group必定是相同的，因为APIGroupInfo是关于一个组的所有信息的抽象
+	// 2、譬如当当前组为apps时，顺序为：v1, v1beta2, v1beta1; 当时autoscaling组时，顺序为：v2, v1, v2beta2, v2beta1
+	// 3、TODO 优先级版本有啥用？什么时候发生作用？
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	// 1、用于设置每种资源的增删改查Handler,第一级key为version, 第二级key为resource， value为增删改查Handler, 实际上是 rest.StandardStorage
@@ -741,19 +740,22 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 }
 
 // installAPIResources is a private method for installing the REST storage backing each api groupversionresource
-// TODO 什么叫做安装API资源？  实际上就是注册URL + Method与Handler的映射到restful的Container当中
+// 什么叫做安装API资源？  实际上就是注册URL + Method与Handler的映射到restful的Container当中，而所谓的Storage其实就是Handler
 func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels openapiproto.Models) error {
 	var resourceInfos []*storageversion.ResourceInfo
 	// 按顺序注册APIGroup信息 注册顺序应该和k8s/pkg/controlplane/import_known_versions.go这个文件的顺序有关
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
+		// 由于PrioritizedVersions中记录的版本优先级是以组为单位，即每个组下的所有资源都是按照同一的版本优先级顺序。这种机制下回存储一个
+		// 问题，那就是可能某个资源并不存在当前版本，所以需要跳过。譬如apps组的优先级版本为：v1, v1beta2, v1beta1，就可能存在job资源只有
+		// v1, v1beta1版本，并不存在v1beta2版本资源。因此这里需要跳过。
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
-			// map中没有找到相关的version信息，直接退出
 			klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
 			continue
 		}
 
-		// TODO 根据ApiGroupInfo实例化一个ApiGroupVersion，实际上是APIGroupInfo的子集，里面只包含/group/version下的所有资源
-		// TODO 即一个APIGroupVersion中所有资源的Group以及Version都是一样的
+		// 1、根据APIGroupInfo信息以及当前需要的组版本还有路径前缀实例化APIGroupVersion信息
+		// 2、实际上APIGroupVersion就是APIGroupInfo的子集，ApiGroupInfo中保存的是关于一个组下的所有版本的所有资源的增删改查Handler,而
+		// APIGroupVersion则保存的是关于一个组的某个具体的所有资源的增删改查Handler
 		apiGroupVersion, err := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
 		if err != nil {
 			return err
@@ -763,7 +765,7 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 		}
 		apiGroupVersion.OpenAPIModels = openAPIModels
 
-		// TODO ServerSideApply特新有啥用？
+		// TODO ServerSideApply特新有啥用？ TypeConverter干嘛用的？
 		if openAPIModels != nil && utilfeature.DefaultFeatureGate.Enabled(features.ServerSideApply) {
 			typeConverter, err := fieldmanager.NewTypeConverter(openAPIModels, false)
 			if err != nil {
@@ -774,7 +776,7 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 
 		apiGroupVersion.MaxRequestBodyBytes = s.maxRequestBodyBytes
 
-		// TODO 每一种核心资源都是在这里注册到Container当中的
+		// 每一种资源都是在这里注册到Container当中的
 		r, err := apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
 		if err != nil {
 			return fmt.Errorf("unable to setup API %v: %v", apiGroupInfo, err)
@@ -847,7 +849,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 	}
 
 	for _, apiGroupInfo := range apiGroupInfos {
-		// TODO 重点是这里
+		// 1、由于这里安装的是除了Legacy以外的其它所有资源，因此这里的路由前缀为/apis
 		if err := s.installAPIResources(APIGroupPrefix, apiGroupInfo, openAPIModels); err != nil {
 			return fmt.Errorf("unable to install api resources: %v", err)
 		}
@@ -868,7 +870,8 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 				Version:      groupVersion.Version,
 			})
 		}
-		// TODO 有限选择第一个作为优选版本
+
+		// TODO 优先选择第一个作为优选版本
 		preferredVersionForDiscovery := metav1.GroupVersionForDiscovery{
 			GroupVersion: apiGroupInfo.PrioritizedVersions[0].String(),
 			Version:      apiGroupInfo.PrioritizedVersions[0].Version,
@@ -895,13 +898,14 @@ func (s *GenericAPIServer) InstallAPIGroup(apiGroupInfo *APIGroupInfo) error {
 }
 
 func (s *GenericAPIServer) getAPIGroupVersion(apiGroupInfo *APIGroupInfo, groupVersion schema.GroupVersion, apiPrefix string) (*genericapi.APIGroupVersion, error) {
+	// storage中保存的是同一个组下，同一个版本下的所有资源的增删改查的Handler，譬如apps组下v1版本下的deployment, daemonset, job, cronjob等等
 	storage := make(map[string]rest.Storage)
 	// k为resource, v为rest.Storage
 	for k, v := range apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version] {
 		if strings.ToLower(k) != k {
 			return nil, fmt.Errorf("resource names must be lowercase only, not %q", k)
 		}
-		// map的深拷贝
+		// map的深拷贝 TODO 思考，这里为什么需要重新创建一个Map保存信息，为什么不能直接使用APIGroupInfo的Map?
 		storage[k] = v
 	}
 	// 实例化一个新的APIGroupVersion信息，实际上就是ApiGroupInfo的一个子集

@@ -21,16 +21,18 @@ import (
 )
 
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
-// APIResourceConfigSource 用于判断某个资源或者某个组的所有资源是否启用
+// 用于判断某个资源或者某个组的所有资源是否启用
 type APIResourceConfigSource interface {
 	// ResourceEnabled 资源是否启用
 	ResourceEnabled(resource schema.GroupVersionResource) bool
 	// AnyResourceForGroupEnabled 这个接口应该是上面的接口快速判断吧，如果一个组下的所有资源都是启用状态，那么当前API就应该返回true
+	// 或者从另一方面来说，如果K8S某个组被禁用，那么这个组下的任何一个资源势必是禁用状态
 	AnyResourceForGroupEnabled(group string) bool
 }
 
 var _ APIResourceConfigSource = &ResourceConfig{}
 
+// ResourceConfig 用于记录哪个组的版本禁用、启用情况；以及某个资源的禁用、启用情况
 type ResourceConfig struct {
 	GroupVersionConfigs map[schema.GroupVersion]bool
 	ResourceConfigs     map[schema.GroupVersionResource]bool

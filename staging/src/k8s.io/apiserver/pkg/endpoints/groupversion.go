@@ -48,10 +48,11 @@ type ConvertabilityChecker interface {
 // /${storage_key}[/${object_name}]
 // Where 'storage_key' points to a rest.Storage object stored in storage.
 // This object should contain all parameterization necessary for running a particular API version
-// TODO 实际上APIGroupVersion就是APIGroupInfo的子集，ApiGroupVersion中保存的是关于一个版本的所有Resource的信息
-// 譬如所有V1版本的资源信息
+// 1、实际上APIGroupVersion就是APIGroupInfo的子集，ApiGroupInfo中保存的是关于一个组下的所有版本的所有资源的增删改查Handler,而
+// APIGroupVersion则保存的是关于一个组的某个具体的所有资源的增删改查Handler
+// 2、TODO 详细分析APIGroupVersion中所有属性的作用
 type APIGroupVersion struct {
-	// key为resource，譬如pods, deployments，value则是各个资源的存储
+	// key为resource，譬如pods, deployments，value则是各个资源的存储，实际上可以理解为资源的增删改查的Handler
 	Storage map[string]rest.Storage
 
 	// 当前组的API前缀是啥，其实在K8S当中只有两种，第一种是/api，也就是所谓的Legacy API,另外一种就是/apis
@@ -96,8 +97,10 @@ type APIGroupVersion struct {
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
 	// authorization check using the request URI but it may be necessary to make additional checks, such as in
 	// the create-on-update case
+	// TODO 仔细分析
 	Authorizer authorizer.Authorizer
 
+	// TODO 仔细分析
 	Admit admission.Interface
 
 	MinRequestTimeout time.Duration
@@ -113,10 +116,10 @@ type APIGroupVersion struct {
 // InstallREST registers the REST handlers (storage, watch, proxy and redirect) into a restful Container.
 // It is expected that the provided path root prefix will serve all operations. Root MUST NOT end
 // in a slash.
-// TODO 这就是核心的功能了,映射URL + Method以及Handler,这些信息会注册到container当中
+// 把APIGroupVersion中保存的的资源注册到container当中
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storageversion.ResourceInfo, error) {
-	// 拼接路由前缀 /<prefix>/<group>/<version>
-	// TODO 如果是Legacy相关的资源注册，这里的Group是啥？ 那肯定就是core了
+	// 拼接路由前缀 /<prefix>/<group>/<version>, 如果当前注册的是Legacy资源，那么它的group为""
+	// 由于APIGroupVersion是一个组下某本的所有资源，因此prefix前缀势必是同样的
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
 	// 委托给APIInstaller完成信息的注册
 	installer := &APIInstaller{
@@ -125,12 +128,15 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]*storagev
 		minRequestTimeout: g.MinRequestTimeout,
 	}
 
-	// TODO 资源的注册，相当重要
+	// TODO 为APIInstaller生成路由信息
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
-	// TODO 向ws中增加/<prefix>/<group>/<version>/路由信息，返回当前gv下的所有资源信息
+
+	// 向ws中增加/<prefix>/<group>/<version>/路由信息，返回当前gv下的所有资源信息，用于当用户请求/<prefix>/<group>/<version>/路径时，
+	// 返回当前组下的某个组的所有资源信息
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
 	versionDiscoveryHandler.AddToWebService(ws)
-	// 注册webservice到container当中
+
+	// 添加路由信息到container当中
 	container.Add(ws)
 	return removeNonPersistedResources(resourceInfos), utilerrors.NewAggregate(registrationErrors)
 }

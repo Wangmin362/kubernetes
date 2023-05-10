@@ -54,9 +54,9 @@ const (
 )
 
 type APIInstaller struct {
-	// 一个组下的所有资源
+	// 一个组下某个版本呢的所有资源的Handler
 	group *APIGroupVersion
-	// 前缀信息，/<prefix>/<group>/<version>
+	// 前缀信息，/<prefix>/<group>/<version>，如果是Legacy资源，那么group为空
 	prefix string // Path prefix where API resources are to be registered.
 	// 请求的超时时间
 	minRequestTimeout time.Duration
@@ -115,8 +115,9 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 	}
 	sort.Strings(paths)
 
+	// path为资源名
 	for _, path := range paths {
-		// TODO 把资源的Handler注册到webservice中，路径为path -> /<prefix>/<group>/<version>/<path>
+		// TODO 把资源的Handler注册到webservice中，路径为：/<prefix>/<group>/<namespace>/<version>/<path>，Handler是通过Storage生成的
 		apiResource, resourceInfo, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("error in registering resource: %s, %v", path, err))
@@ -195,6 +196,7 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 	return fqKindToRegister, nil
 }
 
+// path为资源名，storage为当前资源增删改查的Handler
 func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storage,
 	ws *restful.WebService) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
 	// 准入控制
@@ -530,7 +532,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 		if err != nil {
 			return nil, nil, err
 		}
-		decodableVersions := []schema.GroupVersion{}
+		var decodableVersions []schema.GroupVersion
 		if a.group.ConvertabilityChecker != nil {
 			decodableVersions = a.group.ConvertabilityChecker.VersionsForGroupKind(fqKindToRegister.GroupKind())
 		}
@@ -662,7 +664,7 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 			return nil, nil, fmt.Errorf("unknown action verb for discovery: %s", action.Verb)
 		}
 
-		routes := []*restful.RouteBuilder{}
+		var routes []*restful.RouteBuilder
 
 		// If there is a subresource, kind should be the parent's kind.
 		if isSubresource {
@@ -805,7 +807,8 @@ func (a *APIInstaller) registerResourceHandlers(path string, storage rest.Storag
 			if utilfeature.DefaultFeatureGate.Enabled(features.ServerSideApply) {
 				supportedTypes = append(supportedTypes, string(types.ApplyPatchType))
 			}
-			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, restfulPatchResource(patcher, reqScope, admit, supportedTypes))
+			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent,
+				deprecated, removedRelease, restfulPatchResource(patcher, reqScope, admit, supportedTypes))
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 			route := ws.PATCH(action.Path).To(handler).
 				Doc(doc).

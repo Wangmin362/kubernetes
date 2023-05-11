@@ -234,8 +234,15 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// 实例化APIServer，k8s内建的资源都是通过APIServer处理的
-	// APIServer主要处理两类资源：1、Legacy资源 2、除了Legacy资源、CRD、APIServer以外的其它资源
+	// 1、实例化APIServer，k8s内建的资源都是通过APIServer处理的
+	// 2、APIServer主要处理两类资源：1、Legacy资源 2、除了Legacy资源、CRD、APIServer以外的其它资源
+	// 3、实例化三个PostStartHoook，作用分别是：
+	// 3.1、start-cluster-authentication-info-controller：通过ClientCAProvider监听client-ca-file以及requestheader-client-ca-file文件，
+	// 一旦这两个证书发生变化，就更新kube-system名称空间中名为extension-apiserver-authentication的Configmap,如果没有这个Configmap，那么创建它
+	// 3.2、start-kube-apiserver-identity-lease-controller：负责定期更新K8S kube-system名称空间中打了k8s.io/component=kube-apiserver标签
+	// 的Lease资源（简单来说即使租约续期），如果没有Lease资源，那么就创建一个Lease资源
+	// 3.3、start-kube-apiserver-identity-lease-garbage-collector：负责删除kube-system名称空间中打了k8s.io/component=kube-apiserver标签
+	// 并且已经过期的Lease资源对象
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err

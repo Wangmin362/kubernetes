@@ -460,7 +460,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		admissionregistrationrest.RESTStorageProvider{},
 		eventsrest.RESTStorageProvider{TTL: c.ExtraConfig.EventTTL},
 	}
-	// 注册APIServer中除了Legacy资源以外的其它资源
+	// 注册APIServer中除了Legacy资源以外的其它资源，当然CRD资源是由ExtensionServer注册，而APIService资源则是由AggregatorServer注册
 	if err := m.InstallAPIs(c.ExtraConfig.APIResourceConfigSource, c.GenericConfig.RESTOptionsGetter, restStorageProviders...); err != nil {
 		return nil, err
 	}

@@ -140,7 +140,7 @@ func (cfg *Config) Complete() CompletedConfig {
 // 1、实例化一个名为apiextensions-apiserver的GenericServer
 // 2、注册CRD资源，也就是通过URL可以对CRD资源进行增删改查
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
-	// 实例化一个generic server，实际上所有的server都是generic server
+	// 实例化一个GenericServer，实际上所有的Server都是GenericServer
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
@@ -210,22 +210,24 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
-	// EstablishingController 更新入队CRD状态的Condition, 主要是新增Established状态
+	// 1、EstablishingController更新入队CRD状态的Condition, 主要是新增Established状态
+	// 2、原理非常简单，更新那些处于NamesAccepted状态但是还没有Established的CRD达到Established状态
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
 	// TODO crdHandler是如何处理的？
+	// 1、CRDController会把CRD的增删改查添加到versionDiscoveryHandler、groupDiscoveryHandler当中
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler, // /apis/<group>/<version>的服务发现
 		groupDiscoveryHandler,   // /apis/<group>的服务发现
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), // CRD Informer
-		delegateHandler,                    // 如果CRD Handler无法处理，委派给下一个Server处理
-		c.ExtraConfig.CRDRESTOptionsGetter, // TODO 非常重要的属性，和后端存储相关
+		delegateHandler,                    // 如果CRD Handler无法处理，委派给Delegator处理
+		c.ExtraConfig.CRDRESTOptionsGetter, // 后端存储相关
 		c.GenericConfig.AdmissionControl,   // 准入控制，本质上是一个准入控制插件链
 		establishingController,             // TODO
 		c.ExtraConfig.ServiceResolver,      // 根据服务的name, namespace, port拼接出服务的访问地址
 		c.ExtraConfig.AuthResolverWrapper,  // 认证
 		c.ExtraConfig.MasterCount,          // master节点数量
-		s.GenericAPIServer.Authorizer,      // 授权
+		s.GenericAPIServer.Authorizer,      // 授权器，实际上是一个授权器链
 		c.GenericConfig.RequestTimeout,     // 请求超时时间
 		time.Duration(c.GenericConfig.MinRequestTimeout)*time.Second,
 		apiGroupInfo.StaticOpenAPISpec,

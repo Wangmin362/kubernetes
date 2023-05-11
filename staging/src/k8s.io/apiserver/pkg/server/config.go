@@ -676,8 +676,14 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // APIServerHandler 是一个路由注册中心
 // 2、实例化GenericServer, 主要是利用GenericServerConfig初始化GenericServer的部分属性
 // 3、把Delegator的PostStartHooks加入到自己的PostStartHooks当中；把Delegator的PreShutdownHooks加入到自己的PreShutdownHooks当中
-// 4、添加后置处理器
-// 5、添加路由，包括：	/ 路由 /index路由 /debug/pprof路由 /debug/flags路由 /metrics路由 /version路由 /apis路由
+// 4、添加后置处理器，其中包括：
+// 4.1、generic-apiserver-start-informers
+// 4.2、priority-and-fairness-config-consumer
+// 4.3、priority-and-fairness-filter
+// 4.4、max-in-flight-filter
+// 4.5、storage-object-count-tracker-hook
+// 5、把Delegator的HealthCheck添加到自己的HealthCheck当中
+// 6、添加路由，包括：	/ 路由 /index路由 /debug/pprof路由 /debug/flags路由 /metrics路由 /version路由 /apis路由
 // /debug/api_priority_and_fairness/dump_priority_levels路由
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的

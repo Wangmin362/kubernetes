@@ -50,6 +50,7 @@ type EstablishingController struct {
 }
 
 // NewEstablishingController creates new EstablishingController.
+// 原理非常简单，更新那些处于NamesAccepted状态但是还没有Established的CRD达到Established状态
 func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInformer,
 	crdClient client.CustomResourceDefinitionsGetter) *EstablishingController {
 	ec := &EstablishingController{
@@ -65,7 +66,8 @@ func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInf
 }
 
 // QueueCRD adds CRD into the establishing queue.
-// TODO CRD的生产者 调用者是谁？ 什么时候会放入一个CRD?
+// 1、CRD是全局资源，因此这里的key就是CRD的名字
+// 2、QueueCRD的调用方为CRDHandler,当CRDHandler发现某个CRD满足某种条件时就会嗲用这个函数
 func (ec *EstablishingController) QueueCRD(key string, timeout time.Duration) {
 	ec.queue.AddAfter(key, timeout)
 }
@@ -116,6 +118,7 @@ func (ec *EstablishingController) processNextWorkItem() bool {
 
 // sync is used to turn CRDs into the Established state.
 func (ec *EstablishingController) sync(key string) error {
+	// 通过Informer查询CRD，key为CRD的名字
 	cachedCRD, err := ec.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -124,6 +127,7 @@ func (ec *EstablishingController) sync(key string) error {
 		return err
 	}
 
+	// 如果当前CRD的名字还没有被接受或者是CRD已经处于Established,那么直接退出
 	if !apiextensionshelpers.IsCRDConditionTrue(cachedCRD, apiextensionsv1.NamesAccepted) ||
 		apiextensionshelpers.IsCRDConditionTrue(cachedCRD, apiextensionsv1.Established) {
 		return nil

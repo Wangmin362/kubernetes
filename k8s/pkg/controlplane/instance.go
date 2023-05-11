@@ -519,7 +519,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil
 	})
 
-	// TODO 这里干了啥？
+	// 1、start-kube-apiserver-identity-lease-controller负责更新APIServer中的Lease对象的reNewTime,也就是租约续期
+	// 2、start-kube-apiserver-identity-lease-garbage-collector负责删除过期的Lease对象
 	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.APIServerIdentity) {
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 			// 实例化K8S APIServer客户端
@@ -527,7 +528,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			if err != nil {
 				return err
 			}
-			// TODO 应该主要是对于Lease对象的更新，至于Lease到底是用来干嘛的，后面有空再来分析
+			// 1、保证APIServer一定存在一个Lease对象，没有就创建一个Lease对象并调用Crate接口持久化到ETCD当中
+			// 2、如果APIServer中已存在Lease对象，那么更新这个Lease对象的reNew时间，为该Lease对象续期
 			controller := lease.NewController(
 				clock.RealClock{},
 				kubeClient,
@@ -541,11 +543,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			return nil
 		})
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-garbage-collector", func(hookContext genericapiserver.PostStartHookContext) error {
-			// 定期回收已经过期的Lease资源对象
+			// 实例化K8S ClientSet客户端
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				return err
 			}
+			// LaseGCController回收那些kube-systemc名称空间中打了k8s.io/component=kube-system标签过期的Lease对象
 			go apiserverleasegc.NewAPIServerLeaseGC(
 				kubeClient,
 				time.Duration(c.ExtraConfig.IdentityLeaseDurationSeconds)*time.Second,

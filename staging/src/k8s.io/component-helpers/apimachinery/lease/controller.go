@@ -51,7 +51,9 @@ type Controller interface {
 type ProcessLeaseFunc func(*coordinationv1.Lease) error
 
 type controller struct {
-	client                     clientset.Interface
+	// K8S ClientSet
+	client clientset.Interface
+	// Lease Client
 	leaseClient                coordclientset.LeaseInterface
 	holderIdentity             string
 	leaseNamespace             string
@@ -61,6 +63,7 @@ type controller struct {
 	onRepeatedHeartbeatFailure func()
 
 	// latestLease is the latest lease which the controller updated or created
+	// 最新的Lease对象
 	latestLease *coordinationv1.Lease
 
 	// newLeasePostProcessFunc allows customizing a lease object (e.g. setting OwnerReference)
@@ -71,6 +74,8 @@ type controller struct {
 }
 
 // NewController constructs and returns a controller
+// 1、保证APIServer一定存在一个Lease对象，没有就创建一个Lease对象并调用Crate接口持久化到ETCD当中
+// 2、如果APIServer中已存在Lease对象，那么更新这个Lease对象的reNew时间，为该Lease对象续期
 func NewController(clock clock.Clock, client clientset.Interface, holderIdentity string, leaseDurationSeconds int32,
 	onRepeatedHeartbeatFailure func(), renewInterval time.Duration, leaseNamespace string, newLeasePostProcessFunc ProcessLeaseFunc) Controller {
 	var leaseClient coordclientset.LeaseInterface
@@ -108,6 +113,8 @@ func (c *controller) sync() {
 		// If at some point other agents will also be frequently updating the Lease object, this
 		// can result in performance degradation, because we will end up with calling additional
 		// GET/PUT - at this point this whole "if" should be removed.
+		// 1、保证APIServer一定存在一个Lease对象，没有就创建一个Lease对象并调用Crate接口持久化到ETCD当中
+		// 2、如果APIServer中已存在Lease对象，那么更新这个Lease对象的reNew时间，为该Lease对象续期
 		err := c.retryUpdateLease(c.latestLease)
 		if err == nil {
 			return
@@ -115,6 +122,7 @@ func (c *controller) sync() {
 		klog.Infof("failed to update lease using latest lease, fallback to ensure lease, err: %v", err)
 	}
 
+	// 保证当前APIServer当中一定存在一个Lease对象
 	lease, created := c.backoffEnsureLease()
 	c.latestLease = lease
 	// we don't need to update the lease if we just created it
@@ -137,6 +145,7 @@ func (c *controller) backoffEnsureLease() (*coordinationv1.Lease, bool) {
 	)
 	sleep := 100 * time.Millisecond
 	for {
+		// 保证当前APIServer当中一定存在一个Lease对象
 		lease, created, err = c.ensureLease()
 		if err == nil {
 			break
@@ -152,9 +161,10 @@ func (c *controller) backoffEnsureLease() (*coordinationv1.Lease, bool) {
 // ensureLease creates the lease if it does not exist. Returns the lease and
 // a bool (true if this call created the lease), or any error that occurs.
 func (c *controller) ensureLease() (*coordinationv1.Lease, bool, error) {
+	// 从ETCD当中读取Lease对象
 	lease, err := c.leaseClient.Get(context.TODO(), c.holderIdentity, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		// lease does not exist, create it.
+		// 如果当前APIServer当中还没有创建过Lease对象，那就实例化一个新的Lease对象
 		leaseToCreate, err := c.newLease(nil)
 		// An error occurred during allocating the new lease (likely from newLeasePostProcessFunc).
 		// Given that we weren't able to set the lease correctly, we simply
@@ -162,6 +172,7 @@ func (c *controller) ensureLease() (*coordinationv1.Lease, bool, error) {
 		if err != nil {
 			return nil, false, nil
 		}
+		// 持久化到ETCD当中
 		lease, err := c.leaseClient.Create(context.TODO(), leaseToCreate, metav1.CreateOptions{})
 		if err != nil {
 			return nil, false, err
@@ -177,9 +188,15 @@ func (c *controller) ensureLease() (*coordinationv1.Lease, bool, error) {
 
 // retryUpdateLease attempts to update the lease for maxUpdateRetries,
 // call this once you're sure the lease has been created
+// 1、保证APIServer一定存在一个Lease对象，没有就创建一个Lease对象并调用Crate接口持久化到ETCD当中
+// 2、如果APIServer中已存在Lease对象，那么更新这个Lease对象的reNew时间，为该Lease对象续期
 func (c *controller) retryUpdateLease(base *coordinationv1.Lease) error {
+	// 最多尝试5此修改Lease
 	for i := 0; i < maxUpdateRetries; i++ {
+		// 如果LeaseController还没有刚开始运行还没有实例化Lease对象，那就实例化一个。否则更新租约
 		leaseToUpdate, _ := c.newLease(base)
+		// 把内存中更新的Lease对象持久化到ETCD当中
+		// TODO 如果LeaseController刚开始运行，此时APIServer还没有Lease对象，这里调用Update接口肯定会报错，但是错误不应该是Conflict错误吧
 		lease, err := c.leaseClient.Update(context.TODO(), leaseToUpdate, metav1.UpdateOptions{})
 		if err == nil {
 			c.latestLease = lease
@@ -188,6 +205,7 @@ func (c *controller) retryUpdateLease(base *coordinationv1.Lease) error {
 		klog.Errorf("failed to update lease, error: %v", err)
 		// OptimisticLockError requires getting the newer version of lease to proceed.
 		if apierrors.IsConflict(err) {
+			// 保证当前APIServer一定存在一个Lease对象，如果没有就创建一个Lease对象并持久化到ETCD当中
 			base, _ = c.backoffEnsureLease()
 			continue
 		}
@@ -207,6 +225,7 @@ func (c *controller) newLease(base *coordinationv1.Lease) (*coordinationv1.Lease
 	// but we don't need to make component heartbeats more complicated by using them.
 	var lease *coordinationv1.Lease
 	if base == nil {
+		// 如果Base为空，说明LeaseController刚刚开始运行，还没有生成Lease对象，那么直接实例化一个Lease对象
 		lease = &coordinationv1.Lease{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      c.holderIdentity,
@@ -218,11 +237,14 @@ func (c *controller) newLease(base *coordinationv1.Lease) (*coordinationv1.Lease
 			},
 		}
 	} else {
+		// 如果有，那么就深度拷贝一个Lease对象
 		lease = base.DeepCopy()
 	}
+	// Lease对象续期
 	lease.Spec.RenewTime = &metav1.MicroTime{Time: c.clock.Now()}
 
 	if c.newLeasePostProcessFunc != nil {
+		// 给Lease对象添加k8s.io/component=kube-apiserver的Label
 		err := c.newLeasePostProcessFunc(lease)
 		return lease, err
 	}

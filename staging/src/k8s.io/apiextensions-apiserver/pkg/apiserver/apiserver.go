@@ -137,6 +137,8 @@ func (cfg *Config) Complete() CompletedConfig {
 }
 
 // New returns a new instance of CustomResourceDefinitions from the given config.
+// 1、实例化一个名为apiextensions-apiserver的GenericServer
+// 2、注册CRD资源，也就是通过URL可以对CRD资源进行增删改查
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
 	// 实例化一个generic server，实际上所有的server都是generic server
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
@@ -158,8 +160,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// MergedResourceConfig用于标识禁用哪些资源，启用哪些资源
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
-	// 实例化APIGroupInfo
-	// TODO ExtensionAPIServer会注册哪些资源？ 主要是在注册 [__internal, v1, v1beta1].[CRD CRDList]资源
+
+	// 实例化APIGroupInfo，此时的APIGroupInfo对象当中什么资源都没有注册
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
 	// 构建资源的后端存储
 	storage := map[string]rest.Storage{}
@@ -182,7 +184,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	// clientset客户端
+	// 实例化ClientSet客户端
 	crdClient, err := clientset.NewForConfig(s.GenericAPIServer.LoopbackClientConfig)
 	if err != nil {
 		// it's really bad that this is leaking here, but until we can fix the test (which I'm pretty sure isn't even testing what it wants to test),
@@ -243,7 +245,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// DiscoveryController会把监听到的CRD以/apis/<group>/<version> API放入到 versionDiscoveryHandler
 	// 并且把监听到的CRD以/apis/<group> API放入到 groupDiscoveryHandler
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
-	// TODO 判断当前新曾的CRD的名字是否可以使用，只要当前CRD的命名和已经存在的CRD命名没有任何冲突，当前CRD就会被打上NamesAccepted以及Established Condition
+	// TODO 判断当前新增的CRD的名字是否可以使用，只要当前CRD的命名和已经存在的CRD命名没有任何冲突，当前CRD就会被打上NamesAccepted以及Established Condition
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO 主要是再处理NonStructuralSchema Condition
 	// NonStructuralSchema Condition含义可以参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema

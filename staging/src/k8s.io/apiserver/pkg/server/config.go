@@ -141,10 +141,11 @@ type Config struct {
 	// TODO CORS控制
 	CorsAllowedOriginList []string
 	// TODO 啥是HSTS 答：Strict-Transport-Security
-	// 参考：golang.org/issue/26162
+	// 参考：https://golang.org/issue/26162
 	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
 	// TODO apiserver的流控到底是怎么设计的? apisix限速
+	// 参考：https://kubernetes.io/zh-cn/docs/concepts/cluster-administration/flow-control/
 	FlowControl utilflowcontrol.Interface
 
 	// 这玩意有啥用？和Informer是否有关？ 答：和informer并不相关 这里的index指的是K8S首页面
@@ -670,12 +671,19 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // New creates a new server which logically combines the handling chain with the passed server.
 // name is used to differentiate for logging. The handler chain in particular can be difficult as it starts delegating.
 // delegationTarget may not be nil.
-// TODO 实例化一个Generic Server   都做了哪些步骤？
+// 实例化GenericServer主要做了下面几个步骤：
+// 1、实例化APIServerHandler，可以简单理解为APIServerHandler就是go-restful的Container，里面保存了URL和Handler的映射；也就是说，
+// APIServerHandler 是一个路由注册中心
+// 2、实例化GenericServer, 主要是利用GenericServerConfig初始化GenericServer的部分属性
+// 3、把Delegator的PostStartHooks加入到自己的PostStartHooks当中；把Delegator的PreShutdownHooks加入到自己的PreShutdownHooks当中
+// 4、添加后置处理器
+// 5、添加路由，包括：	/ 路由 /index路由 /debug/pprof路由 /debug/flags路由 /metrics路由 /version路由 /apis路由
+// /debug/api_priority_and_fairness/dump_priority_levels路由
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil { // 请求Body编解码的处理，没有它是不行的
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
 	}
-	// 这个配置到底如何理解？ 答：实际上这个配置就是实例化clientset需要的配置
+	// 这个配置到底如何理解？ 答：实际上这个配置就是实例化ClientSet需要的配置
 	if c.LoopbackClientConfig == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.LoopbackClientConfig == nil")
 	}
@@ -687,12 +695,13 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	// handlerChainBuilder类似Java中的Filter，或者Gin中的中间件，实际上就是在请求被真正处理前处理了一道，主要是增加了认证、审计、限速、鉴权等通用工作
 	// 真正的资源处理是通过handler放进去的
 	handlerChainBuilder := func(handler http.Handler) http.Handler {
-		// 请求处理的逻辑，认证、审计、限速等等 extension-apiserver复用了之前的generic-apiserver的初始化逻辑
+		// 请求处理的逻辑，认证、审计、限速等等 ExtensionServer复用了之前的GenericAPIServer的初始化逻辑
 		return c.BuildHandlerChainFunc(handler, c.Config)
 	}
 
-	// TODO APIServerHandler是generic server非常核心的东西，掌握了路由信息
-	// 当前创建出来的APIServerHandler是空的，还没有任何的路由信息
+	// 1、实例化APIServerHandler，可以简单理解为APIServerHandler就是go-restful的Container，里面保存了URL和Handler的映射；也就是说，
+	// APIServerHandler 是一个路由注册中心
+	// 2、当前创建出来的APIServerHandler是空的，还没有任何的路由信息
 	apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler())
 
 	s := &GenericAPIServer{
@@ -778,6 +787,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	}
 
 	// register mux signals from the delegated server
+	// TODO 这玩意干嘛的？
 	for k, v := range delegationTarget.MuxAndDiscoveryCompleteSignals() {
 		if err := s.RegisterMuxAndDiscoveryCompleteSignal(k, v); err != nil {
 			return nil, err
@@ -788,7 +798,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	if c.SharedInformerFactory != nil {
 		if !s.isPostStartHookRegistered(genericApiServerHookName) {
 			err := s.AddPostStartHook(genericApiServerHookName, func(context PostStartHookContext) error {
-				// TODO 启动informer，缓存K8S资源对象
+				// 启动informer，缓存K8S资源对象
 				c.SharedInformerFactory.Start(context.StopCh)
 				return nil
 			})
@@ -803,6 +813,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	}
 
+	// APIServer的APF  流控相关
 	const priorityAndFairnessConfigConsumerHookName = "priority-and-fairness-config-consumer"
 	if s.isPostStartHookRegistered(priorityAndFairnessConfigConsumerHookName) {
 	} else if c.FlowControl != nil {
@@ -833,7 +844,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 			}
 		}
 	} else {
-		// TODO apiserver的限速
+		// TODO APIServer的限速
 		const maxInFlightFilterHookName = "max-in-flight-filter"
 		if !s.isPostStartHookRegistered(maxInFlightFilterHookName) {
 			err := s.AddPostStartHook(maxInFlightFilterHookName, func(context PostStartHookContext) error {

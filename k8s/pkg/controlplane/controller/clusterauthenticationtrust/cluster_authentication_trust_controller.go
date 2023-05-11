@@ -47,11 +47,12 @@ import (
 )
 
 const (
-	// TODO 为什么只关心kube-system这个名称空间
 	configMapNamespace = "kube-system"
-	// 这个ConfigMap应该需要包含 ClusterAuthenticationInfo 相关信息，本质上这个configmap就是client-ca-file文件
-	// TODO 当client-ca-file参数所指向的文件发生变化时，谁来把更新extension-apiserver-authentication.kube-system这个configmap?
-	// TODO extension-apiserver-authentication.kube-system配置文件是由谁生成的？
+	// 1、extension-apiserver-authentication实际上就是通过ClusterAuthenticationTrustController创建的，数据来源就是用户通过
+	// client-ca-file参数以及requestheader-client-ca-file参数指向的证书
+	// 2、ClusterAuthenticationTrustController更新ConfigMap原理非常简单，一旦ClientCAProvider发现client-ca-file证书发生变化
+	// 或者是requestheader-client-ca-file证书发生变化，就会通知ClusterAuthenticationTrustController，此时ClusterAuthenticationTrustController
+	// 会读取ConfigMap文件以及真实的证书文件做对比，如果发现不一致就更新extension-apiserver-authentication
 	configMapName = "extension-apiserver-authentication"
 )
 
@@ -118,7 +119,8 @@ type Controller struct {
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors.
 	// we only ever place one entry in here, but it is keyed as usual: namespace/name
-	// TODO 这个queue中保存的是啥？
+	// queue中保存的都是：kube-system/extension-apiserver-authentication字符串，这个字符串实际上就是ConfigMap文件，
+	// 一旦extension-apiserver-authentication ConfigMap发生变化，就会放入到队列当中
 	queue workqueue.RateLimitingInterface
 
 	// kubeSystemConfigMapInformer is tracked so that we can start these on Run
@@ -130,8 +132,7 @@ type Controller struct {
 }
 
 // ClusterAuthenticationInfo holds the information that will included in public configmap.
-// TODO 认证信息这里相当重要，是理解apiserver认证的重要依据
-// TODO 这里的认证信息应该适合K8S的认证相关
+// 1、ClusterAuthenticationInfo中保存的是证书认证和RequestHeader代理认证信息
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
 	// 监听client-ca-file参数所指定的证书，一旦证书发生变化就通知所有对client-ca-file文件该兴趣的controller,当前
@@ -152,8 +153,13 @@ type ClusterAuthenticationInfo struct {
 
 // NewClusterAuthenticationTrustController returns a controller that will maintain the kube-system configmap/extension-apiserver-authentication
 // that holds information about how to aggregated apiservers are recommended (but not required) to configure themselves.
+// ClusterAuthenticationTrustController的主要作用如下：
+// 1、在kube-system创建extension-apiserver-authentication Configmap，数据内容从ClusterAuthenticationInfo获取
+// 2、一旦ClientCAProvider通知ClusterAuthenticationTrustController client-ca-file或者requestheader-client-ca-file证书
+// 发生变化，ClusterAuthenticationTrustController就会对比ConfigMap和从证书中读取到的内容，如果不一致就更新extension-apiserver-authentication
 func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterAuthenticationInfo, kubeClient kubernetes.Interface) *Controller {
 	// we construct our own informer because we need such a small subset of the information available.  Just one namespace.
+	// 只关心kube-system名称空间的ConfigMap变化
 	kubeSystemConfigMapInformer := corev1informers.NewConfigMapInformer(kubeClient, configMapNamespace, 12*time.Hour,
 		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc})
 
@@ -168,8 +174,8 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 	}
 
 	kubeSystemConfigMapInformer.AddEventHandler(cache.FilteringResourceEventHandler{
+		// 只关心名字为extension-apiserver-authentication ConfigMap的变化，因为这个ConfigMap中包含认证相关的信息
 		FilterFunc: func(obj interface{}) bool {
-			// 为什么只关心extension-apiserver-authentication这个名字的configmap?
 			if cast, ok := obj.(*corev1.ConfigMap); ok {
 				return cast.Name == configMapName
 			}
@@ -216,6 +222,7 @@ func (c *Controller) syncConfigMap() error {
 	if err != nil {
 		return err
 	}
+	// TODO 仔细分析
 	combinedInfo, err := combinedClusterAuthenticationInfo(existingAuthenticationInfo, c.requiredAuthenticationData)
 	if err != nil {
 		return err
@@ -234,7 +241,7 @@ func (c *Controller) syncConfigMap() error {
 	if err := createNamespaceIfNeeded(c.namespaceClient, authConfigMap.Namespace); err != nil {
 		return err
 	}
-	// 更新Configmap
+	// 更新extension-apiserver-authentication Configmap
 	if err := writeConfigMap(c.configMapClient, authConfigMap); err != nil {
 		return err
 	}
@@ -510,7 +517,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 	defer klog.Infof("Shutting down cluster_authentication_trust_controller controller")
 
 	// we have a personal informer that is narrowly scoped, start it.
-	// 启动informer，同步apiserver中的数据
+	// 启动informer，同步APIServer中的数据,其实主要是同步extension-apiserver-authentication ConfigMap文件的变化
 	go c.kubeSystemConfigMapInformer.Run(ctx.Done())
 
 	// wait for your secondary caches to fill before starting your work
@@ -525,6 +532,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 
 	// checks are cheap.  run once a minute just to be sure we stay in sync in case fsnotify fails again
 	// start timer that rechecks every minute, just in case.  this also serves to prime the controller quickly.
+	// 由于检测证书的开销很小，因此这里选择每隔一分钟检测依次证书的状态
 	_ = wait.PollImmediateUntil(1*time.Minute, func() (bool, error) {
 		c.queue.Add(keyFn())
 		return false, nil

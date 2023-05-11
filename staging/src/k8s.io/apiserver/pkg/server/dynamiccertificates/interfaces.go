@@ -42,6 +42,7 @@ type CAContentProvider interface {
 	Notifier
 
 	// Name is just an identifier.
+	// 用于标识不同的CAContentProvider
 	Name() string
 	// CurrentCABundleContent provides ca bundle byte content. Errors can be
 	// contained to the controllers initializing the value. By the time you get

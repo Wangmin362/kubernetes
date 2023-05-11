@@ -93,7 +93,7 @@ func (o *TracingOptions) ApplyTo(es *egressselector.EgressSelector, c *server.Co
 		return fmt.Errorf("failed to validate tracing configuration: %v", errs.ToAggregate())
 	}
 
-	opts := []otlpgrpc.Option{}
+	var opts []otlpgrpc.Option
 	if es != nil {
 		// Only use the egressselector dialer if egressselector is enabled.
 		// Endpoint is on the "ControlPlane" network

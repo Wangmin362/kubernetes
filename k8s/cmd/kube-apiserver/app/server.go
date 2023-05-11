@@ -171,7 +171,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
-	// 创建了三个Server,创建顺序为ExtensionServer, APIServer, AggregatorServer，再Delegator机制的作用下，实际的请求处理顺序为：
+	// 1、创建了三个Server,创建顺序为ExtensionServer, APIServer, AggregatorServer，再Delegator机制的作用下，实际的请求处理顺序为：
 	// AggregatorServer => APIServer => ExtensionServer, 实际上这三个Server本质上都是GenericServer，仅仅是再GenericServer的
 	// 基础之上增加了额外的功能。而这里的返回值就是AggregatorServer，真正启动的只有AggregatorServer，APIServer和ExtensionServer
 	// 并没有真正启动，而是作为Delegator的方式在合适的时机处理请求
@@ -235,8 +235,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// 实例化APIServer，k8s内建的资源都是通过APIServer处理的
-	// TODO 标准资源的Handler是如何装载的？ URL+Method是如何与Handler匹配的？
-	// TODO k8s是如何解决相同的对象不同的版本的？ 答：K8S的接口本来就是有版本特性的，相同资源的不同版本完全可以当作不同资源来处理
+	// APIServer主要处理两类资源：1、Legacy资源 2、除了Legacy资源、CRD、APIServer以外的其它资源
 	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
 	if err != nil {
 		return nil, err
@@ -261,7 +260,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
 func CreateKubeAPIServer(kubeAPIServerConfig *controlplane.Config, delegateAPIServer genericapiserver.DelegationTarget) (*controlplane.Instance, error) {
-	// complete()方法主要是在设置generic-apiserver配置的一些默认参数
+	// complete()方法主要是在设置GenericAPIServer配置的一些默认参数
 	kubeAPIServer, err := kubeAPIServerConfig.Complete().New(delegateAPIServer)
 	if err != nil {
 		return nil, err

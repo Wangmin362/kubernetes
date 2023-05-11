@@ -313,7 +313,7 @@ func (c *Config) Complete() CompletedConfig {
 		cfg.ExtraConfig.ServiceIPRange = serviceIPRange
 	}
 	if cfg.ExtraConfig.APIServerServiceIP == nil {
-		// 设置generic-apiserver的ip地址，这个地址必须在serviceIPRange参数的范围之内
+		// 设置GenericAPIServer的ip地址，这个地址必须在serviceIPRange参数的范围之内
 		cfg.ExtraConfig.APIServerServiceIP = apiServerServiceIP
 	}
 
@@ -360,33 +360,33 @@ func (c *Config) Complete() CompletedConfig {
 //
 //	KubeletClientConfig
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*Instance, error) {
-	// TODO 为什么apiserver需要耦合kubelet的配置？
+	// 为什么APIServer需要耦合kubelet的配置？ 答：因为APIServer需要连接各个Node节点的Kubelet，获取Node节点的状态
 	if reflect.DeepEqual(c.ExtraConfig.KubeletClientConfig, kubeletclient.KubeletClientConfig{}) {
 		return nil, fmt.Errorf("Master.New() called with empty config.KubeletClientConfig")
 	}
 
-	// genericConfig是apiserver的配置，当apiserver处理不了一个请求的时候，会把请求委派给delegationTarget，也就是extend-apiserver
-	// TODO 通过generic-apiserver-config实例化一个generic-apiserver，名字叫做kube-apiserver
-	// TODO 默认实例出来的generic-apiserver都安装了什么资源，所谓实例化一个generic-apiserver，实际上就是设置其属性，那么到底初始化了什么东西呢？
-	// 主要是创建了一个go-restful的Container，然后注册 /index资源 /debug/pprof /debug/flags /metrics  /version  /apis
-	///debug/api_priority_and_fairness/dump_priority_levels资源
+	// GenericConfig是APSIServer的配置，当APIServer处理不了一个请求的时候，会把请求委派给delegationTarget，也就是ExtensionServer
+	// 实例化GenericServer主要做了下面几个步骤：
+	// 1、实例化APIServerHandler，可以简单理解为APIServerHandler就是go-restful的Container，里面保存了URL和Handler的映射；也就是说，
+	// APIServerHandler 是一个路由注册中心
+	// 2、实例化GenericServer, 主要是利用GenericServerConfig初始化GenericServer的部分属性
+	// 3、把Delegator的PostStartHooks加入到自己的PostStartHooks当中；把Delegator的PreShutdownHooks加入到自己的PreShutdownHooks当中
+	// 4、添加后置处理器
+	// 5、添加路由，包括：	/ 路由 /index路由 /debug/pprof路由 /debug/flags路由 /metrics路由 /version路由 /apis路由
+	// /debug/api_priority_and_fairness/dump_priority_levels路由
 	apiServer, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
 
-	// 如果开启了日志服务，那么创建日志的container
-	// todo go-restful框架中，不同的container需要监听不同的端口，也就是说看起来是一个工程，实际上是多个web服务，难道是说日志
-	// todo 服务是另外起的一个web服务，只是通过apiserver完成代理？？？？
-	// 答： 实际上，从下面三行代码可以看出，日志服务用的是外面传进来的cotainer,所以是公用的一个端口，仅仅是增加了一个Service
+	// 如果开启了日志服务就注册/logs 路由
 	if c.ExtraConfig.EnableLogsSupport {
-		// 注册/logs资源
 		routes.Logs{}.Install(apiServer.Handler.GoRestfulContainer)
 	}
 
 	// Metadata and keys are expected to only change across restarts at present,
 	// so we just marshal immediately and serve the cached JSON bytes.
-	// todo 这里应该是apiserver对于openID认证的支持
+	// TODO 这里应该是AIPServer对于OpenID认证的支持
 	md, err := serviceaccount.NewOpenIDMetadata(
 		c.ExtraConfig.ServiceAccountIssuerURL,
 		c.ExtraConfig.ServiceAccountJWKSURI,
@@ -417,15 +417,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			Install(apiServer.Handler.GoRestfulContainer)
 	}
 
-	// kube-apiserver就被实例化出来了
+	// 实例化APIServer
 	m := &Instance{
 		GenericAPIServer:          apiServer,
 		ClusterAuthenticationInfo: c.ExtraConfig.ClusterAuthenticationInfo,
 	}
 
-	// install legacy rest storage
-
-	// TODO legacy资源指的仅仅是core资源，譬如event,pod等等资源
+	// 注册APIServer的Legacy资源，譬如Pod, Event, Service, ResourceQuota, PV, PVC等等资源
 	if err := m.InstallLegacyAPI(&c, c.GenericConfig.RESTOptionsGetter); err != nil {
 		return nil, err
 	}
@@ -437,8 +435,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// with specific priorities.
 	// TODO: describe the priority all the way down in the RESTStorageProviders and plumb it back through the various discovery
 	// handlers that we have.
-	// 所谓的RestStorageProvider实际上就是解决各个REST资源如何存储的问题
-	// 除了核心资源，还有许多标准GVR资源需要安装
+	// 1、所谓的RestStorageProvider实际上就是解决各个REST资源如何存储的问题, 简单来说就是各个资源增删改查的Handler
+	// 2、APIServer除了核心资源以外，其余的资源都在这里进行安装。当然，AggregatorServer和ExtensionServer所支持的资源在自己的
+	// GenericServer中进行安装
 	restStorageProviders := []RESTStorageProvider{
 		apiserverinternalrest.StorageProvider{},
 		authenticationrest.RESTStorageProvider{Authenticator: c.GenericConfig.Authentication.Authenticator, APIAudiences: c.GenericConfig.Authentication.APIAudiences},
@@ -461,20 +460,23 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		admissionregistrationrest.RESTStorageProvider{},
 		eventsrest.RESTStorageProvider{TTL: c.ExtraConfig.EventTTL},
 	}
-	// TODO 注册其他资源对象,也就是除了Legacy之外的资源对象
+	// 注册APIServer中除了Legacy资源以外的其它资源
 	if err := m.InstallAPIs(c.ExtraConfig.APIResourceConfigSource, c.GenericConfig.RESTOptionsGetter, restStorageProviders...); err != nil {
 		return nil, err
 	}
 
+	// start-cluster-authentication-info-controller的主要作用如下：
+	// 1、在kube-system创建名为extension-apiserver-authentication的Configmap，数据内容从ClusterAuthenticationInfo获取
+	// 2、一旦ClientCAProvider通知ClusterAuthenticationTrustController client-ca-file或者requestheader-client-ca-file证书
+	// 发生变化，ClusterAuthenticationTrustController就会对比ConfigMap和从证书中读取到的内容，如果不一致就更新extension-apiserver-authentication
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		// 生成K8S的客户端工具
 		kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 		if err != nil {
 			return err
 		}
-		// TODO 这里是认证相关,实际上主要是为了能够从extension-apiserver-authentication获取认证数据
-		// TODO 后面有时间详细分析这个Controller到底干了啥
-		// 一旦client-ca-file参数指向的证书发生变化，CAContentProvider就会通知ClusterAuthenticationTrustController
+		// 1、一旦client-ca-file参数所指向的证书发生变化，ClientCAProvider就会通知ClusterAuthenticationTrustController
+		// 2、一旦requestheader-client-ca-file参数所指向的证书发生变化，ClientCAProvider就会通知ClusterAuthenticationTrustController
 		controller := clusterauthenticationtrust.NewClusterAuthenticationTrustController(m.ClusterAuthenticationInfo, kubeClient)
 
 		// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
@@ -492,31 +494,35 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		if m.ClusterAuthenticationInfo.ClientCA != nil {
 			m.ClusterAuthenticationInfo.ClientCA.AddListener(controller)
 			if controller, ok := m.ClusterAuthenticationInfo.ClientCA.(dynamiccertificates.ControllerRunner); ok {
-				// runonce to be sure that we have a value.
+				// 读取client-ca-file证书内容，并通知ClusterAuthenticationTrustController
 				if err := controller.RunOnce(ctx); err != nil {
 					runtime.HandleError(err)
 				}
+				// 启动CAContentProvider，如果client-ca-file指向的证书发生变化，CAContentProvider会通知ClusterAuthenticationTrustController
 				go controller.Run(ctx, 1)
 			}
 		}
 		if m.ClusterAuthenticationInfo.RequestHeaderCA != nil {
 			m.ClusterAuthenticationInfo.RequestHeaderCA.AddListener(controller)
 			if controller, ok := m.ClusterAuthenticationInfo.RequestHeaderCA.(dynamiccertificates.ControllerRunner); ok {
-				// runonce to be sure that we have a value.
+				// 读取requestheader-client-ca-file证书内容，并通知ClusterAuthenticationTrustController
 				if err := controller.RunOnce(ctx); err != nil {
 					runtime.HandleError(err)
 				}
+				// 启动CAContentProvider，如果requestheader-client-ca-file指向的证书发生变化，CAContentProvider会通知ClusterAuthenticationTrustController
 				go controller.Run(ctx, 1)
 			}
 		}
 
+		// 启动ClusterAuthenticationTrustController
 		go controller.Run(ctx, 1)
 		return nil
 	})
 
+	// TODO 这里干了啥？
 	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.APIServerIdentity) {
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-controller", func(hookContext genericapiserver.PostStartHookContext) error {
-			// 生成K8S apiserver客户端
+			// 实例化K8S APIServer客户端
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				return err
@@ -564,6 +570,7 @@ func labelAPIServerHeartbeat(lease *coordinationapiv1.Lease) error {
 
 // InstallLegacyAPI will install the legacy APIs for the restStorageProviders if they are enabled.
 func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generic.RESTOptionsGetter) error {
+	// LegacyRestStorageProvider用于实例化Legacy资源的Storage，也就是Legacy资源的Handler
 	legacyRESTStorageProvider := corerest.LegacyRESTStorageProvider{
 		StorageFactory:              c.ExtraConfig.StorageFactory,
 		ProxyTransport:              c.ExtraConfig.ProxyTransport,

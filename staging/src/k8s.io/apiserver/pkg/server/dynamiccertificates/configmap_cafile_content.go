@@ -39,7 +39,7 @@ import (
 
 // ConfigMapCAController provies a CAContentProvider that can dynamically react to configmap changes
 // It also fulfills the authenticator interface to provide verifyoptions
-// 监听kube-system名称空间中的extension-apiserver-authentication configmap
+// 监听kube-system名称空间中的extension-apiserver-authentication configmap，一旦此configmap发生变化，就通知所有的Listener
 type ConfigMapCAController struct {
 	name string
 

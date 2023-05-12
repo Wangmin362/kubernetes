@@ -45,7 +45,10 @@ import (
 
 // NamingConditionController This controller is reserving names. To avoid conflicts, be sure to run only one instance of the worker at a time.
 // This could eventually be lifted, but starting simple.
-// TODO 分析具体原理
+// 1、NamingConditionController的核心作用就是判断用户提交的CRD资源的名字是否和已经存在的CRD资源冲突，如果有冲突就会为当前CRD生成
+// NamesAccepted=False的Condition,否则如果当前CRD的所有命名和已经存在的所有CRD命名没有冲突，就会为此CRD生成NamesAccepted=True的Condition
+// 2、当检测一个CRD的名字是否有冲突的时候，会检测该CRD的单数名称（Singular）、复数名称（Plural）、缩写名称（ShortNames）、Kind、KindList，只有当CRD的
+// 这五种命名全部都没有冲突，才会为此CRD生成NamesAccepted=True的Condition
 type NamingConditionController struct {
 	crdClient client.CustomResourceDefinitionsGetter
 
@@ -138,8 +141,9 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 		Status: apiextensionsv1.ConditionUnknown,
 	}
 
+	// 当前CRD想要使用的名字
 	requestedNames := in.Spec.Names
-	// TODO 猜测这个名字刚开始应该是空的，经过后续的判断，如果当前CRD和系统中已经存在的CRD的名称如果发生冲突，那么这个对象估计会重新被放入到workqueue当中
+	// 当前CRD被同意允许使用的名字，CRD刚提交的时候肯定是空的。实际上in.Status.AcceptedNames名字就是通过NamingConditionController更新的
 	acceptedNames := in.Status.AcceptedNames
 	newNames := in.Status.AcceptedNames
 
@@ -163,11 +167,14 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 		// 如果没有冲突的话，就可以直接使用单数名字
 		newNames.Singular = requestedNames.Singular
 	}
+
+	// 判断当前CRD的ShortName是否有冲突
 	if !reflect.DeepEqual(requestedNames.ShortNames, acceptedNames.ShortNames) {
-		errs := []error{}
+		var errs []error
 		existingShortNames := sets.NewString(acceptedNames.ShortNames...)
 		for _, shortName := range requestedNames.ShortNames {
-			// if the shortname is already ours, then we're fine
+			// 1、如果Spec中的ShortName已经在Status中存在，说明这个名字已经被接受，无需再次检查
+			// 2、从这里可以看出，NamingController是极度依赖Status状态的，因为Status是自己控制的，因此NamingController绝对相信
 			if existingShortNames.Has(shortName) {
 				continue
 			}
@@ -185,6 +192,7 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 		}
 	}
 
+	// 判断当前CRD的Kind名称是否有冲突
 	if err := equalToAcceptedOrFresh(requestedNames.Kind, acceptedNames.Kind, allKinds); err != nil {
 		namesAcceptedCondition.Status = apiextensionsv1.ConditionFalse
 		namesAcceptedCondition.Reason = "KindConflict"
@@ -192,6 +200,8 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 	} else {
 		newNames.Kind = requestedNames.Kind
 	}
+
+	// 判断当前CRD的KindList名称是否有冲突
 	if err := equalToAcceptedOrFresh(requestedNames.ListKind, acceptedNames.ListKind, allKinds); err != nil {
 		namesAcceptedCondition.Status = apiextensionsv1.ConditionFalse
 		namesAcceptedCondition.Reason = "ListKindConflict"
@@ -202,7 +212,7 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 
 	newNames.Categories = requestedNames.Categories
 
-	// if we haven't changed the condition, then our names must be good.
+	// 如果namesAcceptedCondition的状态还是Unknown,说明当前CRD的命名没有冲突
 	if namesAcceptedCondition.Status == apiextensionsv1.ConditionUnknown {
 		namesAcceptedCondition.Status = apiextensionsv1.ConditionTrue
 		namesAcceptedCondition.Reason = "NoConflicts"
@@ -224,6 +234,7 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 		establishedCondition = *old
 	}
 	if establishedCondition.Status != apiextensionsv1.ConditionTrue && namesAcceptedCondition.Status == apiextensionsv1.ConditionTrue {
+		// 当前CRD的所有名称都是合法的，没有冲突
 		establishedCondition = apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.Established,
 			Status:  apiextensionsv1.ConditionFalse,
@@ -236,10 +247,11 @@ func (c *NamingConditionController) calculateNamesAndConditions(in *apiextension
 }
 
 func equalToAcceptedOrFresh(requestedName, acceptedName string, usedNames sets.String) error {
-	// TODO 如果相等，说明当前名字可以被接接受，我估计刚开始的时候acceptedName是空的
+	// 如果相等，说明当前名字可以被接接受；CRD刚提交的时候acceptedName肯定是空的，requestName肯定不等于AcceptedName
 	if requestedName == acceptedName {
 		return nil
 	}
+	// 如果usedNames中没有requestName,说明当前CRD的命名没有冲突，直接退出
 	if !usedNames.Has(requestedName) {
 		return nil
 	}
@@ -263,8 +275,7 @@ func (c *NamingConditionController) sync(key string) error {
 	}
 
 	// Skip checking names if Spec and Status names are same.
-	// TODO 这里的对比意味着什么？
-	// TODO 如果不相等，说明CRD并非所有的名字都被接受
+	// 如果CRD的Spec名字和Status的AcceptedNames相等，说明此CRD的命名是合法的，肯定没有冲突。所以无需后续的检查
 	if equality.Semantic.DeepEqual(inCustomResourceDefinition.Spec.Names, inCustomResourceDefinition.Status.AcceptedNames) {
 		return nil
 	}
@@ -273,13 +284,15 @@ func (c *NamingConditionController) sync(key string) error {
 	acceptedNames, namingCondition, establishedCondition := c.calculateNamesAndConditions(inCustomResourceDefinition)
 
 	// nothing to do if accepted names and NamesAccepted condition didn't change
-	// TODO 如果当前CRD的所有名字都被接受（也就是说和其它的CRD命名没有冲突），并且Namespaced Condition相等，说明不需要任何改变
+	// 如果当前CRD的所有名字都被接受（也就是说和其它的CRD命名没有冲突），并且Namespaced Condition相等，说明不需要任何改变
 	if reflect.DeepEqual(inCustomResourceDefinition.Status.AcceptedNames, acceptedNames) &&
 		apiextensionshelpers.IsCRDConditionEquivalent(&namingCondition, apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NamesAccepted)) {
 		return nil
 	}
 
-	// TODO，否则，说明当前CRD的命名和当前已经存在的CRD存在冲突
+	// 到这里有两种情况，分别是：
+	// 1、当前CRD的名字不被接受
+	// 2、当前CRD的名字被接受，但是Status还没更新
 
 	crd := inCustomResourceDefinition.DeepCopy()
 	crd.Status.AcceptedNames = acceptedNames

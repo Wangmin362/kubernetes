@@ -87,6 +87,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
 	// /apis/<group>/<version>的结果就保存在这个局部变量当中
 	var apiResourcesForDiscovery []metav1.APIResource
+
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
 	// 查询所有的CRD TODO 这里为什么不查询特定的/apis/<group>/<version>的CRD，而是查询所有的资源呢？
@@ -98,7 +99,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	foundVersion := false
 	foundGroup := false
 	for _, crd := range crds {
-		// TODO Established状态意味着当前CRD已经成功注册
+		// Established状态意味着当前CRD已经成功注册，该CRD被K8S认为是合法的
 		if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 			continue
 		}
@@ -210,7 +211,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		// TODO 什么叫做优先选择的版本？ 有啥作用？ 啥时候需要？ 为啥需要？
 		PreferredVersion: apiVersionsForDiscovery[0],
 	}
-	// TODO 暴露出/apis/<group> endpoint
+	// 暴露出/apis/<group> endpoint
 	c.groupHandler.setDiscovery(version.Group, discovery.NewAPIGroupHandler(Codecs, apiGroup))
 
 	if !foundVersion {
@@ -304,7 +305,7 @@ func (c *DiscoveryController) processNextWorkItem() bool {
 }
 
 func (c *DiscoveryController) enqueue(obj *apiextensionsv1.CustomResourceDefinition) {
-	// 加入所有版本
+	// 一个CRD可能有多个版本，因此这里需要添加CRD的所有版本
 	for _, v := range obj.Spec.Versions {
 		c.queue.Add(schema.GroupVersion{Group: obj.Spec.Group, Version: v.Name})
 	}

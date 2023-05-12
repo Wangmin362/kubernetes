@@ -138,7 +138,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // New returns a new instance of CustomResourceDefinitions from the given config.
 // 1、实例化一个名为apiextensions-apiserver的GenericServer
-// 2、注册CRD资源，也就是通过URL可以对CRD资源进行增删改查
+// 2、注册CRD以及CRD/status资源，也就是通过URL可以对CRD资源进行增删改查
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
 	// 实例化一个GenericServer，实际上所有的Server都是GenericServer
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
@@ -153,7 +153,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		return nil, err
 	}
 
-	// 实例化Extension server
+	// 实例化ExtensionServer
 	s := &CustomResourceDefinitions{
 		GenericAPIServer: genericServer,
 	}
@@ -200,22 +200,22 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		delegateHandler = http.NotFoundHandler()
 	}
 
-	// 用于暴露 /apis/extension/v1beta1下的所有资源
+	// 1、CRD的服务发现，是/apis/<group>/<version>路由的数据来源
 	versionDiscoveryHandler := &versionDiscoveryHandler{
 		discovery: map[schema.GroupVersion]*discovery.APIVersionHandler{},
 		delegate:  delegateHandler,
 	}
-	// 用于暴露 /apis/extension下的所有版本信息
+	// 1、CRD的服务发现，是/apis/<group>路由的数据来源
 	groupDiscoveryHandler := &groupDiscoveryHandler{
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
 	// 1、EstablishingController更新入队CRD状态的Condition, 主要是新增Established状态
 	// 2、原理非常简单，更新那些处于NamesAccepted状态但是还没有Established的CRD达到Established状态
+	// 3、有一点值得注意，如果用户提交的CRD的所有名字没有被接受，EstablishedController会直接跳过此CRD,并不会为这种类型的CRD生成Established=True的Condition
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
 	// TODO crdHandler是如何处理的？
-	// 1、CRDController会把CRD的增删改查添加到versionDiscoveryHandler、groupDiscoveryHandler当中
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler, // /apis/<group>/<version>的服务发现
 		groupDiscoveryHandler,   // /apis/<group>的服务发现
@@ -243,17 +243,18 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 当GenericServer停止运行之后会执行销毁方法，实际上就是一些清理动作
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
-	// 监听CRD，每一个CRD都会定义group, version, resource，甚至一个CRD会有多个version，为了支持查询
-	// DiscoveryController会把监听到的CRD以/apis/<group>/<version> API放入到 versionDiscoveryHandler
-	// 并且把监听到的CRD以/apis/<group> API放入到 groupDiscoveryHandler
+	// 1、监听CRD，每一个CRD都会定义group, version, resource，甚至一个CRD会有多个version，为了支持查询， DiscoveryController会把
+	// 监听到的CRD以/apis/<group>/<version> API放入到 versionDiscoveryHandler，并且把监听到的CRD以/apis/<group> API放入到
+	// groupDiscoveryHandler当中
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler)
-	// TODO 判断当前新增的CRD的名字是否可以使用，只要当前CRD的命名和已经存在的CRD命名没有任何冲突，当前CRD就会被打上NamesAccepted以及Established Condition
+	// 1、判断用户新提交的CRD是否和系统中已经存在的CRD命名冲突，如果有命名冲突，该CRD就会被打上NamesAccepted=False并且Established=False的Condition
+	// 如果用户提交的CRD和系统中已经存在的CRD命名没有冲突，那么此CRD会被打上NamesAccepted=True并且Established=False的Condition
+	// 2、用户提交CRD时，NamingConditionController会检测CRD的单数名称（Singular）、复数名称（Plural）、缩写名称（ShortNames）、Kind、KindList
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	// TODO 主要是再处理NonStructuralSchema Condition
-	// NonStructuralSchema Condition含义可以参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
-	// NonStructuralSchema 似乎是CRD刚开始使用的策略，后来由于人们意识到NonStructuralSchema定义无法验证，因此并不安全。而且NonStructuralSchema
-	// 定义的数据，apiserver会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
-	// 如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
+	// 1、NonStructuralSchema Condition含义可以参考：https://kubernetes.io/zh-cn/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definitions/#specifying-a-structural-schema
+	// 2、NonStructuralSchema 似乎是CRD刚开始使用的策略，后来由于人们意识到NonStructuralSchema定义无法验证，因此并不安全。而且NonStructuralSchema
+	// 定义的数据，APIServer会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
+	// 3、如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO 应该也是和CRD的安装相关的东西，自动的CRD的名称符合*.k8s.io或者*.kubernetes.io的时候，这个CRD就需要审批
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

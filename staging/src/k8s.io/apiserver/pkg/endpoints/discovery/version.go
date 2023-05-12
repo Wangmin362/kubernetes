@@ -28,8 +28,7 @@ import (
 	"k8s.io/apiserver/pkg/endpoints/handlers/responsewriters"
 )
 
-// APIResourceLister TODO /apis/<group> 和 /apis/<group>/<version> 所列出的资源有何区别？
-// 实际上这个接口定义并不难理解， /apis/<group>/<version>仅仅是
+// APIResourceLister 返回关于某个组下的所有资源，也就是当用户请求/apis/<group>时，这个组下有哪些资源，就是通过APIResourceLister获取到的
 type APIResourceLister interface {
 	ListAPIResources() []metav1.APIResource
 }

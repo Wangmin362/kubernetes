@@ -10,7 +10,8 @@
 ## K8S鉴权
 ## K8S认证
 ## K8S的准入控制原理？动态准入控制原理？
-## K8S是如何支持动态CRD的？
+## K8S是如何支持动态CRD的？ 自定义资源如何使用Status、Scale子资源？
+## 用于自定义的资源什么时候需要Approval机制？
 ## Aggregator扩展原理
 ## Scheduler扩展
 ## APIServer的存储原理？

@@ -52,7 +52,8 @@ type KubernetesAPIApprovalPolicyConformantConditionController struct {
 	// last protectedAnnotation value this controller updated the condition per CRD name (to avoid two
 	// different version of the apiextensions-apiservers in HA to fight for the right message)
 	lastSeenProtectedAnnotationLock sync.Mutex
-	lastSeenProtectedAnnotation     map[string]string
+	// Key为CRD的名字，Value为CRD的注解[api-approved.kubernetes.io]的值
+	lastSeenProtectedAnnotation map[string]string
 }
 
 // NewKubernetesAPIApprovalPolicyConformantConditionController constructs a KubernetesAPIApprovalPolicyConformant schema condition controller.
@@ -81,10 +82,12 @@ func NewKubernetesAPIApprovalPolicyConformantConditionController(
 
 // calculateCondition determines the new KubernetesAPIApprovalPolicyConformant condition
 func calculateCondition(crd *apiextensionsv1.CustomResourceDefinition) *apiextensionsv1.CustomResourceDefinitionCondition {
+	// 如果当前CRD的group不是：k8s.io, kubernetes.io, *.k8s.io, *.kubernetes.io，说明此CRD不需要保护
 	if !apihelpers.IsProtectedCommunityGroup(crd.Spec.Group) {
 		return nil
 	}
 
+	// 计算当前CRD的Approval的状态
 	approvalState, reason := apihelpers.GetAPIApprovalState(crd.Annotations)
 	switch approvalState {
 	case apihelpers.APIApprovalInvalid:
@@ -139,6 +142,7 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 	c.lastSeenProtectedAnnotationLock.Lock()
 	lastSeen, seenBefore := c.lastSeenProtectedAnnotation[inCustomResourceDefinition.Name]
 	c.lastSeenProtectedAnnotationLock.Unlock()
+	// 如果CRD的api-approved.kubernetes.io注解值和上一次的相等，就说明已经处理过此CRD，无需再次处理
 	if seenBefore && protectionAnnotationValue == lastSeen {
 		return nil
 	}
@@ -149,6 +153,7 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 		// because group is immutable, if we have no condition now, we have no need to remove a condition.
 		return nil
 	}
+	// 判断当前CRD是否含有名为KubernetesAPIApprovalPolicyConformant的Condition
 	old := apihelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.KubernetesAPIApprovalPolicyConformant)
 
 	// don't attempt a write if all the condition details are the same
@@ -174,6 +179,7 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 	// fights of API server in HA environments).
 	c.lastSeenProtectedAnnotationLock.Lock()
 	defer c.lastSeenProtectedAnnotationLock.Unlock()
+	// 更新
 	c.lastSeenProtectedAnnotation[crd.Name] = protectionAnnotationValue
 
 	return nil

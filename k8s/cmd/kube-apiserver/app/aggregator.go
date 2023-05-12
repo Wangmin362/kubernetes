@@ -135,15 +135,15 @@ func createAggregatorConfig(
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget,
 	apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
-	// TODO 这里相当重要， AggregatorServer会监听APIService并且会把APIService转为路由
-	// TODO 这里还干了啥？
+	// 1、AggregatorServer会监听APIService并且会把APIService转为路由
+	// 2、TODO 详细分析
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err
 	}
 
 	// create controllers for auto-registration
-	// clientset客户端
+	// 实例化ClientSet客户端
 	apiRegistrationClient, err := apiregistrationclient.NewForConfig(aggregatorConfig.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
@@ -155,9 +155,9 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	// 与此同时，APIServer的生成的每个APIService都会注册到autoRegistrationController当中，同时还会被打上kube-aggregator.kubernetes.io/automanaged=onstart注解
 	// APIServer的API不需要动态注册，因为APIServer是固定的，不会动态修改
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
-	// ExtensionServer就是我们常说的CRD，由于CRD会被增删改查，因此需要同步增删改查对应的APIService
-	// 来自于ExtensionServer的APIService会被打上kube-aggregator.kubernetes.io/automanaged=true的注解
-	// 同时，通过CRD生成的APIService会被注册到autoRegistrationController当中
+	// 1、ExtensionServer就是我们常说的CRD，由于CRD会被增删改查，因此需要同步增删改查对应的APIService
+	// 2、 来自于ExtensionServer的APIService会被打上kube-aggregator.kubernetes.io/automanaged=true的注解，同时，通过CRD生成的
+	// APIService会被注册到autoRegistrationController当中
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),
 		autoRegistrationController)

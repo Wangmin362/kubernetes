@@ -256,7 +256,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 定义的数据，APIServer会全部存储到etcd当中，因此K8S后来要求CRD必须都是StructuralSchema，也就是CRD的定义必须都是结构化定义
 	// 3、如果用户提交的CRD定义是非结构化的（NonStructuralSchema），那么就会被K8S打上NonStructuralSchema这个Condition
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	// TODO 应该也是和CRD的安装相关的东西，自动的CRD的名称符合*.k8s.io或者*.kubernetes.io的时候，这个CRD就需要审批
+	// 用户提交的CRD的名称如果符合*.k8s.io或者*.kubernetes.io，那这个CRD就需要审批
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	// TODO 处理CRD的删除逻辑
 	finalizingController := finalizer.NewCRDFinalizer(

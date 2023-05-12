@@ -145,7 +145,6 @@ func (c *CRDFinalizer) sync(key string) error {
 	// Since we control the endpoints, we know that delete collection works. No need to delete if not established.
 	if OverlappingBuiltInResources()[schema.GroupResource{Group: crd.Spec.Group, Resource: crd.Spec.Names.Plural}] {
 		// Skip deletion, explain why, and proceed to remove the finalizer and delete the CRD
-		// TODO 这里是在干嘛?
 		apiextensionshelpers.SetCRDCondition(crd, apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.Terminating,
 			Status:  apiextensionsv1.ConditionFalse,

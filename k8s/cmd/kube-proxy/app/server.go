@@ -104,10 +104,13 @@ type proxyRun interface {
 }
 
 // Options contains everything necessary to create and run a proxy server.
+// TODO 详细分析每个参数的作用
 type Options struct {
 	// ConfigFile is the location of the proxy server's configuration file.
+	// KubeProxy的配置文件路径
 	ConfigFile string
 	// WriteConfigTo is the path where the default configuration will be written.
+	// TODO 有何作用？
 	WriteConfigTo string
 	// CleanupAndExit, when true, makes the proxy server clean up iptables and ipvs rules, then exit.
 	CleanupAndExit bool
@@ -115,10 +118,13 @@ type Options struct {
 	// Its corresponding flag only gets registered in Windows builds
 	WindowsService bool
 	// config is the proxy server's configuration object.
+	// KubeProxy的配置，这个配置就是通过读取ConfigFile所指向的文件反序列化出来的
 	config *kubeproxyconfig.KubeProxyConfiguration
 	// watcher is used to watch on the update change of ConfigFile
+	// TODO 有何作用？
 	watcher filesystem.FSWatcher
 	// proxyServer is the interface to run the proxy server
+	// 实际上就是实例化的KubeProxy
 	proxyServer proxyRun
 	// errCh is the channel that errors will be sent
 	errCh chan error
@@ -129,8 +135,10 @@ type Options struct {
 	// TODO remove these fields once the deprecated flags are removed.
 
 	// master is used to override the kubeconfig's URL to the apiserver.
+	// APIServer的地址
 	master string
 	// healthzPort is the port to be used by the healthz server.
+	// 健康检测端口
 	healthzPort int32
 	// metricsPort is the port to be used by the metrics server.
 	metricsPort int32
@@ -487,17 +495,22 @@ environment variables specifying ports opened by the service proxy. There is an 
 addon that provides cluster DNS for these cluster IPs. The user must create a service
 with the apiserver API to configure the proxy.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 如果用户传递了--version参数，返回当前KubeProxy的版本，然后退出
 			verflag.PrintAndExitIfRequested()
+			// 在KubeProxy的日志当中打印所有命令行参数日志
 			cliflag.PrintFlags(cmd.Flags())
 
 			if err := initForOS(opts.WindowsService); err != nil {
 				return fmt.Errorf("failed os init: %w", err)
 			}
 
+			// 补全KubeProxy的参数
+			// 1、实例化FileWatcher,监听KubeProxy的配置文件 TODO 如果配置文件发生变化，KubeProxy会如何处理
 			if err := opts.Complete(); err != nil {
 				return fmt.Errorf("failed complete: %w", err)
 			}
 
+			// 校验KubeProxy的参数
 			if err := opts.Validate(); err != nil {
 				return fmt.Errorf("failed validate: %w", err)
 			}

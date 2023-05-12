@@ -82,42 +82,44 @@ func newProxyServer(
 	cleanupAndExit bool,
 	master string) (*ProxyServer, error) {
 
+	// 要想启动KubeProxy，必须为它传递配置文件
 	if config == nil {
 		return nil, errors.New("config is required")
 	}
 
-	// TODO 这里在干嘛？
+	// 在全局变量当中保存KubeProxy的配置
 	if c, err := configz.New(proxyconfigapi.GroupName); err == nil {
 		c.Set(config)
 	} else {
 		return nil, fmt.Errorf("unable to register configz: %s", err)
 	}
 
-	var iptInterface utiliptables.Interface
-	var ipvsInterface utilipvs.Interface
+	var iptInterface utiliptables.Interface // 用于对iptable规则进行增删改查
+	var ipvsInterface utilipvs.Interface    // 用于对ipvs规则进行增删改查
 	var kernelHandler ipvs.KernelHandler
 	var ipsetInterface utilipset.Interface
 
 	// Create a iptables utils.
-	// TODO 执行命令，这里执行的命令应该是创建iptable, ipvs规则
+	// 执行命令，这里执行的命令应该是创建iptable, ipvs规则
 	execer := exec.New()
 
-	// TODO LinuxKernelHandler有啥作用/
+	// 用于获取当前运行KubeProxy的主机都启用了Linux哪些模块
 	kernelHandler = ipvs.NewLinuxKernelHandler()
 	// TODO ipset是啥？
 	ipsetInterface = utilipset.New(execer)
-	// TODO K8S时如何判断是否能够使用IPVS代理的？
+	// 如果运行KubeProxy的机器没有开启ip_vs, ip_vs_rr, ip_vs_wrr, ip_vs_sh, nf_conntrack其中任何一个模块，当前机器就无法使用IPVS模式
 	canUseIPVS, err := ipvs.CanUseIPVSProxier(kernelHandler, ipsetInterface, config.IPVS.Scheduler)
 	if string(config.Mode) == proxyModeIPVS && err != nil {
 		klog.ErrorS(err, "Can't use the IPVS proxier")
 	}
 
+	// 如果可以使用IPVS，那么实例化ipvs执行器
 	if canUseIPVS {
-		// 如果可以使用IPVS，那么实例化ipvs
 		ipvsInterface = utilipvs.New()
 	}
 
 	// We omit creation of pretty much everything if we run in cleanup mode
+	// TODO 什么叫做CleanupMode?
 	if cleanupAndExit {
 		return &ProxyServer{
 			execer:         execer,
@@ -135,13 +137,13 @@ func newProxyServer(
 		return nil, err
 	}
 
-	// TODO
+	// 实例化ClientSet
 	client, eventClient, err := createClients(config.ClientConnection, master)
 	if err != nil {
 		return nil, err
 	}
 
-	// todo 获取nodeIP
+	// 获取当前运行KubeProxy进程的IP地址
 	nodeIP := detectNodeIP(client, hostname, config.BindAddress)
 	klog.InfoS("Detected node IP", "address", nodeIP.String())
 
@@ -165,7 +167,10 @@ func newProxyServer(
 	var proxier proxy.Provider
 	var detectLocalMode proxyconfigapi.LocalMode
 
-	// TODO 获取代理模式
+	// 1、检测当前机器是否支持配置的代理模式
+	// 2、如果用户配置的是iptable模式，但是发现当前机器无法运行iptables模式，那么只能退而求其次使用userspace模式
+	// 3、如果用户配置的是ipvs模式，但是发现当前机器无法运行ipvs模式，那么只能降级使用iptable模式，如果iptable模式也无法运行，那么继续
+	// 降级使用userspace模式
 	proxyMode := getProxyMode(string(config.Mode), canUseIPVS, iptables.LinuxKernelCompatTester{})
 	// TODO LocalMode指的是啥？
 	detectLocalMode, err = getDetectLocalMode(config)
@@ -174,6 +179,7 @@ func newProxyServer(
 	}
 
 	var nodeInfo *v1.Node
+	// TODO 这里在干嘛？
 	if detectLocalMode == proxyconfigapi.LocalModeNodeCIDR {
 		klog.InfoS("Watching for node, awaiting podCIDR allocation", "hostname", hostname)
 		nodeInfo, err = waitForPodCIDR(client, hostname)
@@ -193,11 +199,14 @@ func newProxyServer(
 	iptInterface = utiliptables.New(execer, primaryProtocol)
 
 	var ipt [2]utiliptables.Interface
+	// 假设用户当前的机器支持双栈，后续会检查用户的机器是否支持双栈
 	dualStack := true // While we assume that node supports, we do further checks below
 
+	// 如果代理模式配置为iptables或者ipvs
 	if proxyMode != proxyModeUserspace {
 		// Create iptables handlers for both families, one is already created
 		// Always ordered as IPv4, IPv6
+		// TODO 这里在干嘛
 		if primaryProtocol == utiliptables.ProtocolIPv4 {
 			ipt[0] = iptInterface
 			ipt[1] = utiliptables.New(execer, utiliptables.ProtocolIPv6)
@@ -251,6 +260,7 @@ func newProxyServer(
 		} else {
 			// Create a single-stack proxier if and only if the node does not support dual-stack (i.e, no iptables support).
 			var localDetector proxyutiliptables.LocalTrafficDetector
+			// TODO 有何作用？
 			localDetector, err = getLocalDetector(detectLocalMode, config, iptInterface, nodeInfo)
 			if err != nil {
 				return nil, fmt.Errorf("unable to create proxier: %v", err)
@@ -598,6 +608,7 @@ func tryIPVSProxy(canUseIPVS bool, kcompat iptables.KernelCompatTester) string {
 		return proxyModeIPVS
 	}
 
+	// 如果用户配置的代理模式为ipvs,但是实际检测下来当前机器无法支持ipvs模式，那么只能退而求其次运行iptables模式
 	// Try to fallback to iptables before falling back to userspace
 	klog.V(1).InfoS("Can't use ipvs proxier, trying iptables proxier")
 	return tryIPTablesProxy(kcompat)
@@ -606,6 +617,7 @@ func tryIPVSProxy(canUseIPVS bool, kcompat iptables.KernelCompatTester) string {
 func tryIPTablesProxy(kcompat iptables.KernelCompatTester) string {
 	// guaranteed false on error, error only necessary for debugging
 	useIPTablesProxy, err := iptables.CanUseIPTablesProxier(kcompat)
+	// 如果iptables模式无法使用，那么只能退而求其次使用userspace模式
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("can't determine whether to use iptables proxy, using userspace proxier: %v", err))
 		return proxyModeUserspace

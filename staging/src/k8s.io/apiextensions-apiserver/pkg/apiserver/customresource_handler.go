@@ -150,7 +150,7 @@ type crdInfo struct {
 	// the storage if one of these changes.
 	// CRD定义
 	spec *apiextensionsv1.CustomResourceDefinitionSpec
-	// TODO 这个属性是啥？
+	// 当前CRD被接受的名字
 	acceptedNames *apiextensionsv1.CustomResourceDefinitionNames
 
 	// Deprecated per version

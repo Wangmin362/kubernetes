@@ -209,7 +209,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	}
 
 	// If additional API servers are added, they should be gated.
-	// 初始化extension server的配置
+	// 初始化ExtensionServer的配置
 	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers,
 		pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount, serviceResolver,
 		// AuthenticationInfoResolverWrapper主要是给AuthenticationInfoResolver增加了两种功能：
@@ -225,10 +225,26 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 	// 这个handler返回的就是404, notFoundHandler是一个HTTP Handler，实现了http.Handler接口
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
-	// TODO k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
-	// TODO ExtensionServer是如何解决动态发现CRD并注册的？
-	// TODO 动态准入控制是通过CRD的原理进行支持的么？
-	// NewEmptyDelegateWithCustomHandler(notFoundHandler)用于把notFoundHandler包装为一个Delegator
+	// 1、实例化一个名为apiextensions-apiserver的GenericServer
+	// 2、注册CRD以及CRD/status资源，也就是通过URL可以对CRD资源进行增删改查
+	// 3、实例化CRD的ShardInformerFactory，每隔五分钟同步一次CRD
+	// 4、实例化EstablishingController，用于为用户新提交的CRD新增Established=True的Condition，当然前提是这个CRD的所有命名（
+	// 包括：（Singular）、复数名称（Plural）、缩写名称（ShortNames）、Kind、KindList）都已经被接受，也就是已经存在NamesAccepted=True的Condition
+	// 5、实例化CRDHandler，CRDHandler用于动态支撑用户对于CR的增删改查
+	// 6、实例化DiscoveryController，用于动态发现用户提交的CR，支持CRDHandler的功能
+	// 7、实例化NamingConditionController，用于检测用户提交的CRD的所有名字是否都已经被接受，如果用户提交的CRD的所有名字被接受，就会被打上
+	// NamesAccepted=True的Condition
+	// 8、实例化NonStructuralSchemaController，用于检测用户提交的CRD是否是结构化的，如果用户提交的CRD不是结构化CRD，那么这个CRD会被打上
+	// NonStructuralSchema=True的Condition。值得一提的是，非结构化的CRD是K8S早期的产物，那个时候K8S对于用户提交的CRD并没有复杂的校验规则，
+	// 后来K8S发现非结构化的CRD是有风险的，因此增加了对于CRD的校验。详情可以参考：https://kubernetes.io/blog/2019/06/20/crd-structural-schema/
+	// 9、实例化KubernetesAPIApprovalPolicyConformantConditionController，用于检查用户提交的CRD的Group是否以：k8s.io, kubernetes.io
+	// 结尾，如果是，那么这些CRD需要审批流程。详情可以参考：https://github.com/kubernetes/enhancements/pull/1111
+	// 10、实例化CRD Finalizer用于处理CRD的删除逻辑
+	// 11、添加PostStartHook，分别添加了以下几个PostStartHook：
+	// 11.1、start-apiextensions-informers：用于启动之前实例化的CRD SharedInformerFactory
+	// 11.2、start-apiextensions-controllers：用于启动前面实例化的所有Controller
+	// 11.3、crd-informer-synced：用于判断CRD SharedInformerFactory是否已经同步完成
+	// 12、TODO 思考：k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err
@@ -248,8 +264,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// aggregator comes last in the chain
-	// TODO 创建AggregatorServer的配置
+	// 创建AggregatorServer的配置
 	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, completedOptions.ServerRunOptions,
 		kubeAPIServerConfig.ExtraConfig.VersionedInformers, serviceResolver, kubeAPIServerConfig.ExtraConfig.ProxyTransport, pluginInitializer)
 	if err != nil {

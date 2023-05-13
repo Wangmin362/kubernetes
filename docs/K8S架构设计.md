@@ -63,7 +63,7 @@
   - [ ] 如何自定义Informer? 很多前期的Operator都是自定义Informer
   - [ ] 影响Informer的参数有哪些？如何正确利用Informer? 错误使用Informer的姿势有哪些？
 - [ ] ListWatcher机制
-- [ ] Finally机制原理
+- [ ] Finalizer机制
 - [ ] CloudProvider
 - [ ] APIServer的分布式链路追踪是如何设计的？
 - [ ] APIServer的启动参数功能分析

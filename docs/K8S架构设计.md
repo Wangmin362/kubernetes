@@ -44,12 +44,15 @@
 - [ ] EgressSelector是啥？Konnectivity又是为了解决什么问题？
 - [ ] K8S是如何解决跨域问题的（CORS）？
 - [ ] 如何理解K8S的资源与子资源？
+- [ ] APIServer架构
+  - [ ] K8S是如何设计APIServer、ExtensionServer、AggregatorServer这三个Server的？从这个设计当中我们能学到什么？
 - [ ] AggregatorServer
   - [ ] K8S Aggregator扩展原理？
   - [ ] 用户如何自定义Aggregator？ 什么时候需要自定义Aggregator?  Aggregator解决了CRD的哪些不足？ 自定义Aggregator最佳实践？
 - [ ] ExtensionServer
   - [ ] 如何自定义CRD？CRD的最佳实践？什么情况下应该使用CRD，什么情况下应该使用Aggregator?
   - [ ] 自定义的资源什么时候需要Approval机制？为什么需要Approval机制？
+  - [ ] Operator、Helm、Docker分别解决了什么问题？
 - [ ] APIServer的后端存储
   - [ ] 如何理解K8S后端存储设计？从这个设计当中我们能学到什么？
   - [ ] 如何自定义K8S后端存储?
@@ -82,16 +85,19 @@
 - [ ] Ingress原理? K8S Ingress架构？
 - [ ] SessionAffinity原理
 - [ ] CSI插件
+- [ ] Plugin插件原理？
 
 ## Kubelet
 
 - [ ] PLEG原理？PLEG有无性能问题？
 - [ ] Kubelet是如何调用CRI的？
+- [ ] CPU Typology?
 
 ## KubeScheduler
 
 - [ ] K8S调度架构
 - [ ] Scheduler扩展点
+- [ ] 如何自定义调度器？
 
 ## KubeProxy
 
@@ -101,7 +107,13 @@
   - [ ] userspace代理模式
 - [ ] KubeProxy和CNI插件的关系？
 - [ ] K8S单协议栈和双协议栈有何区别？
+- [ ] 扩展点？
 
 ## CodeGenerator
 
 - [ ] K8S有哪些标签？每种标签的作用？
+
+
+## ContainerD
+
+- [ ] RMI接口？

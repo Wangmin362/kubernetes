@@ -26,8 +26,8 @@
 - [ ] APIServer扩展点
 - [ ] [APIServer流控](https://kubernetes.io/zh-cn/docs/concepts/cluster-administration/flow-control/)
   - [ ] APIServer有几种限速策略？每种限速策略原理是啥？影响像素策略的参数是啥？ 
-  - [ ] APF (API Priority-and-Fairness)原理？ APIServer命令行影响参数？
-  - [ ] Max-in-Flight原理？APIServer命令行影响参数？
+  - [ ] APF (API Priority-and-Fairness)原理？ 影响参数？
+  - [ ] Max-in-Flight原理？影响参数？
   - [ ] 影响参数
     - [ ] --max-requests-inflight
     - [ ] --min-request-timeout
@@ -53,6 +53,7 @@
   - [ ] 如何自定义CRD？CRD的最佳实践？什么情况下应该使用CRD，什么情况下应该使用Aggregator?
   - [ ] 自定义的资源什么时候需要Approval机制？为什么需要Approval机制？
   - [ ] Operator、Helm、Docker分别解决了什么问题？
+  - [ ] 一个CRD提交后，APIServer都做了哪些操作？ CRD处于什么阶段之后，用户才可以提交CR？
 - [ ] APIServer的后端存储
   - [ ] 如何理解K8S后端存储设计？从这个设计当中我们能学到什么？
   - [ ] 如何自定义K8S后端存储?

@@ -133,6 +133,10 @@ func createAggregatorConfig(
 	return aggregatorConfig, nil
 }
 
+// 1、实例化AggregatorServer
+// 1.1、实例化GenericServer
+// 1.2、实例化AggregatorServer
+// 1.3、注册APIService路由
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget,
 	apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
 	// 1、AggregatorServer会监听APIService并且会把APIService转为路由

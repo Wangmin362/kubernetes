@@ -244,7 +244,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// 11.1、start-apiextensions-informers：用于启动之前实例化的CRD SharedInformerFactory
 	// 11.2、start-apiextensions-controllers：用于启动前面实例化的所有Controller
 	// 11.3、crd-informer-synced：用于判断CRD SharedInformerFactory是否已经同步完成
-	// 12、TODO 思考：k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
+	// 12、TODO CR资源增删改查是如何实现的？
+	// 13、TODO 思考：k8s是如何设计ExtendServer的？ 它做了什么工作使得用户创建自定义的CRD那么容易？
 	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
 	if err != nil {
 		return nil, err

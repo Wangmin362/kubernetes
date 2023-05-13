@@ -92,9 +92,9 @@ import (
 // crdHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
 type crdHandler struct {
-	// /apis/<group>/<version>下资源的服务发现
+	// /apis/<group>/<version>下资源的服务发现，这个属性的初始化是由外部传进来的
 	versionDiscoveryHandler *versionDiscoveryHandler
-	// /apis/<group> 下资源的服务发现
+	// /apis/<group> 下资源的服务发现，这个属性的初始化是由外部传进来的
 	groupDiscoveryHandler *groupDiscoveryHandler
 
 	customStorageLock sync.Mutex
@@ -102,6 +102,7 @@ type crdHandler struct {
 	// atomic.Value has a very good read performance compared to sync.RWMutex
 	// see https://gist.github.com/dim/152e6bf80e1384ea72e17ac717a5000a
 	// which is suited for most read and rarely write cases
+	// 用于存储CRD信息，存储值的类型为：map[types.UID]*crdInfo
 	customStorage atomic.Value
 
 	crdLister listers.CustomResourceDefinitionLister
@@ -144,7 +145,7 @@ type crdHandler struct {
 }
 
 // crdInfo stores enough information to serve the storage for the custom resource
-// TODO 主要用于保存一个CRD的相关信息，这个信息会被放入到 crdHandler.customStorage 当中
+// 主要用于保存一个CRD的相关信息，这个信息会被放入到 crdHandler.customStorage 当中
 type crdInfo struct {
 	// spec and acceptedNames are used to compare against if a change is made on a CRD. We only update
 	// the storage if one of these changes.
@@ -154,9 +155,11 @@ type crdInfo struct {
 	acceptedNames *apiextensionsv1.CustomResourceDefinitionNames
 
 	// Deprecated per version
+	// TODO 有何作用？主要保存的是啥？
 	deprecated map[string]bool
 
 	// Warnings per version
+	// TODO 有何作用？主要保存的是啥？
 	warnings map[string][]string
 
 	// Storage per version
@@ -164,6 +167,7 @@ type crdInfo struct {
 	storages map[string]customresource.CustomResourceStorage
 
 	// Request scope per version
+	// TODO 如何理解RequestScope的抽象？
 	requestScopes map[string]*handlers.RequestScope
 
 	// Scale scope per version
@@ -173,6 +177,7 @@ type crdInfo struct {
 	statusRequestScopes map[string]*handlers.RequestScope
 
 	// storageVersion is the CRD version used when storing the object in etcd.
+	// TODO 存储版本是如何计算的？
 	storageVersion string
 
 	waitGroup *utilwaitgroup.SafeWaitGroup
@@ -507,11 +512,12 @@ func (r *crdHandler) createCustomResourceDefinition(obj interface{}) {
 	defer r.customStorageLock.Unlock()
 	// this could happen if the create event is merged from create-update events
 	storageMap := r.customStorage.Load().(crdStorageMap)
+	// 找到缓存的CRD信息，刚才是一定是not found的，TODO 为什么这里没有找到就直接退出了？
 	oldInfo, found := storageMap[crd.UID]
 	if !found {
 		return
 	}
-	// TODO 如果CRD的spec完全一样，并且可以接收的名称也完全一模一样，就说明添加的CRD已经有了，不需要做任何事情
+	// 如果CRD的spec完全一样，并且CRD的Status.AcceptedNames也完全一模一样，就说明添加的CRD已经有了，不需要做任何事情
 	if apiequality.Semantic.DeepEqual(&crd.Spec, oldInfo.spec) && apiequality.Semantic.DeepEqual(&crd.Status.AcceptedNames, oldInfo.acceptedNames) {
 		klog.V(6).Infof("Ignoring customresourcedefinition %s create event because a storage with the same spec and accepted names exists",
 			crd.Name)
@@ -566,7 +572,7 @@ func (r *crdHandler) updateCustomResourceDefinition(oldObj, newObj interface{}) 
 // removeStorage_locked removes the cached storage with the given uid as key from the storage map. This function
 // updates r.customStorage with the cleaned-up storageMap and tears down the old storage.
 // NOTE: Caller MUST hold r.customStorageLock to write r.customStorage thread-safely.
-// TODO 这个函数的实现非常简单，就需要需要移除老版本的CRD，不小的为啥取这么个名字
+// 这个函数的实现非常简单，就需要需要移除老版本的CRD，TODO 不晓得为啥取这么个名字
 func (r *crdHandler) removeStorage_locked(uid types.UID) {
 	storageMap := r.customStorage.Load().(crdStorageMap)
 	if oldInfo, ok := storageMap[uid]; ok {
@@ -580,7 +586,7 @@ func (r *crdHandler) removeStorage_locked(uid types.UID) {
 		delete(storageMap2, uid)
 		r.customStorage.Store(storageMap2)
 
-		// Tear down the old storage 销毁新的CRD
+		// Tear down the old storage
 		go r.tearDown(oldInfo)
 	}
 }

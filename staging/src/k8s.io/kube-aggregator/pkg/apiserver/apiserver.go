@@ -197,7 +197,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
-	// 实例化K8S apiserver clientset
+	// 实例化ClientSet
 	apiregistrationClient, err := clientset.NewForConfig(c.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
@@ -224,8 +224,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		GenericAPIServer: genericServer,
 		// Aggregator无法处理的请求交给APIServer，之所以交给UnprotectedHandler，是因为请求在aggregator的时候就已经完成了认证、授权相关策略
 		delegateHandler: delegationTarget.UnprotectedHandler(),
-		// TODO 这个属性是如何被实例化的
-		proxyTransport: c.ExtraConfig.ProxyTransport,
+		proxyTransport:  c.ExtraConfig.ProxyTransport,
 		// 代理Handler
 		proxyHandlers:              map[string]*proxyHandler{},
 		handledGroups:              sets.String{},
@@ -272,8 +271,8 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
-	// TODO APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
-	// TODO 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator
+	// 1、APIServiceRegistrationController工作原理很简单，实际上就是吧从Informer中监听到的APIService资源的变化直接交给APIHandlerManager
+	// 处理，APIHandlerManager把收到的APIService包装为一个proxyHandler，实际上APIHandlerManager的实现者就是APIAggregator，
 	// 路由为：/apis/<group>/<version> => proxyHandler
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 

@@ -170,6 +170,7 @@ type ValidationInterface interface {
 type Operation string
 
 // Operation constants
+// TODO 如何理解这个动词的抽象？
 const (
 	Create Operation = "CREATE"
 	Update Operation = "UPDATE"

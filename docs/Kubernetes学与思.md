@@ -1,19 +1,60 @@
-# QA
-## APIServer
+# 1. QA
+## 1.1. APIServer
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
-  - [ ] APIServer如何自定义扩展认证方式？
+      - [ ] APIAudiences
+      - [ ] Anonymous
+      - [ ] BootstrapToken  认证原理? 为啥需要？解决了什么问题?
+      - [ ] ClientCert
+      - [ ] OIDC
+      - [ ] RequestHeader，K8S 代理认证
+      - [ ] ServiceAccount，这是K8S Pod认证原理
+      - [ ] TokenFile
+      - [ ] Webhook
+  - [ ] APIServer如何自定义扩展认证方式？ 答：采用Webhook
   - [ ] 影响APIServer的认证参数有哪些？
-  - [ ] Pod通过ServiceAccount认证原理？
-  - [ ] APIServer的Token认证原理？
-  - [ ] TLS Bootstrap Token认证原理？ 为什么需要TLS Bootstrap Token认证? 这种认证方式解决了什么问题？
-  - [ ] RequestHeader认证原理？
 - [ ] APIServer鉴权
   - [ ] APIServer有几种鉴权方式？每种鉴权方式的原理是啥？
+      - [ ] AlwaysAllow
+      - [ ] AlwaysDeny
+      - [ ] ABAC
+      - [ ] Webhook
+      - [ ] RBAC
+      - [ ] Node
   - [ ] APIServer如何自定义扩展鉴权方式？
   - [ ] 影响APIServer的鉴权参数有哪些？
 - [ ] APIServer准入控制
   - [ ] APIServer有集中准入控制插件？每种准入控制插件的原理是啥？
+      - [ ] AlwaysAdmit
+      - [ ] AlwaysPullImages
+      - [ ] LimitPodHardAntiAffinityTopology
+      - [ ] CertificateApproval
+      - [ ] CertificateSigning
+      - [ ] CertificateSubjectRestriction
+      - [ ] DefaultTolerationSeconds
+      - [ ] AlwaysDeny
+      - [ ] EventRateLimit
+      - [ ] ExtendedResourceToleration
+      - [ ] OwnerReferencesPermissionEnforcement
+      - [ ] ImagePolicyWebhook
+      - [ ] LimitRanger
+      - [ ] NamespaceAutoProvision
+      - [ ] NamespaceExists
+      - [ ] DefaultIngressClass
+      - [ ] DenyServiceExternalIPs
+      - [ ] NodeRestriction
+      - [ ] TaintNodesByCondition
+      - [ ] PodNodeSelector
+      - [ ] PodTolerationRestriction
+      - [ ] Priority
+      - [ ] RuntimeClass
+      - [ ] PodSecurity
+      - [ ] SecurityContextDeny
+      - [ ] ServiceAccount
+      - [ ] PersistentVolumeLabel
+      - [ ] PersistentVolumeClaimResize
+      - [ ] DefaultStorageClass
+      - [ ] StorageObjectInUseProtection
   - [ ] MutatingWebhook和ValidationWebhook准入控制插件的原理？
   - [ ] K8S动态准入控制 (Dynamic Webhook)原理是啥？
   - [ ] 如何理解K8S准入控制架构设计？
@@ -24,10 +65,19 @@
   - [ ] K8S的审计架构？
   - [ ] 用户如何自定义审计后端(Audit Backend)？
 - [ ] APIServer扩展点
+    - [ ] API资源扩展
+        - [ ] Annotation
+        - [ ] Finalizer
+        - [ ] CRD
+        - [ ] Aggregation
+    - [ ] API访问扩展
+        - [ ] 认证Webhook
+        - [ ] 授权Webhook
+        - [ ] 准入控制Webhook
 - [ ] [APIServer流控](https://kubernetes.io/zh-cn/docs/concepts/cluster-administration/flow-control/)
-  - [ ] APIServer有几种限速策略？每种限速策略原理是啥？影响像素策略的参数是啥？ 
-  - [ ] APF (API Priority-and-Fairness)原理？ 影响参数？
-  - [ ] Max-in-Flight原理？影响参数？
+  - [ ] APIServer有几种限速策略？每种限速策略原理是啥？影响像素策略的参数是啥？
+      - [ ] APF (API Priority-and-Fairness)原理？ 影响参数？
+      - [ ] Max-in-Flight原理？影响参数？
   - [ ] 影响参数
     - [ ] --max-requests-inflight
     - [ ] --min-request-timeout
@@ -44,6 +94,14 @@
 - [ ] EgressSelector是啥？Konnectivity又是为了解决什么问题？
 - [ ] K8S是如何解决跨域问题的（CORS）？
 - [ ] 如何理解K8S的资源与子资源？
+  - [ ] K8S资源
+  - [ ] K8S子资源
+  - [ ] Schema
+  - [ ] RestMapping
+  - [ ] RestGetMapper
+- [ ] K8S Misc
+  - [ ] Event
+  - [ ] Seccomp
 - [ ] APIServer架构
   - [ ] K8S是如何设计APIServer、ExtensionServer、AggregatorServer这三个Server的？从这个设计当中我们能学到什么？
 - [ ] AggregatorServer
@@ -81,26 +139,27 @@
 - [ ] 指标
   - [ ] APIServer暴露了哪些指标，每种指标代表了什么含义？
 
-## ControllerManager
+## 1.2. ControllerManager
 
 - [ ] Ingress原理? K8S Ingress架构？
 - [ ] SessionAffinity原理
 - [ ] CSI插件
 - [ ] Plugin插件原理？
 
-## Kubelet
+## 1.3. Kubelet
 
 - [ ] PLEG原理？PLEG有无性能问题？
 - [ ] Kubelet是如何调用CRI的？
 - [ ] CPU Typology?
+- [ ] Kubelet有几种可用的CRI？每种CRI有何区别？如何指定Kubelet使用不同的CRI?
 
-## KubeScheduler
+## 1.4. KubeScheduler
 
 - [ ] K8S调度架构
 - [ ] Scheduler扩展点
 - [ ] 如何自定义调度器？
 
-## KubeProxy
+## 1.5. KubeProxy
 
 - [ ] K8S支持几种代理模式？每种代理模式的原理是啥？
   - [ ] ipvs代理模式
@@ -110,11 +169,14 @@
 - [ ] K8S单协议栈和双协议栈有何区别？
 - [ ] 扩展点？
 
-## CodeGenerator
+
+## 1.6. Kubectl
+
+## 1.7. CodeGenerator
 
 - [ ] K8S有哪些标签？每种标签的作用？
 
 
-## ContainerD
+## 1.8. ContainerD
 
 - [ ] RMI接口？

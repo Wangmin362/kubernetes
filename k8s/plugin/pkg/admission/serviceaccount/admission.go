@@ -60,7 +60,12 @@ const (
 	PluginName = "ServiceAccount"
 )
 
-// Register registers a plugin
+// TODO 思考以下几个问题：
+// TODO 1、为什么需要ServiceAccount准入控制插件? ServiceAccount插件解决了什么问题？
+// TODO 2、ServiceAccount插件原理？
+// TODO 3、ServiceAccount插件参数配置？ 如何正确配置参数？配置文件?
+
+// Register registers a plugin  注册ServiceAccount准入控制插件
 func Register(plugins *admission.Plugins) {
 	plugins.Register(PluginName, func(config io.Reader) (admission.Interface, error) {
 		serviceAccountAdmission := NewServiceAccount()
@@ -72,6 +77,7 @@ var _ = admission.Interface(&Plugin{})
 
 // Plugin contains the client used by the admission controller
 type Plugin struct {
+	// ServiceAccount准入控制插件支持什么类型的操作，实际上实现了此接口，那么ServiceAccountPlugin就是一个准入控制插件
 	*admission.Handler
 
 	// LimitSecretReferences rejects pods that reference secrets their service accounts do not reference
@@ -79,8 +85,10 @@ type Plugin struct {
 	// MountServiceAccountToken creates Volume and VolumeMounts for the first referenced ServiceAccountToken for the pod's service account
 	MountServiceAccountToken bool
 
+	// 通过WantsExternalKubeClientSet接口注入
 	client kubernetes.Interface
 
+	// 通过WantsExternalKubeInformerFactory接口注入
 	serviceAccountLister corev1listers.ServiceAccountLister
 
 	generateName func(string) string
@@ -99,6 +107,7 @@ var _ = genericadmissioninitializer.WantsExternalKubeInformerFactory(&Plugin{})
 // 5. If MountServiceAccountToken is true, it adds a VolumeMount with the pod's ServiceAccount's api token secret to containers
 func NewServiceAccount() *Plugin {
 	return &Plugin{
+		// TODO 意味着ServiceAccount准入控制插件只需要关心创建动作
 		Handler: admission.NewHandler(admission.Create),
 		// TODO: enable this once we've swept secret usage to account for adding secret references to service accounts
 		LimitSecretReferences: false,
@@ -118,6 +127,7 @@ func (s *Plugin) SetExternalKubeClientSet(cl kubernetes.Interface) {
 func (s *Plugin) SetExternalKubeInformerFactory(f informers.SharedInformerFactory) {
 	serviceAccountInformer := f.Core().V1().ServiceAccounts()
 	s.serviceAccountLister = serviceAccountInformer.Lister()
+	// 设置是否就绪回调
 	s.SetReadyFunc(func() bool {
 		return serviceAccountInformer.Informer().HasSynced()
 	})
@@ -136,6 +146,7 @@ func (s *Plugin) ValidateInitialization() error {
 
 // Admit verifies if the pod should be admitted
 func (s *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) (err error) {
+	// 如果当前要操作的资源是Pod资源，就不应该忽略；如果是其它资源，就应该忽略
 	if shouldIgnore(a) {
 		return nil
 	}
@@ -145,17 +156,21 @@ func (s *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 	// Don't modify the spec of mirror pods.
 	// That makes the kubelet very angry and confused, and it immediately deletes the pod (because the spec doesn't match)
 	// That said, don't allow mirror pods to reference ServiceAccounts or SecretVolumeSources either
+	// 所谓的MirrorPod，实际上是K8S为StaticPod创建了一份Pod记录，这个记录就是MirrorPod
 	if _, isMirrorPod := pod.Annotations[api.MirrorPodAnnotationKey]; isMirrorPod {
 		return s.Validate(ctx, a, o)
 	}
 
-	// Set the default service account if needed
+	// 如果当前Pod没有指定ServiceAccount，那么为它指定默认的ServiceAccount；实际上每个名称空间再创建的时候，K8S会为此名称空间生成
+	// 一个名字为default的名称空间
 	if len(pod.Spec.ServiceAccountName) == 0 {
 		pod.Spec.ServiceAccountName = DefaultServiceAccountName
 	}
 
+	// 1、通过Informer查询当前Pod引用的ServiceAccount，如果没找到就直接查询APIServer,如果APIServer也没有找到，那么只能拒绝当前Pod
 	serviceAccount, err := s.getServiceAccount(a.GetNamespace(), pod.Spec.ServiceAccountName)
 	if err != nil {
+		// 如果查询ServiceAccount出错误了，那么只能拒绝这个Pod，因为即便放过，Pod在启动时也因为找不到ServiceAccount而出错
 		return admission.NewForbidden(a, fmt.Errorf("error looking up service account %s/%s: %v", a.GetNamespace(), pod.Spec.ServiceAccountName, err))
 	}
 	if s.MountServiceAccountToken && shouldAutomount(serviceAccount, pod) {
@@ -220,9 +235,11 @@ func (s *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 }
 
 func shouldIgnore(a admission.Attributes) bool {
+	// 如果不是Pod资源，我们不需要关心
 	if a.GetResource().GroupResource() != api.Resource("pods") {
 		return true
 	}
+	// 如果是Pod资源，但是时Pod的子资源，我们也不需要关心
 	if a.GetSubresource() != "" {
 		return true
 	}
@@ -235,6 +252,7 @@ func shouldIgnore(a admission.Attributes) bool {
 		return true
 	}
 
+	// 如果当前的资源是一个Pod资源，那么我们不应该忽略，应当检查Pod资源
 	return false
 }
 
@@ -268,13 +286,17 @@ func (s *Plugin) enforceMountableSecrets(serviceAccount *corev1.ServiceAccount) 
 
 // getServiceAccount returns the ServiceAccount for the given namespace and name if it exists
 func (s *Plugin) getServiceAccount(namespace string, name string) (*corev1.ServiceAccount, error) {
+	// 根据名称空间和名字查询ServiceAccount
 	serviceAccount, err := s.serviceAccountLister.ServiceAccounts(namespace).Get(name)
 	if err == nil {
 		return serviceAccount, nil
 	}
-	if !errors.IsNotFound(err) {
+	if !errors.IsNotFound(err) { // 如果不是NotFoundError，那只能返回错误了
 		return nil, err
 	}
+
+	// 如果是NotFoundError，就说明再Informer当中没有找到，此时需要通过直接查询APIServer进行进一步验证；
+	// TODO 从这里可以看出，实际上Informer也并不是完全可以信任，那么是什么原因会造成Informer和APIServer的数据不一致呢？
 
 	// Could not find in cache, attempt to look up directly
 	numAttempts := 1

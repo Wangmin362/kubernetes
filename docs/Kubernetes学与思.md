@@ -12,29 +12,38 @@
       - [ ] Anonymous
       - [x] TokenFile 其实就是StaticToken认证
           - [x] --token-auth-file 指定CSV Token文件，格式为：token,user,uid,"group1,group2,group3"
-      - [ ] ServiceAccount，这是K8S Pod认证原理; 所谓的SA认证，其实就是JWT认证。
+      - [x] ServiceAccount，这是K8S Pod认证原理; 所谓的SA认证，其实就是JWT认证。
           - [x] --service-account-key-file  JWT的密钥
           - [x] --service-account-lookup 是否开启校验JWT对应的Secret/ServiceAccount
           - [x] --service-account-issuer JWT的签发人
           - [ ] --service-account-jwks-uri
           - [ ] --service-account-max-token-expiration
           - [ ] --service-account-extend-token-expiration
-      - [ ] BootstrapToken
+      - [x] BootstrapToken
           - [x] 认证原理
           - [ ] 为啥需要？解决了什么问题？
           - [x] 参数配置
               - [x] --enable-bootstrap-token-auth 是否开启BootstrapToken认证方式
-      - [ ] WebhookToken认证
-          - [ ] 认证原理？
+      - [x] WebhookToken认证
+          - [x] 认证原理？
           - [ ] 为啥需要？解决了什么问题？
           - [ ] TokenReview, TokenRequest
-          - [ ] 参数配置
-              - [ ] --authentication-token-webhook-config-file
-              - [ ] --authentication-token-webhook-version
-              - [ ] --authentication-token-webhook-cache-ttl
-      - [ ] ClientCert
-      - [ ] OIDC
+          - [x] 参数配置
+              - [x] --authentication-token-webhook-config-file 用于指定K8S如何访问远端webhook服务器
+              - [x] --authentication-token-webhook-version 用于设置使用TokenReview的v1beta1版本还是v1版本，K8S为了保持版本兼容，默认使用的是v1beta1版本
+              - [x] --authentication-token-webhook-cache-ttl 认证结果的缓存有效时间
+      - [x] ClientCert
+          - [s] --client-ca-file 用于指定Client端的证书
       - [ ] RequestHeader，K8S 代理认证
+          - [ ] 认证原理？
+          - [ ] 如何理解这种认证方式？为啥需要这种认证方式？
+          - [ ] 参数
+              - [ ] --requestheader-username-headers
+              - [ ] --requestheader-group-headers
+              - [ ] --requestheader-extra-headers-prefix
+              - [ ] --requestheader-client-ca-file
+              - [ ] --requestheader-allowed-names
+      - [ ] OIDC
   - [ ] APIServer如何自定义扩展认证方式？ 答：采用Webhook
   - [ ] 影响APIServer的认证参数有哪些？
       - [x] --api-audiences 设置JWT的合法audiance

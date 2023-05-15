@@ -147,9 +147,9 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		authenticators = append(authenticators, authenticator.WrapAudienceAgnosticRequest(config.APIAudiences, requestHeaderAuthenticator))
 	}
 
-	// X509 methods
-	// TODO CA认证 仔细分析
+	// ClientCA认证原理也非常简单，就是把当前请求的证书取出来，用CN，O作为用户以及用户的组进行验证
 	if config.ClientCAContentProvider != nil {
+		// 用于把证书的CN以及O信息作为用户以及组信息
 		certAuth := x509.NewDynamic(config.ClientCAContentProvider.VerifyOptions, x509.CommonNameUserConversion)
 		authenticators = append(authenticators, certAuth)
 	}

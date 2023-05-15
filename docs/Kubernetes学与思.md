@@ -59,14 +59,14 @@
   - [ ] 影响APIServer的鉴权参数有哪些？
 - [ ] APIServer准入控制
   - [ ] APIServer有集中准入控制插件？每种准入控制插件的原理是啥？
-      - [ ] AlwaysAdmit
+      - [x] AlwaysAdmit 任何请求都允许准入
       - [ ] AlwaysPullImages
       - [ ] LimitPodHardAntiAffinityTopology
       - [ ] CertificateApproval
       - [ ] CertificateSigning
       - [ ] CertificateSubjectRestriction
       - [ ] DefaultTolerationSeconds
-      - [ ] AlwaysDeny
+      - [x] AlwaysDeny 任何请求都不许允准入
       - [ ] EventRateLimit
       - [ ] ExtendedResourceToleration
       - [ ] OwnerReferencesPermissionEnforcement

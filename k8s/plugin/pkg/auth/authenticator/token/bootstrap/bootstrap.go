@@ -86,7 +86,7 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 //
 // Tokens are expected to be of the form:
 //
-//	TODO token的给是为：( token-id ).( token-secret )
+//	TODO token的格式为：( token-id ).( token-secret )
 //
 /* bootstrap token的格式一般长这样
 apiVersion: v1
@@ -103,8 +103,8 @@ data:
   usage-bootstrap-authentication: dHJ1ZQ== (解码后为：true)
   usage-bootstrap-signing: dHJ1ZQ== (解码后为：true)
 */
-// TODO token参数指的是什么？
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	// 解析Token，Token格式为：token-id.token-secret   token-id为6位，token-secret为16位
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
 	if err != nil {
 		// Token isn't of the correct form, ignore it.
@@ -112,6 +112,7 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 	}
 
 	// bootstrap-token-<token id>
+	// 通过tokenId找到对应的Secret  TODO 这个Secret是由谁生成的？ 似乎是由Kubelet创建的
 	secretName := bootstrapapi.BootstrapTokenSecretPrefix + tokenID
 	secret, err := t.lister.Get(secretName)
 	if err != nil {
@@ -122,24 +123,27 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, err
 	}
 
+	// 如果Secret已经被删除了，那么认为token认证失败
 	if secret.DeletionTimestamp != nil {
 		tokenErrorf(secret, "is deleted and awaiting removal")
 		return nil, false, nil
 	}
 
 	// secret必须是bootstrap.kubernetes.io/token类型
+	// 如果Token对应的Secret类型不对，认证失败
 	if string(secret.Type) != string(bootstrapapi.SecretTypeBootstrapToken) || secret.Data == nil {
 		tokenErrorf(secret, "has invalid type, expected %s.", bootstrapapi.SecretTypeBootstrapToken)
 		return nil, false, nil
 	}
 
-	// 获取token-secret数据
+	// 对比当前Token与从Secret中获取到的TokenSecret是否一致，如果不一致，认证失败
 	ts := bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenSecretKey)
 	if subtle.ConstantTimeCompare([]byte(ts), []byte(tokenSecret)) != 1 {
 		tokenErrorf(secret, "has invalid value for key %s, expected %s.", bootstrapapi.BootstrapTokenSecretKey, tokenSecret)
 		return nil, false, nil
 	}
 
+	// 对比当前Token与从Secret中获取到的TokenID是否一致，如果不一致，认证失败
 	id := bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenIDKey)
 	if id != tokenID {
 		tokenErrorf(secret, "has invalid value for key %s, expected %s.", bootstrapapi.BootstrapTokenIDKey, tokenID)
@@ -147,16 +151,19 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 	}
 
 	// 判断token是否过期  token的过期时间通过expiration来设置，如果没有设置，那么认为token永不过期
+	// 如果Secret已经过期，认证失败
 	if bootstrapsecretutil.HasExpired(secret, time.Now()) {
 		// logging done in isSecretExpired method.
 		return nil, false, nil
 	}
 
+	// 如果从Secret中获取到的usage-bootstrap-authentication不等于true，认证失败
 	if bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenUsageAuthentication) != "true" {
 		tokenErrorf(secret, "not marked %s=true.", bootstrapapi.BootstrapTokenUsageAuthentication)
 		return nil, false, nil
 	}
 
+	// 获取Secret的授权组信息
 	groups, err := bootstrapsecretutil.GetGroups(secret)
 	if err != nil {
 		tokenErrorf(secret, "has invalid value for key %s: %v.", bootstrapapi.BootstrapTokenExtraGroupsKey, err)

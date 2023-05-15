@@ -10,7 +10,10 @@
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
       - [ ] Anonymous
-      - [ ] BootstrapToken  认证原理? 为啥需要？解决了什么问题?
+      - [ ] BootstrapToken
+          - [x] 认证原理
+          - [ ] 为啥需要？解决了什么问题？
+          - [x] --enable-bootstrap-token-auth 是否开启BootstrapToken认证方式
       - [ ] ClientCert
       - [ ] OIDC
       - [ ] RequestHeader，K8S 代理认证

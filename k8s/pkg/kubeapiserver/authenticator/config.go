@@ -188,7 +188,14 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
-	// TODO 仔细分析
+
+	// BootstrapToken认证，认证过程比较简单，步骤如下：
+	// 1、解析Token，Token格式为：token-id.token-secret   token-id为6位，token-secret为16位
+	// 2、通过BootstrapToken的规则，通过解析到的TokenID找到K8S中对应的Secret，如果不存在，认证失败
+	// 3、如果Secret的类型不是bootstrap.kubernetes.io/token，那么认证失败
+	// 4、对比Secret的token-id、token-secret，如果不相同，认证失败
+	// 5、如果Secret的usage-bootstrap-authentication数据不等于true，认证失败
+	// 6、否则，认证成功
 	if config.BootstrapToken {
 		if config.BootstrapTokenAuthenticator != nil {
 			// TODO: This can sometimes be nil because of

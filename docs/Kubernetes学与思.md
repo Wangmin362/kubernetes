@@ -10,13 +10,8 @@
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
       - [ ] Anonymous
-      - [ ] BootstrapToken
-          - [x] 认证原理
-          - [ ] 为啥需要？解决了什么问题？
-          - [x] --enable-bootstrap-token-auth 是否开启BootstrapToken认证方式
-      - [ ] ClientCert
-      - [ ] OIDC
-      - [ ] RequestHeader，K8S 代理认证
+      - [x] TokenFile 其实就是StaticToken认证
+          - [x] --token-auth-file 指定CSV Token文件，格式为：token,user,uid,"group1,group2,group3"
       - [ ] ServiceAccount，这是K8S Pod认证原理; 所谓的SA认证，其实就是JWT认证。
           - [x] --service-account-key-file  JWT的密钥
           - [x] --service-account-lookup 是否开启校验JWT对应的Secret/ServiceAccount
@@ -24,9 +19,22 @@
           - [ ] --service-account-jwks-uri
           - [ ] --service-account-max-token-expiration
           - [ ] --service-account-extend-token-expiration
-      - [x] TokenFile 其实就是StaticToken认证
-          - [x] --token-auth-file 指定CSV Token文件，格式为：token,user,uid,"group1,group2,group3"
+      - [ ] BootstrapToken
+          - [x] 认证原理
+          - [ ] 为啥需要？解决了什么问题？
+          - [x] 参数配置
+              - [x] --enable-bootstrap-token-auth 是否开启BootstrapToken认证方式
       - [ ] WebhookToken认证
+          - [ ] 认证原理？
+          - [ ] 为啥需要？解决了什么问题？
+          - [ ] TokenReview, TokenRequest
+          - [ ] 参数配置
+              - [ ] --authentication-token-webhook-config-file
+              - [ ] --authentication-token-webhook-version
+              - [ ] --authentication-token-webhook-cache-ttl
+      - [ ] ClientCert
+      - [ ] OIDC
+      - [ ] RequestHeader，K8S 代理认证
   - [ ] APIServer如何自定义扩展认证方式？ 答：采用Webhook
   - [ ] 影响APIServer的认证参数有哪些？
       - [x] --api-audiences 设置JWT的合法audiance

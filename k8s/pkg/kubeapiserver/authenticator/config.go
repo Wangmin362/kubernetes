@@ -60,10 +60,6 @@ type Config struct {
 	// 但是当前的用户并不是指定的合法用户，依然会拒绝该用户。
 	APIAudiences authenticator.Audiences
 
-	// BootstrapToken认证
-	BootstrapToken              bool
-	BootstrapTokenAuthenticator authenticator.Token
-
 	// 1、StaticToken认证，通过--token-auth-file设置
 	// 2、用于指定一个CSV文件，文件中每一行代表一个合法Token,格式为：token,user,uid,"group1,group2,group3"
 	// 即token-auth-file文件第一列为toKen，第二列为用户名，第三列为UID，第四列为组（组可以有多个，但是需要用双引号括起来）
@@ -81,10 +77,18 @@ type Config struct {
 	// TODO, this is the only non-serializable part of the entire config.  Factor it out into a clientconfig
 	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
 
-	// Webhook认证
+	// BootstrapToken认证
+	// 参考：https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/bootstrap-tokens/
+	BootstrapToken              bool
+	BootstrapTokenAuthenticator authenticator.Token
+
+	// 1、Webhook认证 参考连接：https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/authentication/#webhook-token-authentication
+	// 2、Webhook配置文件格式, kubeconfig格式；文件中，clusters 指代远程服务，users 指代远程 API 服务 Webhook
+	// 3、Webhook配置文件的作用是告诉K8S如何访问远端的Webhook服务
 	WebhookTokenAuthnConfigFile string
-	WebhookTokenAuthnVersion    string
-	WebhookTokenAuthnCacheTTL   time.Duration
+	// Webhook版本 设置使用authentication.k8s.io/v1beta1版本的TokenReview还是authentication.k8s.io/v1版本的TokenRequest
+	WebhookTokenAuthnVersion  string
+	WebhookTokenAuthnCacheTTL time.Duration
 	// WebhookRetryBackoff specifies the backoff parameters for the authentication webhook retry logic.
 	// This allows us to configure the sleep time at each iteration and the maximum number of retries allowed
 	// before we fail the webhook call in order to limit the fan out that ensues when the system is degraded.
@@ -189,6 +193,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
 
+	// 参考：https://kubernetes.io/zh-cn/docs/reference/access-authn-authz/bootstrap-tokens/
 	// BootstrapToken认证，认证过程比较简单，步骤如下：
 	// 1、解析Token，Token格式为：token-id.token-secret   token-id为6位，token-secret为16位
 	// 2、通过BootstrapToken的规则，通过解析到的TokenID找到K8S中对应的Secret，如果不存在，认证失败
@@ -367,6 +372,7 @@ func newWebhookTokenAuthenticator(config Config) (authenticator.Token, error) {
 		return nil, errors.New("retry backoff parameters for authentication webhook has not been specified")
 	}
 
+	// 实例化webhook的客户端
 	clientConfig, err := webhookutil.LoadKubeconfig(config.WebhookTokenAuthnConfigFile, config.CustomDial)
 	if err != nil {
 		return nil, err

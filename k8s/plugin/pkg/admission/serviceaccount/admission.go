@@ -47,6 +47,7 @@ const (
 
 	// EnforceMountableSecretsAnnotation is a default annotation that indicates that a service account should enforce mountable secrets.
 	// The value must be true to have this annotation take effect
+	// TODO 这个注解有啥作用？
 	EnforceMountableSecretsAnnotation = "kubernetes.io/enforce-mountable-secrets"
 
 	// ServiceAccountVolumeName is the prefix name that will be added to volumes that mount ServiceAccount secrets
@@ -60,11 +61,6 @@ const (
 	PluginName = "ServiceAccount"
 )
 
-// TODO 思考以下几个问题：
-// TODO 1、为什么需要ServiceAccount准入控制插件? ServiceAccount插件解决了什么问题？
-// TODO 2、ServiceAccount插件原理？
-// TODO 3、ServiceAccount插件参数配置？ 如何正确配置参数？配置文件?
-
 // Register registers a plugin  注册ServiceAccount准入控制插件
 func Register(plugins *admission.Plugins) {
 	plugins.Register(PluginName, func(config io.Reader) (admission.Interface, error) {
@@ -76,13 +72,21 @@ func Register(plugins *admission.Plugins) {
 var _ = admission.Interface(&Plugin{})
 
 // Plugin contains the client used by the admission controller
+// TODO 思考以下几个问题：
+// 1、为什么需要ServiceAccount准入控制插件? ServiceAccount插件解决了什么问题？
+// 1.1、如果一个Pod没有设置ServiceAccount,那么为此Pod设置该Pod所在默认名称空间的default ServiceAccount （MirrorPod除外）
+// 1.2、如果当前Pod是MirrorPod资源，那么不能修改此MirrorPod,只要校验次MirrorPod
+// 1.3、为当前Pod挂载ServiceAccount对象的Token
+// TODO 2、ServiceAccount插件参数配置？ 如何正确配置参数？配置文件?
 type Plugin struct {
 	// ServiceAccount准入控制插件支持什么类型的操作，实际上实现了此接口，那么ServiceAccountPlugin就是一个准入控制插件
 	*admission.Handler
 
 	// LimitSecretReferences rejects pods that reference secrets their service accounts do not reference
+	// TODO 有啥作用？为啥需要？
 	LimitSecretReferences bool
 	// MountServiceAccountToken creates Volume and VolumeMounts for the first referenced ServiceAccountToken for the pod's service account
+	// TODO 有啥作用？为啥需要？
 	MountServiceAccountToken bool
 
 	// 通过WantsExternalKubeClientSet接口注入
@@ -151,12 +155,15 @@ func (s *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 		return nil
 	}
 
+	// 获取当前操作的资源对象，强制转为Pod资源
 	pod := a.GetObject().(*api.Pod)
 
 	// Don't modify the spec of mirror pods.
 	// That makes the kubelet very angry and confused, and it immediately deletes the pod (because the spec doesn't match)
 	// That said, don't allow mirror pods to reference ServiceAccounts or SecretVolumeSources either
-	// 所谓的MirrorPod，实际上是K8S为StaticPod创建了一份Pod记录，这个记录就是MirrorPod
+	// 1、所谓的MirrorPod，实际上是K8S为StaticPod创建了一份Pod记录，这个记录就是MirrorPod
+	// 2、由于MirrorPod是StaticPod的镜像，是由Kubelet创建的；因此，APIServer不应该修改这个对象，否则Kubelet通过对比发现StaticPod
+	// 和MirrorPod对应不上就会删除MirrorPod
 	if _, isMirrorPod := pod.Annotations[api.MirrorPodAnnotationKey]; isMirrorPod {
 		return s.Validate(ctx, a, o)
 	}
@@ -173,9 +180,12 @@ func (s *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 		// 如果查询ServiceAccount出错误了，那么只能拒绝这个Pod，因为即便放过，Pod在启动时也因为找不到ServiceAccount而出错
 		return admission.NewForbidden(a, fmt.Errorf("error looking up service account %s/%s: %v", a.GetNamespace(), pod.Spec.ServiceAccountName, err))
 	}
+	// 用于判断是否需要自动为当前的Pod注入引用的ServiceAccount的Token
 	if s.MountServiceAccountToken && shouldAutomount(serviceAccount, pod) {
+		// 挂载Token
 		s.mountServiceAccountToken(serviceAccount, pod)
 	}
+	// TODO 这里是在干嘛？
 	if len(pod.Spec.ImagePullSecrets) == 0 {
 		pod.Spec.ImagePullSecrets = make([]api.LocalObjectReference, len(serviceAccount.ImagePullSecrets))
 		for i := 0; i < len(serviceAccount.ImagePullSecrets); i++ {
@@ -188,6 +198,7 @@ func (s *Plugin) Admit(ctx context.Context, a admission.Attributes, o admission.
 
 // Validate the data we obtained
 func (s *Plugin) Validate(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) (err error) {
+	// 如果当前的资源对象不是Pod资源对象，则会略此对象的校验；否则如果是Pod对象，就不应该忽略
 	if shouldIgnore(a) {
 		return nil
 	}
@@ -195,6 +206,10 @@ func (s *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 	pod := a.GetObject().(*api.Pod)
 
 	// Mirror pods have restrictions on what they can reference
+	// 1、如果当前的资源对象是MirrorPod，那么需要校验MirrorPod，校验规则如下：
+	// 1.1、由于MirrorPod不能引用ServiceAccount,因此如果发现MirrorPod应用ServiceAccount，将会直接报错，即不允许准入
+	// 1.2、如果发现MirrorPod引用了Secret，那么将直接报错，也就是说不允许准入
+	// 1.3、如果发现MirrorPod引用了ServiceAccountToken类型的Volume，那么将直接报错，也就是说不允许准入
 	if _, isMirrorPod := pod.Annotations[api.MirrorPodAnnotationKey]; isMirrorPod {
 		if len(pod.Spec.ServiceAccountName) != 0 {
 			return admission.NewForbidden(a, fmt.Errorf("a mirror pod may not reference service accounts"))
@@ -220,6 +235,8 @@ func (s *Plugin) Validate(ctx context.Context, a admission.Attributes, o admissi
 	}
 
 	// Ensure the referenced service account exists
+	// 1、如果是正常类型的Pod,需要校验Pod引用的ServiceAccount是否存在，不存在则报错；
+	// 2、需要注意的是，即便用户没有指定Pod的ServiceAccount，ServiceAccountPlugin也会为这种Pod指定对应名称空间名为default的ServiceAccount
 	serviceAccount, err := s.getServiceAccount(a.GetNamespace(), pod.Spec.ServiceAccountName)
 	if err != nil {
 		return admission.NewForbidden(a, fmt.Errorf("error looking up service account %s/%s: %v", a.GetNamespace(), pod.Spec.ServiceAccountName, err))
@@ -258,6 +275,7 @@ func shouldIgnore(a admission.Attributes) bool {
 
 func shouldAutomount(sa *corev1.ServiceAccount, pod *api.Pod) bool {
 	// Pod's preference wins
+	// AutomountServiceAccountToken用于Pod指定它是否需要自动挂载Token
 	if pod.Spec.AutomountServiceAccountToken != nil {
 		return *pod.Spec.AutomountServiceAccountToken
 	}

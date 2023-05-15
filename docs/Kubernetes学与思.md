@@ -50,7 +50,8 @@
       - [ ] RuntimeClass
       - [ ] PodSecurity
       - [ ] SecurityContextDeny
-      - [ ] ServiceAccount
+      - [x] ServiceAccount
+        - 1、如果Pod没有设置SA，那么设置default为该Pod的SA（MirrorPod除外） 2、为Pod挂载SA对应的Token
       - [ ] PersistentVolumeLabel
       - [ ] PersistentVolumeClaimResize
       - [ ] DefaultStorageClass

@@ -3145,6 +3145,7 @@ type PodSpec struct {
 	// +optional
 	DeprecatedServiceAccount string `json:"serviceAccount,omitempty" protobuf:"bytes,9,opt,name=serviceAccount"`
 	// AutomountServiceAccountToken indicates whether a service account token should be automatically mounted.
+	// 用于控制是否需要自动挂载ServiceAccount Token;TODO 猜测这里的ServiceAccount应该指的是当前Pod引用的所有的ServiceAccount
 	// +optional
 	AutomountServiceAccountToken *bool `json:"automountServiceAccountToken,omitempty" protobuf:"varint,21,opt,name=automountServiceAccountToken"`
 
@@ -4726,6 +4727,7 @@ type ServiceAccount struct {
 
 	// AutomountServiceAccountToken indicates whether pods running as this service account should have an API token automatically mounted.
 	// Can be overridden at the pod level.
+	// 用于设置引用当前ServiceAccount的Pod，是否需要自动为其注入ServiceAccount的Token
 	// +optional
 	AutomountServiceAccountToken *bool `json:"automountServiceAccountToken,omitempty" protobuf:"varint,4,opt,name=automountServiceAccountToken"`
 }

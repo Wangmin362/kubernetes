@@ -25,6 +25,7 @@ import (
 
 // Token checks a string value against a backing authentication store and
 // returns a Response or an error if the token could not be checked.
+// 以Token的方式进行认证，通过Token进行认证方式有三种：1. TokenFile (也就是StaticToken) 2. BoostrapToken 3. ServiceAccount
 type Token interface {
 	// AuthenticateToken 通过解析HTTP请求的Token信息得到用户信息，方便后续认证
 	AuthenticateToken(ctx context.Context, token string) (*Response, bool, error)

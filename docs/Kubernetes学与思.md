@@ -1,16 +1,28 @@
-# 1. QA
-## 1.1. APIServer
+
+# 1. 概念
+
+- [ ] Owner, OwnerReference
+- [x] APIAudiences
+    - Audience实际上是JWT中的概念，JWT的Playload中有两个保留字段，一个是iss，也就是Token签发人；另外一个则是aud，也就是Token的接收人，也就是说JTW可以明确当前的Token是颁发给谁的。而这里的APIAudience就是这个作用。
+
+# 2. QA
+## 2.1. APIServer
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
-      - [ ] APIAudiences
       - [ ] Anonymous
       - [ ] BootstrapToken  认证原理? 为啥需要？解决了什么问题?
       - [ ] ClientCert
       - [ ] OIDC
       - [ ] RequestHeader，K8S 代理认证
-      - [ ] ServiceAccount，这是K8S Pod认证原理
-      - [ ] TokenFile
-      - [ ] Webhook
+      - [ ] ServiceAccount，这是K8S Pod认证原理; 所谓的SA认证，其实就是JWT认证。
+          - [ ] service-account-key-file
+          - [ ] service-account-lookup
+          - [ ] service-account-issuer
+          - [ ] service-account-jwks-uri
+          - [ ] service-account-max-token-expiration
+          - [ ] service-account-extend-token-expiration
+      - [ ] TokenFile 其实就是StaticToken认证
+      - [ ] WebhookToken认证
   - [ ] APIServer如何自定义扩展认证方式？ 答：采用Webhook
   - [ ] 影响APIServer的认证参数有哪些？
 - [ ] APIServer鉴权
@@ -103,6 +115,7 @@
 - [ ] K8S Misc
   - [ ] Event
   - [ ] Seccomp
+  - [ ] Pod Security Standards
 - [ ] APIServer架构
   - [ ] K8S是如何设计APIServer、ExtensionServer、AggregatorServer这三个Server的？从这个设计当中我们能学到什么？
 - [ ] AggregatorServer
@@ -140,27 +153,27 @@
 - [ ] 指标
   - [ ] APIServer暴露了哪些指标，每种指标代表了什么含义？
 
-## 1.2. ControllerManager
+## 2.2. ControllerManager
 
 - [ ] Ingress原理? K8S Ingress架构？
 - [ ] SessionAffinity原理
 - [ ] CSI插件
 - [ ] Plugin插件原理？
 
-## 1.3. Kubelet
+## 2.3. Kubelet
 
 - [ ] PLEG原理？PLEG有无性能问题？
 - [ ] Kubelet是如何调用CRI的？
 - [ ] CPU Typology?
 - [ ] Kubelet有几种可用的CRI？每种CRI有何区别？如何指定Kubelet使用不同的CRI?
 
-## 1.4. KubeScheduler
+## 2.4. KubeScheduler
 
 - [ ] K8S调度架构
 - [ ] Scheduler扩展点
 - [ ] 如何自定义调度器？
 
-## 1.5. KubeProxy
+## 2.5. KubeProxy
 
 - [ ] K8S支持几种代理模式？每种代理模式的原理是啥？
   - [ ] ipvs代理模式
@@ -171,13 +184,13 @@
 - [ ] 扩展点？
 
 
-## 1.6. Kubectl
+## 2.6. Kubectl
 
-## 1.7. CodeGenerator
+## 2.7. CodeGenerator
 
 - [ ] K8S有哪些标签？每种标签的作用？
 
 
-## 1.8. ContainerD
+## 2.8. ContainerD
 
 - [ ] RMI接口？

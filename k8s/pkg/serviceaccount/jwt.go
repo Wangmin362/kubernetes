@@ -237,10 +237,47 @@ func JWTTokenAuthenticator(issuers []string, keys []interface{}, implicitAuds au
 	}
 }
 
+/* ServiceAccount对应生成的Secret数据格式为：
+apiVersion: v1
+data:
+  ca.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUM2VENDQWRHZ0F3SUJBZ0lCQURBTkJna3Foa2lHOXcwQkFRc0ZBREFWTVJNd0VRWURWUVFERXdwcmRXSmwKY201bGRHVnpNQ0FYRFRJeU1URXhNREE0TXpReE1sb1lEekl3TlRJeE1UQXlNRGd6TkRFeVdqQVZNUk13RVFZRApWUVFERXdwcmRXSmxjbTVsZEdWek1JSUJJakFOQmdrcWhraUc5dzBCQVFFRkFBT0NBUThBTUlJQkNnS0NBUUVBCnR3Yk9tUnhMaVNldjlnbEhiWlN4ZUxHalZSeGRRTlc5VU1vYlhELzZpV0k0b3I0dlNjeEtoeFE3UUVycVhZQzAKTE9Yb1lWb3ZHdzhFL2NscFFSV1lqd2pEeUE3a1FqdTk5blI0eExucXJITDhSYWJERC83L1NJOEtYL1BKYTB1dApuWVltcTVlanloMWQxUEg1ZE9DL2gycW9seHVaM2hhSmJIK3BXUFpSSUJkWVRrL2JRQ3B1RnFhbytWV3hkbUg2Cm81QXJyWmlmajMzZktEZkl2YWNHZnpuUzA4TWJXSTdXa0d5Z2h6S3lJVUZVREtncWV5M0d3U2VZNm15cW11YVAKOFBpSUttOUY5dnBBb0JuaW5ONHRWOEhkaG1FanU4ejN0d1ozbnY4ekVIQ3hoZldOUVVWTWRrNVlSUHlHei84Nwo4c0RYZXpMVGVIMjMxc3p5Z3pxZmt3SURBUUFCbzBJd1FEQU9CZ05WSFE4QkFmOEVCQU1DQXFRd0R3WURWUjBUCkFRSC9CQVV3QXdFQi96QWRCZ05WSFE0RUZnUVVxSEtocys1clNNZS9ISGUxY0hkWDBTWmJ6b0V3RFFZSktvWkkKaHZjTkFRRUxCUUFEZ2dFQkFGSEZ3V0xPRFBZQ3ErcTl1NS9lVWgzc2NtVi95Yks2NUhYVjFwazlGMHE1UzhvVgp5ejUwKzBZWFBnSGdtWTlZVXJGdXRJNENod1g1TDBNUWtXSkFVaDhRTXBRanhhaVRZRFlmcHZBQ1RzcUtDZ3Q4CkZLaHlmZTc4d1V1RGtvdXNiaW5XTmpnMk9uV3p1TDNMWlJFYzNETm5wSUZSMlcrVzhPd3BLSUpPaVBVRStJUXMKL3BvYVQzS0U1UGZ1aitMQ1lOUU5FZW4wVXhJT3FBMG9tNUdCNXJJWWxHcW45OU5sbGd6TmhsVHlhWUR1elVsTgpJWHFBNFhubkFpZ1FUZ3N1MEVvN1UyTVdvUEkyRXdibjhhSThTZjl1SGloZTR0US9qSTQ4R3o1MmFyQXdVa3FwCjhyQ0tqNXhhdnhNaFRpVVVacGdTRFVLc0ZqVDNLdjNWTnFvK1FDQT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+  namespace: ZGVmYXVsdA==
+  token: ZXlKaGJHY2lPaUpTVXpJMU5pSXNJbXRwWkNJNkluWmZSbFJpVlVab2VFbFhSVUV0Wkc5WWEyMXZZemhGTUVKVU4yUXRVVkpXWjBGTFoxbExTMmgxYWxVaWZRLmV5SnBjM01pT2lKcmRXSmxjbTVsZEdWekwzTmxjblpwWTJWaFkyTnZkVzUwSWl3aWEzVmlaWEp1WlhSbGN5NXBieTl6WlhKMmFXTmxZV05qYjNWdWRDOXVZVzFsYzNCaFkyVWlPaUprWldaaGRXeDBJaXdpYTNWaVpYSnVaWFJsY3k1cGJ5OXpaWEoyYVdObFlXTmpiM1Z1ZEM5elpXTnlaWFF1Ym1GdFpTSTZJbVJsWm1GMWJIUXRkRzlyWlc0dFluaDBhamNpTENKcmRXSmxjbTVsZEdWekxtbHZMM05sY25acFkyVmhZMk52ZFc1MEwzTmxjblpwWTJVdFlXTmpiM1Z1ZEM1dVlXMWxJam9pWkdWbVlYVnNkQ0lzSW10MVltVnlibVYwWlhNdWFXOHZjMlZ5ZG1salpXRmpZMjkxYm5RdmMyVnlkbWxqWlMxaFkyTnZkVzUwTG5WcFpDSTZJbVEyT0dFek16RTJMVFUxTlRZdE5ERTBaQzFpWWpVMkxUVmxOamc1WXprek5tUTVaU0lzSW5OMVlpSTZJbk41YzNSbGJUcHpaWEoyYVdObFlXTmpiM1Z1ZERwa1pXWmhkV3gwT21SbFptRjFiSFFpZlEuZXBQbkc3bG9KckU0U1lPZjV4ekdOV25NRDlldi11dWJqQ3ZleWUwVlJ6dWk5S2ZqSk5BdExDOGRHVVJ0bWxxS2kxTzFmdVZhNUtUR0R2UWhsVGtrTlhMS2FFYnFKT1ZiTlFEUERnSlZfdDZSMWNtbHplRGd1S3NRbWtIMWowVFBiUHA0UmVkYWZkdEVwdFFPdExSbmdTMG9ocHRiR0JNY3B1M3lsN3JRcEdJQUlsQWlyWnZzNTJNWFZlUWVHQmlCakF3WFdXZVUza29ScHo0czdUck03amp1dllUbE5GODNibHhYQ1hSRFI0ei1zX0piWlBqN1F2MGZxdzc0bTl2eTZxWjZISXFnM2JHc0lRNFQ4LWdHRWtHTTNEcFZqQ2RUVnVTMUtjMXNBbkZzT0ozdHpPcEJLRFJHazBUTE83ZEllQ283MXRiQkhEMkllNm50ZEZSVU9B
+kind: Secret
+metadata:
+  annotations:
+    kubernetes.io/service-account.name: default
+    kubernetes.io/service-account.uid: d68a3316-5556-414d-bb56-5e689c936d9e
+  name: default-token-bxtj7
+  namespace: default
+type: kubernetes.io/service-account-token
+*/
+/* token解压缩之后
+Header为：
+{
+    "alg": "RS256",
+    "kid": "v_FTbUFhxIWEA-doXkmoc8E0BT7d-QRVgAKgYKKhujU"
+}
+
+Payload为：
+{
+    "iss": "kubernetes/serviceaccount",
+    "kubernetes.io/serviceaccount/namespace": "default",
+    "kubernetes.io/serviceaccount/secret.name": "default-token-bxtj7",
+    "kubernetes.io/serviceaccount/service-account.name": "default",
+    "kubernetes.io/serviceaccount/service-account.uid": "d68a3316-5556-414d-bb56-5e689c936d9e",
+    "sub": "system:serviceaccount:default:default"
+}
+
+*/
+// 实际上ServiceAccount认证，就是JWT认证
+
 type jwtTokenAuthenticator struct {
-	issuers      map[string]bool
-	keys         []interface{}
-	validator    Validator
+	// Token签发人
+	issuers   map[string]bool
+	keys      []interface{}
+	validator Validator
+	// Token的接受者
 	implicitAuds authenticator.Audiences
 }
 
@@ -260,6 +297,7 @@ type Validator interface {
 }
 
 func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData string) (*authenticator.Response, bool, error) {
+	// 如果签发人不是合法的签发人，那么直接认为当前Token校验没有通过
 	if !j.hasCorrectIssuer(tokenData) {
 		return nil, false, nil
 	}
@@ -270,6 +308,7 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 	}
 
 	public := &jwt.Claims{}
+	// 私有声明
 	private := j.validator.NewPrivateClaims()
 
 	// TODO: Pick the key that has the same key ID as `tok`, if one exists.
@@ -278,10 +317,12 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 		errlist []error
 	)
 	for _, key := range j.keys {
+		// 使用私钥校验JWT
 		if err := tok.Claims(key, public, private); err != nil {
 			errlist = append(errlist, err)
 			continue
 		}
+		// 如果没有错误，说明当前的Token是合法的Token
 		found = true
 		break
 	}
@@ -290,6 +331,7 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 		return nil, false, utilerrors.NewAggregate(errlist)
 	}
 
+	// 拿到JWT中的Audience
 	tokenAudiences := authenticator.Audiences(public.Audience)
 	if len(tokenAudiences) == 0 {
 		// only apiserver audiences are allowed for legacy tokens
@@ -298,19 +340,22 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 		tokenAudiences = j.implicitAuds
 	}
 
+	// 获取当前请求的Audience
 	requestedAudiences, ok := authenticator.AudiencesFrom(ctx)
 	if !ok {
 		// default to apiserver audiences
 		requestedAudiences = j.implicitAuds
 	}
 
+	// 获取tokenAudiences和requestedAudiences的交集
 	auds := authenticator.Audiences(tokenAudiences).Intersect(requestedAudiences)
+	// 说明当前请求的Audience不正确
 	if len(auds) == 0 && len(j.implicitAuds) != 0 {
 		return nil, false, fmt.Errorf("token audiences %q is invalid for the target audiences %q", tokenAudiences, requestedAudiences)
 	}
 
-	// If we get here, we have a token with a recognized signature and
-	// issuer string.
+	// If we get here, we have a token with a recognized signature and issuer string.
+	// JWT认真通过之后，还需要检验JWT中所指向的Secret，ServiceAccount是否合法
 	sa, err := j.validator.Validate(ctx, tokenData, public, private)
 	if err != nil {
 		return nil, false, err
@@ -330,6 +375,7 @@ func (j *jwtTokenAuthenticator) AuthenticateToken(ctx context.Context, tokenData
 // See https://github.com/square/go-jose/issues/169
 func (j *jwtTokenAuthenticator) hasCorrectIssuer(tokenData string) bool {
 	parts := strings.Split(tokenData, ".")
+	// 如果是一个有效的JWT，那么肯定是三段
 	if len(parts) != 3 {
 		return false
 	}

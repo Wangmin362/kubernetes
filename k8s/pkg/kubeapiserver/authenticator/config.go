@@ -47,28 +47,39 @@ import (
 )
 
 // Config contains the data on how to authenticate a request to the Kube API Server
-// TODO 认证配置：用于配置如何认证一个请求
+// K8S APIServer认证配置：用于配置如何认证一个请求
 type Config struct {
+
 	// 是否允许匿名访问
 	Anonymous bool
-	// TODO BootstrapToken的作用是啥？
-	BootstrapToken bool
 
-	TokenAuthFile          string
-	OIDCIssuerURL          string
-	OIDCClientID           string
-	OIDCCAFile             string
-	OIDCUsernameClaim      string
-	OIDCUsernamePrefix     string
-	OIDCGroupsClaim        string
-	OIDCGroupsPrefix       string
-	OIDCSigningAlgs        []string
-	OIDCRequiredClaims     map[string]string
+	// 1、了解JWT的人应该就非常熟悉这个属性的作用了；JWT的Payload中有两个保留字段，一个是iss，也就是Token签发人；另外一个则是aud，也就是
+	// Token的接收人，也就是说JTW可以明确当前的Token是颁发给谁的。而这里的APIAudience就是这个作用。
+	// 2、对于Token认证的系统而言，我们可以通过Playload中的aud来做文章，那就是可以通过aud设置合法的用户。这里的APIAudience就是K8S留给
+	// 用户用于指定合法用户的地方。由于JWT的特性，Playload中的内容不可能更改，因为一旦更改了，那么JWT认证将会失效。所以即便JWT认证通过，
+	// 但是当前的用户并不是指定的合法用户，依然会拒绝该用户。
+	APIAudiences authenticator.Audiences
+
+	// BootstrapToken认证
+	BootstrapToken              bool
+	BootstrapTokenAuthenticator authenticator.Token
+
+	// StaticToken认证
+	TokenAuthFile string
+
+	// ServiceAccount认证，用于校验ServiceAccountToken是否有效；这个参数可以理解为私钥，而Token则是公钥签名的
 	ServiceAccountKeyFiles []string
-	ServiceAccountLookup   bool
-	ServiceAccountIssuers  []string
-	// TODO 这玩意到底是啥？
-	APIAudiences                authenticator.Audiences
+	// 如果为true，SA Token认证的时候，即便JWT认证通过，SA Token认证器依然会判断两个事情：
+	// 1、当前JWT所引用的Secret是否存在，是否被删除，是否和Secret中的Token相等
+	// 2、当前JWT所引用的ServiceAccount是否存在，ID是否相等
+	ServiceAccountLookup bool
+	// 1、JWT Token签发者，这里应该填写HTTPS web地址
+	// 2、这种方式是ServiceAccount较新的使用方式
+	ServiceAccountIssuers []string
+	// TODO, this is the only non-serializable part of the entire config.  Factor it out into a clientconfig
+	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
+
+	// Webhook认证
 	WebhookTokenAuthnConfigFile string
 	WebhookTokenAuthnVersion    string
 	WebhookTokenAuthnCacheTTL   time.Duration
@@ -77,21 +88,30 @@ type Config struct {
 	// before we fail the webhook call in order to limit the fan out that ensues when the system is degraded.
 	WebhookRetryBackoff *wait.Backoff
 
-	TokenSuccessCacheTTL time.Duration
-	TokenFailureCacheTTL time.Duration
+	// OIDC认证
+	OIDCIssuerURL      string
+	OIDCClientID       string
+	OIDCCAFile         string
+	OIDCUsernameClaim  string
+	OIDCUsernamePrefix string
+	OIDCGroupsClaim    string
+	OIDCGroupsPrefix   string
+	OIDCSigningAlgs    []string
+	OIDCRequiredClaims map[string]string
 
+	// RequestHeader认证
 	RequestHeaderConfig *authenticatorfactory.RequestHeaderConfig
 
-	// TODO, this is the only non-serializable part of the entire config.  Factor it out into a clientconfig
-	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
-	// TODO 作用？
-	BootstrapTokenAuthenticator authenticator.Token
 	// ClientCAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this value is nil, then mutual TLS is disabled.
-	// 监听client-ca-file参数所指向的证书，一旦证书发生变化，那么ClientCAContentProvider会通知所有对client-ca-file文件感兴趣的
+	// 1、ClientCA认证
+	// 2、监听client-ca-file参数所指向的证书，一旦证书发生变化，那么ClientCAContentProvider会通知所有对client-ca-file文件感兴趣的
 	// controller；当然，前提是controller已经注册到ClientCAContentProvider当中
 	ClientCAContentProvider dynamiccertificates.CAContentProvider
+
+	TokenSuccessCacheTTL time.Duration
+	TokenFailureCacheTTL time.Duration
 
 	// Optional field, custom dial function used to connect to webhook
 	CustomDial utilnet.DialFunc
@@ -129,7 +149,7 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	}
 
 	// Bearer token methods, local first, then remote
-	// TODO Token认证 仔细分析
+	// TODO StaticToken认证 仔细分析
 	if len(config.TokenAuthFile) > 0 {
 		tokenAuth, err := newAuthenticatorFromTokenFile(config.TokenAuthFile)
 		if err != nil {
@@ -137,17 +157,29 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, tokenAuth))
 	}
-	// TODO ServiceAccount认证 仔细分析
+	// 1、这种方式是LegacyServiceAccount认证，认证过程大致如下：
+	// 2、首先判断JWT的签发人是否合法，对于LegacyServiceAccount而言，签发人必须是：kubernetes/serviceaccount
+	// 3、根据私钥解析JWT Token，如果无法正确解析JWT，就说明此JWT为非法Token
+	// 4、判断JWT Token的Audience是否是合法的Audience，如果当前的Audience为非法用户，那么本次认证失败
+	// 5、如果APIServer指定service-account-lookup参数为true,那么需要检查当前JWT所对应的Secret， ServiceAccount是否合法，是否存在
+	// 是否被删除， token是否和当前JWT是否相等
+	// 6、如果上述检测都通过，那么当前的token认证成功；但凡有一点检查失败，当前Token就认证失败
 	if len(config.ServiceAccountKeyFiles) > 0 {
-		serviceAccountAuth, err := newLegacyServiceAccountAuthenticator(config.ServiceAccountKeyFiles, config.ServiceAccountLookup, config.APIAudiences, config.ServiceAccountTokenGetter)
+		// 所谓的LegacyServiceAccount,其实是因为ServiceAccount对应的token是有K8S生成，签发者为:kubernetes/serviceaccount
+		serviceAccountAuth, err := newLegacyServiceAccountAuthenticator(config.ServiceAccountKeyFiles, config.ServiceAccountLookup,
+			config.APIAudiences, config.ServiceAccountTokenGetter)
 		if err != nil {
 			return nil, nil, err
 		}
 		tokenAuthenticators = append(tokenAuthenticators, serviceAccountAuth)
 	}
-	// TODO 仔细分析
+
+	// 如果用户指定了service-account-issuer参数，那么再实例化一个ServiceToken认证器。该认证且和LegacyServiceToken基本上是一摸一样的
+	// 仅仅在检测JWT的签发者有细微差别，LegacyServiceToken的签发者只有kubernetes/serviceaccount，而这里刚实例化的认证器则是通过
+	// service-account-issuer参数指定的
 	if len(config.ServiceAccountIssuers) > 0 {
-		serviceAccountAuth, err := newServiceAccountAuthenticator(config.ServiceAccountIssuers, config.ServiceAccountKeyFiles, config.APIAudiences, config.ServiceAccountTokenGetter)
+		serviceAccountAuth, err := newServiceAccountAuthenticator(config.ServiceAccountIssuers, config.ServiceAccountKeyFiles,
+			config.APIAudiences, config.ServiceAccountTokenGetter)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -287,9 +319,11 @@ func newAuthenticatorFromOIDCIssuerURL(opts oidc.Options) (authenticator.Token, 
 }
 
 // newLegacyServiceAccountAuthenticator returns an authenticator.Token or an error
-func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, apiAudiences authenticator.Audiences, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
-	allPublicKeys := []interface{}{}
+func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, apiAudiences authenticator.Audiences,
+	serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
+	var allPublicKeys []interface{}
 	for _, keyfile := range keyfiles {
+		// 解析PEM私钥
 		publicKeys, err := keyutil.PublicKeysFromFile(keyfile)
 		if err != nil {
 			return nil, err
@@ -297,12 +331,14 @@ func newLegacyServiceAccountAuthenticator(keyfiles []string, lookup bool, apiAud
 		allPublicKeys = append(allPublicKeys, publicKeys...)
 	}
 
-	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator([]string{serviceaccount.LegacyIssuer}, allPublicKeys, apiAudiences, serviceaccount.NewLegacyValidator(lookup, serviceAccountGetter))
+	tokenAuthenticator := serviceaccount.JWTTokenAuthenticator([]string{serviceaccount.LegacyIssuer}, allPublicKeys,
+		apiAudiences, serviceaccount.NewLegacyValidator(lookup, serviceAccountGetter))
 	return tokenAuthenticator, nil
 }
 
 // newServiceAccountAuthenticator returns an authenticator.Token or an error
-func newServiceAccountAuthenticator(issuers []string, keyfiles []string, apiAudiences authenticator.Audiences, serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
+func newServiceAccountAuthenticator(issuers []string, keyfiles []string, apiAudiences authenticator.Audiences,
+	serviceAccountGetter serviceaccount.ServiceAccountTokenGetter) (authenticator.Token, error) {
 	allPublicKeys := []interface{}{}
 	for _, keyfile := range keyfiles {
 		publicKeys, err := keyutil.PublicKeysFromFile(keyfile)

@@ -241,7 +241,11 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 		}
 		tokenAuthenticators = append(tokenAuthenticators, authenticator.WrapAudienceAgnosticToken(config.APIAudiences, oidcAuth))
 	}
-	// TODO webhook认证 仔细分析
+
+	// WebhookToken认证器工作原理非常简单，如下：
+	// 1、从请求上下文当中取出Audience，并构造TokenReview对象
+	// 2、发送此请求对象到远端webhook服务器，远端webhook服务器需要对此进行认证
+	// 3、远端webhook服务器把验证结果放入到请求的TokenView.Status字段当中
 	if len(config.WebhookTokenAuthnConfigFile) > 0 {
 		webhookTokenAuth, err := newWebhookTokenAuthenticator(config)
 		if err != nil {

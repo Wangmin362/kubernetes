@@ -52,6 +52,10 @@ type tokenReviewer interface {
 	Create(ctx context.Context, review *authenticationv1.TokenReview, _ metav1.CreateOptions) (*authenticationv1.TokenReview, int, error)
 }
 
+// WebhookTokenAuthenticator 工作原理非常简单，如下：
+// 1、从请求上下文当中取出Audience，并构造TokenReview对象
+// 2、发送此请求对象到远端webhook服务器，远端webhook服务器需要对此进行认证
+// 3、远端webhook服务器把验证结果放入到请求的TokenView.Status字段当中
 type WebhookTokenAuthenticator struct {
 	tokenReview    tokenReviewer
 	retryBackoff   wait.Backoff
@@ -108,7 +112,9 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 	//     the ctx audiences intersect with the implicit audiences, and set the
 	//     intersection in the response.
 	//   * otherwise return unauthenticated.
+	// 从请求上下文当中获取Audience
 	wantAuds, checkAuds := authenticator.AudiencesFrom(ctx)
+	// 构造Webhook请求参数
 	r := &authenticationv1.TokenReview{
 		Spec: authenticationv1.TokenReviewSpec{
 			Token:     token,
@@ -135,6 +141,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 		var statusCode int
 
 		start := time.Now()
+		// 请求远端Webhook服务器
 		result, statusCode, tokenReviewErr = w.tokenReview.Create(ctx, r, metav1.CreateOptions{})
 		latency := time.Since(start)
 
@@ -155,6 +162,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 		return nil, false, err
 	}
 
+	// 检查请求中的Audience是否是合法的Audience
 	if checkAuds {
 		gotAuds := w.implicitAuds
 		if len(result.Status.Audiences) > 0 {
@@ -198,6 +206,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 // and returns a TokenReviewInterface that uses that client. Note that the client submits TokenReview
 // requests to the exact path specified in the kubeconfig file, so arbitrary non-API servers can be targeted.
 func tokenReviewInterfaceFromConfig(config *rest.Config, version string, retryBackoff wait.Backoff) (tokenReviewer, error) {
+	// TODO 这里New的Schema是干嘛的？
 	localScheme := runtime.NewScheme()
 	if err := scheme.AddToScheme(localScheme); err != nil {
 		return nil, err

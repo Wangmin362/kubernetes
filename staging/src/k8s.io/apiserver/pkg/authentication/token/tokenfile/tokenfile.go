@@ -66,6 +66,7 @@ func NewCSV(path string) (*TokenAuthenticator, error) {
 		}
 
 		recordNum++
+		// 忽略token为空的一行
 		if record[0] == "" {
 			klog.Warningf("empty token has been found in token file '%s', record number '%d'", path, recordNum)
 			continue
@@ -90,9 +91,10 @@ func NewCSV(path string) (*TokenAuthenticator, error) {
 	}, nil
 }
 
-func (a *TokenAuthenticator) AuthenticateToken(ctx context.Context, value string) (*authenticator.Response, bool, error) {
-	user, ok := a.tokens[value]
+func (a *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	user, ok := a.tokens[token]
 	if !ok {
+		// 如果不存在，说明当前token不被认可，那么认证不通过
 		return nil, false, nil
 	}
 	return &authenticator.Response{User: user}, true, nil

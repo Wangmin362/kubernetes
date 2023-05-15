@@ -22,12 +22,17 @@ import (
 	"net/http"
 )
 
-// TODO 这里在干嘛？
+// 认证一个请求，步骤如下：
+// 1、从当前请求的上下文当中获取当前请求的Audience,如果没有获取到Audience，那么委托给authenticate进行认证
+// 2、如果从请求上下文中取到了Audience，那么和和K8S合法的Audience做交集，如果交集为空，直接认为认证失败
+// 3、否则将请求委托给authenticate进行认证，如果认证有错误，就认为认证失败
 func authenticate(ctx context.Context, implicitAuds Audiences, authenticate func() (*Response, bool, error)) (*Response, bool, error) {
+	// 获取当前请求的Audience
 	targetAuds, ok := AudiencesFrom(ctx)
 	// We can remove this once api audiences is never empty. That will probably
 	// be N releases after TokenRequest is GA.
 	if !ok {
+		// 如果取不到Audience，那么委托给authenticate进行认证
 		return authenticate()
 	}
 	auds := implicitAuds.Intersect(targetAuds)

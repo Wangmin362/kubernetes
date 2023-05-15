@@ -64,7 +64,9 @@ type Config struct {
 	BootstrapToken              bool
 	BootstrapTokenAuthenticator authenticator.Token
 
-	// StaticToken认证
+	// 1、StaticToken认证，通过--token-auth-file设置
+	// 2、用于指定一个CSV文件，文件中每一行代表一个合法Token,格式为：token,user,uid,"group1,group2,group3"
+	// 即token-auth-file文件第一列为toKen，第二列为用户名，第三列为UID，第四列为组（组可以有多个，但是需要用双引号括起来）
 	TokenAuthFile string
 
 	// ServiceAccount认证，用于校验ServiceAccountToken是否有效；这个参数可以理解为私钥，而Token则是公钥签名的
@@ -149,7 +151,8 @@ func (config Config) New() (authenticator.Request, *spec.SecurityDefinitions, er
 	}
 
 	// Bearer token methods, local first, then remote
-	// TODO StaticToken认证 仔细分析
+	// 1、通过设置token-auth-file参数，为StaticToken认证器指定合法的认证Token
+	// 2、如果请求上下文的token是token-auth-file文件中指定的token就是合法token，否则认为是非法token
 	if len(config.TokenAuthFile) > 0 {
 		tokenAuth, err := newAuthenticatorFromTokenFile(config.TokenAuthFile)
 		if err != nil {

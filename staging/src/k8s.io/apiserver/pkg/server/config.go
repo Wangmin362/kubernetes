@@ -375,7 +375,11 @@ type SecureServingInfo struct {
 type AuthenticationInfo struct {
 	// APIAudiences is a list of identifier that the API identifies as. This is
 	// used by some authenticators to validate audience bound credentials.
-	// TODO 如何理解Audiences?
+	// 1、了解JWT的人应该就非常熟悉这个属性的作用了；JWT的Payload中有两个保留字段，一个是iss，也就是Token签发人；另外一个则是aud，也就是
+	// Token的接收人，也就是说JTW可以明确当前的Token是颁发给谁的。而这里的APIAudience就是这个作用。
+	// 2、对于Token认证的系统而言，我们可以通过Playload中的aud来做文章，那就是可以通过aud设置合法的用户。这里的APIAudience就是K8S留给
+	// 用户用于指定合法用户的地方。由于JWT的特性，Playload中的内容不可能更改，因为一旦更改了，那么JWT认证将会失效。所以即便JWT认证通过，
+	// 但是当前的用户并不是指定的合法用户，依然会拒绝该用户。
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
 	// 1、认证器，用于从HTTP请求当中抽取认证信息

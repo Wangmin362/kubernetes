@@ -488,7 +488,6 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		}
 	}
 
-	// TODO APIAudiences是干嘛用的？
 	authInfo.APIAudiences = o.APIAudiences
 	if o.ServiceAccounts != nil && len(o.ServiceAccounts.Issuers) != 0 && len(o.APIAudiences) == 0 {
 		authInfo.APIAudiences = authenticator.Audiences(o.ServiceAccounts.Issuers)

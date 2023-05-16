@@ -121,7 +121,7 @@ type Options struct {
 	// KubeProxy的配置，这个配置就是通过读取ConfigFile所指向的文件反序列化出来的
 	config *kubeproxyconfig.KubeProxyConfiguration
 	// watcher is used to watch on the update change of ConfigFile
-	// TODO 有何作用？
+	// 用于监听Kubelet配置文件的变化
 	watcher filesystem.FSWatcher
 	// proxyServer is the interface to run the proxy server
 	// 实际上就是实例化的KubeProxy
@@ -340,6 +340,7 @@ func (o *Options) Run() error {
 // runLoop will watch on the update change of the proxy server's configuration file.
 // Return an error when updated
 func (o *Options) runLoop() error {
+	// 用于监听Kubelet配置文件的变化
 	if o.watcher != nil {
 		o.watcher.Run()
 	}

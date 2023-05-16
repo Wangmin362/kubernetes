@@ -153,6 +153,7 @@ var _ timer = &realTimer{}
 // The maxInterval must be greater than or equal to the minInterval,  If the
 // caller passes a maxInterval less than minInterval, this function will panic.
 func NewBoundedFrequencyRunner(name string, fn func(), minInterval, maxInterval time.Duration, burstRuns int) *BoundedFrequencyRunner {
+	// TODO 这里设置的0 Duration是啥意思？为啥需要马上等待消费第一次定时到来？
 	timer := &realTimer{timer: time.NewTimer(0)} // will tick immediately
 	<-timer.C()                                  // consume the first tick
 	return construct(name, fn, minInterval, maxInterval, burstRuns, timer)

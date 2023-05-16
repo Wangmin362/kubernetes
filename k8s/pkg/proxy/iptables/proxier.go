@@ -191,20 +191,21 @@ type Proxier struct {
 	// updating iptables with some partial data after kube-proxy restart.
 	endpointSlicesSynced bool
 	servicesSynced       bool
-	initialized          int32
+	initialized          int32                         // 当前Proxy是否已经初始化
 	syncRunner           *async.BoundedFrequencyRunner // governs calls to syncProxyRules
-	syncPeriod           time.Duration
+	syncPeriod           time.Duration                 // TODO syncRunner的定时周期?
 	lastIPTablesCleanup  time.Time
 
 	// These are effectively const and do not need the mutex to be held.
-	iptables       utiliptables.Interface
+	iptables       utiliptables.Interface // iptables的操作客户端
 	masqueradeAll  bool
 	masqueradeMark string
-	exec           utilexec.Interface
-	localDetector  proxyutiliptables.LocalTrafficDetector
-	hostname       string
-	nodeIP         net.IP
-	recorder       events.EventRecorder
+	exec           utilexec.Interface // 命令执行客户端封装
+	// TODO 这玩意干啥的？
+	localDetector proxyutiliptables.LocalTrafficDetector
+	hostname      string
+	nodeIP        net.IP
+	recorder      events.EventRecorder
 
 	serviceHealthServer healthcheck.ServiceHealthServer
 	healthzServer       healthcheck.ProxierHealthUpdater
@@ -257,6 +258,7 @@ func NewProxier(ipt utiliptables.Interface,
 	healthzServer healthcheck.ProxierHealthUpdater,
 	nodePortAddresses []string,
 ) (*Proxier, error) {
+	// TODO 这里在干嘛？
 	if utilproxy.ContainsIPv4Loopback(nodePortAddresses) {
 		// Set the route_localnet sysctl we need for exposing NodePorts on loopback addresses
 		klog.InfoS("Setting route_localnet=1, use nodePortAddresses to filter loopback addresses for NodePorts to skip it https://issues.k8s.io/90259")
@@ -268,6 +270,7 @@ func NewProxier(ipt utiliptables.Interface,
 	// Proxy needs br_netfilter and bridge-nf-call-iptables=1 when containers
 	// are connected to a Linux bridge (but not SDN bridges).  Until most
 	// plugins handle this, log when config is missing
+	// 读取/proc/sys/net/bridge/bridge-nf-call-iptables文件中的内容
 	if val, err := sysctl.GetSysctl(sysctlBridgeCallIPTables); err == nil && val != 1 {
 		klog.InfoS("Missing br-netfilter module or unset sysctl br-nf-call-iptables, proxy may not work as intended")
 	}
@@ -277,6 +280,7 @@ func NewProxier(ipt utiliptables.Interface,
 	masqueradeMark := fmt.Sprintf("%#08x", masqueradeValue)
 	klog.V(2).InfoS("Using iptables mark for masquerade", "ipFamily", ipt.Protocol(), "mark", masqueradeMark)
 
+	// TODO 详细分析
 	serviceHealthServer := healthcheck.NewServiceHealthServer(hostname, recorder, nodePortAddresses)
 
 	ipFamily := v1.IPv4Protocol
@@ -284,6 +288,7 @@ func NewProxier(ipt utiliptables.Interface,
 		ipFamily = v1.IPv6Protocol
 	}
 
+	// TODO 这里是在干嘛？
 	ipFamilyMap := utilproxy.MapCIDRsByIPFamily(nodePortAddresses)
 	nodePortAddresses = ipFamilyMap[ipFamily]
 	// Log the IPs not matching the ipFamily
@@ -297,10 +302,10 @@ func NewProxier(ipt utiliptables.Interface,
 		endpointsMap:             make(proxy.EndpointsMap),
 		endpointsChanges:         proxy.NewEndpointChangeTracker(hostname, newEndpointInfo, ipFamily, recorder, nil),
 		syncPeriod:               syncPeriod,
-		iptables:                 ipt,
+		iptables:                 ipt, // iptables客户端
 		masqueradeAll:            masqueradeAll,
 		masqueradeMark:           masqueradeMark,
-		exec:                     exec,
+		exec:                     exec, // 命令执行器
 		localDetector:            localDetector,
 		hostname:                 hostname,
 		nodeIP:                   nodeIP,
@@ -323,8 +328,11 @@ func NewProxier(ipt utiliptables.Interface,
 	// We pass syncPeriod to ipt.Monitor, which will call us only if it needs to.
 	// We need to pass *some* maxInterval to NewBoundedFrequencyRunner anyway though.
 	// time.Hour is arbitrary.
+	// 1、TODO NewBoundedFrequencyRunner可以简单理解为定时执行任务的包装器
+	// 2、TODO 重点分析syncProxyRules执行逻辑
 	proxier.syncRunner = async.NewBoundedFrequencyRunner("sync-runner", proxier.syncProxyRules, minSyncPeriod, time.Hour, burstSyncs)
 
+	// 1、TODO 详细分析
 	go ipt.Monitor(kubeProxyCanaryChain, []utiliptables.Table{utiliptables.TableMangle, utiliptables.TableNAT, utiliptables.TableFilter},
 		proxier.syncProxyRules, syncPeriod, wait.NeverStop)
 
@@ -805,6 +813,7 @@ func (proxier *Proxier) syncProxyRules() {
 	defer proxier.mu.Unlock()
 
 	// don't sync rules till we've received services and endpoints
+	// 还没有初始化完成，直接退出
 	if !proxier.isInitialized() {
 		klog.V(2).InfoS("Not syncing iptables until Services and Endpoints have been received from master")
 		return
@@ -820,6 +829,7 @@ func (proxier *Proxier) syncProxyRules() {
 	// We assume that if this was called, we really want to sync them,
 	// even if nothing changed in the meantime. In other words, callers are
 	// responsible for detecting no-op changes and not calling this function.
+	// TODO 仔细分析
 	serviceUpdateResult := proxier.serviceMap.Update(proxier.serviceChanges)
 	endpointUpdateResult := proxier.endpointsMap.Update(proxier.endpointsChanges)
 

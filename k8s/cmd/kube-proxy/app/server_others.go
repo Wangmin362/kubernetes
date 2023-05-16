@@ -96,8 +96,8 @@ func newProxyServer(
 
 	var iptInterface utiliptables.Interface // 用于对iptable规则进行增删改查
 	var ipvsInterface utilipvs.Interface    // 用于对ipvs规则进行增删改查
-	var kernelHandler ipvs.KernelHandler
-	var ipsetInterface utilipset.Interface
+	var kernelHandler ipvs.KernelHandler    // 用于获取Linux内核的版本以及启用的模块
+	var ipsetInterface utilipset.Interface  // ipset用于设置iptable的黑白名单
 
 	// Create a iptables utils.
 	// 执行命令，这里执行的命令应该是创建iptable, ipvs规则
@@ -105,7 +105,7 @@ func newProxyServer(
 
 	// 用于获取当前运行KubeProxy的主机都启用了Linux哪些模块
 	kernelHandler = ipvs.NewLinuxKernelHandler()
-	// TODO ipset是啥？
+	// ipset可以用于设置iptables的黑、白名单
 	ipsetInterface = utilipset.New(execer)
 	// 如果运行KubeProxy的机器没有开启ip_vs, ip_vs_rr, ip_vs_wrr, ip_vs_sh, nf_conntrack其中任何一个模块，当前机器就无法使用IPVS模式
 	canUseIPVS, err := ipvs.CanUseIPVSProxier(kernelHandler, ipsetInterface, config.IPVS.Scheduler)
@@ -113,7 +113,7 @@ func newProxyServer(
 		klog.ErrorS(err, "Can't use the IPVS proxier")
 	}
 
-	// 如果可以使用IPVS，那么实例化ipvs执行器
+	// 如果可以使用ipvs，那么实例化ipvs执行器
 	if canUseIPVS {
 		ipvsInterface = utilipvs.New()
 	}
@@ -168,8 +168,8 @@ func newProxyServer(
 	var detectLocalMode proxyconfigapi.LocalMode
 
 	// 1、检测当前机器是否支持配置的代理模式
-	// 2、如果用户配置的是iptable模式，但是发现当前机器无法运行iptables模式，那么只能退而求其次使用userspace模式
-	// 3、如果用户配置的是ipvs模式，但是发现当前机器无法运行ipvs模式，那么只能降级使用iptable模式，如果iptable模式也无法运行，那么继续
+	// 2、如果用户配置的是iptables模式，但是发现当前机器无法运行iptables模式，那么只能退而求其次使用userspace模式
+	// 3、如果用户配置的是ipvs模式，但是发现当前机器无法运行ipvs模式，那么只能降级使用iptables模式，如果iptables模式也无法运行，那么继续
 	// 降级使用userspace模式
 	proxyMode := getProxyMode(string(config.Mode), canUseIPVS, iptables.LinuxKernelCompatTester{})
 	// TODO LocalMode指的是啥？
@@ -195,7 +195,7 @@ func newProxyServer(
 	if netutils.IsIPv6(nodeIP) {
 		primaryProtocol = utiliptables.ProtocolIPv6
 	}
-	// TODO iptables
+	// iptables客户端
 	iptInterface = utiliptables.New(execer, primaryProtocol)
 
 	var ipt [2]utiliptables.Interface
@@ -471,7 +471,8 @@ func getDetectLocalMode(config *proxyconfigapi.KubeProxyConfiguration) (proxycon
 	}
 }
 
-func getLocalDetector(mode proxyconfigapi.LocalMode, config *proxyconfigapi.KubeProxyConfiguration, ipt utiliptables.Interface, nodeInfo *v1.Node) (proxyutiliptables.LocalTrafficDetector, error) {
+func getLocalDetector(mode proxyconfigapi.LocalMode, config *proxyconfigapi.KubeProxyConfiguration, ipt utiliptables.Interface,
+	nodeInfo *v1.Node) (proxyutiliptables.LocalTrafficDetector, error) {
 	switch mode {
 	case proxyconfigapi.LocalModeClusterCIDR:
 		if len(strings.TrimSpace(config.ClusterCIDR)) == 0 {

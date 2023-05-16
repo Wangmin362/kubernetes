@@ -158,6 +158,7 @@ type processEndpointsMapChangeFunc func(oldEndpointsMap, newEndpointsMap Endpoin
 
 // EndpointChangeTracker carries state about uncommitted changes to an arbitrary number of
 // Endpoints, keyed by their namespace and name.
+// TODO 这玩意干嘛的？
 type EndpointChangeTracker struct {
 	// lock protects items.
 	lock sync.Mutex
@@ -184,7 +185,8 @@ type EndpointChangeTracker struct {
 }
 
 // NewEndpointChangeTracker initializes an EndpointsChangeMap
-func NewEndpointChangeTracker(hostname string, makeEndpointInfo makeEndpointFunc, ipFamily v1.IPFamily, recorder events.EventRecorder, processEndpointsMapChange processEndpointsMapChangeFunc) *EndpointChangeTracker {
+func NewEndpointChangeTracker(hostname string, makeEndpointInfo makeEndpointFunc, ipFamily v1.IPFamily, recorder events.EventRecorder,
+	processEndpointsMapChange processEndpointsMapChangeFunc) *EndpointChangeTracker {
 	return &EndpointChangeTracker{
 		hostname:                  hostname,
 		items:                     make(map[types.NamespacedName]*endpointsChange),

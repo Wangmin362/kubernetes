@@ -40,13 +40,14 @@ import (
 // based on the endpoints.  If there are 0 endpoints for a service, it returns a
 // 503 "Service Unavailable" error (telling LBs not to use this node).  If there
 // are 1 or more endpoints, it returns a 200 "OK".
+// TODO 如何理解这个接口的抽象？
 type ServiceHealthServer interface {
-	// Make the new set of services be active.  Services that were open before
+	// SyncServices Make the new set of services be active.  Services that were open before
 	// will be closed.  Services that are new will be opened.  Service that
 	// existed and are in the new set will be left alone.  The value of the map
 	// is the healthcheck-port to listen on.
 	SyncServices(newServices map[types.NamespacedName]uint16) error
-	// Make the new set of endpoints be active.  Endpoints for services that do
+	// SyncEndpoints Make the new set of endpoints be active.  Endpoints for services that do
 	// not exist will be dropped.  The value of the map is the number of
 	// endpoints the service has on this node.
 	SyncEndpoints(newEndpoints map[types.NamespacedName]int) error

@@ -46,6 +46,7 @@ const (
 )
 
 // Interface is an injectable interface for running iptables commands.  Implementations must be goroutine-safe.
+// TODO 如何理解这个接口的抽象？
 type Interface interface {
 	// EnsureChain checks if the specified chain exists and, if not, creates it.  If the chain existed, return true.
 	EnsureChain(table Table, chain Chain) (bool, error)

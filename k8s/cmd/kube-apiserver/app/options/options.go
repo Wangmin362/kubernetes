@@ -46,15 +46,12 @@ type ServerRunOptions struct {
 	GenericServerRunOptions *genericoptions.ServerRunOptions                 // genericServer配置
 	Etcd                    *genericoptions.EtcdOptions                      // ETCD的配置
 	SecureServing           *genericoptions.SecureServingOptionsWithLoopback // TLS相关配置
-	// TODO K8S是如何实现审计的？
-	Audit    *genericoptions.AuditOptions   // 审计相关配置
-	Features *genericoptions.FeatureOptions // K8S的特性开关
-	// TODO K8S是如何实现准入控制的？ 动态注入控制又是如何实现的？
-	Admission      *kubeoptions.AdmissionOptions             // 准入控制
-	Authentication *kubeoptions.BuiltInAuthenticationOptions // 认证相关
-	Authorization  *kubeoptions.BuiltInAuthorizationOptions  // 授权相关
-	// TODO cloudProvider是啥？
-	CloudProvider *kubeoptions.CloudProviderOptions
+	Audit                   *genericoptions.AuditOptions                     // 审计相关配置
+	Features                *genericoptions.FeatureOptions                   // K8S的特性开关
+	Admission               *kubeoptions.AdmissionOptions                    // 准入控制
+	Authentication          *kubeoptions.BuiltInAuthenticationOptions        // 认证相关
+	Authorization           *kubeoptions.BuiltInAuthorizationOptions         // 授权相关
+	CloudProvider           *kubeoptions.CloudProviderOptions                // CloudProvider参数
 	// 什么叫做APIEnablement? 答：所谓的APIEnablement，实际上就是启用哪些资源，禁用那些资源
 	// 用于可以通过runtime-config配置参数来配置
 	APIEnablement *genericoptions.APIEnablementOptions
@@ -89,7 +86,7 @@ type ServerRunOptions struct {
 	// 用于广播给集群的所有成员自己的IP地址，不指定的话就使用"--bind-address"的IP地址
 	APIServerServiceIP net.IP
 
-	// nodeport端口范围 todo 为什么apiserver需要关心这个参数，这不是kubelet的参数么？
+	// NodePort端口范围 todo 为什么APIServer需要关心这个参数，这不是kubelet的参数么？
 	ServiceNodePortRange utilnet.PortRange
 
 	// TODO proxy是啥意思？ 用来干嘛的

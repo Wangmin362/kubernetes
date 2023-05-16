@@ -10,6 +10,7 @@
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
       - [ ] Anonymous
+          - [ ] --anonymous-auth
       - [x] TokenFile 其实就是StaticToken认证
           - [x] --token-auth-file 指定CSV Token文件，格式为：token,user,uid,"group1,group2,group3"
       - [x] ServiceAccount，这是K8S Pod认证原理; 所谓的SA认证，其实就是JWT认证。
@@ -44,6 +45,15 @@
               - [ ] --requestheader-client-ca-file
               - [ ] --requestheader-allowed-names
       - [ ] OIDC
+          - [ ] --oidc-issuer-url
+          - [ ] --oidc-client-id
+          - [ ] --oidc-ca-file
+          - [ ] --oidc-username-claim
+          - [ ] --oidc-username-prefix
+          - [ ] --oidc-groups-claim
+          - [ ] --oidc-groups-prefix
+          - [ ] --oidc-signing-algs
+          - [ ] --oidc-required-claim
   - [ ] APIServer如何自定义扩展认证方式？ 答：采用Webhook
   - [ ] 影响APIServer的认证参数有哪些？
       - [x] --api-audiences 设置JWT的合法audiance
@@ -95,10 +105,38 @@
   - [ ] 如何理解K8S准入控制架构设计？
   - [ ] 如何自定义准入控制插件？
   - [ ] 影响准入控制插件参数有哪些？
+      - [ ] --admission-control
+      - [ ] --enable-admission-plugins
+      - [ ] --disable-admission-plugins
+      - [ ] --admission-control-config-file
   - [ ] PreHook原理
 - [ ] APIServer审计
   - [ ] K8S的审计架构？
   - [ ] 用户如何自定义审计后端(Audit Backend)？
+  - [ ] 相关参数
+      - [ ] --audit-policy-file
+      - [ ] --audit-log-path
+      - [ ] --audit-log-maxage
+      - [ ] --audit-log-maxbackup
+      - [ ] --audit-log-maxsize
+      - [ ] --audit-log-format
+      - [ ] --audit-log-compress
+      - [ ] --audit-log-version
+      - [ ] --audit-\<plugin-name>-truncate-enabled
+      - [ ] --audit-\<plugin-name>-truncate-max-batch-size
+      - [ ] --audit-\<plugin-name>-truncate-max-event-size
+      - [ ] --audit-webhook-config-file
+      - [ ] --audit-webhook-initial-backoff
+      - [ ] --audit-webhook-batch-initial-backoff
+      - [ ] --audit-webhook-batch-initial-backoff
+      - [ ] --audit-webhook-version
+      - [ ] --audit-\<plugin-name>-mode
+      - [ ] --audit-\<plugin-name>-batch-buffer-size
+      - [ ] --audit-\<plugin-name>-batch-max-size
+      - [ ] --audit-\<plugin-name>-batch-max-wait
+      - [ ] --audit-\<plugin-name>-batch-throttle-enable
+      - [ ] --audit-\<plugin-name>-batch-throttle-qps
+      - [ ] --audit-\<plugin-name>-batch-throttle-burst
 - [ ] APIServer扩展点
     - [ ] API资源扩展
         - [ ] Annotation
@@ -127,6 +165,7 @@
   - [ ] 自定义的服务，倘若以集群的方式部署，如何解决Lease解决领导选举的问题？
   - [ ] 为什么Lease需要续期？租约续期是怎么回事？
 - [ ] EgressSelector是啥？Konnectivity又是为了解决什么问题？
+    - [ ] --egress-selector-config-file
 - [ ] K8S是如何解决跨域问题的（CORS）？
 - [ ] 如何理解K8S的资源与子资源？
   - [ ] K8S资源
@@ -165,11 +204,17 @@
 - [ ] CloudProvider
 - [ ] APIServer的分布式链路追踪是如何设计的？
 - [ ] APIServer的启动参数功能分析
-  - [ ] --watch-cache
-  - [ ] --watch-cache-sizes
-  - [ ] --goaway-chance 有何作用？为啥需要？原理是啥？从中可以学到什么？
-  - [ ] --service-cluster-ip-range
-  - [ ] --service-node-port-range
+    - [ ] 通用参数
+      - [ ] --watch-cache
+      - [ ] --watch-cache-sizes
+      - [ ] --goaway-chance 有何作用？为啥需要？原理是啥？从中可以学到什么？
+      - [ ] --service-cluster-ip-range
+      - [ ] --service-node-port-range
+  - [ ] CloudProvider参数
+      - [ ] --cloud-provider
+      - [ ] --cloud-config
+  - [ ] API启用禁用
+      - [ ] --egress-selector-config-file
 - [ ] FeatureGate
   - [ ] 特性开关有哪些？每个开关有何影响？
 - [ ] 指标

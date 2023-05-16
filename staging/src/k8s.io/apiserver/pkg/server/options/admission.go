@@ -53,7 +53,7 @@ func init() {
 // AdmissionOptions holds the admission options
 type AdmissionOptions struct {
 	// RecommendedPluginOrder holds an ordered list of plugin names we recommend to use by default
-	// TODO 这玩意有啥用？ 再New
+	// TODO 这玩意有啥用？
 	RecommendedPluginOrder []string
 	// DefaultOffPlugins is a set of plugin names that is disabled by default
 	// 设置默认禁用的插件

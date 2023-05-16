@@ -5,7 +5,7 @@
 - [x] APIAudiences
     - Audience实际上是JWT中的概念，JWT的Playload中有两个保留字段，一个是iss，也就是Token签发人；另外一个则是aud，也就是Token的接收人，也就是说JTW可以明确当前的Token是颁发给谁的。而这里的APIAudience就是这个作用。
 
-# 2. QA
+# 2. 组件原理
 ## 2.1. APIServer
 - [ ] APIServer认证
   - [ ] APIServer有几种认证方式？每种认证方式的原理是啥？
@@ -261,3 +261,14 @@
 ## 2.8. ContainerD
 
 - [ ] RMI接口？
+
+
+# 3. QA
+## 3.1. Ingress原理
+## 3.2. NetworkPolicy原理
+## 3.3. PodSecurityPolicy原理
+## 3.4. PodSecurityAdmin原理
+## 3.5. SessionAffinity原理
+## 3.6. DNS原理？CoreDNS?
+## 3.7. CSI
+## 3.8. Pod Disruption Budget

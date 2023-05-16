@@ -35,7 +35,7 @@ import (
 // It is a wrap of generic AdmissionOptions.
 type AdmissionOptions struct {
 	// GenericAdmission holds the generic admission options.
-	// TODO 通用的准入控制参数
+	// 通用准入控制参数
 	GenericAdmission *genericoptions.AdmissionOptions
 	// DEPRECATED flag, should use EnabledAdmissionPlugins and DisabledAdmissionPlugins.
 	// They are mutually exclusive, specify both will lead to an error.

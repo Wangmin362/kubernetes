@@ -31,6 +31,7 @@ import (
 
 // ServiceHandler is an abstract interface of objects which receive
 // notifications about service object changes.
+// 这个抽象倒是不难理解
 type ServiceHandler interface {
 	// OnServiceAdd is called whenever creation of new service object
 	// is observed.

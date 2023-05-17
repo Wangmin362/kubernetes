@@ -711,6 +711,7 @@ func (s *ProxyServer) Run() error {
 
 	// Tune conntrack, if requested
 	// Conntracker is always nil for windows
+	// TODO linux的Conntrack是干嘛用的?
 	if s.Conntracker != nil {
 		max, err := getConntrackMax(s.ConntrackConfiguration)
 		if err != nil {

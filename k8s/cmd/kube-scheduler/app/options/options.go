@@ -51,7 +51,7 @@ import (
 
 // Options has all the params needed to run a Scheduler
 type Options struct {
-	// The default values.
+	// KubeScheduler默认参数
 	ComponentConfig *kubeschedulerconfig.KubeSchedulerConfiguration
 
 	SecureServing  *apiserveroptions.SecureServingOptionsWithLoopback
@@ -63,9 +63,11 @@ type Options struct {
 	LeaderElection *componentbaseconfig.LeaderElectionConfiguration
 
 	// ConfigFile is the location of the scheduler server's configuration file.
+	// KubeScheduler配置文件路径
 	ConfigFile string
 
 	// WriteConfigTo is the path where the default configuration will be written.
+	// TODO 这玩意干嘛的？
 	WriteConfigTo string
 
 	Master string
@@ -204,17 +206,21 @@ func (o *Options) initFlags() {
 func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 	if len(o.ConfigFile) == 0 {
 		// If the --config arg is not specified, honor the deprecated as well as leader election CLI args.
+		// 如果没有指定KubeScheduler参数，实例化一些默认参数
 		o.ApplyDeprecated()
 		o.ApplyLeaderElectionTo(o.ComponentConfig)
 		c.ComponentConfig = *o.ComponentConfig
 	} else {
+		// 加载KubeScheduler配置文件
 		cfg, err := loadConfigFromFile(o.ConfigFile)
 		if err != nil {
 			return err
 		}
 		// If the --config arg is specified, honor the leader election CLI args only.
+		// TODO 仔细分析
 		o.ApplyLeaderElectionTo(cfg)
 
+		// TODO 校验参数
 		if err := validation.ValidateKubeSchedulerConfiguration(cfg); err != nil {
 			return err
 		}
@@ -261,23 +267,28 @@ func (o *Options) Validate() []error {
 // Config return a scheduler config object
 func (o *Options) Config() (*schedulerappconfig.Config, error) {
 	if o.SecureServing != nil {
+		// TODO 仔细分析
 		if err := o.SecureServing.MaybeDefaultWithSelfSignedCerts("localhost", nil, []net.IP{netutils.ParseIPSloppy("127.0.0.1")}); err != nil {
 			return nil, fmt.Errorf("error creating self-signed certificates: %v", err)
 		}
 	}
 
+	// 实例化KubeScheduler参数，目前还是一个空的参数
 	c := &schedulerappconfig.Config{}
+	// 根据用户传递的命令行参数，初始化KubeScheduler参数
 	if err := o.ApplyTo(c); err != nil {
 		return nil, err
 	}
 
 	// Prepare kube config.
+	// 可以等价理解为KubeConfig文件
 	kubeConfig, err := createKubeConfig(c.ComponentConfig.ClientConnection, o.Master)
 	if err != nil {
 		return nil, err
 	}
 
 	// Prepare kube clients.
+	// TODO 为什么这里需要实例化两次ClientSet
 	client, eventClient, err := createClients(kubeConfig)
 	if err != nil {
 		return nil, err
@@ -287,6 +298,8 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 	// Set up leader election if enabled.
 	var leaderElectionConfig *leaderelection.LeaderElectionConfig
+	// TODO 当启动了多个KubeScheduler，那么需要选举其中的一个作为Leader
+	// TODO 如果有多个kubeScheduler，那么将会有几个KubeScheduler运行？
 	if c.ComponentConfig.LeaderElection.LeaderElect {
 		// Use the scheduler name in the first profile to record leader election.
 		schedulerName := corev1.DefaultSchedulerName
@@ -302,6 +315,7 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 	c.Client = client
 	c.KubeConfig = kubeConfig
+	// 实例化SharedInformerFactory, TODO 重新同步周期设置为零，意味着什么？
 	c.InformerFactory = scheduler.NewInformerFactory(client, 0)
 	dynClient := dynamic.NewForConfigOrDie(kubeConfig)
 	c.DynInformerFactory = dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynClient, 0, corev1.NamespaceAll, nil)

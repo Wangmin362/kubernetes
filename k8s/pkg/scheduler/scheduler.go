@@ -59,9 +59,11 @@ var ErrNoNodesAvailable = fmt.Errorf("no nodes available to schedule pods")
 
 // Scheduler watches for new unscheduled pods. It attempts to find
 // nodes that they fit on and writes bindings back to the api server.
+// TODO 如何理解这个结构体的抽象？
 type Scheduler struct {
 	// It is expected that changes made via Cache will be observed
 	// by NodeLister and Algorithm.
+	// TODO 缓存的是啥？
 	Cache internalcache.Cache
 
 	Extenders []framework.Extender
@@ -87,6 +89,7 @@ type Scheduler struct {
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.
+	// TODO 什么叫做Profiles?
 	Profiles profile.Map
 
 	client clientset.Interface
@@ -108,10 +111,11 @@ type schedulerOptions struct {
 	// Contains out-of-tree plugins to be merged with the in-tree registry.
 	frameworkOutOfTreeRegistry frameworkruntime.Registry
 	profiles                   []schedulerapi.KubeSchedulerProfile
-	extenders                  []schedulerapi.Extender
-	frameworkCapturer          FrameworkCapturer
-	parallelism                int32
-	applyDefaultProfile        bool
+	// TODO 这个参数的作用
+	extenders           []schedulerapi.Extender
+	frameworkCapturer   FrameworkCapturer
+	parallelism         int32
+	applyDefaultProfile bool
 }
 
 // Option configures a Scheduler
@@ -256,19 +260,25 @@ func New(client clientset.Interface,
 		options.profiles = cfg.Profiles
 	}
 
+	// TODO InTreeRegistry和OutOffTreeRegistry有何区别？
 	registry := frameworkplugins.NewInTreeRegistry()
+	// 合并外部注册的插件和内部的插件
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {
 		return nil, err
 	}
 
+	// 注册指标
 	metrics.Register()
 
+	// TODO 相信分析
 	extenders, err := buildExtenders(options.extenders, options.profiles)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build extenders: %w", err)
 	}
 
+	// Scheduler核心目的就是为了调度Pod
 	podLister := informerFactory.Core().V1().Pods().Lister()
+	// Node是Pod的载体，因此需要知道当前到底有多少Node，以及每个Node的资源情况
 	nodeLister := informerFactory.Core().V1().Nodes().Lister()
 
 	// The nominator will be passed all the way to framework instantiation.
@@ -276,6 +286,7 @@ func New(client clientset.Interface,
 	snapshot := internalcache.NewEmptySnapshot()
 	clusterEventMap := make(map[framework.ClusterEvent]sets.String)
 
+	// TODO 这玩意干嘛的？
 	profiles, err := profile.NewMap(options.profiles, registry, recorderFactory, stopCh,
 		frameworkruntime.WithComponentConfigVersion(options.componentConfigVersion),
 		frameworkruntime.WithClientSet(client),
@@ -296,6 +307,7 @@ func New(client clientset.Interface,
 		return nil, errors.New("at least one profile is required")
 	}
 
+	// TODO 如何理解这个队列？
 	podQueue := internalqueue.NewSchedulingQueue(
 		profiles[options.profiles[0].SchedulerName].QueueSortFunc(),
 		informerFactory,
@@ -306,12 +318,15 @@ func New(client clientset.Interface,
 		internalqueue.WithPodMaxInUnschedulablePodsDuration(options.podMaxInUnschedulablePodsDuration),
 	)
 
+	// TODO 这里缓存的是啥？
 	schedulerCache := internalcache.New(durationToExpireAssumedPod, stopEverything)
 
 	// Setup cache debugger.
+	// TODO cachedebugger是如何支持Debug的
 	debugger := cachedebugger.New(nodeLister, podLister, schedulerCache, podQueue)
 	debugger.ListenForSignal(stopEverything)
 
+	// TODO 实例化Scheduler, 重点分析schedulePod
 	sched := newScheduler(
 		schedulerCache,
 		extenders,
@@ -331,6 +346,7 @@ func New(client clientset.Interface,
 
 // Run begins watching and scheduling. It starts scheduling and blocked until the context is done.
 func (sched *Scheduler) Run(ctx context.Context) {
+	// TODO 启动优先级队列
 	sched.SchedulingQueue.Run()
 
 	// We need to start scheduleOne loop in a dedicated goroutine,
@@ -339,6 +355,7 @@ func (sched *Scheduler) Run(ctx context.Context) {
 	// If there are no new pods to schedule, it will be hanging there
 	// and if done in this goroutine it will be blocking closing
 	// SchedulingQueue, in effect causing a deadlock on shutdown.
+	// 调度Pod
 	go wait.UntilWithContext(ctx, sched.scheduleOne, 0)
 
 	<-ctx.Done()
@@ -435,6 +452,7 @@ func newScheduler(
 		nodeInfoSnapshot:         nodeInfoSnapshot,
 		percentageOfNodesToScore: percentageOfNodesToScore,
 	}
+	// TODO 一个Pod到底是如何调度的？有哪些决定因素？
 	sched.SchedulePod = sched.schedulePod
 	sched.FailureHandler = sched.handleSchedulingFailure
 	return &sched

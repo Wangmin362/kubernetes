@@ -100,6 +100,7 @@ type KubeSchedulerConfiguration struct {
 }
 
 // KubeSchedulerProfile is a scheduling profile.
+// TODO KubeSchedulerProfile是干吗用的？
 type KubeSchedulerProfile struct {
 	// SchedulerName is the name of the scheduler associated to this profile.
 	// If SchedulerName matches with the pod's "spec.schedulerName", then the pod
@@ -244,6 +245,7 @@ func (p *Plugins) Names() []string {
 
 // Extender holds the parameters used to communicate with the extender. If a verb is unspecified/empty,
 // it is assumed that the extender chose not to provide that extension.
+// TODO 这玩意干嘛的？
 type Extender struct {
 	// URLPrefix at which the extender is available
 	URLPrefix string

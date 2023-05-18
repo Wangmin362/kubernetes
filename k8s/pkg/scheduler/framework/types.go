@@ -89,6 +89,7 @@ func (ce ClusterEvent) IsWildCard() bool {
 // QueuedPodInfo is a Pod wrapper with additional information related to
 // the pod's status in the scheduling queue, such as the timestamp when
 // it's added to the queue.
+// TODO 保存了什么信息？
 type QueuedPodInfo struct {
 	*PodInfo
 	// The time pod added to the scheduling queue.

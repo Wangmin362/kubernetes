@@ -79,6 +79,7 @@ type PreEnqueueCheck func(pod *v1.Pod) bool
 // SchedulingQueue is an interface for a queue to store pods waiting to be scheduled.
 // The interface follows a pattern similar to cache.FIFO and cache.Heap and
 // makes it easy to use those data structures as a SchedulingQueue.
+// TODO 如何理解这个接口的抽象？
 type SchedulingQueue interface {
 	framework.PodNominator
 	Add(pod *v1.Pod) error
@@ -132,8 +133,11 @@ func NominatedNodeName(pod *v1.Pod) string {
 //     activeQ when their backoff periods complete.
 //   - unschedulablePods holds pods that were already attempted for scheduling and
 //     are currently determined to be unschedulable.
+//
+// TODO 如何理解这个结构体的抽象?
 type PriorityQueue struct {
 	// PodNominator abstracts the operations to maintain nominated Pods.
+	// TODO 什么叫做Pod提名？
 	framework.PodNominator
 
 	stop  chan struct{}
@@ -151,6 +155,7 @@ type PriorityQueue struct {
 
 	// activeQ is heap structure that scheduler actively looks at to find pods to
 	// schedule. Head of heap is the highest priority pod.
+	// TODO
 	activeQ *heap.Heap
 	// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
 	// are popped from this heap before the scheduler looks at activeQ
@@ -291,7 +296,9 @@ func NewPriorityQueue(
 
 // Run starts the goroutine to pump from podBackoffQ to activeQ
 func (p *PriorityQueue) Run() {
+	// TODO 详细分析
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
+	// TODO 详细分析
 	go wait.Until(p.flushUnschedulablePodsLeftover, 30*time.Second, p.stop)
 }
 

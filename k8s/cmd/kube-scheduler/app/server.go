@@ -137,7 +137,8 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 		cancel()
 	}()
 
-	// 实例化了Scheduler
+	// 1、根据用户的命令行参数实例化KubeScheduler配置
+	// 2、实例化Scheduler实例
 	cc, sched, err := Setup(ctx, opts, registryOptions...)
 	if err != nil {
 		return err
@@ -153,7 +154,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
-	// Configz registration.
+	// 把KubeScheduler配置注册到全局变量当中
 	if cz, err := configz.New("componentconfig"); err == nil {
 		cz.Set(cc.ComponentConfig)
 	} else {
@@ -166,6 +167,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	// Setup healthz checks.
 	var checks []healthz.HealthChecker
+	// 领导选举的靖康检测
 	if cc.ComponentConfig.LeaderElection.LeaderElect {
 		checks = append(checks, cc.LeaderElection.WatchDog)
 	}
@@ -184,6 +186,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	// Start up the healthz server.
 	if cc.SecureServing != nil {
+		// TODO 重点分析
 		handler := buildHandlerChain(newHealthzAndMetricsHandler(&cc.ComponentConfig, cc.InformerFactory, isLeader, checks...), cc.Authentication.Authenticator, cc.Authorization.Authorizer)
 		// TODO: handle stoppedCh and listenerStoppedCh returned by c.SecureServing.Serve
 		if _, _, err := cc.SecureServing.Serve(handler, 0, ctx.Done()); err != nil {
@@ -211,6 +214,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 		cc.LeaderElection.Callbacks = leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				close(waitingForLeader)
+				// 启动KubeScheduler
 				sched.Run(ctx)
 			},
 			OnStoppedLeading: func() {
@@ -231,6 +235,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 			return fmt.Errorf("couldn't create leader elector: %v", err)
 		}
 
+		// TODO 启动领导选择
 		leaderElector.Run(ctx)
 
 		return fmt.Errorf("lost lease")
@@ -238,6 +243,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	// Leader election is disabled, so runCommand inline until done.
 	close(waitingForLeader)
+	// TODO 启动KubeScheduler
 	sched.Run(ctx)
 	return fmt.Errorf("finished without leader elect")
 }
@@ -313,15 +319,16 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
-	// 根据用户传入的参数生成Scheduler
+	// TODO 根据用户传入的参数生成Scheduler配置
 	c, err := opts.Config()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// 补全参数
+	// 补全某些参数的默认值
 	cc := c.Complete()
 
+	// TODO 如何理解KubeScheduler的插件注册中心？
 	outOfTreeRegistry := make(runtime.Registry)
 	for _, option := range outOfTreeRegistryOptions {
 		if err := option(outOfTreeRegistry); err != nil {

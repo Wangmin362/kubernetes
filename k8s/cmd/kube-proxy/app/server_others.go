@@ -94,13 +94,13 @@ func newProxyServer(
 		return nil, fmt.Errorf("unable to register configz: %s", err)
 	}
 
-	var iptInterface utiliptables.Interface // 用于对iptable规则进行增删改查
+	var iptInterface utiliptables.Interface // 用于对iptables规则进行增删改查
 	var ipvsInterface utilipvs.Interface    // 用于对ipvs规则进行增删改查
 	var kernelHandler ipvs.KernelHandler    // 用于获取Linux内核的版本以及启用的模块
-	var ipsetInterface utilipset.Interface  // ipset用于设置iptable的黑白名单
+	var ipsetInterface utilipset.Interface  // ipset用于设置iptables的黑白名单
 
 	// Create a iptables utils.
-	// 执行命令，这里执行的命令应该是创建iptable, ipvs规则
+	// 命令执行器
 	execer := exec.New()
 
 	// 用于获取当前运行KubeProxy的主机都启用了Linux哪些模块
@@ -119,7 +119,7 @@ func newProxyServer(
 	}
 
 	// We omit creation of pretty much everything if we run in cleanup mode
-	// TODO 什么叫做CleanupMode?
+	// 如果cleanupAndExit为True,就清理kubeProxy之前创建的iptables以及ipvs规则
 	if cleanupAndExit {
 		return &ProxyServer{
 			execer:         execer,
@@ -132,6 +132,7 @@ func newProxyServer(
 		metrics.SetShowHidden()
 	}
 
+	// TODO 这个hostname有啥用
 	hostname, err := utilnode.GetHostname(config.HostnameOverride)
 	if err != nil {
 		return nil, err
@@ -164,6 +165,7 @@ func newProxyServer(
 		healthzServer = healthcheck.NewProxierHealthServer(config.HealthzBindAddress, 2*config.IPTables.SyncPeriod.Duration, recorder, nodeRef)
 	}
 
+	// TODO proxier就是真正的反向代理器，iptables, ipvs以及userspace都有自己的proxier
 	var proxier proxy.Provider
 	var detectLocalMode proxyconfigapi.LocalMode
 
@@ -182,6 +184,7 @@ func newProxyServer(
 	// TODO 这里在干嘛？
 	if detectLocalMode == proxyconfigapi.LocalModeNodeCIDR {
 		klog.InfoS("Watching for node, awaiting podCIDR allocation", "hostname", hostname)
+		// TODO 仔细分析
 		nodeInfo, err = waitForPodCIDR(client, hostname)
 		if err != nil {
 			return nil, err
@@ -259,6 +262,7 @@ func newProxyServer(
 			)
 		} else {
 			// Create a single-stack proxier if and only if the node does not support dual-stack (i.e, no iptables support).
+			// TODO 详细分析
 			var localDetector proxyutiliptables.LocalTrafficDetector
 			// TODO 有何作用？
 			localDetector, err = getLocalDetector(detectLocalMode, config, iptInterface, nodeInfo)

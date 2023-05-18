@@ -25,6 +25,7 @@ import (
 
 // LocalTrafficDetector in a interface to take action (jump) based on whether traffic originated locally
 // at the node or not
+// TODO 如何理解这个接口的抽象，要解决什么问题？
 type LocalTrafficDetector interface {
 	// IsImplemented returns true if the implementation does something, false otherwise
 	IsImplemented() bool
@@ -66,6 +67,8 @@ func NewDetectLocalByCIDR(cidr string, ipt utiliptables.Interface) (LocalTraffic
 	if netutils.IsIPv6CIDRString(cidr) != ipt.IsIPv6() {
 		return nil, fmt.Errorf("CIDR %s has incorrect IP version: expect isIPv6=%t", cidr, ipt.IsIPv6())
 	}
+	// 用于解析CIDR地址，譬如cidr=192.0.2.1/24，解析出来，ip=192.0.2.1, ipNet=192.0.2.0/24
+	// ParseCIDRSloppy用于判断CIDR是否合法
 	_, _, err := netutils.ParseCIDRSloppy(cidr)
 	if err != nil {
 		return nil, err

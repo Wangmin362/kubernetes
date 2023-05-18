@@ -28,9 +28,9 @@ import (
 
 // Provider is the interface provided by proxier implementations.
 type Provider interface {
-	config.EndpointSliceHandler
-	config.ServiceHandler
-	config.NodeHandler
+	config.EndpointSliceHandler // 监听Endpoint
+	config.ServiceHandler       // 监听Service
+	config.NodeHandler          // 监听Node
 
 	// Sync immediately synchronizes the Provider's current state to proxy rules.
 	Sync()

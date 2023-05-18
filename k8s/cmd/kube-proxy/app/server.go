@@ -113,6 +113,7 @@ type Options struct {
 	// TODO 有何作用？
 	WriteConfigTo string
 	// CleanupAndExit, when true, makes the proxy server clean up iptables and ipvs rules, then exit.
+	// 如果为true，那么清理iptables以及ipvs规则
 	CleanupAndExit bool
 	// WindowsService should be set to true if kube-proxy is running as a service on Windows.
 	// Its corresponding flag only gets registered in Windows builds
@@ -318,6 +319,7 @@ func (o *Options) Validate() error {
 // Run runs the specified ProxyServer.
 func (o *Options) Run() error {
 	defer close(o.errCh)
+	// TODO 这里在干嘛？
 	if len(o.WriteConfigTo) > 0 {
 		return o.writeConfigFile()
 	}
@@ -328,6 +330,7 @@ func (o *Options) Run() error {
 		return err
 	}
 
+	// 如果为True，那么清理iptables规则以及ipvs规则
 	if o.CleanupAndExit {
 		return proxyServer.CleanupAndExit()
 	}

@@ -32,18 +32,27 @@ import (
 // Config has all the context to run a Scheduler
 type Config struct {
 	// ComponentConfig is the scheduler server's configuration object.
+	// KubeScheduler配置文件
 	ComponentConfig kubeschedulerconfig.KubeSchedulerConfiguration
 
 	// LoopbackClientConfig is a config for a privileged loopback connection
+	// 可以简单理解为kubeconfig文件
 	LoopbackClientConfig *restclient.Config
 
+	// TODO 认证
 	Authentication apiserver.AuthenticationInfo
-	Authorization  apiserver.AuthorizationInfo
-	SecureServing  *apiserver.SecureServingInfo
+	// TODO 鉴权
+	Authorization apiserver.AuthorizationInfo
+	// KubeScheduler监听Socket所需要的信息
+	SecureServing *apiserver.SecureServingInfo
 
-	Client             clientset.Interface
-	KubeConfig         *restclient.Config
-	InformerFactory    informers.SharedInformerFactory
+	// ClientSet客户端
+	Client clientset.Interface
+	// TODO KubeConfig和LoopbackClientConfig有何区别？
+	KubeConfig *restclient.Config
+	// APIServer的本地缓存，实际上可以理解为ETCD缓存
+	InformerFactory informers.SharedInformerFactory
+	// TODO 为啥KubeScheduler需要关心CRD资源？
 	DynInformerFactory dynamicinformer.DynamicSharedInformerFactory
 
 	//nolint:staticcheck // SA1019 this deprecated field still needs to be used for now. It will be removed once the migration is done.

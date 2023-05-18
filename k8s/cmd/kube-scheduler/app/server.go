@@ -116,14 +116,17 @@ for more information about scheduling and the kube-scheduler component.`,
 
 // runCommand runs the scheduler.
 func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Option) error {
+	// 如果有--version参数，那么打印kubeScheduler的版本信息，然后退出
 	verflag.PrintAndExitIfRequested()
 
 	// Activate logging as soon as possible, after that
 	// show flags with the final logging configuration.
+	// TODO 校验参数
 	if err := logsapi.ValidateAndApply(opts.Logs, utilfeature.DefaultFeatureGate); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
+	// 打印kubeScheduler参数信息
 	cliflag.PrintFlags(cmd.Flags())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -305,16 +308,18 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		opts.ComponentConfig = cfg
 	}
 
+	// 校验参数
 	if errs := opts.Validate(); len(errs) > 0 {
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
+	// 根据用户传入的参数生成Scheduler
 	c, err := opts.Config()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// Get the completed config
+	// 补全参数
 	cc := c.Complete()
 
 	outOfTreeRegistry := make(runtime.Registry)

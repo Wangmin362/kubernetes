@@ -134,6 +134,7 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 		cancel()
 	}()
 
+	// 实例化了Scheduler
 	cc, sched, err := Setup(ctx, opts, registryOptions...)
 	if err != nil {
 		return err

@@ -191,10 +191,11 @@ type Proxier struct {
 	// updating iptables with some partial data after kube-proxy restart.
 	endpointSlicesSynced bool
 	servicesSynced       bool
-	initialized          int32                         // 当前Proxy是否已经初始化
-	syncRunner           *async.BoundedFrequencyRunner // governs calls to syncProxyRules
-	syncPeriod           time.Duration                 // TODO syncRunner的定时周期?
-	lastIPTablesCleanup  time.Time
+	// TODO ? 什么时候Proxy算初始化完成了呢？
+	initialized         int32                         // 当前Proxy是否已经初始化
+	syncRunner          *async.BoundedFrequencyRunner // governs calls to syncProxyRules
+	syncPeriod          time.Duration                 // TODO syncRunner的定时周期?
+	lastIPTablesCleanup time.Time
 
 	// These are effectively const and do not need the mutex to be held.
 	iptables       utiliptables.Interface // iptables的操作客户端

@@ -75,6 +75,7 @@ type KubeSchedulerConfiguration struct {
 	// then scheduler stops finding further feasible nodes once it finds 150 feasible ones.
 	// When the value is 0, default percentage (5%--50% based on the size of the cluster) of the
 	// nodes will be scored.
+	// TODO 这个参数的意义？
 	PercentageOfNodesToScore int32
 
 	// PodInitialBackoffSeconds is the initial backoff for unschedulable pods.

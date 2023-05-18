@@ -241,6 +241,7 @@ func New(client clientset.Interface,
 	}
 
 	options := defaultSchedulerOptions
+	// 修改Scheduler配置参数
 	for _, opt := range opts {
 		opt(&options)
 	}

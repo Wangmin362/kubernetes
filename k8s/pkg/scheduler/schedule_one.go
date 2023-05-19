@@ -73,7 +73,8 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		return
 	}
 	pod := podInfo.Pod
-	// TODO 这里是在干嘛？
+	// 1、一般情况下如果Pod没有指定使用哪个调度器，都是使用名字为：default-scheduler的默认调度器
+	// 2、实际上用户可以自定义调度框架，然后再Pod当中指定需要使用的调度器。这里做了统一的处理，根据Pod找到其需要的调度器
 	fwk, err := sched.frameworkForPod(pod)
 	if err != nil {
 		// This shouldn't happen, because we only accept for scheduling the pods
@@ -81,7 +82,9 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		klog.ErrorS(err, "Error occurred")
 		return
 	}
-	// TODO 一个Pod当前不需要调度的依据是啥？
+	// 判断当前Pod是否能够被调度，判断依据如下：
+	// 1、如果当前Pod已经被删除，那么此Pod再进行调度也就没有意义了
+	// 2、如果是当前Pod是一个Assumed Pod，那么此Pod也无需进行调度。TODO 那么什么是Assumed Pod?
 	if sched.skipPodSchedule(fwk, pod) {
 		return
 	}
@@ -90,15 +93,17 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 
 	// Synchronously attempt to find a fit for the pod.
 	start := time.Now()
+	// CycleState用于在所有调度插件之间传递共享数据
 	state := framework.NewCycleState()
 	state.SetRecordPluginMetrics(rand.Intn(100) < pluginMetricsSamplePercent)
 	// Initialize an empty podsToActivate struct, which will be filled up by plugins or stay empty.
+	// TODO 这个数据是用来干嘛的？
 	podsToActivate := framework.NewPodsToActivate()
 	state.Write(framework.PodsToActivateKey, podsToActivate)
 
 	schedulingCycleCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	// TODO 调度一个Pod需要考虑那些事情？
+	// TODO 把Pod调度到一个合适的Node上
 	scheduleResult, err := sched.SchedulePod(schedulingCycleCtx, fwk, state, pod)
 	if err != nil {
 		// SchedulePod() may have failed because the pod would not fit on any host, so we try to
@@ -201,7 +206,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	}
 
 	// bind the pod to its host asynchronously (we can do this b/c of the assumption step above).
-	// TODO Bind阶段为异步
+	// TODO BindingCycle 绑定阶段是异步绑定的
 	go func() {
 		bindingCycleCtx, cancel := context.WithCancel(ctx)
 		defer cancel()
@@ -290,6 +295,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 }
 
 func (sched *Scheduler) frameworkForPod(pod *v1.Pod) (framework.Framework, error) {
+	// 找到Pod需要使用的调度框架
 	fwk, ok := sched.Profiles[pod.Spec.SchedulerName]
 	if !ok {
 		return nil, fmt.Errorf("profile not found for scheduler name %q", pod.Spec.SchedulerName)
@@ -321,25 +327,30 @@ func (sched *Scheduler) skipPodSchedule(fwk framework.Framework, pod *v1.Pod) bo
 // If it succeeds, it will return the name of the node.
 // If it fails, it will return a FitError with reasons.
 // TODO 到底是如何调度Pod的？
-func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (result ScheduleResult, err error) {
+func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework, state *framework.CycleState,
+	pod *v1.Pod) (result ScheduleResult, err error) {
 	trace := utiltrace.New("Scheduling", utiltrace.Field{Key: "namespace", Value: pod.Namespace}, utiltrace.Field{Key: "name", Value: pod.Name})
 	defer trace.LogIfLong(100 * time.Millisecond)
 
+	// TODO 每次在调度Pod之前需要更新一次Node信息
 	if err := sched.Cache.UpdateSnapshot(sched.nodeInfoSnapshot); err != nil {
 		return result, err
 	}
 	trace.Step("Snapshotting scheduler cache and node infos done")
 
+	// 如果发现当前K8S集群没有可用的Node信息，直接退出
 	if sched.nodeInfoSnapshot.NumNodes() == 0 {
 		return result, ErrNoNodesAvailable
 	}
 
+	// TODO 为当前Pod找到合适的Node，主要执行了Prefilter插件
 	feasibleNodes, diagnosis, err := sched.findNodesThatFitPod(ctx, fwk, state, pod)
 	if err != nil {
 		return result, err
 	}
 	trace.Step("Computing predicates done")
 
+	// 如果没有可以使用Node，直接退出
 	if len(feasibleNodes) == 0 {
 		return result, &framework.FitError{
 			Pod:         pod,
@@ -348,7 +359,7 @@ func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework
 		}
 	}
 
-	// When only one node after predicate, just use it.
+	// 如果只有一个Node可以使用，直接使用这个Node
 	if len(feasibleNodes) == 1 {
 		return ScheduleResult{
 			SuggestedHost:  feasibleNodes[0].Name,
@@ -357,11 +368,13 @@ func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework
 		}, nil
 	}
 
+	// 为所有可用的Node打分
 	priorityList, err := prioritizeNodes(ctx, sched.Extenders, fwk, state, pod, feasibleNodes)
 	if err != nil {
 		return result, err
 	}
 
+	// 选择分数最高的那个Node
 	host, err := selectHost(priorityList)
 	trace.Step("Prioritizing done")
 
@@ -374,17 +387,21 @@ func (sched *Scheduler) schedulePod(ctx context.Context, fwk framework.Framework
 
 // Filters the nodes to find the ones that fit the pod based on the framework
 // filter plugins and filter extenders.
-func (sched *Scheduler) findNodesThatFitPod(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) ([]*v1.Node, framework.Diagnosis, error) {
+// 1、为当前的Pod找到可以调度的所有Node；fwk为调度框架，state为调度插件共享元数据
+func (sched *Scheduler) findNodesThatFitPod(ctx context.Context, fwk framework.Framework, state *framework.CycleState,
+	pod *v1.Pod) ([]*v1.Node, framework.Diagnosis, error) {
+	// 诊断信息，如果调度失败，需要说明当前Pod调度失败的原因
 	diagnosis := framework.Diagnosis{
 		NodeToStatusMap:      make(framework.NodeToStatusMap),
 		UnschedulablePlugins: sets.NewString(),
 	}
 
+	// 找到所有的Node
 	allNodes, err := sched.nodeInfoSnapshot.NodeInfos().List()
 	if err != nil {
 		return nil, diagnosis, err
 	}
-	// Run "prefilter" plugins.
+	// 执行PreFilter插件
 	preRes, s := fwk.RunPreFilterPlugins(ctx, state, pod)
 	if !s.IsSuccess() {
 		if !s.IsUnschedulable() {

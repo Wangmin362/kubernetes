@@ -89,13 +89,19 @@ type Scheduler struct {
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.
-	// TODO 什么叫做Profiles?
+	// 用于记录当前支持的调度框架，key为调度框架的名字（用户通过pod.Spec.SchedulerName指定使用哪个调度框架），value为调度框架
 	Profiles profile.Map
 
 	client clientset.Interface
 
+	// 1、K8S调度Pod的最终结果就是找到一个合适的Node，然后在这个Node上创建Pod
+	// 2、这里的Node快照就是保存了当前K8S所有的node信息，其中主要记录了当前一共有几个可用的Node，每个Node的具体信息、每个Node之上都运行了
+	// 哪些Pod，Node之上运行的Pod的亲和性、反亲和性、每个Node的资源使用情况等等
 	nodeInfoSnapshot *internalcache.Snapshot
 
+	// TODO 一个Pod只需要调度到一个Node之上运行就可以了，但是如果有5000个Node，经过筛选，发现有4500个节点可以使用，此时我们不需要把4500
+	// 个所有可用的节点都计算一次得分，而是计算其中一小部分就可以，譬如取其中的100个Node来计算得分。这里的百分比就是干这个事情的，在所有可用的
+	// Node节点中，选取一定百分比的Node节点用于排分计算
 	percentageOfNodesToScore int32
 
 	nextStartNodeIndex int
@@ -250,6 +256,7 @@ func New(client clientset.Interface,
 		opt(&options)
 	}
 
+	// TODO DefaultProfile是啥？
 	if options.applyDefaultProfile {
 		var versionedCfg configv1.KubeSchedulerConfiguration
 		scheme.Scheme.Default(&versionedCfg)
@@ -260,7 +267,7 @@ func New(client clientset.Interface,
 		options.profiles = cfg.Profiles
 	}
 
-	// TODO InTreeRegistry和OutOffTreeRegistry有何区别？
+	// TODO InTreeRegistry和OutOfTreeRegistry有何区别？
 	registry := frameworkplugins.NewInTreeRegistry()
 	// 合并外部注册的插件和内部的插件
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {
@@ -270,7 +277,7 @@ func New(client clientset.Interface,
 	// 注册指标
 	metrics.Register()
 
-	// TODO 相信分析
+	// TODO 详细分析
 	extenders, err := buildExtenders(options.extenders, options.profiles)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't build extenders: %w", err)
@@ -286,7 +293,8 @@ func New(client clientset.Interface,
 	snapshot := internalcache.NewEmptySnapshot()
 	clusterEventMap := make(map[framework.ClusterEvent]sets.String)
 
-	// TODO 这玩意干嘛的？
+	// 1、K8S支持用户开发自己的调度器，然后通过pod.Spec.SchedulerName指定调度器的名字
+	// 2、这里的Profile实际上就是一个Map,用户缓存K8S所有支持的调度器；key为调度器的名字，value为调度框架
 	profiles, err := profile.NewMap(options.profiles, registry, recorderFactory, stopCh,
 		frameworkruntime.WithComponentConfigVersion(options.componentConfigVersion),
 		frameworkruntime.WithClientSet(client),
@@ -322,7 +330,7 @@ func New(client clientset.Interface,
 	schedulerCache := internalcache.New(durationToExpireAssumedPod, stopEverything)
 
 	// Setup cache debugger.
-	// TODO cachedebugger是如何支持Debug的
+	// TODO CacheDebugger是如何支持Debug的
 	debugger := cachedebugger.New(nodeLister, podLister, schedulerCache, podQueue)
 	debugger.ListenForSignal(stopEverything)
 
@@ -339,6 +347,7 @@ func New(client clientset.Interface,
 		options.percentageOfNodesToScore,
 	)
 
+	// TODO 这里的EventHandler是干嘛的？
 	addAllEventHandlers(sched, informerFactory, dynInformerFactory, unionedGVKs(clusterEventMap))
 
 	return sched, nil
@@ -454,6 +463,7 @@ func newScheduler(
 	}
 	// TODO 一个Pod到底是如何调度的？有哪些决定因素？
 	sched.SchedulePod = sched.schedulePod
+	// TODO 如果一个Pod调度失败了，该如何处理？
 	sched.FailureHandler = sched.handleSchedulingFailure
 	return &sched
 }

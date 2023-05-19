@@ -167,7 +167,7 @@ func Run(ctx context.Context, cc *schedulerserverconfig.CompletedConfig, sched *
 
 	// Setup healthz checks.
 	var checks []healthz.HealthChecker
-	// 领导选举的靖康检测
+	// 领导选举的健康检测
 	if cc.ComponentConfig.LeaderElection.LeaderElect {
 		checks = append(checks, cc.LeaderElection.WatchDog)
 	}
@@ -338,7 +338,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 
 	recorderFactory := getRecorderFactory(&cc)
 	completedProfiles := make([]kubeschedulerconfig.KubeSchedulerProfile, 0)
-	// Create the scheduler.
+	// TODO 实例化KubeScheduler
 	sched, err := scheduler.New(cc.Client,
 		cc.InformerFactory,
 		cc.DynInformerFactory,

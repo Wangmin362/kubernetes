@@ -43,6 +43,9 @@ type StateKey string
 // trusted.
 // Note: CycleState uses a sync.Map to back the storage. It's aimed to optimize for the "write once and read many times" scenarios.
 // It is the recommended pattern used in all in-tree plugins - plugin-specific state is written once in PreFilter/PreScore and afterwards read many times in Filter/Score.
+// 1、调度框架在调度Pod期间，整个调度流程会涉及到多个调度插件，而每个调度插件需要的数据可能都是不一样的
+// 2、特备情况下，后续的调度插件可能依据之前的调度插件产生的数据作为依据，因此需要有一种机制能够把数据传递给后续的调度插件使用
+// 3、这里的Storage就是所有调度插件共享数据的地方。K8S认为所有的调度插件都是可信任的，因此任何调度插件都可以修改CycleState.Storage
 type CycleState struct {
 	// storage is keyed with StateKey, and valued with StateData.
 	storage sync.Map

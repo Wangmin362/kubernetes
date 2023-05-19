@@ -502,6 +502,7 @@ type BindPlugin interface {
 
 // Framework manages the set of plugins in use by the scheduling framework.
 // Configured plugins are called at specified points in a scheduling context.
+// TODO 调度框架的抽象，用户可以实现自己的调度框架
 type Framework interface {
 	Handle
 	// QueueSortFunc returns the function to sort pods in scheduling queue

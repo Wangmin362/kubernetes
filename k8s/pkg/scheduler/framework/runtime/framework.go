@@ -591,6 +591,7 @@ func (f *frameworkImpl) QueueSortFunc() framework.LessFunc {
 // *Status and its code is set to non-success if any of the plugins returns
 // anything but Success. If a non-success status is returned, then the scheduling
 // cycle is aborted.
+// 过滤
 func (f *frameworkImpl) RunPreFilterPlugins(ctx context.Context, state *framework.CycleState, pod *v1.Pod) (_ *framework.PreFilterResult, status *framework.Status) {
 	startTime := time.Now()
 	defer func() {
@@ -598,6 +599,7 @@ func (f *frameworkImpl) RunPreFilterPlugins(ctx context.Context, state *framewor
 	}()
 	var result *framework.PreFilterResult
 	var pluginsWithNodes []string
+	// 挨个执行过滤插件
 	for _, pl := range f.preFilterPlugins {
 		r, s := f.runPreFilterPlugin(ctx, pl, state, pod)
 		if !s.IsSuccess() {

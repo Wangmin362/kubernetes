@@ -89,13 +89,15 @@ func (ce ClusterEvent) IsWildCard() bool {
 // QueuedPodInfo is a Pod wrapper with additional information related to
 // the pod's status in the scheduling queue, such as the timestamp when
 // it's added to the queue.
-// TODO 保存了什么信息？
 type QueuedPodInfo struct {
+	// 用于记录待调度Pod的信息，以及亲和、反亲和、带权重亲和、带权重反亲和特性
 	*PodInfo
 	// The time pod added to the scheduling queue.
+	// TODO 当前Pod加入调度队列的时间,这个时间应该会被用作堆排序
 	Timestamp time.Time
 	// Number of schedule attempts before successfully scheduled.
 	// It's used to record the # attempts metric.
+	// 一个Pod再成都调度之前已经尝试调度的次数
 	Attempts int
 	// The time when the pod is added to the queue for the first time. The pod may be added
 	// back to the queue multiple times before it's successfully scheduled.
@@ -103,6 +105,7 @@ type QueuedPodInfo struct {
 	// latency for a pod.
 	InitialAttemptTimestamp time.Time
 	// If a Pod failed in a scheduling cycle, record the plugin names it failed by.
+	// 一个Pod调度失败的时候，这个Pod调度失败是由于那个插件导致的？
 	UnschedulablePlugins sets.String
 }
 
@@ -120,11 +123,11 @@ func (pqi *QueuedPodInfo) DeepCopy() *QueuedPodInfo {
 // accelerate processing. This information is typically immutable (e.g., pre-processed
 // inter-pod affinity selectors).
 type PodInfo struct {
-	Pod                        *v1.Pod
-	RequiredAffinityTerms      []AffinityTerm
-	RequiredAntiAffinityTerms  []AffinityTerm
-	PreferredAffinityTerms     []WeightedAffinityTerm
-	PreferredAntiAffinityTerms []WeightedAffinityTerm
+	Pod                        *v1.Pod                // 被调度Pod的所有信息
+	RequiredAffinityTerms      []AffinityTerm         // Pod的亲和特性
+	RequiredAntiAffinityTerms  []AffinityTerm         // Pod的反亲和特性
+	PreferredAffinityTerms     []WeightedAffinityTerm // 带权重的亲和特性
+	PreferredAntiAffinityTerms []WeightedAffinityTerm // 带权重的反亲和特性
 	ParseError                 error
 }
 
@@ -360,19 +363,20 @@ type ImageStateSummary struct {
 
 // NodeInfo is node level aggregated information.
 type NodeInfo struct {
-	// Overall node information.
+	// 当前Node的信息
 	node *v1.Node
 
-	// Pods running on the node.
+	// 当前Node运行了哪些Pod
 	Pods []*PodInfo
 
-	// The subset of pods with affinity.
+	// 当前运行在Node之上指定了亲和性的所有Pod信息
 	PodsWithAffinity []*PodInfo
 
-	// The subset of pods with required anti-affinity.
+	// 当前运行在Node之上指定了反亲和性的所有Pod信息
 	PodsWithRequiredAntiAffinity []*PodInfo
 
 	// Ports allocated on the node.
+	// 当前Node已经分配的Port信息
 	UsedPorts HostPortInfo
 
 	// Total requested resources of all pods on this node. This includes assumed

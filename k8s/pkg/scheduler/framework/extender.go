@@ -24,6 +24,7 @@ import (
 // Extender is an interface for external processes to influence scheduling
 // decisions made by Kubernetes. This is typically needed for resources not directly
 // managed by Kubernetes.
+// TODO 这里应该就是KubeScheduler扩展插件抽象接口
 type Extender interface {
 	// Name returns a unique name that identifies the extender.
 	Name() string

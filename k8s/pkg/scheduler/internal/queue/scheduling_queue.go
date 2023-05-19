@@ -116,6 +116,7 @@ func NewSchedulingQueue(
 	lessFn framework.LessFunc,
 	informerFactory informers.SharedInformerFactory,
 	opts ...Option) SchedulingQueue {
+	// TODO PriorityQueue是如何实例化的？
 	return NewPriorityQueue(lessFn, informerFactory, opts...)
 }
 

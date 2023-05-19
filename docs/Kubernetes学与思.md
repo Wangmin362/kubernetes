@@ -239,6 +239,7 @@
 - [ ] K8S调度架构
 - [ ] Scheduler扩展点
 - [ ] 如何自定义调度器？
+- [ ] 参数
 
 ## 2.5. KubeProxy
 
@@ -263,12 +264,134 @@
 - [ ] RMI接口？
 
 
-# 3. QA
-## 3.1. Ingress原理
-## 3.2. NetworkPolicy原理
-## 3.3. PodSecurityPolicy原理
-## 3.4. PodSecurityAdmin原理
-## 3.5. SessionAffinity原理
-## 3.6. DNS原理？CoreDNS?
-## 3.7. CSI
-## 3.8. Pod Disruption Budget
+# 3. FeatureGate
+
+- [ ] AnyVolumeDataSource
+- [ ] AppArmor
+- [ ] CPUCFSQuotaPeriod
+- [ ] CPUManager
+- [ ] CPUManagerPolicyAlphaOptions
+- [ ] CPUManagerPolicyBetaOptions
+- [ ] CPUManagerPolicyOptions
+- [ ] CSIInlineVolume
+- [ ] CSIMigration
+- [ ] CSIMigrationAWS
+- [ ] CSIMigrationAzureDisk
+- [ ] CSIMigrationAzureFile
+- [ ] CSIMigrationGCE
+- [ ] CSIMigrationOpenStack
+- [ ] CSIMigrationPortworx
+- [ ] CSIMigrationRBD
+- [ ] CSIMigrationvSphere
+- [ ] CSINodeExpandSecret
+- [ ] CSIStorageCapacity
+- [ ] CSIVolumeHealth
+- [ ] CSRDuration
+- [ ] ContainerCheckpoint
+- [ ] ControllerManagerLeaderMigration
+- [ ] CronJobTimeZone
+- [ ] DaemonSetUpdateSurge
+- [ ] DefaultPodTopologySpread
+- [ ] DelegateFSGroupToCSIDriver
+- [ ] DevicePlugins
+- [ ] DisableAcceleratorUsageMetrics
+- [ ] DisableCloudProviders
+- [ ] DisableKubeletCloudCredentialProviders
+- [ ] DownwardAPIHugePages
+- [ ] DynamicKubeletConfig
+- [ ] EndpointSliceTerminatingCondition
+- [ ] EphemeralContainers
+- [ ] ExecProbeTimeout
+- [ ] ExpandCSIVolumes
+- [ ] ExpandInUsePersistentVolumes
+- [ ] ExpandPersistentVolumes
+- [ ] ExpandedDNSConfig
+- [ ] ExperimentalHostUserNamespaceDefaultingGate
+- [ ] GRPCContainerProbe
+- [ ] GracefulNodeShutdown
+- [ ] GracefulNodeShutdownBasedOnPodPriority
+- [ ] HPAContainerMetrics
+- [ ] HPAScaleToZero
+- [ ] HonorPVReclaimPolicy
+- [ ] IdentifyPodOS
+- [ ] InTreePluginAWSUnregister
+- [ ] InTreePluginAzureDiskUnregister
+- [ ] InTreePluginAzureFileUnregister
+- [ ] InTreePluginGCEUnregister
+- [ ] InTreePluginOpenStackUnregister
+- [ ] InTreePluginPortworxUnregister
+- [ ] InTreePluginRBDUnregister
+- [ ] InTreePluginvSphereUnregister
+- [ ] IndexedJob
+- [ ] IPTablesOwnershipCleanup
+- [ ] JobPodFailurePolicy
+- [ ] JobMutableNodeSchedulingDirectives
+- [ ] JobReadyPods
+- [ ] JobTrackingWithFinalizers
+- [ ] KubeletCredentialProviders
+- [ ] KubeletInUserNamespace
+- [ ] KubeletPodResources
+- [ ] KubeletPodResourcesGetAllocatable
+- [ ] KubeletTracing
+- [ ] LegacyServiceAccountTokenNoAutoGeneration
+- [ ] LocalStorageCapacityIsolation
+- [ ] LocalStorageCapacityIsolationFSQuotaMonitoring
+- [ ] LogarithmicScaleDown
+- [ ] MatchLabelKeysInPodTopologySpread
+- [ ] MaxUnavailableStatefulSet
+- [ ] MemoryManager
+- [ ] MemoryQoS
+- [ ] MinDomainsInPodTopologySpread
+- [ ] MixedProtocolLBService
+- [ ] MultiCIDRRangeAllocator
+- [ ] NetworkPolicyEndPort
+- [ ] NetworkPolicyStatus
+- [ ] NodeOutOfServiceVolumeDetach
+- [ ] NodeSwap
+- [ ] NonPreemptingPriority
+- [ ] PodAffinityNamespaceSelector
+- [ ] PodAndContainerStatsFromCRI
+- [ ] PodDeletionCost
+- [ ] PodDisruptionConditions
+- [ ] PodHasNetworkCondition
+- [ ] PodOverhead
+- [ ] PodSecurity
+- [ ] PreferNominatedNode
+- [ ] ProbeTerminationGracePeriod
+- [ ] ProcMountType
+- [ ] ProxyTerminatingEndpoints
+- [ ] QOSReserved
+- [ ] ReadWriteOncePod
+- [ ] RecoverVolumeExpansionFailure
+- [ ] RetroactiveDefaultStorageClass
+- [ ] RotateKubeletServerCertificate
+- [ ] SeccompDefault
+- [ ] ServiceInternalTrafficPolicy
+- [ ] ServiceIPStaticSubrange
+- [ ] ServiceLBNodePortControl
+- [ ] ServiceLoadBalancerClass
+- [ ] SizeMemoryBackedVolumes
+- [ ] StatefulSetAutoDeletePVC
+- [ ] StatefulSetMinReadySeconds
+- [ ] SuspendJob
+- [ ] TopologyAwareHints
+- [ ] TopologyManager
+- [ ] UserNamespacesStatelessPodsSupport
+- [ ] VolumeCapacityPriority
+- [ ] WinDSR
+- [ ] WinOverlay
+- [ ] WindowsHostProcessContainers
+- [ ] NodeInclusionPolicyInPodTopologySpread
+- [ ] SELinuxMountReadWriteOncePod
+
+
+# 4. QA
+## 4.1. Ingress原理
+
+## 4.2. NetworkPolicy原理
+## 4.3. PodSecurityPolicy原理
+## 4.4. PodSecurityAdmin原理
+## 4.5. SessionAffinity原理
+## 4.6. DNS原理？CoreDNS?
+## 4.7. CSI
+## 4.8. Pod Disruption Budget

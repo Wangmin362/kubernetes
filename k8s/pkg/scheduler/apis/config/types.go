@@ -50,6 +50,7 @@ type KubeSchedulerConfiguration struct {
 	metav1.TypeMeta
 
 	// Parallelism defines the amount of parallelism in algorithms for scheduling a Pods. Must be greater than 0. Defaults to 16
+	// TODO 如何理解这个参数？
 	Parallelism int32
 
 	// LeaderElection defines the configuration of leader election client.
@@ -75,7 +76,7 @@ type KubeSchedulerConfiguration struct {
 	// then scheduler stops finding further feasible nodes once it finds 150 feasible ones.
 	// When the value is 0, default percentage (5%--50% based on the size of the cluster) of the
 	// nodes will be scored.
-	// TODO 这个参数的意义？
+	// 用于指定Pod调度是筛选出来Node的百分比
 	PercentageOfNodesToScore int32
 
 	// PodInitialBackoffSeconds is the initial backoff for unschedulable pods.
@@ -92,6 +93,7 @@ type KubeSchedulerConfiguration struct {
 	// choose to be scheduled under a particular profile by setting its associated
 	// scheduler name. Pods that don't specify any scheduler name are scheduled
 	// with the "default-scheduler" profile, if present here.
+	// K8S调度器配置
 	Profiles []KubeSchedulerProfile
 
 	// Extenders are the list of scheduler extenders, each holding the values of how to communicate
@@ -100,11 +102,13 @@ type KubeSchedulerConfiguration struct {
 }
 
 // KubeSchedulerProfile is a scheduling profile.
-// TODO KubeSchedulerProfile是干吗用的？
+// 1、KubeSchedulerProfile用于指定K8S的调度器，用户可以开发自己的调度器
+// 2、TODO 用户如何开发自己的调度器？
 type KubeSchedulerProfile struct {
 	// SchedulerName is the name of the scheduler associated to this profile.
 	// If SchedulerName matches with the pod's "spec.schedulerName", then the pod
 	// is scheduled with this profile.
+	// 调度器名字
 	SchedulerName string
 
 	// Plugins specify the set of plugins that should be enabled or disabled.
@@ -115,11 +119,13 @@ type KubeSchedulerProfile struct {
 	// default plugins for that extension point will be used if there is any.
 	// If a QueueSort plugin is specified, the same QueueSort Plugin and
 	// PluginConfig must be specified for all profiles.
+	// 当前调度器使用的调度插件
 	Plugins *Plugins
 
 	// PluginConfig is an optional set of custom plugin arguments for each plugin.
 	// Omitting config args for a plugin is equivalent to using the default config
 	// for that plugin.
+	// 调度插件的配置
 	PluginConfig []PluginConfig
 }
 

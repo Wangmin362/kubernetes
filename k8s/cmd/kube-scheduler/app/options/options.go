@@ -217,10 +217,11 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 			return err
 		}
 		// If the --config arg is specified, honor the leader election CLI args only.
-		// TODO 仔细分析
+		// 1、利用用户传递的Leader选举的参数覆盖，KubeScheduler的配置文件中的参数
+		// 2、从这里可以看出，命令行参数的优先级高于KubeSchedulerConfiguration配置文件中参数优先级
 		o.ApplyLeaderElectionTo(cfg)
 
-		// TODO 校验参数
+		// TODO 校验KubeSchedulerConfiguration配置文件参数
 		if err := validation.ValidateKubeSchedulerConfiguration(cfg); err != nil {
 			return err
 		}
@@ -228,13 +229,16 @@ func (o *Options) ApplyTo(c *schedulerappconfig.Config) error {
 		c.ComponentConfig = *cfg
 	}
 
+	// 设置监听Socket需要的相关信息
 	if err := o.SecureServing.ApplyTo(&c.SecureServing, &c.LoopbackClientConfig); err != nil {
 		return err
 	}
 	if o.SecureServing != nil && (o.SecureServing.BindPort != 0 || o.SecureServing.Listener != nil) {
+		// 设置认证器
 		if err := o.Authentication.ApplyTo(&c.Authentication, c.SecureServing, nil); err != nil {
 			return err
 		}
+		// 设置鉴权器
 		if err := o.Authorization.ApplyTo(&c.Authorization); err != nil {
 			return err
 		}
@@ -265,6 +269,7 @@ func (o *Options) Validate() []error {
 }
 
 // Config return a scheduler config object
+// 根据用户传递的命令行参数，实例化KubeScheduler参数
 func (o *Options) Config() (*schedulerappconfig.Config, error) {
 	if o.SecureServing != nil {
 		// TODO 仔细分析
@@ -275,7 +280,9 @@ func (o *Options) Config() (*schedulerappconfig.Config, error) {
 
 	// 实例化KubeScheduler参数，目前还是一个空的参数
 	c := &schedulerappconfig.Config{}
-	// 根据用户传递的命令行参数，初始化KubeScheduler参数
+	// 根据用户传递的命令行参数，初始化KubeScheduler参数，主要步骤如下：
+	// 1、读取用户通过--config指定的KubeScheduler配置文件并初始化KubeScheduler配置
+	// 2、设置SecureServing信息 3、设置认证器、鉴权器
 	if err := o.ApplyTo(c); err != nil {
 		return nil, err
 	}

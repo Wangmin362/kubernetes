@@ -319,7 +319,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		return nil, nil, utilerrors.NewAggregate(errs)
 	}
 
-	// TODO 根据用户传入的参数生成Scheduler配置
+	// 根据用户传入的参数生成KubeScheduler配置
 	c, err := opts.Config()
 	if err != nil {
 		return nil, nil, err
@@ -352,7 +352,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 		scheduler.WithPodMaxBackoffSeconds(cc.ComponentConfig.PodMaxBackoffSeconds),
 		scheduler.WithPodInitialBackoffSeconds(cc.ComponentConfig.PodInitialBackoffSeconds),
 		scheduler.WithPodMaxInUnschedulablePodsDuration(cc.PodMaxInUnschedulablePodsDuration),
-		scheduler.WithExtenders(cc.ComponentConfig.Extenders...),
+		scheduler.WithExtenders(cc.ComponentConfig.Extenders...), // TODO 什么是K8S Scheduler Extender?
 		scheduler.WithParallelism(cc.ComponentConfig.Parallelism),
 		scheduler.WithBuildFrameworkCapturer(func(profile kubeschedulerconfig.KubeSchedulerProfile) {
 			// Profiles are processed during Framework instantiation to set default plugins and configurations. Capturing them for logging

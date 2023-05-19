@@ -118,9 +118,10 @@ type schedulerOptions struct {
 	frameworkOutOfTreeRegistry frameworkruntime.Registry
 	profiles                   []schedulerapi.KubeSchedulerProfile
 	// TODO 这个参数的作用
-	extenders           []schedulerapi.Extender
-	frameworkCapturer   FrameworkCapturer
-	parallelism         int32
+	extenders         []schedulerapi.Extender
+	frameworkCapturer FrameworkCapturer
+	parallelism       int32
+	// 是否开启使用K8S默认的调度器
 	applyDefaultProfile bool
 }
 
@@ -234,6 +235,7 @@ var defaultSchedulerOptions = schedulerOptions{
 	// creating the default profile may require testing feature gates, which may get
 	// set dynamically in tests. Therefore, we delay creating it until New is actually
 	// invoked.
+	// 默认使用K8S内部实现的调度器
 	applyDefaultProfile: true,
 }
 
@@ -250,13 +252,14 @@ func New(client clientset.Interface,
 		stopEverything = wait.NeverStop
 	}
 
+	// 默认参数开启了使用K8S内部实现的调度器
 	options := defaultSchedulerOptions
 	// 修改Scheduler配置参数
 	for _, opt := range opts {
 		opt(&options)
 	}
 
-	// TODO DefaultProfile是啥？
+	// TODO 分析默认的调度器是注册的
 	if options.applyDefaultProfile {
 		var versionedCfg configv1.KubeSchedulerConfiguration
 		scheme.Scheme.Default(&versionedCfg)
@@ -267,7 +270,7 @@ func New(client clientset.Interface,
 		options.profiles = cfg.Profiles
 	}
 
-	// TODO InTreeRegistry和OutOfTreeRegistry有何区别？
+	// InTree调度插件为K8S内部定义的插件，而OutOf调度插件为用户自定义开发的插件
 	registry := frameworkplugins.NewInTreeRegistry()
 	// 合并外部注册的插件和内部的插件
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {

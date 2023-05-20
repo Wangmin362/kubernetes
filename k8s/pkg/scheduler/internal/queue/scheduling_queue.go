@@ -82,6 +82,7 @@ type PreEnqueueCheck func(pod *v1.Pod) bool
 // TODO 如何理解这个接口的抽象？
 type SchedulingQueue interface {
 	framework.PodNominator
+	// Add 当PodInformer监听到有新的Pod被创建时，就会调用这个API
 	Add(pod *v1.Pod) error
 	// Activate moves the given pods to activeQ iff they're in unschedulablePods or backoffQ.
 	// The passed-in pods are originally compiled from plugins that want to activate Pods,
@@ -97,7 +98,10 @@ type SchedulingQueue interface {
 	SchedulingCycle() int64
 	// Pop removes the head of the queue and returns it. It blocks if the
 	// queue is empty and waits until a new item is added to the queue.
+	// 1、弹出堆顶的Pod，弹出后该Pod就不在队中了。TODO 如果调度失败，这个元素应该会重新加入到队列当中
+	// 2、该动作是一个阻塞动作，如果当前队列是空的，那么调用方将会被阻塞，直到新的Pod进来
 	Pop() (*framework.QueuedPodInfo, error)
+	// Update 1、当PodInformer监听到Pod更新时会调用这个API
 	Update(oldPod, newPod *v1.Pod) error
 	Delete(pod *v1.Pod) error
 	MoveAllToActiveOrBackoffQueue(event framework.ClusterEvent, preCheck PreEnqueueCheck)
@@ -112,11 +116,11 @@ type SchedulingQueue interface {
 }
 
 // NewSchedulingQueue initializes a priority queue as a new scheduling queue.
+// TODO PriorityQueue是如何实例化的？
 func NewSchedulingQueue(
 	lessFn framework.LessFunc,
 	informerFactory informers.SharedInformerFactory,
 	opts ...Option) SchedulingQueue {
-	// TODO PriorityQueue是如何实例化的？
 	return NewPriorityQueue(lessFn, informerFactory, opts...)
 }
 
@@ -141,7 +145,8 @@ type PriorityQueue struct {
 	// TODO 什么叫做Pod提名？
 	framework.PodNominator
 
-	stop  chan struct{}
+	stop chan struct{}
+	// TODO 如何理解这个元素？
 	clock clock.Clock
 
 	// pod initial backoff duration.
@@ -237,9 +242,9 @@ func WithPodMaxInUnschedulablePodsDuration(duration time.Duration) Option {
 
 var defaultPriorityQueueOptions = priorityQueueOptions{
 	clock:                             clock.RealClock{},
-	podInitialBackoffDuration:         DefaultPodInitialBackoffDuration,
-	podMaxBackoffDuration:             DefaultPodMaxBackoffDuration,
-	podMaxInUnschedulablePodsDuration: DefaultPodMaxInUnschedulablePodsDuration,
+	podInitialBackoffDuration:         DefaultPodInitialBackoffDuration,         // 1秒
+	podMaxBackoffDuration:             DefaultPodMaxBackoffDuration,             // 10秒
+	podMaxInUnschedulablePodsDuration: DefaultPodMaxInUnschedulablePodsDuration, // 5分钟
 }
 
 // Making sure that PriorityQueue implements SchedulingQueue.
@@ -261,6 +266,7 @@ func NewPriorityQueue(
 	informerFactory informers.SharedInformerFactory,
 	opts ...Option,
 ) *PriorityQueue {
+	// 设置一些默认参数
 	options := defaultPriorityQueueOptions
 	for _, opt := range opts {
 		opt(&options)
@@ -308,7 +314,9 @@ func (p *PriorityQueue) Run() {
 func (p *PriorityQueue) Add(pod *v1.Pod) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	// TODO 把当前Pod包装为PodInfo类型
 	pInfo := p.newQueuedPodInfo(pod)
+	// 把当前元素添加到ActiveQueue当中
 	if err := p.activeQ.Add(pInfo); err != nil {
 		klog.ErrorS(err, "Error adding pod to the active queue", "pod", klog.KObj(pod))
 		return err
@@ -322,7 +330,9 @@ func (p *PriorityQueue) Add(pod *v1.Pod) error {
 		klog.ErrorS(nil, "Error: pod is already in the podBackoff queue", "pod", klog.KObj(pod))
 	}
 	metrics.SchedulerQueueIncomingPods.WithLabelValues("active", PodAdd).Inc()
+	// TODO 这里在干嘛？
 	p.PodNominator.AddNominatedPod(pInfo.PodInfo, nil)
+	// 通知所有调用Pop被阻塞的协程，有新的元素进来了
 	p.cond.Broadcast()
 
 	return nil
@@ -492,6 +502,7 @@ func (p *PriorityQueue) flushUnschedulablePodsLeftover() {
 func (p *PriorityQueue) Pop() (*framework.QueuedPodInfo, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
+	// 如果当前队列是空的，则色调用方
 	for p.activeQ.Len() == 0 {
 		// When the queue is empty, invocation of Pop() is blocked until new item is enqueued.
 		// When Close() is called, the p.closed is set and the condition is broadcast,
@@ -501,12 +512,15 @@ func (p *PriorityQueue) Pop() (*framework.QueuedPodInfo, error) {
 		}
 		p.cond.Wait()
 	}
+	// 否则，从堆顶弹出元素
 	obj, err := p.activeQ.Pop()
 	if err != nil {
 		return nil, err
 	}
 	pInfo := obj.(*framework.QueuedPodInfo)
+	// 当前Pod尝试调度的此时加一
 	pInfo.Attempts++
+	// 当前PriorityQueue的调度周期加一
 	p.schedulingCycle++
 	return pInfo, nil
 }
@@ -960,6 +974,7 @@ func NewPodNominator(podLister listersv1.PodLister) framework.PodNominator {
 // scheduling queue
 func MakeNextPodFunc(queue SchedulingQueue) func() *framework.QueuedPodInfo {
 	return func() *framework.QueuedPodInfo {
+		// 从PriorityQueue中的activeQ堆中弹出堆顶元素
 		podInfo, err := queue.Pop()
 		if err == nil {
 			klog.V(4).InfoS("About to try and schedule pod", "pod", klog.KObj(podInfo.Pod))

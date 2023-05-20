@@ -38,6 +38,7 @@ func newProfile(cfg config.KubeSchedulerProfile, r frameworkruntime.Registry, re
 	stopCh <-chan struct{}, opts ...frameworkruntime.Option) (framework.Framework, error) {
 	recorder := recorderFact(cfg.SchedulerName)
 	opts = append(opts, frameworkruntime.WithEventRecorder(recorder))
+	// TODO 根据Profile生成调度器
 	return frameworkruntime.NewFramework(r, &cfg, stopCh, opts...)
 }
 
@@ -51,10 +52,12 @@ func NewMap(cfgs []config.KubeSchedulerProfile, r frameworkruntime.Registry, rec
 	v := cfgValidator{m: m}
 
 	for _, cfg := range cfgs {
+		// TODO 如何生成调度器？
 		p, err := newProfile(cfg, r, recorderFact, stopCh, opts...)
 		if err != nil {
 			return nil, fmt.Errorf("creating profile for scheduler name %s: %v", cfg.SchedulerName, err)
 		}
+		// TODO 调度器生成完成之后，都校验了哪些参数？
 		if err := v.validate(cfg, p); err != nil {
 			return nil, err
 		}

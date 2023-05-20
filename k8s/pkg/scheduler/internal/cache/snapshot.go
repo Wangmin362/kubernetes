@@ -26,6 +26,7 @@ import (
 
 // Snapshot is a snapshot of cache NodeInfo and NodeTree order. The scheduler takes a
 // snapshot at the beginning of each scheduling cycle and uses it for its operations in that cycle.
+// TODO 如何理解Snapshot?
 type Snapshot struct {
 	// nodeInfoMap a map of node name to a snapshot of its NodeInfo.
 	nodeInfoMap map[string]*framework.NodeInfo

@@ -503,6 +503,7 @@ type BindPlugin interface {
 // Framework manages the set of plugins in use by the scheduling framework.
 // Configured plugins are called at specified points in a scheduling context.
 // TODO 调度框架的抽象，用户可以实现自己的调度框架
+// TODO Framework和Handler的关系是啥？
 type Framework interface {
 	Handle
 	// QueueSortFunc returns the function to sort pods in scheduling queue
@@ -579,6 +580,8 @@ type Framework interface {
 // Handle provides data and some tools that plugins can use. It is
 // passed to the plugin factories at the time of plugin initialization. Plugins
 // must store and use this handle to call framework functions.
+// TODO 如何理解这个接口的抽象? 如何理解Framework和Handler接口抽象？
+// Handler接口用于抽象给KubeScheduler插件使用的元数据
 type Handle interface {
 	// PodNominator abstracts operations to maintain nominated Pods.
 	PodNominator

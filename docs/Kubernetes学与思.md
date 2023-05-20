@@ -237,9 +237,12 @@
 ## 2.4. KubeScheduler
 
 - [ ] K8S调度架构
-- [ ] Scheduler扩展点
+- [ ] `Scheduler`扩展点
 - [ ] 如何自定义调度器？
 - [ ] 参数
+- [ ] Extender机制是啥？优缺点？
+- [ ] 如何理解`Framework`接口和`Handler`接口抽象
+- [ ] 如何理解`PluginFactory`
 
 ## 2.5. KubeProxy
 

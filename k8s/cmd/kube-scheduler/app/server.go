@@ -126,7 +126,7 @@ func runCommand(cmd *cobra.Command, opts *options.Options, registryOptions ...Op
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		os.Exit(1)
 	}
-	// 打印kubeScheduler参数信息
+	// 打印KubeScheduler参数信息
 	cliflag.PrintFlags(cmd.Flags())
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -328,7 +328,10 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	// 补全某些参数的默认值
 	cc := c.Complete()
 
-	// TODO 如何理解KubeScheduler的插件注册中心？
+	// 1、插件注册中心用于记录当前KubeScheduler支持可用插件，实际上插件注册中心就是一个Map，Key为插件名，Value为PluginFactory，实际上可以理解为工厂
+	// 2、从runtime.Registry以及KubeSchedulerConfiguration可以推测出，实际上自定义K8S调度器难度并不高，用户只需要实现PluginFactory就可以
+	// 然后在启动KubeScheduler注册进来，同时通过在KubeSchedulerConfiguration当中设置Profiles，指定每个调度器需要哪些权重，每个插件的
+	// 权重是多少，用户就扩展了KubeScheduler
 	outOfTreeRegistry := make(runtime.Registry)
 	for _, option := range outOfTreeRegistryOptions {
 		if err := option(outOfTreeRegistry); err != nil {
@@ -337,6 +340,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	}
 
 	recorderFactory := getRecorderFactory(&cc)
+	// TODO 这玩意有啥用？
 	completedProfiles := make([]kubeschedulerconfig.KubeSchedulerProfile, 0)
 	// TODO 实例化KubeScheduler
 	sched, err := scheduler.New(cc.Client,
@@ -362,6 +366,10 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	if err != nil {
 		return nil, nil, err
 	}
+
+	// KubeSchedulerConfiguration配置的持久化
+	// TODO 猜测是因为KubeSchedulerConfiguration配置有些参数可以通过命令行覆盖，如果不进行持久化，那么KubeScheduler重启的时候就不是用户
+	// 之前的配置，会让用户造成误解
 	if err := options.LogOrWriteConfig(opts.WriteConfigTo, &cc.ComponentConfig, completedProfiles); err != nil {
 		return nil, nil, err
 	}

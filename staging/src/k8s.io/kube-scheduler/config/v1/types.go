@@ -83,11 +83,13 @@ type KubeSchedulerConfiguration struct {
 	// with the "default-scheduler" profile, if present here.
 	// +listType=map
 	// +listMapKey=schedulerName
+	// 调度器配置
 	Profiles []KubeSchedulerProfile `json:"profiles,omitempty"`
 
 	// Extenders are the list of scheduler extenders, each holding the values of how to communicate
 	// with the extender. These extenders are shared by all scheduler profiles.
 	// +listType=set
+	// Extender机制，通过网络
 	Extenders []Extender `json:"extenders,omitempty"`
 }
 

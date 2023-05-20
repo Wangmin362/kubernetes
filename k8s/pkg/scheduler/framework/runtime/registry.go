@@ -27,6 +27,7 @@ import (
 )
 
 // PluginFactory is a function that builds a plugin.
+// TODO 如何理解PluginFactory?
 type PluginFactory = func(configuration runtime.Object, f framework.Handle) (framework.Plugin, error)
 
 // PluginFactoryWithFts is a function that builds a plugin with certain feature gates.
@@ -67,8 +68,8 @@ func DecodeInto(obj runtime.Object, into interface{}) error {
 // Registry is a collection of all available plugins. The framework uses a
 // registry to enable and initialize configured plugins.
 // All plugins must be in the registry before initializing the framework.
-// TODO 如何理解这里的插件注册中心？
 // TODO KubeScheduler的插件有啥用？ 什么情况下需要自定义插件? 用户自定义插件的原理？
+// 1、插件注册中心记录当前KubeScheduler支持的插件，Key为插件名，Value为PluginFactory，既然是工厂，那肯定是为了生产一个插件
 type Registry map[string]PluginFactory
 
 // Register adds a new plugin to the registry. If a plugin with the same name

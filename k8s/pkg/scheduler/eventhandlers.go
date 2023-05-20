@@ -123,10 +123,12 @@ func (sched *Scheduler) updatePodInSchedulingQueue(oldObj, newObj interface{}) {
 	oldPod, newPod := oldObj.(*v1.Pod), newObj.(*v1.Pod)
 	// Bypass update event that carries identical objects; otherwise, a duplicated
 	// Pod may go through scheduling and cause unexpected behavior (see #96071).
+	// 由于一些不可预期的行为，如果资源版本没有发生变化，就认为当前Pod没有发生改变，因此直接退出
 	if oldPod.ResourceVersion == newPod.ResourceVersion {
 		return
 	}
 
+	// TODO 什么叫做AssumedPod?
 	isAssumed, err := sched.Cache.IsAssumedPod(newPod)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("failed to check whether pod %s/%s is assumed: %v", newPod.Namespace, newPod.Name, err))
@@ -253,6 +255,7 @@ func addAllEventHandlers(
 	gvkMap map[framework.GVK]framework.ActionType,
 ) {
 	// scheduled pod cache
+	// 加入到Cache当中
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -280,6 +283,7 @@ func addAllEventHandlers(
 		},
 	)
 	// unscheduled pod queue
+	// 加入到PriorityQueue当中
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {

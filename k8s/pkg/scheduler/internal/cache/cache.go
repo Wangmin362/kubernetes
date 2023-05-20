@@ -62,6 +62,7 @@ type cacheImpl struct {
 	mu sync.RWMutex
 	// a set of assumed pod keys.
 	// The key could further be used to get an entry in podStates.
+	// TODO 什么叫做AssumedPod?
 	assumedPods sets.String
 	// a map from pod key to podState.
 	podStates map[string]*podState

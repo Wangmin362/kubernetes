@@ -126,6 +126,7 @@ type schedulerOptions struct {
 }
 
 // Option configures a Scheduler
+// 这种写法，外部无法实现这个类型的变量，因为schedulerOptions是私有的
 type Option func(*schedulerOptions)
 
 // ScheduleResult represents the result of scheduling a pod.
@@ -259,7 +260,7 @@ func New(client clientset.Interface,
 		opt(&options)
 	}
 
-	// TODO 分析默认的调度器是注册的
+	// TODO 这里一定是创建了默认调度器的配置
 	if options.applyDefaultProfile {
 		var versionedCfg configv1.KubeSchedulerConfiguration
 		scheme.Scheme.Default(&versionedCfg)
@@ -272,7 +273,7 @@ func New(client clientset.Interface,
 
 	// InTree调度插件为K8S内部定义的插件，而OutOf调度插件为用户自定义开发的插件
 	registry := frameworkplugins.NewInTreeRegistry()
-	// 合并外部注册的插件和内部的插件
+	// 合并外部注册的插件和内部的插件，实际上就是合并两个Map，同时检测有没有同名的插件，如果有同名插件，就直接报错，认为插件注册冲突
 	if err := registry.Merge(options.frameworkOutOfTreeRegistry); err != nil {
 		return nil, err
 	}
@@ -313,7 +314,7 @@ func New(client clientset.Interface,
 	if err != nil {
 		return nil, fmt.Errorf("initializing profiles: %v", err)
 	}
-
+	// 如果一个调度器都没有创建出来，肯定是有问题的，因为无法调度Pod
 	if len(profiles) == 0 {
 		return nil, errors.New("at least one profile is required")
 	}
@@ -339,18 +340,18 @@ func New(client clientset.Interface,
 
 	// TODO 实例化Scheduler, 重点分析schedulePod
 	sched := newScheduler(
-		schedulerCache,
+		schedulerCache, // TODO 暂时不清楚这玩意干嘛的
 		extenders,
-		internalqueue.MakeNextPodFunc(podQueue),
-		stopEverything,
-		podQueue,
-		profiles,
-		client,
-		snapshot,
-		options.percentageOfNodesToScore,
+		internalqueue.MakeNextPodFunc(podQueue), // 用于获取下一个需要调度的Pod
+		stopEverything,                          // 停止Channel
+		podQueue,                                // 是一个优先级队列
+		profiles,                                // 实际上就是调度框架，也就是我们所谓的调度器
+		client,                                  // ClientSet
+		snapshot,                                // TODO 似乎是缓存了Node信息
+		options.percentageOfNodesToScore,        // 每次调度一个Pod不需要找到所有可用的Node，而是找到其中的一部分就可以了
 	)
 
-	// TODO 这里的EventHandler是干嘛的？
+	// TODO 监听Pod, Node的增删改查
 	addAllEventHandlers(sched, informerFactory, dynInformerFactory, unionedGVKs(clusterEventMap))
 
 	return sched, nil

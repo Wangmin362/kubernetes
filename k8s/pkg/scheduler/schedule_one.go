@@ -146,12 +146,19 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 		return
 	}
 	metrics.SchedulingAlgorithmLatency.Observe(metrics.SinceInSeconds(start))
+
 	// Tell the cache to assume that a pod now is running on a given node, even though it hasn't been bound yet.
 	// This allows us to keep scheduling without waiting on binding to occur.
+	// 1、所谓的AssumedPod，指的是那些已经通过SchedulingCycle阶段，已经成功的为当前待调度的Pod找到了一个合适的节点，但是还没有把当前待调度
+	// 的Pod绑定到那个节点上
+	// 2、如果此时KubeScheduler等待当前待调度的Pod成功绑定到节点行，那么势必会影响Pod调度。所以K8S设计者们假定当前Pod已经成功调度到了真正
+	// 的节点上，并在Cache当中记录下来。TODO 猜测这样做的目的在于Pod如果真的绑定到了Node之上，是需要占用资源的。因此这里假定Pod已经被成功调度，
+	// TODO 同时，在后续Pod需要调度的时候把当前AssumedPod所占用的资源剔除掉。 如果这个AssumedPod在BindingCycle阶段出现错误怎么办？
 	assumedPodInfo := podInfo.DeepCopy()
 	assumedPod := assumedPodInfo.Pod
 	// TODO 什么叫做AssumedPod?
 	// assume modifies `assumedPod` by setting NodeName=scheduleResult.SuggestedHost
+	// 假定当前Pod已经成功调度到了Node之上
 	err = sched.assume(assumedPod, scheduleResult.SuggestedHost)
 	if err != nil {
 		metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))
@@ -766,6 +773,8 @@ func (sched *Scheduler) assume(assumed *v1.Pod, host string) error {
 	// in the background.
 	// If the binding fails, scheduler will release resources allocated to assumed pod
 	// immediately.
+	// 假定当前的Pod已经成功调度到了host机器上，并把当前Pod所占用的资源发送给APIServer
+	// TODO 如果该Pod后续绑定失败，应该如何处理？
 	assumed.Spec.NodeName = host
 
 	if err := sched.Cache.AssumePod(assumed); err != nil {
@@ -839,24 +848,33 @@ func getAttemptsLabel(p *framework.QueuedPodInfo) string {
 
 // handleSchedulingFailure records an event for the pod that indicates the
 // pod has failed to schedule. Also, update the pod condition and nominated node name if set.
-func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framework.Framework, podInfo *framework.QueuedPodInfo, err error, reason string, nominatingInfo *framework.NominatingInfo) {
+// 1、当Pod调度失败时，会调用此函数；需要注意的是，Pod调度失败可能发生在SchedulingCycle以及BindingCycle这两个阶段
+func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framework.Framework, podInfo *framework.QueuedPodInfo,
+	err error, reason string, nominatingInfo *framework.NominatingInfo) {
+	// 当前调度失败的Pod
 	pod := podInfo.Pod
 	var errMsg string
 	if err != nil {
 		errMsg = err.Error()
 	}
 	if err == ErrNoNodesAvailable {
+		// 当前Pod调度失败的原因是因为没有任何节点注册上来
 		klog.V(2).InfoS("Unable to schedule pod; no nodes are registered to the cluster; waiting", "pod", klog.KObj(pod))
 	} else if fitError, ok := err.(*framework.FitError); ok {
 		// Inject UnschedulablePlugins to PodInfo, which will be used later for moving Pods between queues efficiently.
+		// 当前Pod调度失败的原因是因为没有找到合适的Node，一般都是由于Node资源不足造成的
 		podInfo.UnschedulablePlugins = fitError.Diagnosis.UnschedulablePlugins
 		klog.V(2).InfoS("Unable to schedule pod; no fit; waiting", "pod", klog.KObj(pod), "err", errMsg)
 	} else if apierrors.IsNotFound(err) {
+		// Pod被分配的Node找不到
 		klog.V(2).InfoS("Unable to schedule pod, possibly due to node not found; waiting", "pod", klog.KObj(pod), "err", errMsg)
 		if errStatus, ok := err.(apierrors.APIStatus); ok && errStatus.Status().Details.Kind == "node" {
 			nodeName := errStatus.Status().Details.Name
 			// when node is not found, We do not remove the node right away. Trying again to get
 			// the node and if the node is still not found, then remove it from the scheduler cache.
+			// 1、如果一个Pod经过SchedulingCycle阶段已经成功挑选出了一个合适的Node，但时在BindingCycle阶段却因为Node没有找到而出现错误，
+			// 那么我们很有必要去检查一下Node是否真的不存在。如果真的不存在了，就必须立马把这个Node移除掉。否则后续Pod如果调度到了这个节点上，
+			// 肯定也会出现一样的错误，而这个错误在这里是完全可以避免的
 			_, err := fwk.ClientSet().CoreV1().Nodes().Get(context.TODO(), nodeName, metav1.GetOptions{})
 			if err != nil && apierrors.IsNotFound(err) {
 				node := v1.Node{ObjectMeta: metav1.ObjectMeta{Name: nodeName}}
@@ -866,6 +884,7 @@ func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framewo
 			}
 		}
 	} else {
+		// 通过这里的提示可以发现，如果一个Pod调度失败，KubeScheduler后续会尝试重新调度这个Pod
 		klog.ErrorS(err, "Error scheduling pod; retrying", "pod", klog.KObj(pod))
 	}
 
@@ -873,14 +892,19 @@ func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framewo
 	podLister := fwk.SharedInformerFactory().Core().V1().Pods().Lister()
 	cachedPod, e := podLister.Pods(pod.Namespace).Get(pod.Name)
 	if e != nil {
+		// 如果当前Pod在Cache当中已经找不到了，就说明这个Pod已经被移除了
+		// TODO 为什么这里不需要通过 apierrors.IsNotFound(err) 函数来判断Pod是否是不存在
 		klog.InfoS("Pod doesn't exist in informer cache", "pod", klog.KObj(pod), "err", e)
 	} else {
 		// In the case of extender, the pod may have been bound successfully, but timed out returning its response to the scheduler.
 		// It could result in the live version to carry .spec.nodeName, and that's inconsistent with the internal-queued version.
 		if len(cachedPod.Spec.NodeName) != 0 {
+			// 如果NodeName不为空，说明当前Pod已经顺利通过了SchedulingCycle阶段，但是在BindingCycle阶段当中出现错误。因此后续需要重新
+			// 让这个Pod进入BindCycle
 			klog.InfoS("Pod has been assigned to node. Abort adding it back to queue.", "pod", klog.KObj(pod), "node", cachedPod.Spec.NodeName)
 		} else {
 			// As <cachedPod> is from SharedInformer, we need to do a DeepCopy() here.
+			// 如果NodeName为空，说明当前Pod在SchedulingCycle阶段就已经出现错误了，此时需要把这个Pod重新入队
 			podInfo.PodInfo = framework.NewPodInfo(cachedPod.DeepCopy())
 			if err := sched.SchedulingQueue.AddUnschedulableIfNotPresent(podInfo, sched.SchedulingQueue.SchedulingCycle()); err != nil {
 				klog.ErrorS(err, "Error occurred")
@@ -892,6 +916,7 @@ func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framewo
 	// this, there would be a race condition between the next scheduling cycle
 	// and the time the scheduler receives a Pod Update for the nominated pod.
 	// Here we check for nil only for tests.
+	// TODO 有何作用？
 	if sched.SchedulingQueue != nil {
 		sched.SchedulingQueue.AddNominatedPod(podInfo.PodInfo, nominatingInfo)
 	}

@@ -95,6 +95,7 @@ type SchedulingQueue interface {
 	// SchedulingCycle returns the current number of scheduling cycle which is
 	// cached by scheduling queue. Normally, incrementing this number whenever
 	// a pod is popped (e.g. called Pop()) is enough.
+	// TODO ?
 	SchedulingCycle() int64
 	// Pop removes the head of the queue and returns it. It blocks if the
 	// queue is empty and waits until a new item is added to the queue.
@@ -175,6 +176,7 @@ type PriorityQueue struct {
 	// received a move request. Unschedulable pods in and before this scheduling
 	// cycle will be put back to activeQueue if we were trying to schedule them
 	// when we received move request.
+	// TODO 这个字段代表着啥？
 	moveRequestCycle int64
 
 	clusterEventMap map[framework.ClusterEvent]sets.String
@@ -431,6 +433,8 @@ func (p *PriorityQueue) AddUnschedulableIfNotPresent(pInfo *framework.QueuedPodI
 	for plugin := range pInfo.UnschedulablePlugins {
 		metrics.UnschedulableReason(plugin, pInfo.Pod.Spec.SchedulerName).Inc()
 	}
+
+	// TODO 这里是在判断什么逻辑？
 	if p.moveRequestCycle >= podSchedulingCycle {
 		if err := p.podBackoffQ.Add(pInfo); err != nil {
 			return fmt.Errorf("error adding pod %v to the backoff queue: %v", klog.KObj(pod), err)

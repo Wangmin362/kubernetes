@@ -692,6 +692,7 @@ func (ni *NominatingInfo) Mode() NominatingMode {
 
 // PodNominator abstracts operations to maintain nominated Pods.
 // TODO 详细分析？
+// TODO 什么叫做NominatedPod?
 type PodNominator interface {
 	// AddNominatedPod adds the given pod to the nominator or
 	// updates it if it already exists.

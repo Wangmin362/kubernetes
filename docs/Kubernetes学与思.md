@@ -4,6 +4,10 @@
 - [ ] Owner, OwnerReference
 - [x] APIAudiences
     - Audience实际上是JWT中的概念，JWT的Playload中有两个保留字段，一个是iss，也就是Token签发人；另外一个则是aud，也就是Token的接收人，也就是说JTW可以明确当前的Token是颁发给谁的。而这里的APIAudience就是这个作用。
+- [ ] Event
+- [ ] Condition
+- [ ] Labels
+- [ ] Annotaion
 
 # 2. 组件原理
 ## 2.1. APIServer
@@ -229,10 +233,44 @@
 
 ## 2.3. Kubelet
 
-- [ ] PLEG原理？PLEG有无性能问题？
 - [ ] Kubelet是如何调用CRI的？
-- [ ] CPU Typology?
 - [ ] Kubelet有几种可用的CRI？每种CRI有何区别？如何指定Kubelet使用不同的CRI?
+- [ ] 模块
+    - [ ] KubeletServerCertificateManager
+    - [ ] CheckpointManager
+    - [ ] CloudResourceSyncManager
+    - [ ] CGroupManager
+    - [ ] ContainerManager
+    - [ ] NodeContainerManager
+    - [ ] PodContainerManager
+    - [ ] QosContainerManager
+    - [ ] CpuManager
+    - [ ] ConfigMapManager
+    - [ ] Runtime
+    - [ ] RemoteImageService
+    - [ ] EvictionManager
+    - [ ] ImageGCManger
+    - [ ] PLEG
+    - [ ] ContainerLogManager
+    - [ ] NodeShutdownManager
+    - [ ] OomWatcher
+    - [ ] PluginManager
+    - [ ] PodManager
+    - [ ] ProbeManager
+    - [ ] RuntimeClassManager
+    - [ ] SecretManager
+    - [ ] StatusManager
+    - [ ] TokenManager
+    - [ ] VolumeManager
+    - [ ] VolumePluginManager
+    - [ ] ResourceAnalyzer
+    - [ ] CertificateManager
+    - [ ] PodKiller
+    - [ ] NodeLeaseController
+    - [ ] PodAdmitHandlers
+    - [ ] LinessManager
+    - [ ] ImageManager
+    - [ ] StartupManager
 
 ## 2.4. KubeScheduler
 
@@ -243,6 +281,8 @@
 - [ ] Extender机制是啥？优缺点？
 - [ ] 如何理解`Framework`接口和`Handler`接口抽象
 - [ ] 如何理解`PluginFactory`
+- [ ] 什么是`AssumedPod`，如果`AssumedPod`后续在`BindingCycle`真的失败了会怎么样？
+- [ ] 什么是`NominatedPod`？有啥作用？
 
 ## 2.5. KubeProxy
 

@@ -3227,6 +3227,7 @@ type PodSpec struct {
 	// this field from PriorityClassName.
 	// The higher the value, the higher the priority.
 	// +optional
+	// TODO 优先级有什么意义？对于Pod调度有啥影响？
 	Priority *int32 `json:"priority,omitempty" protobuf:"bytes,25,opt,name=priority"`
 	// Specifies the DNS parameters of a pod.
 	// Parameters specified here will be merged to the generated DNS
@@ -3893,6 +3894,7 @@ type PodStatus struct {
 	// As a result, this field may be different than PodSpec.nodeName when the pod is
 	// scheduled.
 	// +optional
+	// TODO 什么叫做NominatedNodeName?
 	NominatedNodeName string `json:"nominatedNodeName,omitempty" protobuf:"bytes,11,opt,name=nominatedNodeName"`
 
 	// IP address of the host to which the pod is assigned. Empty if not yet scheduled.

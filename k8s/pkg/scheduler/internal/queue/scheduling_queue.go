@@ -105,6 +105,7 @@ type SchedulingQueue interface {
 	// Update 1、当PodInformer监听到Pod更新时会调用这个API
 	Update(oldPod, newPod *v1.Pod) error
 	Delete(pod *v1.Pod) error
+	// MoveAllToActiveOrBackoffQueue TODO 这玩意干嘛的？
 	MoveAllToActiveOrBackoffQueue(event framework.ClusterEvent, preCheck PreEnqueueCheck)
 	AssignedPodAdded(pod *v1.Pod)
 	AssignedPodUpdated(pod *v1.Pod)
@@ -274,12 +275,16 @@ func NewPriorityQueue(
 		opt(&options)
 	}
 
+	// 比较两个Pod的优先级，主要影响因素有两个，一个是Pod的Priority属性，另外一个是Pod的创建时间。首先比较Priority属性，Priority数值
+	// 越大，这个Pod的优先级也就越高。如果Priority数值一样大，就比较Pod的创建时间，Pod创建时间越早，那么这个Pod的优先级越高。也就越先
+	// 被调度
 	comp := func(podInfo1, podInfo2 interface{}) bool {
 		pInfo1 := podInfo1.(*framework.QueuedPodInfo)
 		pInfo2 := podInfo2.(*framework.QueuedPodInfo)
 		return lessFn(pInfo1, pInfo2)
 	}
 
+	// TODO 什么Pod的Nominator?
 	if options.podNominator == nil {
 		options.podNominator = NewPodNominator(informerFactory.Core().V1().Pods().Lister())
 	}
@@ -732,6 +737,7 @@ func (p *PriorityQueue) Close() {
 }
 
 // DeleteNominatedPodIfExists deletes <pod> from nominatedPods.
+// 从Nominator中删除当前Pod的提名信息，如果当前Pod在Nominator当中并没有提名信息，就啥也不干
 func (npm *nominator) DeleteNominatedPodIfExists(pod *v1.Pod) {
 	npm.Lock()
 	npm.delete(pod)
@@ -750,6 +756,7 @@ func (npm *nominator) AddNominatedPod(pi *framework.PodInfo, nominatingInfo *fra
 
 // NominatedPodsForNode returns a copy of pods that are nominated to run on the given node,
 // but they are waiting for other pods to be removed from the node.
+// 获取所有在当前Node保存了提名信息的所有Pod
 func (npm *nominator) NominatedPodsForNode(nodeName string) []*framework.PodInfo {
 	npm.RLock()
 	defer npm.RUnlock()
@@ -869,13 +876,17 @@ func newUnschedulablePods(metricRecorder metrics.MetricRecorder) *UnschedulableP
 // by their UID and update/delete them.
 type nominator struct {
 	// podLister is used to verify if the given pod is alive.
+	// 用于获取Pod资源
 	podLister listersv1.PodLister
 	// nominatedPods is a map keyed by a node name and the value is a list of
 	// pods which are nominated to run on the node. These are pods which can be in
 	// the activeQ or unschedulablePods.
+	// 1、Key为Node的名字，而Value为当前运行在Node之上的所有Pod
+	// 2、TODO 什么叫做NominatedPod?
 	nominatedPods map[string][]*framework.PodInfo
 	// nominatedPodToNode is map keyed by a Pod UID to the node name where it is
 	// nominated.
+	// 1、刚好和nominatedPods属性相反，Key为Pod的UID，而Value则是Node的名字
 	nominatedPodToNode map[types.UID]string
 
 	sync.RWMutex
@@ -884,9 +895,11 @@ type nominator struct {
 func (npm *nominator) add(pi *framework.PodInfo, nominatingInfo *framework.NominatingInfo) {
 	// Always delete the pod if it already exists, to ensure we never store more than
 	// one instance of the pod.
+	// 不管当前Pod有没有提名Node,都直接删除提名信息；没有的话直接退出，有提名信息的话就直接删除
 	npm.delete(pi.Pod)
 
 	var nodeName string
+	// TOdO 通过不同的提名模式，获取到当前Pod的提名Node
 	if nominatingInfo.Mode() == framework.ModeOverride {
 		nodeName = nominatingInfo.NominatedNodeName
 	} else if nominatingInfo.Mode() == framework.ModeNoop {
@@ -898,41 +911,54 @@ func (npm *nominator) add(pi *framework.PodInfo, nominatingInfo *framework.Nomin
 
 	if npm.podLister != nil {
 		// If the pod was removed or if it was already scheduled, don't nominate it.
+		// 查询当前的Pod
 		updatedPod, err := npm.podLister.Pods(pi.Pod.Namespace).Get(pi.Pod.Name)
 		if err != nil {
 			klog.V(4).InfoS("Pod doesn't exist in podLister, aborted adding it to the nominator", "pod", klog.KObj(pi.Pod))
 			return
 		}
+		// 如果当前Pod已经调度到了某个Node之上，就直接退出
 		if updatedPod.Spec.NodeName != "" {
 			klog.V(4).InfoS("Pod is already scheduled to a node, aborted adding it to the nominator", "pod", klog.KObj(pi.Pod), "node", updatedPod.Spec.NodeName)
 			return
 		}
 	}
 
+	// 保存当前Pod的提名信息
 	npm.nominatedPodToNode[pi.Pod.UID] = nodeName
 	for _, npi := range npm.nominatedPods[nodeName] {
+		// 如果当前Pod已经被保存在了Nominator当中，就直接退出
 		if npi.Pod.UID == pi.Pod.UID {
 			klog.V(4).InfoS("Pod already exists in the nominator", "pod", klog.KObj(npi.Pod))
 			return
 		}
 	}
+	// 保存当前Pod的提名信息到Nominator当中
 	npm.nominatedPods[nodeName] = append(npm.nominatedPods[nodeName], pi)
 }
 
 func (npm *nominator) delete(p *v1.Pod) {
+	// 找到当前Pod的提名者
 	nnn, ok := npm.nominatedPodToNode[p.UID]
+	// 如果当前Pod还没有提名Node，那么无需删除
 	if !ok {
 		return
 	}
+
+	// 否则遍历提名Node的所有Pod列表
 	for i, np := range npm.nominatedPods[nnn] {
 		if np.Pod.UID == p.UID {
+			// 删除当前的Pod
 			npm.nominatedPods[nnn] = append(npm.nominatedPods[nnn][:i], npm.nominatedPods[nnn][i+1:]...)
+			// 如果删除完了，当前Node就没有Pod在运行了，那么直接删除当前的Node
 			if len(npm.nominatedPods[nnn]) == 0 {
 				delete(npm.nominatedPods, nnn)
 			}
+			// 找到了就直接退出
 			break
 		}
 	}
+	// 删除提名信息
 	delete(npm.nominatedPodToNode, p.UID)
 }
 
@@ -948,6 +974,7 @@ func (npm *nominator) UpdateNominatedPod(oldPod *v1.Pod, newPodInfo *framework.P
 	// (1) NominatedNode info is added
 	// (2) NominatedNode info is updated
 	// (3) NominatedNode info is removed
+	// TODO 如何理解这里的逻辑？
 	if NominatedNodeName(oldPod) == "" && NominatedNodeName(newPodInfo.Pod) == "" {
 		if nnn, ok := npm.nominatedPodToNode[oldPod.UID]; ok {
 			// This is the only case we should continue reserving the NominatedNode

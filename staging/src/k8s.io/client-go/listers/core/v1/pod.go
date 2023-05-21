@@ -27,6 +27,7 @@ import (
 
 // PodLister helps list Pods.
 // All objects returned here must be treated as read-only.
+// TODO 如何理解PodListerExpandsion接口的世界？如何自定义接口？
 type PodLister interface {
 	// List lists all Pods in the indexer.
 	// Objects returned here must be treated as read-only.

@@ -751,6 +751,7 @@ func copyDeltas(d Deltas) Deltas {
 // was deleted but the watch deletion event was missed while disconnected from
 // apiserver. In this case we don't know the final "resting" state of the object, so
 // there's a chance the included `Obj` is stale.
+// TODO 这玩意拿来干嘛的？
 type DeletedFinalStateUnknown struct {
 	Key string
 	Obj interface{}

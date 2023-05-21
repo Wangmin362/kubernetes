@@ -67,6 +67,7 @@ func (sched *Scheduler) addNodeToCache(obj interface{}) {
 
 	nodeInfo := sched.Cache.AddNode(node)
 	klog.V(3).InfoS("Add event for node", "node", klog.KObj(node))
+	// Node新加入的事件
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.NodeAdd, preCheckForNode(nodeInfo))
 }
 
@@ -185,6 +186,7 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 	}
 	klog.V(3).InfoS("Add event for scheduled pod", "pod", klog.KObj(pod))
 
+	// 把当前Pod加入到缓存当中
 	if err := sched.Cache.AddPod(pod); err != nil {
 		klog.ErrorS(err, "Scheduler cache AddPod failed", "pod", klog.KObj(pod))
 	}
@@ -258,9 +260,11 @@ func addAllEventHandlers(
 	// 加入到Cache当中
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
+			// TODO 这里会过滤掉什么特征的Pod呢？
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
+					// 如果当前Pod是一个AssumedPod,那么加入这个AssumedPod到Cache当中
 					return assignedPod(t)
 				case cache.DeletedFinalStateUnknown:
 					if _, ok := t.Obj.(*v1.Pod); ok {
@@ -476,10 +480,12 @@ func preCheckForNode(nodeInfo *framework.NodeInfo) queue.PreEnqueueCheck {
 	// cases (e.g., node resizing), "pod" may still fail a check but preemption helps. We deliberately
 	// chose to ignore those cases as unschedulable pods will be re-queued eventually.
 	return func(pod *v1.Pod) bool {
+		// TODO 检查了啥？
 		admissionResults := AdmissionCheck(pod, nodeInfo, false)
 		if len(admissionResults) != 0 {
 			return false
 		}
+		// TODO 这里又是在干嘛？
 		_, isUntolerated := corev1helpers.FindMatchingUntoleratedTaint(nodeInfo.Node().Spec.Taints, pod.Spec.Tolerations, func(t *v1.Taint) bool {
 			return t.Effect == v1.TaintEffectNoSchedule
 		})
@@ -491,6 +497,7 @@ func preCheckForNode(nodeInfo *framework.NodeInfo) queue.PreEnqueueCheck {
 // and returns the failure reasons. It's used in kubelet(pkg/kubelet/lifecycle/predicate.go) and scheduler.
 // It returns the first failure if `includeAllFailures` is set to false; otherwise
 // returns all failures.
+// TODO 检查了啥？
 func AdmissionCheck(pod *v1.Pod, nodeInfo *framework.NodeInfo, includeAllFailures bool) []AdmissionResult {
 	var admissionResults []AdmissionResult
 	insufficientResources := noderesources.Fits(pod, nodeInfo)

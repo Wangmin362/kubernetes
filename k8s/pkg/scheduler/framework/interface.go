@@ -507,6 +507,8 @@ type BindPlugin interface {
 type Framework interface {
 	Handle
 	// QueueSortFunc returns the function to sort pods in scheduling queue
+	// 1、比较连个Pod的优先级，优先级高的Pod,越先被调度，如果两个Pod优先级一样，那么先创建的Pod就优先被调度
+	// 2、PriorityQueue当中会通过这个优先级来进行堆排序，从而实现高优先级的Pod就越先被调度
 	QueueSortFunc() LessFunc
 
 	// RunPreFilterPlugins runs the set of configured PreFilter plugins. It returns
@@ -660,10 +662,14 @@ func (p *PreFilterResult) Merge(in *PreFilterResult) *PreFilterResult {
 type NominatingMode int
 
 const (
+	// ModeNoop TODO 如果理解这个提名模式？
 	ModeNoop NominatingMode = iota
+	// ModeOverride TODO 如果理解这个提名模式？
 	ModeOverride
 )
 
+// NominatingInfo 所谓的提名信息，实际上就是用于保存哪个Node有资格去运行当前的Pod。在K8S集群中，通常K8S集群中有多个Node，而可以运行当前的
+// Pod的Node可能存在多个。然后，我们仅仅需要一个Node去运行这个Pod，K8S通过一系列算法选出来这个可以运行Pod的Node就是当前待调度Pod的提名Node
 type NominatingInfo struct {
 	NominatedNodeName string
 	NominatingMode    NominatingMode
@@ -696,12 +702,19 @@ func (ni *NominatingInfo) Mode() NominatingMode {
 type PodNominator interface {
 	// AddNominatedPod adds the given pod to the nominator or
 	// updates it if it already exists.
+	// 把当前Pod的提名信息保存到Nominator当中，其实所谓的提名信息就是当前Pod需要调度到哪个Node上。主要过程如下：
+	// 1、不管Nominator之前有没有保存过当前Pod的提名信息，都先删除当前Pod在Nominator中的提名信息（如果没有就啥也不干）
+	// 2、通过podList查询当前Pod，如果发现当前Pod已经被调度到了某个Node之上，就直接退出（判断依据是Spec.NodeName非空）
+	// 3、保存此Pod的提名信息到Nominator当中
+	// 4、TODO 为什么我看许多地方nominatingInfo都是nil?  难道不会panic么？
 	AddNominatedPod(pod *PodInfo, nominatingInfo *NominatingInfo)
 	// DeleteNominatedPodIfExists deletes nominatedPod from internal cache. It's a no-op if it doesn't exist.
+	// 从Nominator中删除当前Pod的提名信息，如果当前Pod在Nominator当中并没有提名信息，就啥也不干
 	DeleteNominatedPodIfExists(pod *v1.Pod)
 	// UpdateNominatedPod updates the <oldPod> with <newPod>.
 	UpdateNominatedPod(oldPod *v1.Pod, newPodInfo *PodInfo)
 	// NominatedPodsForNode returns nominatedPods on the given node.
+	// 获取所有在当前Node保存了提名信息的所有Pod
 	NominatedPodsForNode(nodeName string) []*PodInfo
 }
 

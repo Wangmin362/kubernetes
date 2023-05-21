@@ -782,6 +782,7 @@ func (sched *Scheduler) assume(assumed *v1.Pod, host string) error {
 		return err
 	}
 	// if "assumed" is a nominated pod, we should remove it from internal cache
+	// 如果一个Pod已经假定绑定到了一个Node之上，我们应该从Nominator当中移除
 	if sched.SchedulingQueue != nil {
 		sched.SchedulingQueue.DeleteNominatedPodIfExists(assumed)
 	}
@@ -916,7 +917,7 @@ func (sched *Scheduler) handleSchedulingFailure(ctx context.Context, fwk framewo
 	// this, there would be a race condition between the next scheduling cycle
 	// and the time the scheduler receives a Pod Update for the nominated pod.
 	// Here we check for nil only for tests.
-	// TODO 有何作用？
+	// TODO 有没有可能到了这里其实当前Pod还没有找到合适的Pod? 因为是在SchedulingCycle节点失败的
 	if sched.SchedulingQueue != nil {
 		sched.SchedulingQueue.AddNominatedPod(podInfo.PodInfo, nominatingInfo)
 	}

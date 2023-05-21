@@ -66,12 +66,15 @@ type cacheImpl struct {
 	assumedPods sets.String
 	// a map from pod key to podState.
 	podStates map[string]*podState
-	nodes     map[string]*nodeInfoListItem
+	// 这是一个LinkedHashmap
+	nodes map[string]*nodeInfoListItem
 	// headNode points to the most recently updated NodeInfo in "nodes". It is the
 	// head of the linked list.
 	headNode *nodeInfoListItem
 	nodeTree *nodeTree
 	// A map from image name to its imageState.
+	// 1、Key为ImageName
+	// 2、ImageState是用来干嘛的？
 	imageStates map[string]*imageState
 }
 
@@ -496,6 +499,7 @@ func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 }
 
 func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
+	// 获取当前Pod的唯一Key,实际上就是Pod的UID
 	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
@@ -614,11 +618,14 @@ func (cache *cacheImpl) AddNode(node *v1.Node) *framework.NodeInfo {
 
 	n, ok := cache.nodes[node.Name]
 	if !ok {
+		// 如果当前Cache当中没有记录当前Node的信息，那就保存下来
 		n = newNodeInfoListItem(framework.NewNodeInfo())
 		cache.nodes[node.Name] = n
 	} else {
+		// TODO 移除Node的ImageState信息
 		cache.removeNodeImageStates(n.info.Node())
 	}
+	// 把当前的Node移动到链表头部
 	cache.moveNodeInfoToHead(node.Name)
 
 	cache.nodeTree.addNode(node)
@@ -729,6 +736,7 @@ func (cache *cacheImpl) removeNodeImageStates(node *v1.Node) {
 	}
 }
 
+// 用于清理已经过期的AssumedPod,一秒钟执行一次
 func (cache *cacheImpl) run() {
 	go wait.Until(cache.cleanupExpiredAssumedPods, cache.period, cache.stop)
 }

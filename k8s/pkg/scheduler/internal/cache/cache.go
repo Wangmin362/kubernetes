@@ -40,6 +40,7 @@ var (
 // "stop" is the channel that would close the background goroutine.
 func New(ttl time.Duration, stop <-chan struct{}) Cache {
 	cache := newCache(ttl, cleanAssumedPeriod, stop)
+	// 清理已经过期的AssumedPod,一秒钟执行一次
 	cache.run()
 	return cache
 }
@@ -62,9 +63,11 @@ type cacheImpl struct {
 	mu sync.RWMutex
 	// a set of assumed pod keys.
 	// The key could further be used to get an entry in podStates.
-	// TODO 什么叫做AssumedPod?
+	// 1、所谓的AssumedPod,实际上就是那些已经正常通过SchedulingCycle的Pod,这些Pod已经指定了Node,但是还没有真正绑定到Node之上
+	// 2、数组中的元素未Pod UID
 	assumedPods sets.String
 	// a map from pod key to podState.
+	// Key为Pod UID
 	podStates map[string]*podState
 	// 这是一个LinkedHashmap
 	nodes map[string]*nodeInfoListItem
@@ -84,6 +87,7 @@ type podState struct {
 	// If deadline is nil, assumedPod will never expire.
 	deadline *time.Time
 	// Used to block cache from expiring assumedPod if binding still runs
+	// 是否已经完成绑定
 	bindingFinished bool
 }
 
@@ -754,17 +758,20 @@ func (cache *cacheImpl) cleanupAssumedPods(now time.Time) {
 	defer cache.updateMetrics()
 
 	// The size of assumedPods should be small
-	for key := range cache.assumedPods {
-		ps, ok := cache.podStates[key]
+	for podUID := range cache.assumedPods {
+		ps, ok := cache.podStates[podUID]
 		if !ok {
 			klog.ErrorS(nil, "Key found in assumed set but not in podStates, potentially a logical error")
 			os.Exit(1)
 		}
+		// 当前Pod还没有完成绑定，直接退出
 		if !ps.bindingFinished {
 			klog.V(5).InfoS("Could not expire cache for pod as binding is still in progress",
 				"pod", klog.KObj(ps.pod))
 			continue
 		}
+
+		// 当前Pod已经完成绑定，并且已经过期，那就移除当前Pod
 		if cache.ttl != 0 && now.After(*ps.deadline) {
 			klog.InfoS("Pod expired", "pod", klog.KObj(ps.pod))
 			if err := cache.removePod(ps.pod); err != nil {

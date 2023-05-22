@@ -29,6 +29,7 @@ import (
 // keys to "NodeTree.tree" and values of "NodeTree.tree" are arrays of node names.
 // NodeTree is NOT thread-safe, any concurrent updates/reads from it must be synchronized by the caller.
 // It is used only by schedulerCache, and should stay as such.
+// TODO 如何理解这里的zone？
 type nodeTree struct {
 	tree     map[string][]string // a map from zone (region-zone) to an array of nodes in the zone.
 	zones    []string            // a list of all the zones in the tree (keys)

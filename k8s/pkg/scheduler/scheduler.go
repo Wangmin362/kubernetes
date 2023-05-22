@@ -296,6 +296,7 @@ func New(client clientset.Interface,
 	nominator := internalqueue.NewPodNominator(podLister)
 	// 用于获取Node相关的信息以及PVC相关信息
 	snapshot := internalcache.NewEmptySnapshot()
+	// TODO 这玩意干嘛的？
 	clusterEventMap := make(map[framework.ClusterEvent]sets.String)
 
 	// 1、K8S支持用户开发自己的调度器，然后通过pod.Spec.SchedulerName指定调度器的名字

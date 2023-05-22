@@ -294,6 +294,7 @@ func New(client clientset.Interface,
 
 	// The nominator will be passed all the way to framework instantiation.
 	nominator := internalqueue.NewPodNominator(podLister)
+	// 用于获取Node相关的信息以及PVC相关信息
 	snapshot := internalcache.NewEmptySnapshot()
 	clusterEventMap := make(map[framework.ClusterEvent]sets.String)
 

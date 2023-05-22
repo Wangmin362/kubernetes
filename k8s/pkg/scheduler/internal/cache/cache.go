@@ -199,6 +199,7 @@ func (cache *cacheImpl) Dump() *Dump {
 // nodeInfo.Node() is guaranteed to be not nil for all the nodes in the snapshot.
 // This function tracks generation number of NodeInfo and updates only the
 // entries of an existing snapshot that have changed after the snapshot was taken.
+// TODO 这里是如何更新Node相关信息的？
 func (cache *cacheImpl) UpdateSnapshot(nodeSnapshot *Snapshot) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()

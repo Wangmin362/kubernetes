@@ -71,7 +71,9 @@ var allClusterEvents = []framework.ClusterEvent{
 // frameworkImpl is the component responsible for initializing and running scheduler
 // plugins.
 type frameworkImpl struct {
-	registry             Registry
+	// 插件注册中心，包括K8S内部实现的插件(InTreePlugin)以及用户自定义插件(OutOfTreePlugin)
+	registry Registry
+	// 用于获取Node信息以及PVC相关信息
 	snapshotSharedLister framework.SharedLister
 	waitingPods          *waitingPodsMap
 	scorePluginWeight    map[string]int

@@ -67,7 +67,7 @@ func (sched *Scheduler) addNodeToCache(obj interface{}) {
 
 	nodeInfo := sched.Cache.AddNode(node)
 	klog.V(3).InfoS("Add event for node", "node", klog.KObj(node))
-	// Node新加入的事件
+	// TODO Node新加入的事件
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.NodeAdd, preCheckForNode(nodeInfo))
 }
 
@@ -191,6 +191,7 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 		klog.ErrorS(err, "Scheduler cache AddPod failed", "pod", klog.KObj(pod))
 	}
 
+	// TODO 这里实在干嘛？
 	sched.SchedulingQueue.AssignedPodAdded(pod)
 }
 
@@ -293,6 +294,7 @@ func addAllEventHandlers(
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
+					// 如果当前Pod不是AssignedPod，并且当前Pod需要使用的调度器存在；如果当前Pod需要使用的调度器不存在，那显然无法调度
 					return !assignedPod(t) && responsibleForPod(t, sched.Profiles)
 				case cache.DeletedFinalStateUnknown:
 					if pod, ok := t.Obj.(*v1.Pod); ok {
@@ -315,6 +317,7 @@ func addAllEventHandlers(
 		},
 	)
 
+	// TODO 维护Cache当中的Node信息,其中的维护动作有点复杂，Node信息居然有map, linkedlist, tree三种数据结构来维护
 	informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    sched.addNodeToCache,

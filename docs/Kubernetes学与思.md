@@ -285,6 +285,14 @@
 - [ ] 什么是`NominatedPod`？有啥作用？
 - [ ] `Pod`的`Priority`有啥作用？是如何影响`Pod`调度的？最佳实践？
     - [ ] 如果`Pod`调度失败，`KubeScheduler`会如何处理这个`Pod`？
+- [ ] 内部调度原理
+    - [ ] SchedulerQueue -> PriorityQueue
+    - [ ] Cache -> cacheImpl
+    - [ ] Framework -> frameworkImpl
+    - [ ] Nominator
+    - [ ] Exender
+    - [ ] Snapshot
+    - [ ] Scheduler
 
 ## 2.5. KubeProxy
 

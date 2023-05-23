@@ -69,10 +69,10 @@ type cacheImpl struct {
 	// a map from pod key to podState.
 	// Key为Pod UID
 	podStates map[string]*podState
-	// 这是一个LinkedHashmap
+	// 记录Node信息  TODO 为啥维护Node信息需要用这么复杂的数据结构，又是Map，又是链表，又是树
 	nodes map[string]*nodeInfoListItem
-	// headNode points to the most recently updated NodeInfo in "nodes". It is the
-	// head of the linked list.
+	// headNode points to the most recently updated NodeInfo in "nodes". It is the head of the linked list.
+	// 记录Node信息
 	headNode *nodeInfoListItem
 	nodeTree *nodeTree
 	// A map from image name to its imageState.

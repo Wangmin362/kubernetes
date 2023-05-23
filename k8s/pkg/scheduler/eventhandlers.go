@@ -129,15 +129,19 @@ func (sched *Scheduler) updatePodInSchedulingQueue(oldObj, newObj interface{}) {
 		return
 	}
 
-	// TODO 什么叫做AssumedPod?
+	// 所谓的AssumedPod，实际上就是已经完成SchedulingCycle的Pod，这些Pod不需要再次经过SchedulingCycle
 	isAssumed, err := sched.Cache.IsAssumedPod(newPod)
 	if err != nil {
 		utilruntime.HandleError(fmt.Errorf("failed to check whether pod %s/%s is assumed: %v", newPod.Namespace, newPod.Name, err))
 	}
+	// 1、如果一个Pod已经被调度过了，这种Pod无需再次调度
+	// 2、实际上这里的AssumedPod值得是那些成功经过SchedulingCycle阶段，但是还没有经过BindingCycle阶段的Pod。因为正儿八经已经
+	// 调度过的Pod是不可能到这里的，在Informer的Filter当中已经过滤了
 	if isAssumed {
 		return
 	}
 
+	// 更新还没有调度的Pod
 	if err := sched.SchedulingQueue.Update(oldPod, newPod); err != nil {
 		utilruntime.HandleError(fmt.Errorf("unable to update %T: %v", newObj, err))
 	}
@@ -261,11 +265,13 @@ func addAllEventHandlers(
 	// 加入到Cache当中
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
-			// TODO 这里会过滤掉什么特征的Pod呢？
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
-					// 如果当前Pod是一个AssumedPod,那么加入这个AssumedPod到Cache当中
+					// 1、若一个Pod的Spec.NodeName非空，就说明这个Pod已经调度成功了。KubeScheduler需要把这种类型的Pod收集起来计算
+					// Node的资源，方便后续为调度逻辑处理
+					// 2、因为KubeScheduling在调度一个Pod时需要知道当前K8S的Node上都跑了那些Pod，每个Pod占用的资源情况、亲和性以及反
+					// 亲和性等等，因此需要收集这些已经成功调度的Pod信息
 					return assignedPod(t)
 				case cache.DeletedFinalStateUnknown:
 					if _, ok := t.Obj.(*v1.Pod); ok {
@@ -294,12 +300,14 @@ func addAllEventHandlers(
 			FilterFunc: func(obj interface{}) bool {
 				switch t := obj.(type) {
 				case *v1.Pod:
-					// 如果当前Pod不是AssignedPod，并且当前Pod需要使用的调度器存在；如果当前Pod需要使用的调度器不存在，那显然无法调度
+					// 1、如果当前Pod还没有调度成功，并且当前Pod指定使用的调度器存在；如果当前Pod需要使用的调度器不存在，那显然无法调度
+					// 2、如果一个Pod的Spec.NodeName非空，就说明这个Pod已经调度成功了，KubeScheduler无需再次处理
 					return !assignedPod(t) && responsibleForPod(t, sched.Profiles)
 				case cache.DeletedFinalStateUnknown:
+					// TODO 什么时候当前元素会是DeletedFinalStateUnknown类型
 					if pod, ok := t.Obj.(*v1.Pod); ok {
-						// The carried object may be stale, so we don't use it to check if
-						// it's assigned or not.
+						// The carried object may be stale, so we don't use it to check if it's assigned or not.
+						// 如果当前元素是个Pod，并且这个Pod需要使用的调度器存在
 						return responsibleForPod(pod, sched.Profiles)
 					}
 					utilruntime.HandleError(fmt.Errorf("unable to convert object %T to *v1.Pod in %T", obj, sched))
@@ -326,6 +334,7 @@ func addAllEventHandlers(
 		},
 	)
 
+	// TODO 这里是在干嘛？
 	buildEvtResHandler := func(at framework.ActionType, gvk framework.GVK, shortGVK string) cache.ResourceEventHandlerFuncs {
 		funcs := cache.ResourceEventHandlerFuncs{}
 		if at&framework.Add != 0 {

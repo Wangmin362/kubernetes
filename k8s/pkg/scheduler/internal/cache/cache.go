@@ -64,7 +64,8 @@ type cacheImpl struct {
 	// a set of assumed pod keys.
 	// The key could further be used to get an entry in podStates.
 	// 1、所谓的AssumedPod,实际上就是那些已经正常通过SchedulingCycle的Pod,这些Pod已经指定了Node,但是还没有真正绑定到Node之上
-	// 2、数组中的元素未Pod UID
+	// 2、数组中的元素为Pod.UID
+	// 3、TODO 数据来源有？
 	assumedPods sets.String
 	// a map from pod key to podState.
 	// Key为Pod UID

@@ -370,7 +370,7 @@ func (sched *Scheduler) Run(ctx context.Context) {
 	// If there are no new pods to schedule, it will be hanging there
 	// and if done in this goroutine it will be blocking closing
 	// SchedulingQueue, in effect causing a deadlock on shutdown.
-	// 调度Pod
+	// TODO 调度Pod
 	go wait.UntilWithContext(ctx, sched.scheduleOne, 0)
 
 	<-ctx.Done()

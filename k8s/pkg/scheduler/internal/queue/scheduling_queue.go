@@ -167,8 +167,28 @@ type PriorityQueue struct {
 	activeQ *heap.Heap
 	// podBackoffQ is a heap ordered by backoff expiry. Pods which have completed backoff
 	// are popped from this heap before the scheduler looks at activeQ
+	// 1、用于把PodBackoffQueue当中的pod元素放入到ActiveQ当中，当然，只有那些到了备份时间的Pod才会被放入到activeQ当中。由于PodBackoffQ
+	// 是以堆的数据结构存储元素，而且是按照Pod的备份时间进行排序，因此只需要从堆顶判断是否已经到了备份时间，如果堆顶Pod都没有到备份时间，
+	// 那么剩下的元素就不需要判断了。如果堆顶Pod到了备份时间，就把堆顶Pod弹出来放入到ActiveQ当中。同时，剩下的元素按照相同的逻辑进行判断。
+	// 2、检测PodBackoffQ中的Pod元素是否需要进行备份放到activeQ中，每秒钟检测一次
+	// 3、TODO PodBackoffQ的数据来源有：
+	// 3.1、 AddUnschedulableIfNotPresent 函数，也就是当Pod在SchedulingCycle阶段调度失败，此时这个Pod还没有找到合适Node节点进行部署
+	// 3.2、 AssignedPodAdded
+	// 3.3、 AssignedPodUpdated
+	// 3.4、 MoveAllToActiveOrBackoffQueue
+	// 3.5、 PendingPods
+	// 3.6、 Update
 	podBackoffQ *heap.Heap
 	// unschedulablePods holds pods that have been tried and determined unschedulable.
+	// 1、找到已经在UnschedulingPod缓存中待了超过五分钟的元素；每隔30秒检测一次
+	// 2、依次遍历这些元素，然后进行以下判断：
+	// 2.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接提过这个元素。因为如果是因为其它原因造成
+	// 当前Pod无法调度，此时再去调度也无济于事，依然无法正常调度
+	// 2.2、如果当前Pod还没有过备份时间，那就把当前Pod加入到PodBackoffQ当中，然后删除UnschedulablePlugin中的对应元素
+	// 2.3、如果当前Pod已经过了备份时间，那就把当前Pod加入到ActiveQ当中，然后删除UnschedulablePlugin中的对应元素
+	// 3、TODO UnshcedulablePod的数据来源有？
+	// 3.1、 AddUnschedulableIfNotPresent 函数，也就是当Pod在SchedulingCycle阶段调度失败，此时这个Pod还没有找到合适Node节点进行部署
+	// 3.2、 Update
 	unschedulablePods *UnschedulablePods
 	// schedulingCycle represents sequence number of scheduling cycle and is incremented
 	// when a pod is popped.
@@ -180,6 +200,7 @@ type PriorityQueue struct {
 	// TODO 这个字段代表着啥？
 	moveRequestCycle int64
 
+	// TODO 这玩意干嘛的？
 	clusterEventMap map[framework.ClusterEvent]sets.String
 
 	// closed indicates that the queue is closed.
@@ -310,9 +331,17 @@ func NewPriorityQueue(
 
 // Run starts the goroutine to pump from podBackoffQ to activeQ
 func (p *PriorityQueue) Run() {
-	// TODO 详细分析
+	// 1、用于把PodBackoffQueue当中的pod元素放入到ActiveQ当中，当然，只有那些到了备份时间的Pod才会被放入到activeQ当中。由于PodBackoffQ
+	// 是以堆的数据结构存储元素，而且是按照Pod的备份时间进行排序，因此只需要从堆顶判断是否已经到了备份时间，如果堆顶Pod都没有到备份时间，
+	// 那么剩下的元素就不需要判断了。如果堆顶Pod到了备份时间，就把堆顶Pod弹出来放入到ActiveQ当中。同时，剩下的元素按照相同的逻辑进行判断。
+	// 2、检测PodBackoffQ中的Pod元素是否需要进行备份放到activeQ中，每秒钟检测一次
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
-	// TODO 详细分析
+	// 1、找到已经在UnschedulingPod缓存中待了超过五分钟的元素
+	// 2、依次遍历这些元素，然后进行以下判断：
+	// 2.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接提过这个元素。因为如果是因为其它原因造成
+	// 当前Pod无法调度，此时再去调度也无济于事，依然无法正常调度
+	// 2.2、如果当前Pod还没有过备份时间，那就把当前Pod加入到PodBackoffQ当中，然后删除UnschedulablePlugin中的对应元素
+	// 2.3、如果当前Pod已经过了备份时间，那就把当前Pod加入到ActiveQ当中，然后删除UnschedulablePlugin中的对应元素
 	go wait.Until(p.flushUnschedulablePodsLeftover, 30*time.Second, p.stop)
 }
 
@@ -461,25 +490,32 @@ func (p *PriorityQueue) flushBackoffQCompleted() {
 	defer p.lock.Unlock()
 	activated := false
 	for {
+		// 1、取出堆顶元素，注意，这里并没有弹出堆顶元素，只是拿出来看一眼
+		// 2、从这里可以推测处PodBackoffQ是根据Pod的backoff时间来进行排序的，时间越小越排在前面
 		rawPodInfo := p.podBackoffQ.Peek()
 		if rawPodInfo == nil {
 			break
 		}
 		pod := rawPodInfo.(*framework.QueuedPodInfo).Pod
 		boTime := p.getBackoffTime(rawPodInfo.(*framework.QueuedPodInfo))
+		// TODO 如果当前Pod还没有到该备份的时间，就直接跳出，因为堆顶Pod都不满足备份时间，那么其余pod更加不满足
 		if boTime.After(p.clock.Now()) {
 			break
 		}
+
+		// 如果当前Pod满足备份时间，那就从堆顶弹出来
 		_, err := p.podBackoffQ.Pop()
 		if err != nil {
 			klog.ErrorS(err, "Unable to pop pod from backoff queue despite backoff completion", "pod", klog.KObj(pod))
 			break
 		}
+		// 把当前元素放入到ActiveQ当中
 		p.activeQ.Add(rawPodInfo)
 		metrics.SchedulerQueueIncomingPods.WithLabelValues("active", BackoffComplete).Inc()
 		activated = true
 	}
 
+	// 只要PodBackoffQ中的其中一个元素到了备份时间被放入到ActiveQ当中，就需要通知所有之前因为active.Pop()操作阻塞的协程
 	if activated {
 		p.cond.Broadcast()
 	}
@@ -487,6 +523,12 @@ func (p *PriorityQueue) flushBackoffQCompleted() {
 
 // flushUnschedulablePodsLeftover moves pods which stay in unschedulablePods
 // longer than podMaxInUnschedulablePodsDuration to backoffQ or activeQ.
+// 1、找到已经在UnschedulingPod缓存中待了超过五分钟的元素
+// 2、依次遍历这些元素，然后进行以下判断：
+// 2.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接提过这个元素。因为如果是因为其它原因造成
+// 当前Pod无法调度，此时再去调度也无济于事，依然无法正常调度
+// 2.2、如果当前Pod还没有过备份时间，那就把当前Pod加入到PodBackoffQ当中，然后删除UnschedulablePlugin中的对应元素
+// 2.3、如果当前Pod已经过了备份时间，那就把当前Pod加入到ActiveQ当中，然后删除UnschedulablePlugin中的对应元素
 func (p *PriorityQueue) flushUnschedulablePodsLeftover() {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -495,6 +537,9 @@ func (p *PriorityQueue) flushUnschedulablePodsLeftover() {
 	currentTime := p.clock.Now()
 	for _, pInfo := range p.unschedulablePods.podInfoMap {
 		lastScheduleTime := pInfo.Timestamp
+		// 1、如果当前Pod已经在UnschedulablePods当中待了超过五分钟，那就把当前Pod移动到ActiveQ或者PodBackoffQ当中
+		// 2、podMaxInUnschedulablePodsDuration的默认时间为五分钟
+		// 3、这里为什么不删除UnschedulablePod中缓存的Pod?, 因为在movePodsToActiveOrBackoffQueue中删除了
 		if currentTime.Sub(lastScheduleTime) > p.podMaxInUnschedulablePodsDuration {
 			podsToMove = append(podsToMove, pInfo)
 		}
@@ -511,7 +556,7 @@ func (p *PriorityQueue) flushUnschedulablePodsLeftover() {
 func (p *PriorityQueue) Pop() (*framework.QueuedPodInfo, error) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	// 如果当前队列是空的，则色调用方
+	// 如果当前队列是空的，阻塞调用方
 	for p.activeQ.Len() == 0 {
 		// When the queue is empty, invocation of Pop() is blocked until new item is enqueued.
 		// When Close() is called, the p.closed is set and the condition is broadcast,
@@ -662,28 +707,35 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 		// Note: we don't run the check if pInfo.UnschedulablePlugins is nil, which denotes
 		// either there is some abnormal error, or scheduling the pod failed by plugins other than PreFilter, Filter and Permit.
 		// In that case, it's desired to move it anyways.
+		// TODO 这里是在判断什么？  猜测这里应该是判断当前Pod依然没有被调度的可能性，因此直接放弃调度这个Pod
 		if len(pInfo.UnschedulablePlugins) != 0 && !p.podMatchesEvent(pInfo, event) {
 			continue
 		}
 		pod := pInfo.Pod
 		if p.isPodBackingoff(pInfo) {
+			// 如果当前Pod还没有到备份时间，那么就把当前Pod加入到PodBackoff队列当中
 			if err := p.podBackoffQ.Add(pInfo); err != nil {
 				klog.ErrorS(err, "Error adding pod to the backoff queue", "pod", klog.KObj(pod))
 			} else {
 				metrics.SchedulerQueueIncomingPods.WithLabelValues("backoff", event.Label).Inc()
+				// 如果当前元素已经加入到了PodBackoffQ当中，就把这个元素从UnschedulablePods缓存中删除
 				p.unschedulablePods.delete(pod)
 			}
 		} else {
+			// 否则，当前Pod已经超过了备份时间，那就把这个元素直接丢到ActiveQ当中
 			if err := p.activeQ.Add(pInfo); err != nil {
 				klog.ErrorS(err, "Error adding pod to the scheduling queue", "pod", klog.KObj(pod))
 			} else {
 				activated = true
 				metrics.SchedulerQueueIncomingPods.WithLabelValues("active", event.Label).Inc()
+				// 如果当前元素已经加入到了ActiveQ当中，就把这个元素从UnschedulablePods缓存中删除
 				p.unschedulablePods.delete(pod)
 			}
 		}
 	}
+	// TODO 这里在干嘛？
 	p.moveRequestCycle = p.schedulingCycle
+	// 但凡有任何一个元素被加入到ActiveQ当中，就通知所有因为调用activeQ.Pop()方法阻塞的协程
 	if activated {
 		p.cond.Broadcast()
 	}

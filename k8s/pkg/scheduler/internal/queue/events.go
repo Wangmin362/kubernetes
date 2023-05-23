@@ -87,5 +87,6 @@ var (
 	// WildCardEvent semantically matches all resources on all actions.
 	WildCardEvent = framework.ClusterEvent{Resource: framework.WildCard, ActionType: framework.All, Label: "WildCardEvent"}
 	// UnschedulableTimeout is the event when a pod stays in unschedulable for longer than timeout.
+	// 当前Pod已经在UnschedulablePod缓存中待了超过五分钟了
 	UnschedulableTimeout = framework.ClusterEvent{Resource: framework.WildCard, ActionType: framework.All, Label: "UnschedulableTimeout"}
 )

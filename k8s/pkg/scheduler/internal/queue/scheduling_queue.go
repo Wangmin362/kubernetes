@@ -671,6 +671,8 @@ func (p *PriorityQueue) Delete(pod *v1.Pod) error {
 // may make pending pods with matching affinity terms schedulable.
 func (p *PriorityQueue) AssignedPodAdded(pod *v1.Pod) {
 	p.lock.Lock()
+	// 1、p.getUnschedulablePodsWithMatchingAffinityTerm(pod)用于找到和当前Pod具有亲和性的并且还没有调度的Pod
+	// 2、
 	p.movePodsToActiveOrBackoffQueue(p.getUnschedulablePodsWithMatchingAffinityTerm(pod), AssignedPodAdd)
 	p.lock.Unlock()
 }
@@ -744,8 +746,10 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 // getUnschedulablePodsWithMatchingAffinityTerm returns unschedulable pods which have
 // any affinity term that matches "pod".
 // NOTE: this function assumes lock has been acquired in caller.
+// 找到所有和当前pod具有亲和性的未调度的Pod
 func (p *PriorityQueue) getUnschedulablePodsWithMatchingAffinityTerm(pod *v1.Pod) []*framework.QueuedPodInfo {
 	var nsLabels labels.Set
+	// 获取当前Pod所在名称空间的标签
 	nsLabels = interpodaffinity.GetNamespaceLabelsSnapshot(pod.Namespace, p.nsLister)
 
 	var podsToMove []*framework.QueuedPodInfo

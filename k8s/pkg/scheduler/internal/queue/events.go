@@ -35,6 +35,7 @@ const (
 var (
 	// AssignedPodAdd is the event when a pod is added that causes pods with matching affinity terms
 	// to be more schedulable.
+	// TODO 如何理解这个时间？
 	AssignedPodAdd = framework.ClusterEvent{Resource: framework.Pod, ActionType: framework.Add, Label: "AssignedPodAdd"}
 	// NodeAdd is the event when a new node is added to the cluster.
 	NodeAdd = framework.ClusterEvent{Resource: framework.Node, ActionType: framework.Add, Label: "NodeAdd"}

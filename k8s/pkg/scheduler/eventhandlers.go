@@ -195,7 +195,7 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 		klog.ErrorS(err, "Scheduler cache AddPod failed", "pod", klog.KObj(pod))
 	}
 
-	// TODO 这里实在干嘛？
+	// TODO 这里是在干嘛？
 	sched.SchedulingQueue.AssignedPodAdded(pod)
 }
 

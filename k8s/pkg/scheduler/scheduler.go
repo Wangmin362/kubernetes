@@ -64,6 +64,8 @@ type Scheduler struct {
 	// It is expected that changes made via Cache will be observed
 	// by NodeLister and Algorithm.
 	// TODO 缓存的是啥？
+	// 1、Cache中缓存了已经调度的Pod
+	// 2、Cache中缓存了Node的信息，以及Node中每个Pod的亲和性、反亲和性、Node已经使用的端口、分配的资源以及请求的资源情况
 	Cache internalcache.Cache
 
 	Extenders []framework.Extender
@@ -86,6 +88,7 @@ type Scheduler struct {
 	StopEverything <-chan struct{}
 
 	// SchedulingQueue holds pods to be scheduled
+	// 1、SchedulingQueue当中缓存的Pod都是还没有调度的Pod?
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.

@@ -311,6 +311,7 @@ func getWeightedAffinityTerms(pod *v1.Pod, v1Terms []v1.WeightedPodAffinityTerm)
 // NewPodInfo returns a new PodInfo.
 func NewPodInfo(pod *v1.Pod) *PodInfo {
 	pInfo := &PodInfo{}
+	// TODO 设置各种亲和、反亲和、请求资源、使用资源信息
 	pInfo.Update(pod)
 	return pInfo
 }

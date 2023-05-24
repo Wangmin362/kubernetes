@@ -76,6 +76,7 @@ type cacheImpl struct {
 	nodes map[string]*nodeInfoListItem
 	// headNode points to the most recently updated NodeInfo in "nodes". It is the head of the linked list.
 	// 记录Node信息
+	// TODO 这个链表数据结构有啥用？
 	headNode *nodeInfoListItem
 	nodeTree *nodeTree
 	// A map from image name to its imageState.
@@ -168,6 +169,7 @@ func (cache *cacheImpl) removeNodeInfoFromList(name string) {
 		return
 	}
 
+	// 维护链表
 	if ni.prev != nil {
 		ni.prev.next = ni.next
 	}
@@ -175,9 +177,11 @@ func (cache *cacheImpl) removeNodeInfoFromList(name string) {
 		ni.next.prev = ni.prev
 	}
 	// if the removed item was at the head, we must update the head.
+	// 如果当前Node在链表头，直接把链表头指向下一个阶段
 	if ni == cache.headNode {
 		cache.headNode = ni.next
 	}
+	// 同时删除nodes中记录的当前node信息
 	delete(cache.nodes, name)
 }
 
@@ -448,23 +452,27 @@ func (cache *cacheImpl) ForgetPod(pod *v1.Pod) error {
 
 // Assumes that lock is already acquired.
 func (cache *cacheImpl) addPod(pod *v1.Pod, assumePod bool) error {
-	key, err := framework.GetPodKey(pod)
+	podUid, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
 	n, ok := cache.nodes[pod.Spec.NodeName]
 	if !ok {
+		// 如果当前Node不存在，就创建NodeInfo,然后缓存起来
 		n = newNodeInfoListItem(framework.NewNodeInfo())
 		cache.nodes[pod.Spec.NodeName] = n
 	}
+	// TODO 添加Pod,这里会涉及到亲和性相关的东西
 	n.info.AddPod(pod)
+	// 把当前Node移动到链表头
 	cache.moveNodeInfoToHead(pod.Spec.NodeName)
+	// 纪录PodState
 	ps := &podState{
 		pod: pod,
 	}
-	cache.podStates[key] = ps
+	cache.podStates[podUid] = ps
 	if assumePod {
-		cache.assumedPods.Insert(key)
+		cache.assumedPods.Insert(podUid)
 	}
 	return nil
 }
@@ -500,12 +508,15 @@ func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 			return err
 		}
 		if len(n.info.Pods) == 0 && n.info.Node() == nil {
+			// 如果Pod列表为空并且当前Node信息也是空的，那就移除当前Node列表
 			cache.removeNodeInfoFromList(pod.Spec.NodeName)
 		} else {
+			// TODO 这里为什么一定需要把node移动到链表头？
 			cache.moveNodeInfoToHead(pod.Spec.NodeName)
 		}
 	}
 
+	// 清空数据
 	delete(cache.podStates, key)
 	delete(cache.assumedPods, key)
 	return nil
@@ -529,6 +540,7 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 		if currState.pod.Spec.NodeName != pod.Spec.NodeName {
 			// The pod was added to a different node than it was assumed to.
 			klog.InfoS("Pod was added to a different node than it was assumed", "pod", klog.KObj(pod), "assumedNode", klog.KRef("", pod.Spec.NodeName), "currentNode", klog.KRef("", currState.pod.Spec.NodeName))
+			// 主要的目的是为了把currStatePod指向的Node.Pods删除自己，然后在pod所指向的新的Node.Pods列表中加入自己
 			if err = cache.updatePod(currState.pod, pod); err != nil {
 				klog.ErrorS(err, "Error occurred while updating pod")
 			}

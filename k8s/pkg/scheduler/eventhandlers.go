@@ -240,6 +240,7 @@ func (sched *Scheduler) deletePodFromCache(obj interface{}) {
 		klog.ErrorS(err, "Scheduler cache RemovePod failed", "pod", klog.KObj(pod))
 	}
 
+	// TODO 一旦删除一个Pod，就把所有未调度的Pod添加到ActiveQ或者BackoffQ当中
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.AssignedPodDelete, nil)
 }
 

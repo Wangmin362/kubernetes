@@ -68,7 +68,8 @@ type cacheImpl struct {
 	// 3、TODO 数据来源有？
 	assumedPods sets.String
 	// a map from pod key to podState.
-	// Key为Pod.UID
+	// Key为Pod.UID，value记录的是Pod状态：
+	// 1、所有已经真正调度了的Pod
 	podStates map[string]*podState
 	// TODO 为啥维护Node信息需要用这么复杂的数据结构，又是Map，又是链表，又是树
 	// 记录Node信息，其中记录的信息有：
@@ -462,14 +463,14 @@ func (cache *cacheImpl) addPod(pod *v1.Pod, assumePod bool) error {
 		n = newNodeInfoListItem(framework.NewNodeInfo())
 		cache.nodes[pod.Spec.NodeName] = n
 	}
-	// TODO 添加Pod,这里会涉及到亲和性相关的东西
+	// 把当前加入的Pod添加到NodeInfo.Pods当中，同时会维护NodeInfo的请求资源、亲和性、反亲和性、使用端口、PVC等等信息
 	n.info.AddPod(pod)
-	// 把当前Node移动到链表头
+	// 把当前Node移动到链表头 TODO 为什么每次Pod有变动的时候就会把当前Pod所在的Node移动到链表头？
 	cache.moveNodeInfoToHead(pod.Spec.NodeName)
-	// 纪录PodState
 	ps := &podState{
 		pod: pod,
 	}
+	// 记录PodState
 	cache.podStates[podUid] = ps
 	if assumePod {
 		cache.assumedPods.Insert(podUid)
@@ -545,13 +546,14 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 				klog.ErrorS(err, "Error occurred while updating pod")
 			}
 		} else {
-			// 如果相同
+			// 如果相同当初假设的assumedPod已经真正被调度到了Node上，那就删除assumedPods缓存记录
 			delete(cache.assumedPods, podUid)
 			cache.podStates[podUid].deadline = nil
 			cache.podStates[podUid].pod = pod
 		}
 	case !ok:
 		// Pod was expired. We should add it back.
+		// 把当前Pod添加到Cache的nodes[].NodeInfo当中，同时维护NodeInfo的资源使用情况、亲和、反亲和情况以及端口使用、PVC使用情况
 		if err = cache.addPod(pod, false); err != nil {
 			klog.ErrorS(err, "Error occurred while adding pod")
 		}
@@ -585,7 +587,7 @@ func (cache *cacheImpl) UpdatePod(oldPod, newPod *v1.Pod) error {
 }
 
 func (cache *cacheImpl) RemovePod(pod *v1.Pod) error {
-	key, err := framework.GetPodKey(pod)
+	podUid, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -593,9 +595,9 @@ func (cache *cacheImpl) RemovePod(pod *v1.Pod) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	currState, ok := cache.podStates[key]
+	currState, ok := cache.podStates[podUid]
 	if !ok {
-		return fmt.Errorf("pod %v is not found in scheduler cache, so cannot be removed from it", key)
+		return fmt.Errorf("pod %v is not found in scheduler cache, so cannot be removed from it", podUid)
 	}
 	if currState.pod.Spec.NodeName != pod.Spec.NodeName {
 		klog.ErrorS(nil, "Pod was added to a different node than it was assumed", "pod", klog.KObj(pod), "assumedNode", klog.KRef("", pod.Spec.NodeName), "currentNode", klog.KRef("", currState.pod.Spec.NodeName))

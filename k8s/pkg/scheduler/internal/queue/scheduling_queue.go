@@ -105,7 +105,7 @@ type SchedulingQueue interface {
 	// Update 1、当PodInformer监听到Pod更新时会调用这个API
 	Update(oldPod, newPod *v1.Pod) error
 	Delete(pod *v1.Pod) error
-	// MoveAllToActiveOrBackoffQueue TODO 这玩意干嘛的？
+	// MoveAllToActiveOrBackoffQueue 把所有还没有满足条件并且还没有调度的Pod移动到ActiveQ或者BackoffQ当中
 	MoveAllToActiveOrBackoffQueue(event framework.ClusterEvent, preCheck PreEnqueueCheck)
 	AssignedPodAdded(pod *v1.Pod)
 	AssignedPodUpdated(pod *v1.Pod)
@@ -672,7 +672,7 @@ func (p *PriorityQueue) Delete(pod *v1.Pod) error {
 func (p *PriorityQueue) AssignedPodAdded(pod *v1.Pod) {
 	p.lock.Lock()
 	// 1、p.getUnschedulablePodsWithMatchingAffinityTerm(pod)用于找到和当前Pod具有亲和性的并且还没有调度的Pod
-	// 2、
+	// 2、把这些还未调度的Pod移动到ActiveQ或者BackoffQ当中
 	p.movePodsToActiveOrBackoffQueue(p.getUnschedulablePodsWithMatchingAffinityTerm(pod), AssignedPodAdd)
 	p.lock.Unlock()
 }

@@ -382,11 +382,13 @@ type NodeInfo struct {
 
 	// Total requested resources of all pods on this node. This includes assumed
 	// pods, which scheduler has sent for binding, but may not be scheduled yet.
+	// 当前Node上所有Pod的所有容器的请求资源，包含了AssumedPod，也就是已经通过SchedulingCycle阶段但是还没有经过BindingCycle阶段的Pod
 	Requested *Resource
 	// Total requested resources of all pods on this node with a minimum value
 	// applied to each container's CPU and memory requests. This does not reflect
 	// the actual resource requests for this node, but is used to avoid scheduling
 	// many zero-request pods onto one node.
+	// TODO 这玩意干嘛的？
 	NonZeroRequested *Resource
 	// We store allocatedResources (which is Node.Status.Allocatable.*) explicitly
 	// as int64, to avoid conversions and accessing map.
@@ -423,6 +425,7 @@ type Resource struct {
 	// explicitly as int, to avoid conversions and improve performance.
 	AllowedPodNumber int
 	// ScalarResources
+	// TODO 这玩意是拿来干嘛的？
 	ScalarResources map[v1.ResourceName]int64
 }
 
@@ -587,7 +590,9 @@ func (n *NodeInfo) String() string {
 // AddPodInfo adds pod information to this NodeInfo.
 // Consider using this instead of AddPod if a PodInfo is already computed.
 func (n *NodeInfo) AddPodInfo(podInfo *PodInfo) {
+	// 计算Pod中所有容器的请求资源（也就是Resource.Request）
 	res, non0CPU, non0Mem := calculateResource(podInfo.Pod)
+	// Node所请求的资源增加当前Pod所请求的资源
 	n.Requested.MilliCPU += res.MilliCPU
 	n.Requested.Memory += res.Memory
 	n.Requested.EphemeralStorage += res.EphemeralStorage
@@ -600,15 +605,19 @@ func (n *NodeInfo) AddPodInfo(podInfo *PodInfo) {
 	n.NonZeroRequested.MilliCPU += non0CPU
 	n.NonZeroRequested.Memory += non0Mem
 	n.Pods = append(n.Pods, podInfo)
+	// 维护PodAffinity信息
 	if podWithAffinity(podInfo.Pod) {
 		n.PodsWithAffinity = append(n.PodsWithAffinity, podInfo)
 	}
+	// 维护PodAntAffinity信息
 	if podWithRequiredAntiAffinity(podInfo.Pod) {
 		n.PodsWithRequiredAntiAffinity = append(n.PodsWithRequiredAntiAffinity, podInfo)
 	}
 
 	// Consume ports when pods added.
+	// 更新当前Pod所使用的端口信息
 	n.updateUsedPorts(podInfo.Pod, true)
+	// 更新当前Pod所使用的PVC信息
 	n.updatePVCRefCounts(podInfo.Pod, true)
 
 	n.Generation = nextGeneration()

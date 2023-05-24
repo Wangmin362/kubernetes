@@ -190,7 +190,7 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 	}
 	klog.V(3).InfoS("Add event for scheduled pod", "pod", klog.KObj(pod))
 
-	// 把当前Pod加入到缓存当中
+	// 把当前已经调度好的Pod加入到缓存当中
 	if err := sched.Cache.AddPod(pod); err != nil {
 		klog.ErrorS(err, "Scheduler cache AddPod failed", "pod", klog.KObj(pod))
 	}

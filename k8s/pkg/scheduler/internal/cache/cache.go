@@ -68,9 +68,11 @@ type cacheImpl struct {
 	// 3、TODO 数据来源有？
 	assumedPods sets.String
 	// a map from pod key to podState.
-	// Key为Pod UID
+	// Key为Pod.UID
 	podStates map[string]*podState
-	// 记录Node信息  TODO 为啥维护Node信息需要用这么复杂的数据结构，又是Map，又是链表，又是树
+	// TODO 为啥维护Node信息需要用这么复杂的数据结构，又是Map，又是链表，又是树
+	// 记录Node信息，其中记录的信息有：
+	// 1、每个Node上面运行的Pod有哪些
 	nodes map[string]*nodeInfoListItem
 	// headNode points to the most recently updated NodeInfo in "nodes". It is the head of the linked list.
 	// 记录Node信息
@@ -469,9 +471,11 @@ func (cache *cacheImpl) addPod(pod *v1.Pod, assumePod bool) error {
 
 // Assumes that lock is already acquired.
 func (cache *cacheImpl) updatePod(oldPod, newPod *v1.Pod) error {
+	// 移除掉老的Pod，实际上是移除掉oldPod指向的Node上的Pod列表，因为这个pod已经调度到了新的Node之上
 	if err := cache.removePod(oldPod); err != nil {
 		return err
 	}
+	// 把newPod加入到Node.Pods列表当中
 	return cache.addPod(newPod, false)
 }
 
@@ -480,15 +484,18 @@ func (cache *cacheImpl) updatePod(oldPod, newPod *v1.Pod) error {
 // removed and there are no more pods left in the node, cleans up the node from
 // the cache.
 func (cache *cacheImpl) removePod(pod *v1.Pod) error {
+	// 获取POD.UID
 	key, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
 
+	// 获取到当前pod指向的Node资源
 	n, ok := cache.nodes[pod.Spec.NodeName]
 	if !ok {
 		klog.ErrorS(nil, "Node not found when trying to remove pod", "node", klog.KRef("", pod.Spec.NodeName), "pod", klog.KObj(pod))
 	} else {
+		// TODO 从当前Node.Pods列表当中移除掉Pod
 		if err := n.info.RemovePod(pod); err != nil {
 			return err
 		}
@@ -506,7 +513,7 @@ func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 
 func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 	// 获取当前Pod的唯一Key,实际上就是Pod的UID
-	key, err := framework.GetPodKey(pod)
+	podUid, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -514,9 +521,11 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	currState, ok := cache.podStates[key]
+	currState, ok := cache.podStates[podUid]
 	switch {
-	case ok && cache.assumedPods.Has(key):
+	// 如果当前Pod能够在podStates当中找到，并且当前Pod在KubeScheduler当中被认为是一个AssumedPod
+	case ok && cache.assumedPods.Has(podUid):
+		// 如果当前Pod希望被调度的Node和实际调度上去的Node不同，那么需要更新Cache
 		if currState.pod.Spec.NodeName != pod.Spec.NodeName {
 			// The pod was added to a different node than it was assumed to.
 			klog.InfoS("Pod was added to a different node than it was assumed", "pod", klog.KObj(pod), "assumedNode", klog.KRef("", pod.Spec.NodeName), "currentNode", klog.KRef("", currState.pod.Spec.NodeName))
@@ -524,9 +533,10 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 				klog.ErrorS(err, "Error occurred while updating pod")
 			}
 		} else {
-			delete(cache.assumedPods, key)
-			cache.podStates[key].deadline = nil
-			cache.podStates[key].pod = pod
+			// 如果相同
+			delete(cache.assumedPods, podUid)
+			cache.podStates[podUid].deadline = nil
+			cache.podStates[podUid].pod = pod
 		}
 	case !ok:
 		// Pod was expired. We should add it back.
@@ -534,7 +544,7 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 			klog.ErrorS(err, "Error occurred while adding pod")
 		}
 	default:
-		return fmt.Errorf("pod %v was already in added state", key)
+		return fmt.Errorf("pod %v was already in added state", podUid)
 	}
 	return nil
 }

@@ -67,7 +67,8 @@ func (sched *Scheduler) addNodeToCache(obj interface{}) {
 
 	nodeInfo := sched.Cache.AddNode(node)
 	klog.V(3).InfoS("Add event for node", "node", klog.KObj(node))
-	// TODO Node新加入的事件
+	// 因为有新的Node加入K8S集群，那写以前没有调度成功的Pod现在可能调度成功了，因需要把UnschedulableQ以及BackoffQ中的所有Pod都
+	// 放到ActiveQ当中，给这些Pod一次调度的机会
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.NodeAdd, preCheckForNode(nodeInfo))
 }
 
@@ -85,6 +86,7 @@ func (sched *Scheduler) updateNodeInCache(oldObj, newObj interface{}) {
 
 	nodeInfo := sched.Cache.UpdateNode(oldNode, newNode)
 	// Only requeue unschedulable pods if the node became more schedulable.
+	// TODO 仔细分析
 	if event := nodeSchedulingPropertiesChange(newNode, oldNode); event != nil {
 		sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(*event, preCheckForNode(nodeInfo))
 	}
@@ -263,7 +265,7 @@ func addAllEventHandlers(
 	gvkMap map[framework.GVK]framework.ActionType,
 ) {
 	// scheduled pod cache
-	// 加入到Cache当中
+	// 维护Cache中的podStates，并且随着Pod的增删改查，Node信息也是需要进行维护的
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -295,7 +297,7 @@ func addAllEventHandlers(
 		},
 	)
 	// unscheduled pod queue
-	// 加入到PriorityQueue当中
+	// 对于还没有调度的Pod,这些Pod的增删改查是需要添加到SchedulerQueue当中（实际上就是PriorityQueue）
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {
@@ -329,9 +331,9 @@ func addAllEventHandlers(
 	// TODO 维护Cache当中的Node信息,其中的维护动作有点复杂，Node信息居然有map, linkedlist, tree三种数据结构来维护
 	informerFactory.Core().V1().Nodes().Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    sched.addNodeToCache,
-			UpdateFunc: sched.updateNodeInCache,
-			DeleteFunc: sched.deleteNodeFromCache,
+			AddFunc:    sched.addNodeToCache,      // TODO 仔细分析
+			UpdateFunc: sched.updateNodeInCache,   //  TODO 仔细分析
+			DeleteFunc: sched.deleteNodeFromCache, //  TODO 仔细分析
 		},
 	)
 
@@ -441,6 +443,7 @@ func addAllEventHandlers(
 	}
 }
 
+// TODO 仔细分析
 func nodeSchedulingPropertiesChange(newNode *v1.Node, oldNode *v1.Node) *framework.ClusterEvent {
 	if nodeSpecUnschedulableChanged(newNode, oldNode) {
 		return &queue.NodeSpecUnschedulableChange

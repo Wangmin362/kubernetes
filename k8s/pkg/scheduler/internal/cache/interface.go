@@ -95,10 +95,11 @@ type Cache interface {
 	AddPod(pod *v1.Pod) error
 
 	// UpdatePod removes oldPod's information and adds newPod's information.
+	// 更新Cache中的已经调度过的Pod
 	UpdatePod(oldPod, newPod *v1.Pod) error
 
 	// RemovePod removes a pod. The pod's information would be subtracted from assigned node.
-	// 从Cache移除Pod
+	// 从Cache移除已经调度的Pod，这个操作会维护NodeInfo信息，因为当前Node删除了Pod，那么对应的资源、亲和性、反亲和性都需要维护
 	RemovePod(pod *v1.Pod) error
 
 	// GetPod returns the pod from the cache with the same namespace and the

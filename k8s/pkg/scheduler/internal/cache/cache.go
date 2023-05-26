@@ -494,7 +494,7 @@ func (cache *cacheImpl) updatePod(oldPod, newPod *v1.Pod) error {
 // the cache.
 func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 	// 获取POD.UID
-	key, err := framework.GetPodKey(pod)
+	podUid, err := framework.GetPodKey(pod)
 	if err != nil {
 		return err
 	}
@@ -518,8 +518,8 @@ func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 	}
 
 	// 清空数据
-	delete(cache.podStates, key)
-	delete(cache.assumedPods, key)
+	delete(cache.podStates, podUid)
+	delete(cache.assumedPods, podUid)
 	return nil
 }
 
@@ -564,7 +564,7 @@ func (cache *cacheImpl) AddPod(pod *v1.Pod) error {
 }
 
 func (cache *cacheImpl) UpdatePod(oldPod, newPod *v1.Pod) error {
-	key, err := framework.GetPodKey(oldPod)
+	podUid, err := framework.GetPodKey(oldPod)
 	if err != nil {
 		return err
 	}
@@ -572,10 +572,13 @@ func (cache *cacheImpl) UpdatePod(oldPod, newPod *v1.Pod) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
-	currState, ok := cache.podStates[key]
+	// 获取到Cache中已经缓存的调度Pod
+	currState, ok := cache.podStates[podUid]
 	// An assumed pod won't have Update/Remove event. It needs to have Add event
 	// before Update event, in which case the state would change from Assumed to Added.
-	if ok && !cache.assumedPods.Has(key) {
+	// 如果获取到了，并且当前Pod并不是AssumedPod,就更新这个Pod
+	if ok && !cache.assumedPods.Has(podUid) {
+		// Pod一旦被调度完成，就不能手动更改Pod所在的Node
 		if currState.pod.Spec.NodeName != newPod.Spec.NodeName {
 			klog.ErrorS(nil, "Pod updated on a different node than previously added to", "pod", klog.KObj(oldPod))
 			klog.ErrorS(nil, "scheduler cache is corrupted and can badly affect scheduling decisions")
@@ -583,7 +586,7 @@ func (cache *cacheImpl) UpdatePod(oldPod, newPod *v1.Pod) error {
 		}
 		return cache.updatePod(oldPod, newPod)
 	}
-	return fmt.Errorf("pod %v is not added to scheduler cache, so cannot be updated", key)
+	return fmt.Errorf("pod %v is not added to scheduler cache, so cannot be updated", podUid)
 }
 
 func (cache *cacheImpl) RemovePod(pod *v1.Pod) error {
@@ -595,12 +598,16 @@ func (cache *cacheImpl) RemovePod(pod *v1.Pod) error {
 	cache.mu.Lock()
 	defer cache.mu.Unlock()
 
+	// 从Cache中获取到已经调度的Pod
 	currState, ok := cache.podStates[podUid]
 	if !ok {
+		// 如果不存在，肯定无法删除
 		return fmt.Errorf("pod %v is not found in scheduler cache, so cannot be removed from it", podUid)
 	}
+	// 如果缓存中记录的Pod所在Node节点和当前Pod所在Node节点不一致
 	if currState.pod.Spec.NodeName != pod.Spec.NodeName {
 		klog.ErrorS(nil, "Pod was added to a different node than it was assumed", "pod", klog.KObj(pod), "assumedNode", klog.KRef("", pod.Spec.NodeName), "currentNode", klog.KRef("", currState.pod.Spec.NodeName))
+		// 并且当前Pod的Node不为空，那一定是调度器除了问题，这里直接退出程序
 		if pod.Spec.NodeName != "" {
 			// An empty NodeName is possible when the scheduler misses a Delete
 			// event and it gets the last known state from the informer cache.
@@ -608,6 +615,7 @@ func (cache *cacheImpl) RemovePod(pod *v1.Pod) error {
 			os.Exit(1)
 		}
 	}
+	// 从Cache中移除Pod，并且维护该Pod所在Node的NodeInfo相关信息
 	return cache.removePod(currState.pod)
 }
 

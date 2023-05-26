@@ -103,6 +103,7 @@ type QueuedPodInfo struct {
 	// back to the queue multiple times before it's successfully scheduled.
 	// It shouldn't be updated once initialized. It's used to record the e2e scheduling
 	// latency for a pod.
+	// TODO 这玩意干嘛的？
 	InitialAttemptTimestamp time.Time
 	// If a Pod failed in a scheduling cycle, record the plugin names it failed by.
 	// 一个Pod调度失败的时候，这个Pod调度失败是由于那个插件导致的？

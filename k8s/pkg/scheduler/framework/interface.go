@@ -606,6 +606,7 @@ type Handle interface {
 
 	// RejectWaitingPod rejects a waiting pod given its UID.
 	// The return value indicates if the pod is waiting or not.
+	// TODO 这玩意干嘛的？
 	RejectWaitingPod(uid types.UID) bool
 
 	// ClientSet returns a kubernetes clientSet.
@@ -706,7 +707,7 @@ type PodNominator interface {
 	// 1、不管Nominator之前有没有保存过当前Pod的提名信息，都先删除当前Pod在Nominator中的提名信息（如果没有就啥也不干）
 	// 2、通过podList查询当前Pod，如果发现当前Pod已经被调度到了某个Node之上，就直接退出（判断依据是Spec.NodeName非空）
 	// 3、保存此Pod的提名信息到Nominator当中
-	// 4、TODO 为什么我看许多地方nominatingInfo都是nil?  难道不会panic么？
+	// 4、TODO 为什么我看许多地方nominatingInfo都是nil?  难道不会panic么？ 实际上并不会，因为有处理nil的逻辑
 	AddNominatedPod(pod *PodInfo, nominatingInfo *NominatingInfo)
 	// DeleteNominatedPodIfExists deletes nominatedPod from internal cache. It's a no-op if it doesn't exist.
 	// 从Nominator中删除当前Pod的提名信息，如果当前Pod在Nominator当中并没有提名信息，就啥也不干

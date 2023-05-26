@@ -107,7 +107,9 @@ type SchedulingQueue interface {
 	Delete(pod *v1.Pod) error
 	// MoveAllToActiveOrBackoffQueue 把所有还没有满足条件并且还没有调度的Pod移动到ActiveQ或者BackoffQ当中
 	MoveAllToActiveOrBackoffQueue(event framework.ClusterEvent, preCheck PreEnqueueCheck)
+	// AssignedPodAdded TODO 有啥作用？
 	AssignedPodAdded(pod *v1.Pod)
+	// AssignedPodUpdated TODO 这里又在干嘛？
 	AssignedPodUpdated(pod *v1.Pod)
 	PendingPods() []*v1.Pod
 	// Close closes the SchedulingQueue so that the goroutine which is
@@ -350,25 +352,27 @@ func (p *PriorityQueue) Run() {
 func (p *PriorityQueue) Add(pod *v1.Pod) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
-	// TODO 把当前Pod包装为PodInfo类型
+	// 把当前Pod包装为PodInfo类型,其中涉及到Pod的亲和性、反亲和性、资源分配的维护
 	pInfo := p.newQueuedPodInfo(pod)
-	// 把当前元素添加到ActiveQueue当中
+	// 一个Pod若还没有被调度并且是刚刚添加，那么立马把这个Pod放入到ActiveQ当中，给它一次调度的机会
 	if err := p.activeQ.Add(pInfo); err != nil {
 		klog.ErrorS(err, "Error adding pod to the active queue", "pod", klog.KObj(pod))
 		return err
 	}
+	// 如果PriorityQueued.unschedulablePod中存在这个Pod,那么立马删除这个Pod，因为已经添加到了ActiveQ当中
 	if p.unschedulablePods.get(pod) != nil {
 		klog.ErrorS(nil, "Error: pod is already in the unschedulable queue", "pod", klog.KObj(pod))
 		p.unschedulablePods.delete(pod)
 	}
 	// Delete pod from backoffQ if it is backing off
+	// 删除PriorityQueue中的PodBackoffQ中的元素
 	if err := p.podBackoffQ.Delete(pInfo); err == nil {
 		klog.ErrorS(nil, "Error: pod is already in the podBackoff queue", "pod", klog.KObj(pod))
 	}
 	metrics.SchedulerQueueIncomingPods.WithLabelValues("active", PodAdd).Inc()
 	// TODO 这里在干嘛？
 	p.PodNominator.AddNominatedPod(pInfo.PodInfo, nil)
-	// 通知所有调用Pop被阻塞的协程，有新的元素进来了
+	// 通知所有调用Pop被阻塞的协程，有新的Pod进来了
 	p.cond.Broadcast()
 
 	return nil
@@ -956,9 +960,11 @@ func (npm *nominator) add(pi *framework.PodInfo, nominatingInfo *framework.Nomin
 
 	var nodeName string
 	// TOdO 通过不同的提名模式，获取到当前Pod的提名Node
+	// 如果NominationInfo为nil,那么提名模式就是ModeNoop
 	if nominatingInfo.Mode() == framework.ModeOverride {
 		nodeName = nominatingInfo.NominatedNodeName
 	} else if nominatingInfo.Mode() == framework.ModeNoop {
+		// TODO NominatedNodeName有啥用？
 		if pi.Pod.Status.NominatedNodeName == "" {
 			return
 		}
@@ -967,7 +973,7 @@ func (npm *nominator) add(pi *framework.PodInfo, nominatingInfo *framework.Nomin
 
 	if npm.podLister != nil {
 		// If the pod was removed or if it was already scheduled, don't nominate it.
-		// 查询当前的Pod
+		// 从Informer当中查询当前的Pod
 		updatedPod, err := npm.podLister.Pods(pi.Pod.Namespace).Get(pi.Pod.Name)
 		if err != nil {
 			klog.V(4).InfoS("Pod doesn't exist in podLister, aborted adding it to the nominator", "pod", klog.KObj(pi.Pod))

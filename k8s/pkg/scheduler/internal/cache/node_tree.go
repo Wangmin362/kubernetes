@@ -50,6 +50,7 @@ func newNodeTree(nodes []*v1.Node) *nodeTree {
 // addNode adds a node and its corresponding zone to the tree. If the zone already exists, the node
 // is added to the array of nodes in that zone.
 func (nt *nodeTree) addNode(n *v1.Node) {
+	// TODO 如何理解这里的Zone信息？
 	zone := utilnode.GetZoneKey(n)
 	if na, ok := nt.tree[zone]; ok {
 		for _, nodeName := range na {

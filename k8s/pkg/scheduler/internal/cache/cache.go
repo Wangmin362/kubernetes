@@ -69,7 +69,13 @@ type cacheImpl struct {
 	assumedPods sets.String
 	// a map from pod key to podState.
 	// Key为Pod.UID，value记录的是Pod状态：
-	// 1、所有已经真正调度了的Pod
+	// 1、所有已经真正调度了的Pod（通过监听PodInformer来实现）
+	// 2、所有已经通过SchedulingCycle阶段，但是还没有完成BindingCycle阶段的Pod（通过assume操作来实现），这种类型的Pod也称之为AssumedPod
+	// 2.1、之所以需要AssumedPod,是因为一个Pod如果已经通过SchedulingCycle阶段，找到了那个合适的Node去部署当前Pod。但是实际上还没有经过
+	// BindingCycle真正绑定到该Node上。此时为了能够真正的把当前Pod绑定到已经分配好的Node之上，我们必须要假定当前Node已经成功部署了这个Pod，
+	// 因为我们必须要把这个还没有真正绑定的Pod所需要的资源留出来，包括内存、CPU资源、亲和性、反亲和性等等。这样才能保证调度其它Pod的时候考虑到了
+	// 当前还没有真正绑定的Pod。同时，这样的假设才能让KubeScheduler的性能发挥到最高，否则，如果不进行假设，KubeScheduler在一个Pod完成调度之
+	// 时必须要等待这个Pod完成BindingCycle阶段才能继续调度下一个Pod
 	podStates map[string]*podState
 	// TODO 为啥维护Node信息需要用这么复杂的数据结构，又是Map，又是链表，又是树
 	// 记录Node信息，其中记录的信息有：
@@ -504,7 +510,7 @@ func (cache *cacheImpl) removePod(pod *v1.Pod) error {
 	if !ok {
 		klog.ErrorS(nil, "Node not found when trying to remove pod", "node", klog.KRef("", pod.Spec.NodeName), "pod", klog.KObj(pod))
 	} else {
-		// TODO 从当前Node.Pods列表当中移除掉Pod
+		// TODO 从当前Node.Pods列表当中移除掉Pod，移除的时候会涉及到Node上的亲和性、反亲和性、资源的更新
 		if err := n.info.RemovePod(pod); err != nil {
 			return err
 		}
@@ -584,6 +590,7 @@ func (cache *cacheImpl) UpdatePod(oldPod, newPod *v1.Pod) error {
 			klog.ErrorS(nil, "scheduler cache is corrupted and can badly affect scheduling decisions")
 			os.Exit(1)
 		}
+		// 先移除掉Cache中的oldPod记录，然后再把newPod添加进来
 		return cache.updatePod(oldPod, newPod)
 	}
 	return fmt.Errorf("pod %v is not added to scheduler cache, so cannot be updated", podUid)

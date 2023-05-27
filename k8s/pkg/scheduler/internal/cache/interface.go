@@ -91,7 +91,14 @@ type Cache interface {
 
 	// AddPod either confirms a pod if it's assumed, or adds it back if it's expired.
 	// If added back, the pod's information would be added again.
-	// TODO ?
+	// 把Pod添加到Cache当中记录下来，这里添加的Pod主要有两种类型的Pod,分别如下：
+	// 1、所有已经真正调度了的Pod（通过监听PodInformer来实现）
+	// 2、所有已经通过SchedulingCycle阶段，但是还没有完成BindingCycle阶段的Pod（通过assume操作来实现），这种类型的Pod也称之为AssumedPod
+	// 2.1、之所以需要AssumedPod,是因为一个Pod如果已经通过SchedulingCycle阶段，找到了那个合适的Node去部署当前Pod。但是实际上还没有经过
+	// BindingCycle真正绑定到该Node上。此时为了能够真正的把当前Pod绑定到已经分配好的Node之上，我们必须要假定当前Node已经成功部署了这个Pod，
+	// 因为我们必须要把这个还没有真正绑定的Pod所需要的资源留出来，包括内存、CPU资源、亲和性、反亲和性等等。这样才能保证调度其它Pod的时候考虑到了
+	// 当前还没有真正绑定的Pod。同时，这样的假设才能让KubeScheduler的性能发挥到最高，否则，如果不进行假设，KubeScheduler在一个Pod完成调度之
+	// 时必须要等待这个Pod完成BindingCycle阶段才能继续调度下一个Pod
 	AddPod(pod *v1.Pod) error
 
 	// UpdatePod removes oldPod's information and adds newPod's information.

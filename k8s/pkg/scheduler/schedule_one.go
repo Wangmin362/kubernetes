@@ -152,13 +152,12 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	// 1、所谓的AssumedPod，指的是那些已经通过SchedulingCycle阶段，已经成功的为当前待调度的Pod找到了一个合适的节点，但是还没有把当前待调度
 	// 的Pod绑定到那个节点上
 	// 2、如果此时KubeScheduler等待当前待调度的Pod成功绑定到节点行，那么势必会影响Pod调度。所以K8S设计者们假定当前Pod已经成功调度到了真正
-	// 的节点上，并在Cache当中记录下来。TODO 猜测这样做的目的在于Pod如果真的绑定到了Node之上，是需要占用资源的。因此这里假定Pod已经被成功调度，
+	// 的节点上，并在Cache当中记录下来。 这样做的目的在于Pod如果真的绑定到了Node之上，是需要占用资源的。因此这里假定Pod已经被成功调度，
 	// TODO 同时，在后续Pod需要调度的时候把当前AssumedPod所占用的资源剔除掉。 如果这个AssumedPod在BindingCycle阶段出现错误怎么办？
 	assumedPodInfo := podInfo.DeepCopy()
 	assumedPod := assumedPodInfo.Pod
-	// TODO 什么叫做AssumedPod?
-	// assume modifies `assumedPod` by setting NodeName=scheduleResult.SuggestedHost
-	// 假定当前Pod已经成功调度到了Node之上
+	// 所谓的Assume，实际上就是已经通过SchedulingCycle阶段但是还没有完成BindingCycle阶段的Pod。这样的假设是为了能够让KubeScheduler调度
+	// 的效率更快。
 	err = sched.assume(assumedPod, scheduleResult.SuggestedHost)
 	if err != nil {
 		metrics.PodScheduleError(fwk.ProfileName(), metrics.SinceInSeconds(start))

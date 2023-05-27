@@ -107,9 +107,16 @@ type SchedulingQueue interface {
 	Delete(pod *v1.Pod) error
 	// MoveAllToActiveOrBackoffQueue 把所有还没有满足条件并且还没有调度的Pod移动到ActiveQ或者BackoffQ当中
 	MoveAllToActiveOrBackoffQueue(event framework.ClusterEvent, preCheck PreEnqueueCheck)
-	// AssignedPodAdded TODO 有啥作用？
+	// AssignedPodAdded 1、AssignedPodAdded用于当KubeScheduler通过PodInformer监听到了一个Pod已经完成了调度。此时，需要把一些和
+	// 当前Pod具有相同亲和性并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 2、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的加入，之前因为亲和性调度失败的的Pod就能完成调度。
+	// 3、这样设计的好处就是增加了因为亲和性导致调度失败的Pod的调度成功率
 	AssignedPodAdded(pod *v1.Pod)
-	// AssignedPodUpdated TODO 这里又在干嘛？
+	// AssignedPodUpdated 1、AssignedPodUpdated是用于当KubeScheduler通过PodInformer监听到一个已经完成调度的Pod发生了变更。此时，
+	// 需要把一些和当前Pod具有相同亲和性并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 2、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod发生了变更，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的变更，之前因为亲和性调度失败的的Pod就能完成调度。
 	AssignedPodUpdated(pod *v1.Pod)
 	PendingPods() []*v1.Pod
 	// Close closes the SchedulingQueue so that the goroutine which is
@@ -677,6 +684,10 @@ func (p *PriorityQueue) AssignedPodAdded(pod *v1.Pod) {
 	p.lock.Lock()
 	// 1、p.getUnschedulablePodsWithMatchingAffinityTerm(pod)用于找到和当前Pod具有亲和性的并且还没有调度的Pod
 	// 2、把这些还未调度的Pod移动到ActiveQ或者BackoffQ当中
+	// 3、AssignedPodAdd事件是用于当KubeScheduler通过PodInformer监听到了一个Pod已经完成了调度。此时，需要把一些和当前Pod具有相同亲和性
+	// 并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 4、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的加入，之前因为亲和性调度失败的的Pod就能完成调度。
 	p.movePodsToActiveOrBackoffQueue(p.getUnschedulablePodsWithMatchingAffinityTerm(pod), AssignedPodAdd)
 	p.lock.Unlock()
 }
@@ -714,6 +725,8 @@ func (p *PriorityQueue) movePodsToActiveOrBackoffQueue(podInfoList []*framework.
 		// either there is some abnormal error, or scheduling the pod failed by plugins other than PreFilter, Filter and Permit.
 		// In that case, it's desired to move it anyways.
 		// TODO 这里是在判断什么？  猜测这里应该是判断当前Pod依然没有被调度的可能性，因此直接放弃调度这个Pod
+		// 1、如果当前Pod是因为调度插件导致失败的，并且Pod没有匹配到event，就直接退出。因为即使把这个Pod放入到activeQ中，这个pod依然会调度不成功
+		// 2、实际上这里的event可以理解为是pod调度失败的原因，那么只有当这个原因出现的时候，pod放入到activeQ中才有可能被调度
 		if len(pInfo.UnschedulablePlugins) != 0 && !p.podMatchesEvent(pInfo, event) {
 			continue
 		}

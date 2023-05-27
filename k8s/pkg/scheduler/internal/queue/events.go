@@ -35,7 +35,10 @@ const (
 var (
 	// AssignedPodAdd is the event when a pod is added that causes pods with matching affinity terms
 	// to be more schedulable.
-	// TODO 如何理解这个时间？
+	// 1、AssignedPodAdd事件是用于当KubeScheduler通过PodInformer监听到了一个Pod已经完成了调度。此时，需要把一些和当前Pod具有相同亲和性
+	// 并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 2、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的加入，之前因为亲和性调度失败的的Pod就能完成调度。
 	AssignedPodAdd = framework.ClusterEvent{Resource: framework.Pod, ActionType: framework.Add, Label: "AssignedPodAdd"}
 	// NodeAdd is the event when a new node is added to the cluster.
 	NodeAdd = framework.ClusterEvent{Resource: framework.Node, ActionType: framework.Add, Label: "NodeAdd"}

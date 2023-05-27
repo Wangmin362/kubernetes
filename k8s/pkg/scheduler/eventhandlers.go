@@ -192,12 +192,23 @@ func (sched *Scheduler) addPodToCache(obj interface{}) {
 	}
 	klog.V(3).InfoS("Add event for scheduled pod", "pod", klog.KObj(pod))
 
-	// 把当前已经调度好的Pod加入到缓存当中
+	// 把Pod添加到Cache当中记录下来，这里添加的Pod主要有两种类型的Pod,分别如下：
+	// 1、所有已经真正调度了的Pod（通过监听PodInformer来实现）
+	// 2、所有已经通过SchedulingCycle阶段，但是还没有完成BindingCycle阶段的Pod（通过assume操作来实现），这种类型的Pod也称之为AssumedPod
+	// 2.1、之所以需要AssumedPod,是因为一个Pod如果已经通过SchedulingCycle阶段，找到了那个合适的Node去部署当前Pod。但是实际上还没有经过
+	// BindingCycle真正绑定到该Node上。此时为了能够真正的把当前Pod绑定到已经分配好的Node之上，我们必须要假定当前Node已经成功部署了这个Pod，
+	// 因为我们必须要把这个还没有真正绑定的Pod所需要的资源留出来，包括内存、CPU资源、亲和性、反亲和性等等。这样才能保证调度其它Pod的时候考虑到了
+	// 当前还没有真正绑定的Pod。同时，这样的假设才能让KubeScheduler的性能发挥到最高，否则，如果不进行假设，KubeScheduler在一个Pod完成调度之
+	// 时必须要等待这个Pod完成BindingCycle阶段才能继续调度下一个Pod
 	if err := sched.Cache.AddPod(pod); err != nil {
 		klog.ErrorS(err, "Scheduler cache AddPod failed", "pod", klog.KObj(pod))
 	}
 
-	// TODO 这里是在干嘛？
+	// 1、AssignedPodAdded用于当KubeScheduler通过PodInformer监听到了一个Pod已经完成了调度。此时，需要把一些和当前Pod具有相同亲和性
+	// 并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 2、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的加入，之前因为亲和性调度失败的的Pod就能完成调度。
+	// 3、这样设计的好处就是增加了因为亲和性导致调度失败的Pod的调度成功率
 	sched.SchedulingQueue.AssignedPodAdded(pod)
 }
 
@@ -214,10 +225,15 @@ func (sched *Scheduler) updatePodInCache(oldObj, newObj interface{}) {
 	}
 	klog.V(4).InfoS("Update event for scheduled pod", "pod", klog.KObj(oldPod))
 
+	// 更新Cache中的Pod信息
 	if err := sched.Cache.UpdatePod(oldPod, newPod); err != nil {
 		klog.ErrorS(err, "Scheduler cache UpdatePod failed", "pod", klog.KObj(oldPod))
 	}
 
+	// 1、AssignedPodUpdated是用于当KubeScheduler通过PodInformer监听到一个已经完成调度的Pod发生了变更。此时，需要把一些和当前Pod具有
+	// 相同亲和性并且还没有成功调度的Pod加入到ActiveQ或者BackoffQ当中。
+	// 2、之所以需要这么设计的原因是因为：有些Pod因为亲和性的原因没有找到合适的Node从而导致调度失败，如果此时KubeScheduler发现了一个已经成功
+	// 调度的Pod发生了变更，那肯定需要给那些因为相同的亲和性导致调度失败的Pod。说不定由于这个Pod的变更，之前因为亲和性调度失败的的Pod就能完成调度。
 	sched.SchedulingQueue.AssignedPodUpdated(newPod)
 }
 
@@ -238,11 +254,13 @@ func (sched *Scheduler) deletePodFromCache(obj interface{}) {
 		return
 	}
 	klog.V(3).InfoS("Delete event for scheduled pod", "pod", klog.KObj(pod))
+	// 移除Cache中的Pod
 	if err := sched.Cache.RemovePod(pod); err != nil {
 		klog.ErrorS(err, "Scheduler cache RemovePod failed", "pod", klog.KObj(pod))
 	}
 
-	// TODO 一旦删除一个Pod，就把所有未调度的Pod添加到ActiveQ或者BackoffQ当中
+	// 1、一旦删除一个Pod，就把所有未调度的Pod添加到ActiveQ或者BackoffQ当中
+	// 2、之所以这么做，是因为一个已经调度的Pod的删除必然会造成某些没有调度成功的Pod可能有机会调度成功
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.AssignedPodDelete, nil)
 }
 
@@ -264,8 +282,10 @@ func addAllEventHandlers(
 	dynInformerFactory dynamicinformer.DynamicSharedInformerFactory,
 	gvkMap map[framework.GVK]framework.ActionType,
 ) {
-	// scheduled pod cache
-	// 维护Cache中的podStates，并且随着Pod的增删改查，Node信息也是需要进行维护的
+	// 1、这里主要是在维护Cache的Pod信息，这些Pod是已经被调度好了的Pod。这些信息包括：每个Node当前都运行了哪些已经调度的Pod,每个Pod的亲和性、
+	// 反亲和性、申请的资源、每个Node已经分配的资源。之所以需要维护这些信息，是因为后续调度一个Pod时需要参考这些信息用来做决策；最简单的思考过程
+	// 就是当一个Pod需要调度时，有哪些Node有足够的资源运行这个Pod，接下来会思考这个Pod的亲和性、反亲和性、端口分配等等因素，因此调度器需要直到
+	// 每个Node的这些信息
 	informerFactory.Core().V1().Pods().Informer().AddEventHandler(
 		cache.FilteringResourceEventHandler{
 			FilterFunc: func(obj interface{}) bool {

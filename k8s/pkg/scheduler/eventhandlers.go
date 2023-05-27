@@ -357,7 +357,6 @@ func addAllEventHandlers(
 		},
 	)
 
-	// TODO 这里是在干嘛？
 	buildEvtResHandler := func(at framework.ActionType, gvk framework.GVK, shortGVK string) cache.ResourceEventHandlerFuncs {
 		funcs := cache.ResourceEventHandlerFuncs{}
 		if at&framework.Add != 0 {
@@ -381,10 +380,12 @@ func addAllEventHandlers(
 		return funcs
 	}
 
+	// 当CSINode,CSIDriver,CSIStorageCapacity,PersistentVolume,PersistentVolumeClaim,StorageClass资源变动时，需要重新把
+	// UnschedulerQueue中的Pod加入的ActiveQ或者BackoffQ当中
 	for gvk, at := range gvkMap {
 		switch gvk {
 		case framework.Node, framework.Pod:
-			// Do nothing.
+			// Node资源和Pod的资源的增删改查已经处理了，所以这里不需要做任何事情
 		case framework.CSINode:
 			informerFactory.Storage().V1().CSINodes().Informer().AddEventHandler(
 				buildEvtResHandler(at, framework.CSINode, "CSINode"),

@@ -335,7 +335,9 @@ func New(client clientset.Interface,
 		internalqueue.WithPodMaxInUnschedulablePodsDuration(options.podMaxInUnschedulablePodsDuration),
 	)
 
-	// TODO 这里缓存的是啥？
+	// 1、schedulerCache主要缓存了已经调度的Pod信息还有AssumedPod信息，以及每个Node信息，其中包括每个Node都运行了那些Pod，亲和性、反亲和性是
+	// 怎样的，资源申请、资源分配情况
+	// 2、之所以记录这些资源，是因为调度Pod的时候需要考虑这些因素
 	schedulerCache := internalcache.New(durationToExpireAssumedPod, stopEverything)
 
 	// Setup cache debugger.
@@ -343,9 +345,9 @@ func New(client clientset.Interface,
 	debugger := cachedebugger.New(nodeLister, podLister, schedulerCache, podQueue)
 	debugger.ListenForSignal(stopEverything)
 
-	// TODO 实例化Scheduler, 重点分析schedulePod
+	// TODO 实例化Scheduler,挨个调度Pod
 	sched := newScheduler(
-		schedulerCache, // TODO 暂时不清楚这玩意干嘛的
+		schedulerCache,
 		extenders,
 		internalqueue.MakeNextPodFunc(podQueue), // 用于获取下一个需要调度的Pod
 		stopEverything,                          // 停止Channel

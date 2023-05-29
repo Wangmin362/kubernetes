@@ -67,7 +67,7 @@ func (sched *Scheduler) addNodeToCache(obj interface{}) {
 
 	nodeInfo := sched.Cache.AddNode(node)
 	klog.V(3).InfoS("Add event for node", "node", klog.KObj(node))
-	// 因为有新的Node加入K8S集群，那写以前没有调度成功的Pod现在可能调度成功了，因需要把UnschedulableQ以及BackoffQ中的所有Pod都
+	// 因为有新的Node加入K8S集群，那些以前没有调度成功的Pod现在可能调度成功了，因需要把UnschedulableQ以及BackoffQ中的所有Pod都
 	// 放到ActiveQ当中，给这些Pod一次调度的机会
 	sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.NodeAdd, preCheckForNode(nodeInfo))
 }
@@ -139,11 +139,12 @@ func (sched *Scheduler) updatePodInSchedulingQueue(oldObj, newObj interface{}) {
 	// 1、如果一个Pod已经被调度过了，这种Pod无需再次调度
 	// 2、实际上这里的AssumedPod值得是那些成功经过SchedulingCycle阶段，但是还没有经过BindingCycle阶段的Pod。因为正儿八经已经
 	// 调度过的Pod是不可能到这里的，在Informer的Filter当中已经过滤了
+	// 3、TODO 难道已经更新完成SchedulingCycle阶段的Pod，但是还没有完成BindingCycle阶段的Pod是不允许更新的？还是说不关心更新？
 	if isAssumed {
 		return
 	}
 
-	// 更新还没有调度的Pod
+	// TODO 更新还没有调度的Pod
 	if err := sched.SchedulingQueue.Update(oldPod, newPod); err != nil {
 		utilruntime.HandleError(fmt.Errorf("unable to update %T: %v", newObj, err))
 	}
@@ -166,6 +167,7 @@ func (sched *Scheduler) deletePodFromSchedulingQueue(obj interface{}) {
 		return
 	}
 	klog.V(3).InfoS("Delete event for unscheduled pod", "pod", klog.KObj(pod))
+	// TODO 仔细分析
 	if err := sched.SchedulingQueue.Delete(pod); err != nil {
 		utilruntime.HandleError(fmt.Errorf("unable to dequeue %T: %v", obj, err))
 	}
@@ -179,6 +181,7 @@ func (sched *Scheduler) deletePodFromSchedulingQueue(obj interface{}) {
 	// If a waiting pod is rejected, it indicates it's previously assumed and we're
 	// removing it from the scheduler cache. In this case, signal a AssignedPodDelete
 	// event to immediately retry some unscheduled Pods.
+	// TODO 仔细分析
 	if fwk.RejectWaitingPod(pod.UID) {
 		sched.SchedulingQueue.MoveAllToActiveOrBackoffQueue(queue.AssignedPodDelete, nil)
 	}

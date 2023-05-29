@@ -341,7 +341,7 @@ func Setup(ctx context.Context, opts *options.Options, outOfTreeRegistryOptions 
 	}
 
 	recorderFactory := getRecorderFactory(&cc)
-	// TODO 这玩意有啥用？
+	// KubeScheduler调度器配置
 	completedProfiles := make([]kubeschedulerconfig.KubeSchedulerProfile, 0)
 	// TODO 实例化KubeScheduler
 	sched, err := scheduler.New(cc.Client,

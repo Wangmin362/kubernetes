@@ -663,17 +663,18 @@ func (cache *cacheImpl) AddNode(node *v1.Node) *framework.NodeInfo {
 
 	n, ok := cache.nodes[node.Name]
 	if !ok {
-		// 如果当前Cache当中没有记录当前Node的信息，那就保存下来
+		// 如果当前Cache当中没有记录当前Node的信息，实例化空的NodeInfo信息保存起来
 		n = newNodeInfoListItem(framework.NewNodeInfo())
 		cache.nodes[node.Name] = n
 	} else {
-		// TODO 移除Node的ImageState信息
+		// TODO 移除Node的ImageState信息，为啥要做这一步？
 		cache.removeNodeImageStates(n.info.Node())
 	}
 	// 把当前的Node移动到链表头部
 	cache.moveNodeInfoToHead(node.Name)
 
 	cache.nodeTree.addNode(node)
+	// 记录当前Node上的镜像信息
 	cache.addNodeImageStates(node, n.info)
 	n.info.SetNode(node)
 	return n.info.Clone()
@@ -689,11 +690,14 @@ func (cache *cacheImpl) UpdateNode(oldNode, newNode *v1.Node) *framework.NodeInf
 		cache.nodes[newNode.Name] = n
 		cache.nodeTree.addNode(newNode)
 	} else {
+		// 删除镜像信息
 		cache.removeNodeImageStates(n.info.Node())
 	}
+	// 把当前Node移动到链表头
 	cache.moveNodeInfoToHead(newNode.Name)
-
+	// TODO 仔细研究Node的更新过程
 	cache.nodeTree.updateNode(oldNode, newNode)
+	// 添加镜像信息
 	cache.addNodeImageStates(newNode, n.info)
 	n.info.SetNode(newNode)
 	return n.info.Clone()

@@ -358,7 +358,12 @@ func New(client clientset.Interface,
 		options.percentageOfNodesToScore,        // 每次调度一个Pod不需要找到所有可用的Node，而是找到其中的一部分就可以了
 	)
 
-	// TODO 监听Pod, Node的增删改查
+	// 1、监听Pod资源
+	// 1.1、监听未调度的Pod，维护SchedulerQueue(也就是PriorityQueue)
+	// 1.2、监听已经成功调度的Pod，维护Cache，主要是更新每个Node上所有运行的Pod信息，包括资源、亲和性、反亲和性、端口分配
+	// 2、监听Node资源，维护Node信息
+	// 3、监听CSINode,CSIDriver,CSIStorageCapacity,PersistentVolume,PersistentVolumeClaim,StorageClass资源，因为在Pod调度
+	// 过程中，可能会有由于PVC缺失导致调度失败，而这些资源的变动可能会导致那些调度失败的Pod可以重新调度
 	addAllEventHandlers(sched, informerFactory, dynInformerFactory, unionedGVKs(clusterEventMap))
 
 	return sched, nil

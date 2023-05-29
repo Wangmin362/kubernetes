@@ -853,7 +853,7 @@ func (p *PriorityQueue) podsCompareBackoffCompleted(podInfo1, podInfo2 interface
 func (p *PriorityQueue) newQueuedPodInfo(pod *v1.Pod, plugins ...string) *framework.QueuedPodInfo {
 	now := p.clock.Now()
 	return &framework.QueuedPodInfo{
-		PodInfo:                 framework.NewPodInfo(pod),
+		PodInfo:                 framework.NewPodInfo(pod), // 重点是这里，提取了Pod的各种资源申请、亲和性、反亲和性
 		Timestamp:               now,
 		InitialAttemptTimestamp: now,
 		UnschedulablePlugins:    sets.NewString(plugins...),

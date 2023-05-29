@@ -282,7 +282,7 @@
 - [ ] 如何理解`Framework`接口和`Handler`接口抽象
 - [ ] 如何理解`PluginFactory`
 - [ ] 什么是`AssumedPod`，如果`AssumedPod`后续在`BindingCycle`真的失败了会怎么样？
-- [ ] 什么是`NominatedPod`？有啥作用？
+- [ ] 什么是`NominatedPod`？有啥作用？ 如何理解`PodNominator`接口抽象？
 - [ ] `Pod`的`Priority`有啥作用？是如何影响`Pod`调度的？最佳实践？
     - [ ] 如果`Pod`调度失败，`KubeScheduler`会如何处理这个`Pod`？
 - [ ] 内部调度原理

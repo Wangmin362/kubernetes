@@ -25,6 +25,8 @@ var (
 	// Only top-level commands/options setup and the k8s.io/component-base/featuregate/testing package should make use of this.
 	// Tests that need to modify feature gates for the duration of their test should use:
 	//   defer featuregatetesting.SetFeatureGateDuringTest(t, utilfeature.DefaultFeatureGate, features.<FeatureName>, <value>)()
+	// 1、所谓的MutableFeatureGate, 实际上就是可以更改的Map
+	// 2、TODO 如何理解这个数据结构？
 	DefaultMutableFeatureGate featuregate.MutableFeatureGate = featuregate.NewFeatureGate()
 
 	// DefaultFeatureGate is a shared global FeatureGate.

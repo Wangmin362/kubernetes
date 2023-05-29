@@ -164,6 +164,7 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 		SilenceUsage:       true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// initial flag parse, since we disable cobra's flag parsing
+			// 解析参数
 			if err := cleanFlagSet.Parse(args); err != nil {
 				return fmt.Errorf("failed to parse kubelet flag: %w", err)
 			}
@@ -254,7 +255,8 @@ HTTP server: The kubelet can also listen for HTTP and respond to a simple API
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
 			}
 
-			if err := checkPermissions(); err != nil { // todo 检查是否可以运行的权限，检查的是啥？
+			// todo 检查是否可以运行的权限，检查的是啥？
+			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
 
@@ -414,7 +416,8 @@ func Run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
-	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil { // 不同的操作系统可能需要做不同的操作
+	// 不同的操作系统可能需要做不同的操作
+	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil {
 		return fmt.Errorf("failed OS init: %w", err)
 	}
 	if err := run(ctx, s, kubeDeps, featureGate); err != nil {
@@ -489,16 +492,19 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 
 func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
-	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates) // todo 这里面的mutableshi啥意思？
+	// 实例化FeatureGate
+	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
 	if err != nil {
 		return err
 	}
 	// validate the initial KubeletServer (we set feature gates first, because this validation depends on feature gates)
+	// TODO 校验Kubelet配置
 	if err := options.ValidateKubeletServer(s); err != nil {
 		return err
 	}
 
-	// Warn if MemoryQoS enabled with cgroups v1 todo 学习MemoryQoS, 有何作用？ 如何使用？和Cgroup有啥关联？
+	// Warn if MemoryQoS enabled with cgroups v1
+	// TODO  学习MemoryQoS, 有何作用？ 如何使用？和Cgroup有啥关联？
 	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
 		!isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")

@@ -52,18 +52,22 @@ const defaultRootDir = "/var/lib/kubelet"
 //
 // In general, please try to avoid adding flags or configuration fields,
 // we already have a confusingly large amount of them.
+// Kubelet命令行参数定义
 type KubeletFlags struct {
+	// TODO 这两个配置有何区别？
 	KubeConfig          string
 	BootstrapKubeconfig string
 
 	// HostnameOverride is the hostname used to identify the kubelet instead
 	// of the actual hostname.
+	// 如果不为空，就会使用这里指定的名字覆盖实际的Hostname
 	HostnameOverride string
 	// NodeIP is IP address of the node.
 	// If set, kubelet will use this IP address for the node.
 	NodeIP string
 
 	// Container-runtime-specific options.
+	// Kubelet CRI配置
 	config.ContainerRuntimeOptions
 
 	// certDirectory is the directory where the TLS certs are located.

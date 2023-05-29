@@ -27,11 +27,14 @@ type ContainerRuntimeOptions struct {
 	// General Options.
 
 	// ContainerRuntime is the container runtime to use.
+	// 指定需要使用哪一种容器运行时，目前这里有且仅支持一种容器运行时，那就是：remote
 	ContainerRuntime string
 	// RuntimeCgroups that container runtime is expected to be isolated in.
+	// TODO 这玩意干嘛的？
 	RuntimeCgroups string
 	// PodSandboxImage is the image whose network/ipc namespaces
 	// containers in each pod will use.
+	// TODO 难道Sandbox实际上指的时Pause/Infra容器？
 	PodSandboxImage string
 	// Image credential provider plugin options
 

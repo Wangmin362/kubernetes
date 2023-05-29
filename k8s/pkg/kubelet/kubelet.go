@@ -217,6 +217,7 @@ type Bootstrap interface {
 // Dependencies is a bin for things we might consider "injected dependencies" -- objects constructed
 // at runtime that are necessary for running the Kubelet. This is a temporary solution for grouping
 // these objects while we figure out a more comprehensive dependency injection story for the Kubelet.
+// TODO 如何理解这玩意？
 type Dependencies struct {
 	Options []Option
 

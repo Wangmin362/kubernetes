@@ -63,38 +63,42 @@ var ErrNoNodesAvailable = fmt.Errorf("no nodes available to schedule pods")
 type Scheduler struct {
 	// It is expected that changes made via Cache will be observed
 	// by NodeLister and Algorithm.
-	// TODO 缓存的是啥？
 	// 1、Cache中缓存了已经调度的Pod
 	// 2、Cache中缓存了Node的信息，以及Node中每个Pod的亲和性、反亲和性、Node已经使用的端口、分配的资源以及请求的资源情况
 	Cache internalcache.Cache
 
+	// TODO K8S是如何使用Extender的？
 	Extenders []framework.Extender
 
 	// NextPod should be a function that blocks until the next pod
 	// is available. We don't use a channel for this, because scheduling
 	// a pod may take some amount of time and we don't want pods to get
 	// stale while they sit in a channel.
+	// 用于获取下一个需要调度的Pod,实际上就是从SchedulerQueue中的activeQ中获取
 	NextPod func() *framework.QueuedPodInfo
 
 	// FailureHandler is called upon a scheduling failure.
+	// 当Pod在调度失败时，需要调用此方法
 	FailureHandler FailureHandlerFn
 
 	// SchedulePod tries to schedule the given pod to one of the nodes in the node list.
 	// Return a struct of ScheduleResult with the name of suggested host on success,
 	// otherwise will return a FitError with reasons.
+	// 调度一个Pod
 	SchedulePod func(ctx context.Context, fwk framework.Framework, state *framework.CycleState, pod *v1.Pod) (ScheduleResult, error)
 
 	// Close this to shut down the scheduler.
 	StopEverything <-chan struct{}
 
 	// SchedulingQueue holds pods to be scheduled
-	// 1、SchedulingQueue当中缓存的Pod都是还没有调度的Pod?
+	// 1、SchedulingQueue缓存的Pod都是还未调度的Pod
 	SchedulingQueue internalqueue.SchedulingQueue
 
 	// Profiles are the scheduling profiles.
 	// 用于记录当前支持的调度框架，key为调度框架的名字（用户通过pod.Spec.SchedulerName指定使用哪个调度框架），value为调度框架
 	Profiles profile.Map
 
+	// ClientSet
 	client clientset.Interface
 
 	// 1、K8S调度Pod的最终结果就是找到一个合适的Node，然后在这个Node上创建Pod
@@ -102,11 +106,12 @@ type Scheduler struct {
 	// 哪些Pod，Node之上运行的Pod的亲和性、反亲和性、每个Node的资源使用情况等等
 	nodeInfoSnapshot *internalcache.Snapshot
 
-	// TODO 一个Pod只需要调度到一个Node之上运行就可以了，但是如果有5000个Node，经过筛选，发现有4500个节点可以使用，此时我们不需要把4500
+	// 一个Pod只需要调度到一个Node之上运行就可以了，但是如果有5000个Node，经过筛选，发现有4500个节点可以使用，此时我们不需要把4500
 	// 个所有可用的节点都计算一次得分，而是计算其中一小部分就可以，譬如取其中的100个Node来计算得分。这里的百分比就是干这个事情的，在所有可用的
 	// Node节点中，选取一定百分比的Node节点用于排分计算
 	percentageOfNodesToScore int32
 
+	// TODO 这玩意干嘛的？
 	nextStartNodeIndex int
 }
 

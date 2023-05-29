@@ -371,7 +371,16 @@ func New(client clientset.Interface,
 
 // Run begins watching and scheduling. It starts scheduling and blocked until the context is done.
 func (sched *Scheduler) Run(ctx context.Context) {
-	// TODO 启动优先级队列
+	// 1、用于把PodBackoffQueue当中的pod元素放入到ActiveQ当中，当然，只有那些到了备份时间的Pod才会被放入到activeQ当中。由于PodBackoffQ
+	// 是以堆的数据结构存储元素，而且是按照Pod的备份时间进行排序，因此只需要从堆顶判断是否已经到了备份时间，如果堆顶Pod都没有到备份时间，
+	// 那么剩下的元素就不需要判断了。如果堆顶Pod到了备份时间，就把堆顶Pod弹出来放入到ActiveQ当中。同时，剩下的元素按照相同的逻辑进行判断。
+	// 2、检测PodBackoffQ中的Pod元素是否需要进行备份放到activeQ中，每秒钟检测一次
+	// 3、找到已经在UnschedulingPod缓存中待了超过五分钟的元素
+	// 4、依次遍历这些元素，然后进行以下判断：
+	// 3.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接跳过这个元素。因为如果是因为其它原因造成
+	// 当前Pod无法调度，此时再去调度也无济于事，依然无法正常调度
+	// 3.2、如果当前Pod还没有过备份时间，那就把当前Pod加入到PodBackoffQ当中，然后删除UnschedulablePlugin中的对应元素
+	// 3.3、如果当前Pod已经过了备份时间，那就把当前Pod加入到ActiveQ当中，然后删除UnschedulablePlugin中的对应元素
 	sched.SchedulingQueue.Run()
 
 	// We need to start scheduleOne loop in a dedicated goroutine,

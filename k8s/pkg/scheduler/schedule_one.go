@@ -66,13 +66,14 @@ var clearNominatedNode = &framework.NominatingInfo{NominatingMode: framework.Mod
 // scheduleOne does the entire scheduling workflow for a single pod. It is serialized on the scheduling algorithm's host fitting.
 // TODO 调度Pod?
 func (sched *Scheduler) scheduleOne(ctx context.Context) {
-	// 获取下一个需要调度的Pod
+	// 从activeQ获取下一个需要调度的Pod,如果当前ActiveQ没有元素，会导致协程阻塞
 	podInfo := sched.NextPod()
 	// pod could be nil when schedulerQueue is closed
 	if podInfo == nil || podInfo.Pod == nil {
 		return
 	}
 	pod := podInfo.Pod
+	// 获取当前Pod指定使用的调度器
 	// 1、一般情况下如果Pod没有指定使用哪个调度器，都是使用名字为：default-scheduler的默认调度器
 	// 2、实际上用户可以自定义调度框架，然后再Pod当中指定需要使用的调度器。这里做了统一的处理，根据Pod找到其需要的调度器
 	fwk, err := sched.frameworkForPod(pod)
@@ -84,7 +85,7 @@ func (sched *Scheduler) scheduleOne(ctx context.Context) {
 	}
 	// 判断当前Pod是否能够被调度，判断依据如下：
 	// 1、如果当前Pod已经被删除，那么此Pod再进行调度也就没有意义了
-	// 2、如果是当前Pod是一个Assumed Pod，那么此Pod也无需进行调度。TODO 那么什么是Assumed Pod?
+	// 2、如果是当前Pod是一个Assumed Pod，那么此Pod也无需进行调度。
 	if sched.skipPodSchedule(fwk, pod) {
 		return
 	}

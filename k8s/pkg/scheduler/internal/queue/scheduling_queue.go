@@ -347,7 +347,7 @@ func (p *PriorityQueue) Run() {
 	go wait.Until(p.flushBackoffQCompleted, 1.0*time.Second, p.stop)
 	// 1、找到已经在UnschedulingPod缓存中待了超过五分钟的元素
 	// 2、依次遍历这些元素，然后进行以下判断：
-	// 2.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接提过这个元素。因为如果是因为其它原因造成
+	// 2.1、如果当前Pod的UnschedulablePlugins不为空，并且不是因为长时间没有调度造成的，就直接跳过这个元素。因为如果是因为其它原因造成
 	// 当前Pod无法调度，此时再去调度也无济于事，依然无法正常调度
 	// 2.2、如果当前Pod还没有过备份时间，那就把当前Pod加入到PodBackoffQ当中，然后删除UnschedulablePlugin中的对应元素
 	// 2.3、如果当前Pod已经过了备份时间，那就把当前Pod加入到ActiveQ当中，然后删除UnschedulablePlugin中的对应元素

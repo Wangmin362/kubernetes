@@ -174,6 +174,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 			}
 
 			// short-circuit on help
+			// 如果用户指定了-h或者--help参数，打印Kubelet的用法
 			help, err := cleanFlagSet.GetBool("help")
 			if err != nil {
 				return errors.New(`"help" flag is non-bool, programmer error, please correct`)
@@ -226,6 +227,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// We always validate the local configuration (command line + config file).
 			// This is the default "last-known-good" config for dynamic config, and must always remain valid.
+			// 校验KubeletConfiguration配置
 			if err := kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig, utilfeature.DefaultFeatureGate); err != nil {
 				return fmt.Errorf("failed to validate kubelet configuration, error: %w, path: %s", err, kubeletConfig)
 			}
@@ -235,17 +237,20 @@ is checked every 20 seconds (also configurable with a flag).`,
 			}
 
 			// construct a KubeletServer from kubeletFlags and kubeletConfig
+			// 影响Kubelet运行的参数被分为两个部分，一部分通过命令行参数配置，一部分通过配置文件配置
 			kubeletServer := &options.KubeletServer{
 				KubeletFlags:         *kubeletFlags,
 				KubeletConfiguration: *kubeletConfig,
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
+			// TODO 初始化Kubelet Dependencies
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
 			}
 
+			// 检测Kubelet是否以Root的方式运行
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
@@ -259,6 +264,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 			klog.V(5).InfoS("KubeletConfiguration", "configuration", config)
 
 			// set up signal context for kubelet shutdown
+			// 注册优雅停止Channel
 			ctx := genericapiserver.SetupSignalContext()
 
 			utilfeature.DefaultMutableFeatureGate.AddMetrics()

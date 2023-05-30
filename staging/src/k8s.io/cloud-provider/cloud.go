@@ -40,6 +40,7 @@ type ControllerClientBuilder interface {
 }
 
 // Interface is an abstract, pluggable interface for cloud providers.
+// TODO 暂时还不清除这玩意干嘛的
 type Interface interface {
 	// Initialize provides the cloud with a kubernetes client builder and may spawn goroutines
 	// to perform housekeeping or run custom controllers specific to the cloud provider.

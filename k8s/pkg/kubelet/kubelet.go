@@ -227,6 +227,7 @@ type SyncHandler interface {
 }
 
 // Option is a functional option type for Kubelet
+// Option用于修改Kubelet的属性
 type Option func(*Kubelet)
 
 // Bootstrap is a bootstrapping interface for kubelet, targets the initialization protocol
@@ -248,10 +249,10 @@ type Dependencies struct {
 	Options []Option
 
 	// Injected Dependencies
-	Auth                     server.AuthInterface
-	CAdvisorInterface        cadvisor.Interface
-	Cloud                    cloudprovider.Interface
-	ContainerManager         cm.ContainerManager
+	Auth                     server.AuthInterface    // 包含认证和授权
+	CAdvisorInterface        cadvisor.Interface      // cAdvisor，用于获取Kubelet所在节点指标
+	Cloud                    cloudprovider.Interface // TODO 暂时不清除其作用
+	ContainerManager         cm.ContainerManager     //
 	EventClient              v1core.EventsGetter
 	HeartbeatClient          clientset.Interface
 	OnHeartbeatFailure       func()

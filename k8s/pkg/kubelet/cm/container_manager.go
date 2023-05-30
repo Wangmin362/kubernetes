@@ -44,9 +44,10 @@ import (
 
 type ActivePodsFunc func() []*v1.Pod
 
-// Manages the containers running on a machine.
+// ContainerManager Manages the containers running on a machine.
+// TODO ContainerManager是如何管理容器的？ 需要管理容器的那些东西？
 type ContainerManager interface {
-	// Runs the container manager's housekeeping.
+	// Start Runs the container manager's housekeeping.
 	// - Ensures that the Docker daemon is in a container.
 	// - Creates the system container where all non-containerized processes run.
 	Start(*v1.Node, ActivePodsFunc, config.SourcesReady, status.PodStatusProvider, internalapi.RuntimeService, bool) error

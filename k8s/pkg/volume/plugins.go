@@ -112,6 +112,7 @@ type NodeResizeOptions struct {
 	OldSize resource.Quantity
 }
 
+// DynamicPluginProber TODO 这玩意是用来干嘛的？
 type DynamicPluginProber interface {
 	Init() error
 

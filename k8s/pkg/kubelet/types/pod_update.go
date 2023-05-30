@@ -77,8 +77,10 @@ const NamespaceDefault = metav1.NamespaceDefault
 // functionally similar, this helps our unit tests properly check that the correct PodUpdates
 // are generated.
 type PodUpdate struct {
-	Pods   []*v1.Pod
-	Op     PodOperation
+	// 一次可以针对多个Pod做相同的操作
+	Pods []*v1.Pod
+	Op   PodOperation
+	// Pod的产生源头是啥？HTTP，StaticPod还是APIServer?
 	Source string
 }
 

@@ -59,7 +59,9 @@ type podStartupSLIObserver interface {
 // PodConfig is a configuration mux that merges many sources of pod configuration into a single
 // consistent structure, and then delivers incremental change notifications to listeners
 // in order.
+// TODO 为什么需要PodConfig? K8S用PodConfig干了啥？
 type PodConfig struct {
+	// Pod存储，存储了来自于不同来源的Pod
 	pods *podStorage
 	mux  *config.Mux
 
@@ -123,6 +125,7 @@ func (c *PodConfig) Sync() {
 type podStorage struct {
 	podLock sync.RWMutex
 	// map of source name to pod uid to pod reference
+	// Pod存储，第一级Key为Source，即当前Pod来自于那里，目前主要有三种数据来源，分别是：HTTP，StaticPod, APIServer
 	pods map[string]map[types.UID]*v1.Pod
 	mode PodConfigNotificationMode
 

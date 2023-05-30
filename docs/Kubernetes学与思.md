@@ -385,7 +385,7 @@
 - [ ] KubeletInUserNamespace
 - [ ] KubeletPodResources
 - [ ] KubeletPodResourcesGetAllocatable
-- [ ] KubeletTracing
+- [ ] KubeletTracing  分布式链路追踪特性开关
 - [ ] LegacyServiceAccountTokenNoAutoGeneration
 - [ ] LocalStorageCapacityIsolation
 - [ ] LocalStorageCapacityIsolationFSQuotaMonitoring
@@ -448,3 +448,4 @@
 ## 4.6. DNS原理？CoreDNS?
 ## 4.7. CSI
 ## 4.8. Pod Disruption Budget
+## 4.9. 学习K8S对于分布式链路追踪的使用 OpenTelemetry

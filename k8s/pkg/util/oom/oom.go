@@ -16,7 +16,7 @@ limitations under the License.
 
 package oom
 
-// This is a struct instead of an interface to allow injection of process ID listers and
+// OOMAdjuster This is a struct instead of an interface to allow injection of process ID listers and
 // applying OOM score in tests.
 // TODO: make this an interface, and inject a mock ioutil struct for testing.
 type OOMAdjuster struct {

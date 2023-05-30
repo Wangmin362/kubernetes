@@ -107,6 +107,7 @@ type KubeletFlags struct {
 	// lockFilePath is the path that kubelet will use to as a lock file.
 	// It uses this file as a lock to synchronize with other kubelet processes
 	// that may be running.
+	// TODO 这个配置的作用是啥？
 	LockFilePath string
 	// ExitOnLockContention is a flag that signifies to the kubelet that it is running
 	// in "bootstrap" mode. This requires that 'LockFilePath' has been set.
@@ -227,9 +228,10 @@ func applyLegacyDefaults(kc *kubeletconfig.KubeletConfiguration) {
 
 // KubeletServer encapsulates all of the parameters necessary for starting up
 // a kubelet. These can either be set via command line or directly.
+// Kubelet的参数配置
 type KubeletServer struct {
-	KubeletFlags
-	kubeletconfig.KubeletConfiguration
+	KubeletFlags                       // 命令行参数配置
+	kubeletconfig.KubeletConfiguration // 配置文件配置
 }
 
 // NewKubeletServer will create a new KubeletServer with default values.

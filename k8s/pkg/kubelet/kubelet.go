@@ -249,29 +249,29 @@ type Dependencies struct {
 	Options []Option
 
 	// Injected Dependencies
-	Auth                     server.AuthInterface    // 包含认证和授权
-	CAdvisorInterface        cadvisor.Interface      // cAdvisor，用于获取Kubelet所在节点指标
-	Cloud                    cloudprovider.Interface // TODO 暂时不清除其作用
-	ContainerManager         cm.ContainerManager     //
-	EventClient              v1core.EventsGetter
-	HeartbeatClient          clientset.Interface
-	OnHeartbeatFailure       func()
-	KubeClient               clientset.Interface
-	Mounter                  mount.Interface
-	HostUtil                 hostutil.HostUtils
-	OOMAdjuster              *oom.OOMAdjuster
-	OSInterface              kubecontainer.OSInterface
-	PodConfig                *config.PodConfig
-	ProbeManager             prober.Manager
-	Recorder                 record.EventRecorder
-	Subpather                subpath.Interface
-	TracerProvider           trace.TracerProvider
-	VolumePlugins            []volume.VolumePlugin
-	DynamicPluginProber      volume.DynamicPluginProber
-	TLSOptions               *server.TLSOptions
-	RemoteRuntimeService     internalapi.RuntimeService
-	RemoteImageService       internalapi.ImageManagerService
-	PodStartupLatencyTracker util.PodStartupLatencyTracker
+	Auth                     server.AuthInterface            // 包含认证和授权
+	CAdvisorInterface        cadvisor.Interface              // cAdvisor，用于获取Kubelet所在节点指标
+	Cloud                    cloudprovider.Interface         // TODO 暂时不清除其作用
+	ContainerManager         cm.ContainerManager             // TODO 容器管理器
+	EventClient              v1core.EventsGetter             // 事件客户端
+	HeartbeatClient          clientset.Interface             // TODO 为啥名字叫做Heartbeat, 难道是专门用于心跳？
+	OnHeartbeatFailure       func()                          // 心跳失败回调
+	KubeClient               clientset.Interface             // K8S ClientSet客户端，用于Informer机制，缓存K8S资源
+	Mounter                  mount.Interface                 // TODO 应该是和存储卷的挂载有关
+	HostUtil                 hostutil.HostUtils              // 主机相关的操作，譬如打开一个设备、判断某个设备是否存在，判断是否支持SELinux，获取文件的属主
+	OOMAdjuster              *oom.OOMAdjuster                // TODO 看起来是和OOM相关的
+	OSInterface              kubecontainer.OSInterface       // 操作系统操作的常规定义，譬如打开、删除、创建、重命名文件等等操作
+	PodConfig                *config.PodConfig               // TODO 从名字上来看似乎是Pod的配置
+	ProbeManager             prober.Manager                  // TODO 每个Pod都可以指定Startup,Ready,Liveness探针，ProbeManager就是用来支持探针功能
+	Recorder                 record.EventRecorder            // 事件记录器
+	Subpather                subpath.Interface               // subPath工具定义，不同的操作系统完成相同的操作可能需要通过不同的系统调用来实现
+	TracerProvider           trace.TracerProvider            // TODO 分布式链路追踪
+	VolumePlugins            []volume.VolumePlugin           // TODO 应该是和持久卷相关
+	DynamicPluginProber      volume.DynamicPluginProber      // TODO 动态插件指得啥？
+	TLSOptions               *server.TLSOptions              // TLS相关配置
+	RemoteRuntimeService     internalapi.RuntimeService      // TODO 容器运行接口（相当重要）,可以理解为CRI的实现
+	RemoteImageService       internalapi.ImageManagerService // TODO 镜像管理接口
+	PodStartupLatencyTracker util.PodStartupLatencyTracker   // TODO 看起来是用来追踪Pod的启动延迟时间
 	// remove it after cadvisor.UsingLegacyCadvisorStats dropped.
 	useLegacyCadvisorStats bool
 }
@@ -327,6 +327,7 @@ func PreInitRuntimeService(kubeCfg *kubeletconfiginternal.KubeletConfiguration, 
 		return err
 	}
 
+	// 如果Kubelet使用CRIO容器运行时，那么只能使用LegacyCadvisor收集指标
 	kubeDeps.useLegacyCadvisorStats = cadvisor.UsingLegacyCadvisorStats(kubeCfg.ContainerRuntimeEndpoint)
 
 	return nil

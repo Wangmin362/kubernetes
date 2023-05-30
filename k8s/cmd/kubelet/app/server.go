@@ -244,7 +244,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
-			// TODO 初始化Kubelet Dependencies
+			// TODO 根据特性开关初始化Kubelet Dependencies
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
@@ -372,6 +372,7 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 // is not valid.  It will not start any background processes, and does not include authentication/authorization
 func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.FeatureGate) (*kubelet.Dependencies, error) {
 	// Initialize the TLS Options
+	// 初始化TLS配置
 	tlsOptions, err := InitializeTLS(&s.KubeletFlags, &s.KubeletConfiguration)
 	if err != nil {
 		return nil, err
@@ -382,10 +383,12 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 	hu := hostutil.NewHostUtil()
 	var pluginRunner = exec.New()
 
+	// TODO K8S默认支持的存储插件
 	plugins, err := ProbeVolumePlugins(featureGate)
 	if err != nil {
 		return nil, err
 	}
+	// TODO 学习K8S对于分布式链路追踪的使用
 	tp := oteltrace.NewNoopTracerProvider()
 	if utilfeature.DefaultFeatureGate.Enabled(features.KubeletTracing) {
 		tp, err = newTracerProvider(s)
@@ -502,21 +505,25 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 
 func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
+	// 合并用户设置的特性开关，有可能有些特性会被用户关闭，同时有些特性会被用户打开
 	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
 	if err != nil {
 		return err
 	}
 	// validate the initial KubeletServer (we set feature gates first, because this validation depends on feature gates)
+	// 校验Kubelet的参数
 	if err := options.ValidateKubeletServer(s); err != nil {
 		return err
 	}
 
 	// Warn if MemoryQoS enabled with cgroups v1
+	// 参数检测
 	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
 		!isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
 	// Obtain Kubelet Lock File
+	// TODO 分析LockFilePath的参数
 	if s.ExitOnLockContention && s.LockFilePath == "" {
 		return errors.New("cannot exit on lock file contention: no lock file specified")
 	}
@@ -535,11 +542,13 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// Register current configuration with /configz endpoint
+	// 可以通过/configz端点查询Kubelet配置参数
 	err = initConfigz(&s.KubeletConfiguration)
 	if err != nil {
 		klog.ErrorS(err, "Failed to register kubelet configuration with configz")
 	}
 
+	// TODO 什么叫做HiddenMetrics?
 	if len(s.ShowHiddenMetricsForVersion) > 0 {
 		metrics.SetShowHidden()
 	}
@@ -557,6 +566,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// 初始化Cloud依赖
 	if kubeDeps.Cloud == nil {
 		if !cloudprovider.IsExternal(s.CloudProvider) {
 			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
@@ -575,6 +585,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	if err != nil {
 		return err
 	}
+	// TODO 获取Node的名字
 	nodeName, err := getNodeName(kubeDeps.Cloud, hostName)
 	if err != nil {
 		return err
@@ -582,12 +593,15 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// if in standalone mode, indicate as much by setting all clients to nil
 	switch {
+	// 单例模式启动，一般人不会使用单例模式，除非是拿来玩
 	case standaloneMode:
 		kubeDeps.KubeClient = nil
 		kubeDeps.EventClient = nil
 		kubeDeps.HeartbeatClient = nil
 		klog.InfoS("Standalone mode, no API client")
 
+		// 非单例模式启动，这个参数重点
+		// TODO 这里主要还是在初始化KubeDeps配置依赖
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
 		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName)
 		if err != nil {
@@ -628,6 +642,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// TODO Kubelet认证和鉴权
 	if kubeDeps.Auth == nil {
 		auth, runAuthenticatorCAReload, err := BuildAuth(nodeName, kubeDeps.KubeClient, s.KubeletConfiguration)
 		if err != nil {
@@ -638,6 +653,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	var cgroupRoots []string
+	// TODO cGroup相关
 	nodeAllocatableRoot := cm.NodeAllocatableRoot(s.CgroupRoot, s.CgroupsPerQOS, s.CgroupDriver)
 	cgroupRoots = append(cgroupRoots, nodeAllocatableRoot)
 	kubeletCgroup, err := cm.GetKubeletContainer(s.KubeletCgroups)
@@ -668,6 +684,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	// Setup event recorder if required.
 	makeEventRecorder(kubeDeps, nodeName)
 
+	// TODO ContainerManager初始化
 	if kubeDeps.ContainerManager == nil {
 		if s.CgroupsPerQOS && s.CgroupRoot == "" {
 			klog.InfoS("--cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /")
@@ -782,16 +799,19 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// TODO(vmarmol): Do this through container config.
+	// TODO 什么是OOM调整器？都干了啥？有哪些功能？
 	oomAdjuster := kubeDeps.OOMAdjuster
 	if err := oomAdjuster.ApplyOOMScoreAdj(0, int(s.OOMScoreAdj)); err != nil {
 		klog.InfoS("Failed to ApplyOOMScoreAdj", "err", err)
 	}
 
+	// TODO 这里是在初始化CRI相关的，主要是RemoteRuntimeService以及RemoteImageService
 	err = kubelet.PreInitRuntimeService(&s.KubeletConfiguration, kubeDeps)
 	if err != nil {
 		return err
 	}
 
+	// 开始真正的运行Kubelet
 	if err := RunKubelet(s, kubeDeps, s.RunOnce); err != nil {
 		return err
 	}
@@ -1169,6 +1189,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	}
 
 	// process pods and exit.
+	// TODO RunOnce主要用在什么场景当中？
 	if runOnce {
 		if _, err := k.RunOnce(podCfg.Updates()); err != nil {
 			return fmt.Errorf("runonce failed: %w", err)
@@ -1183,6 +1204,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 
 func startKubelet(k kubelet.Bootstrap, podCfg *config.PodConfig, kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *kubelet.Dependencies, enableServer bool) {
 	// start the kubelet
+	// 运行Kubelet
 	go k.Run(podCfg.Updates())
 
 	// start the kubelet server

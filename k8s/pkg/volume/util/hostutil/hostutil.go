@@ -42,6 +42,7 @@ const (
 )
 
 // HostUtils defines the set of methods for interacting with paths on a host.
+// 系统工具
 type HostUtils interface {
 	// DeviceOpened determines if the device (e.g. /dev/sdc) is in use elsewhere
 	// on the system, i.e. still mounted.

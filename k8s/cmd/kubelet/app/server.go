@@ -749,6 +749,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 				s.TopologyManagerPolicyOptions, features.TopologyManagerPolicyOptions)
 		}
 
+		// TODO 实例化ContainerManager
 		kubeDeps.ContainerManager, err = cm.NewContainerManager(
 			kubeDeps.Mounter,
 			kubeDeps.CAdvisorInterface,
@@ -805,7 +806,8 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		klog.InfoS("Failed to ApplyOOMScoreAdj", "err", err)
 	}
 
-	// TODO 这里是在初始化CRI相关的，主要是RemoteRuntimeService以及RemoteImageService
+	// 1、这里是在初始化CRI相关的，主要是RemoteRuntimeService以及RemoteImageService
+	// 2、可以简单理解为这里解决的是如何启动、停止、重启一个镜像以及如何拉取容器镜像
 	err = kubelet.PreInitRuntimeService(&s.KubeletConfiguration, kubeDeps)
 	if err != nil {
 		return err
@@ -1151,11 +1153,13 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	// Setup event recorder if required.
 	makeEventRecorder(kubeDeps, nodeName)
 
+	// TODO 获取NodeIP
 	nodeIPs, err := nodeutil.ParseNodeIPArgument(kubeServer.NodeIP, kubeServer.CloudProvider, utilfeature.DefaultFeatureGate.Enabled(features.CloudDualStackNodeIPs))
 	if err != nil {
 		return fmt.Errorf("bad --node-ip %q: %v", kubeServer.NodeIP, err)
 	}
 
+	// TODO 初始化capInstance
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: true,
 	})
@@ -1262,8 +1266,10 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 		return nil, err
 	}
 
+	// 发送StartingKubelet事件
 	k.BirthCry()
 
+	// TODO 收集了哪些垃圾？
 	k.StartGarbageCollection()
 
 	return k, nil

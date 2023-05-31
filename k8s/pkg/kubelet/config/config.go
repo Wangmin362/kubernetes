@@ -36,6 +36,7 @@ import (
 )
 
 // PodConfigNotificationMode describes how changes are sent to the update channel.
+// TODO 如何理解这里的Pod配置通知模式？
 type PodConfigNotificationMode int
 
 const (
@@ -44,14 +45,18 @@ const (
 	PodConfigNotificationUnknown PodConfigNotificationMode = iota
 	// PodConfigNotificationSnapshot delivers the full configuration as a SET whenever
 	// any change occurs.
+	// TODO 如何理解该模式？
 	PodConfigNotificationSnapshot
 	// PodConfigNotificationSnapshotAndUpdates delivers an UPDATE and DELETE message whenever pods are
 	// changed, and a SET message if there are any additions or removals.
+	// TODO 如何理解该模式？
 	PodConfigNotificationSnapshotAndUpdates
 	// PodConfigNotificationIncremental delivers ADD, UPDATE, DELETE, REMOVE, RECONCILE to the update channel.
+	// TODO 如何理解该模式？
 	PodConfigNotificationIncremental
 )
 
+// TODO 这个接口抽象来干嘛的？
 type podStartupSLIObserver interface {
 	ObservedPodOnWatch(pod *v1.Pod, when time.Time)
 }
@@ -66,17 +71,21 @@ type PodConfig struct {
 	mux  *config.Mux
 
 	// the channel of denormalized changes passed to listeners
+	// 这里应该也是采用了异步接受Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
 	updates chan kubetypes.PodUpdate
 
 	// contains the list of all configured sources
 	sourcesLock sync.Mutex
-	sources     sets.String
+	// 当前支持的Pod来源有哪些？目前只有HTTP, StaticPod, APIServer这三种来源
+	sources sets.String
 }
 
 // NewPodConfig creates an object that can merge many configuration sources into a stream
 // of normalized updates to a pod configuration.
 func NewPodConfig(mode PodConfigNotificationMode, recorder record.EventRecorder, startupSLIObserver podStartupSLIObserver) *PodConfig {
+	// 消息队列的长度为50个
 	updates := make(chan kubetypes.PodUpdate, 50)
+	// 实例化PodStorage，实际上就是一个二级map，第一级Key为Source，第二级Key为Pod.UID
 	storage := newPodStorage(updates, mode, recorder, startupSLIObserver)
 	podConfig := &PodConfig{
 		pods:    storage,
@@ -127,6 +136,7 @@ type podStorage struct {
 	// map of source name to pod uid to pod reference
 	// Pod存储，第一级Key为Source，即当前Pod来自于那里，目前主要有三种数据来源，分别是：HTTP，StaticPod, APIServer
 	pods map[string]map[types.UID]*v1.Pod
+	// TODO 如何理解这个属性？
 	mode PodConfigNotificationMode
 
 	// ensures that updates are delivered in strict order

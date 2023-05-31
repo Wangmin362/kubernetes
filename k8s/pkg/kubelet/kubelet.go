@@ -278,8 +278,10 @@ type Dependencies struct {
 
 // makePodSourceConfig creates a config.PodConfig from the given
 // KubeletConfiguration or returns an error.
-func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *Dependencies, nodeName types.NodeName, nodeHasSynced func() bool) (*config.PodConfig, error) {
+func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *Dependencies, nodeName types.NodeName,
+	nodeHasSynced func() bool) (*config.PodConfig, error) {
 	manifestURLHeader := make(http.Header)
+	// 如果配置了Kubelet可以通过URL获取Pod,那么可以通过配置StaticPodURLHeader让Kubelet携带请求头
 	if len(kubeCfg.StaticPodURLHeader) > 0 {
 		for k, v := range kubeCfg.StaticPodURLHeader {
 			for i := range v {
@@ -295,17 +297,20 @@ func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, ku
 	ctx := context.TODO()
 
 	// define file config source
+	// TODO 添加StaticPod来源
 	if kubeCfg.StaticPodPath != "" {
 		klog.InfoS("Adding static pod path", "path", kubeCfg.StaticPodPath)
 		config.NewSourceFile(kubeCfg.StaticPodPath, nodeName, kubeCfg.FileCheckFrequency.Duration, cfg.Channel(ctx, kubetypes.FileSource))
 	}
 
 	// define url config source
+	// TODO 添加HTTP来源
 	if kubeCfg.StaticPodURL != "" {
 		klog.InfoS("Adding pod URL with HTTP header", "URL", kubeCfg.StaticPodURL, "header", manifestURLHeader)
 		config.NewSourceURL(kubeCfg.StaticPodURL, manifestURLHeader, nodeName, kubeCfg.HTTPCheckFrequency.Duration, cfg.Channel(ctx, kubetypes.HTTPSource))
 	}
 
+	// 添加APIServer来源
 	if kubeDeps.KubeClient != nil {
 		klog.InfoS("Adding apiserver pod source")
 		config.NewSourceApiserver(kubeDeps.KubeClient, nodeName, nodeHasSynced, cfg.Channel(ctx, kubetypes.ApiserverSource))
@@ -373,6 +378,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		return nil, fmt.Errorf("invalid sync frequency %d", kubeCfg.SyncFrequency.Duration)
 	}
 
+	// TODO 这里是在干嘛？
 	if kubeCfg.MakeIPTablesUtilChains {
 		if kubeCfg.IPTablesMasqueradeBit > 31 || kubeCfg.IPTablesMasqueradeBit < 0 {
 			return nil, fmt.Errorf("iptables-masquerade-bit is not valid. Must be within [0, 31]")
@@ -390,7 +396,9 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		return nil, fmt.Errorf("cloud provider %q was specified, but built-in cloud providers are disabled. Please set --cloud-provider=external and migrate to an external cloud provider", cloudProvider)
 	}
 
+	// 用于判断Node是否已经同步完成，这通常在启动的时候非常有用
 	var nodeHasSynced cache.InformerSynced
+	// 用于获取Node实例
 	var nodeLister corelisters.NodeLister
 
 	// If kubeClient == nil, we are running in standalone mode (i.e. no API servers)
@@ -404,6 +412,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		nodeHasSynced = func() bool {
 			return kubeInformers.Core().V1().Nodes().Informer().HasSynced()
 		}
+		// 启动NodeInformer
 		kubeInformers.Start(wait.NeverStop)
 		klog.InfoS("Attempting to sync node with API server")
 	} else {
@@ -416,6 +425,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	if kubeDeps.PodConfig == nil {
 		var err error
+		// TODO 实例化PodConfig
 		kubeDeps.PodConfig, err = makePodSourceConfig(kubeCfg, kubeDeps, nodeName, nodeHasSynced)
 		if err != nil {
 			return nil, err

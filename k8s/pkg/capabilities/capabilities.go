@@ -46,6 +46,7 @@ type PrivilegedSources struct {
 	HostIPCSources []string
 }
 
+// TODO 定义了一个匿名类型的变量
 var capInstance struct {
 	once         sync.Once
 	lock         sync.Mutex

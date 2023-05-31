@@ -90,15 +90,18 @@ type KubeletConfiguration struct {
 	StaticPodPath string
 	// syncFrequency is the max period between synchronizing running
 	// containers and config
+	// TODO 如何理解这个配置？
 	SyncFrequency metav1.Duration
 	// fileCheckFrequency is the duration between checking config files for
 	// new data
+	// 检测StaticPod文件是否变化的周期
 	FileCheckFrequency metav1.Duration
 	// httpCheckFrequency is the duration between checking http for new data
 	HTTPCheckFrequency metav1.Duration
 	// staticPodURL is the URL for accessing static pods to run
 	StaticPodURL string
 	// staticPodURLHeader is a map of slices with HTTP headers to use when accessing the podURL
+	// 当通过HTTP的方式获取Pod的时候，Kubelet如果需要访问这个URL，需要使用的请求头在这里设置
 	StaticPodURLHeader map[string][]string `datapolicy:"token"`
 	// address is the IP address for the Kubelet to serve on (set to 0.0.0.0
 	// for all interfaces)
@@ -321,6 +324,7 @@ type KubeletConfiguration struct {
 	// If true, Kubelet ensures a set of iptables rules are present on host.
 	// These rules will serve as utility for various components, e.g. kube-proxy.
 	// The rules will be created based on IPTablesMasqueradeBit and IPTablesDropBit.
+	// TODO 怎么感觉像是抢了Kube-Proxy的活
 	MakeIPTablesUtilChains bool
 	// iptablesMasqueradeBit is the bit of the iptables fwmark space to mark for SNAT
 	// Values must be within the range [0, 31]. Must be different from other mark bits.

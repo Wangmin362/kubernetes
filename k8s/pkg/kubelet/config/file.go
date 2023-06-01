@@ -70,6 +70,7 @@ func NewSourceFile(path string, nodeName types.NodeName, period time.Duration, u
 }
 
 func newSourceFile(path string, nodeName types.NodeName, period time.Duration, updates chan<- interface{}) *sourceFile {
+	// 把Pod数组放入到updates channel通道当中
 	send := func(objs []interface{}) {
 		var pods []*v1.Pod
 		for _, o := range objs {
@@ -77,6 +78,7 @@ func newSourceFile(path string, nodeName types.NodeName, period time.Duration, u
 		}
 		updates <- kubetypes.PodUpdate{Pods: pods, Op: kubetypes.SET, Source: kubetypes.FileSource}
 	}
+	// cache.MetaNamespaceKeyFunc用于获取Pod的唯一Key，其实就是namespace + podName
 	store := cache.NewUndeltaStore(send, cache.MetaNamespaceKeyFunc)
 	return &sourceFile{
 		path:           path,

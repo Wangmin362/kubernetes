@@ -36,6 +36,7 @@ import (
 )
 
 // PodConfigNotificationMode describes how changes are sent to the update channel.
+// TODO 如何理解这里的Pod配置通知模式？
 type PodConfigNotificationMode int
 
 const (
@@ -44,14 +45,18 @@ const (
 	PodConfigNotificationUnknown PodConfigNotificationMode = iota
 	// PodConfigNotificationSnapshot delivers the full configuration as a SET whenever
 	// any change occurs.
+	// TODO 如何理解该模式？
 	PodConfigNotificationSnapshot
 	// PodConfigNotificationSnapshotAndUpdates delivers an UPDATE and DELETE message whenever pods are
 	// changed, and a SET message if there are any additions or removals.
+	// TODO 如何理解该模式？
 	PodConfigNotificationSnapshotAndUpdates
 	// PodConfigNotificationIncremental delivers ADD, UPDATE, DELETE, REMOVE, RECONCILE to the update channel.
+	// TODO 如何理解该模式？
 	PodConfigNotificationIncremental
 )
 
+// TODO 这个接口抽象来干嘛的？
 type podStartupSLIObserver interface {
 	ObservedPodOnWatch(pod *v1.Pod, when time.Time)
 }
@@ -63,20 +68,26 @@ type podStartupSLIObserver interface {
 type PodConfig struct {
 	// Pod存储，存储了来自于不同来源的Pod
 	pods *podStorage
-	mux  *config.Mux
+	// 这个Mux比较有意思，这个Mux不是普通HTTP的路由，而是不同来源的Pod的路由
+	mux *config.Mux
 
 	// the channel of denormalized changes passed to listeners
+	// 这里应该也是采用了异步接受Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
 	updates chan kubetypes.PodUpdate
 
 	// contains the list of all configured sources
 	sourcesLock sync.Mutex
-	sources     sets.String
+	// 当前支持的Pod来源有哪些？目前只有HTTP, StaticPod, APIServer这三种来源
+	sources sets.String
 }
 
 // NewPodConfig creates an object that can merge many configuration sources into a stream
 // of normalized updates to a pod configuration.
 func NewPodConfig(mode PodConfigNotificationMode, recorder record.EventRecorder, startupSLIObserver podStartupSLIObserver) *PodConfig {
+	// 消息队列的长度为50个
 	updates := make(chan kubetypes.PodUpdate, 50)
+	// 1、实例化PodStorage，实际上就是一个二级map，第一级Key为Source，第二级Key为Pod.UID
+	// 2、PodStorage同时是一个Merge,
 	storage := newPodStorage(updates, mode, recorder, startupSLIObserver)
 	podConfig := &PodConfig{
 		pods:    storage,
@@ -92,6 +103,7 @@ func NewPodConfig(mode PodConfigNotificationMode, recorder record.EventRecorder,
 func (c *PodConfig) Channel(ctx context.Context, source string) chan<- interface{} {
 	c.sourcesLock.Lock()
 	defer c.sourcesLock.Unlock()
+	// 添加新的Pod来源
 	c.sources.Insert(source)
 	return c.mux.ChannelWithContext(ctx, source)
 }
@@ -127,16 +139,19 @@ type podStorage struct {
 	// map of source name to pod uid to pod reference
 	// Pod存储，第一级Key为Source，即当前Pod来自于那里，目前主要有三种数据来源，分别是：HTTP，StaticPod, APIServer
 	pods map[string]map[types.UID]*v1.Pod
+	// TODO 如何理解这个属性？
 	mode PodConfigNotificationMode
 
 	// ensures that updates are delivered in strict order
 	// on the updates channel
 	updateLock sync.Mutex
-	updates    chan<- kubetypes.PodUpdate
+	// 来自于HTTP, PodStaticPod以及APIServer的Pod变更会被放入到这个channel当中
+	updates chan<- kubetypes.PodUpdate
 
 	// contains the set of all sources that have sent at least one SET
 	sourcesSeenLock sync.RWMutex
-	sourcesSeen     sets.String
+	// 当前K8S有且仅支持HTTP, PodStatic, APIServer三种来源
+	sourcesSeen sets.String
 
 	// the EventRecorder to use
 	recorder record.EventRecorder
@@ -161,12 +176,17 @@ func newPodStorage(updates chan<- kubetypes.PodUpdate, mode PodConfigNotificatio
 // Merge normalizes a set of incoming changes from different sources into a map of all Pods
 // and ensures that redundant changes are filtered out, and then pushes zero or more minimal
 // updates onto the update channel.  Ensures that updates are delivered in order.
+// 1、change参数实际上就是一个Pod的变动，实际上就是PodUpdate类型
+// 2、Merge的功能是把PodUpdate类型的数据分门别类整理处理再次分装为PodUpdate类型，然后放入到updates channel当中
 func (s *podStorage) Merge(source string, change interface{}) error {
 	s.updateLock.Lock()
 	defer s.updateLock.Unlock()
 
+	// 之前是否处理过这个来源的Pod变更？
 	seenBefore := s.sourcesSeen.Has(source)
+	// TODO 从change当中把pod分门别类整理出来
 	adds, updates, deletes, removes, reconciles := s.merge(source, change)
+	// 如果之前没有处理过，并且经过merger以后，就处理过这个来源的Pod变更，说明是第一次处理这个来源的Pod变更
 	firstSet := !seenBefore && s.sourcesSeen.Has(source)
 
 	// deliver update notifications
@@ -224,12 +244,13 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 	s.podLock.Lock()
 	defer s.podLock.Unlock()
 
-	addPods := []*v1.Pod{}
-	updatePods := []*v1.Pod{}
-	deletePods := []*v1.Pod{}
-	removePods := []*v1.Pod{}
-	reconcilePods := []*v1.Pod{}
+	addPods := []*v1.Pod{}       // 当前Pod变更有哪些Pod是新增？
+	updatePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是更新？
+	deletePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是删除？
+	removePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是删除？ 和DeletePod有啥区别？
+	reconcilePods := []*v1.Pod{} // 当前Pod变更有哪些Pod是新增？
 
+	// 获取当前来源的所有Pod
 	pods := s.pods[source]
 	if pods == nil {
 		pods = make(map[types.UID]*v1.Pod)
@@ -238,15 +259,19 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 	// updatePodFunc is the local function which updates the pod cache *oldPods* with new pods *newPods*.
 	// After updated, new pod will be stored in the pod cache *pods*.
 	// Notice that *pods* and *oldPods* could be the same cache.
+	// 第一个参数为新变更的Pod,第二个参数为以前的pod，第三个参数为pod缓存
 	updatePodsFunc := func(newPods []*v1.Pod, oldPods, pods map[types.UID]*v1.Pod) {
+		// 去除掉所有新变更的Pod的重复Pod, 所谓的重复Pod指的是名称相同的Pod
 		filtered := filterInvalidPods(newPods, source, s.recorder)
 		for _, ref := range filtered {
 			// Annotate the pod with the source before any comparison.
 			if ref.Annotations == nil {
 				ref.Annotations = make(map[string]string)
 			}
+			// 给Pod新增kubernetes.io/config.source=source的注解
 			ref.Annotations[kubetypes.ConfigSourceAnnotationKey] = source
 			// ignore static pods
+			// 只有来自于APIServer的Pod才认为是非StaticPod，给这种类型的Pod增加一个时间，后便后续统计Pod的启动时间
 			if !kubetypes.IsStaticPod(ref) {
 				s.startupSLIObserver.ObservedPodOnWatch(ref, time.Now())
 			}
@@ -334,6 +359,7 @@ func (s *podStorage) seenSources(sources ...string) bool {
 	return s.sourcesSeen.HasAll(sources...)
 }
 
+// 所谓的过滤出无效的Pod指的是把哪些重复的Pod过滤掉
 func filterInvalidPods(pods []*v1.Pod, source string, recorder record.EventRecorder) (filtered []*v1.Pod) {
 	names := sets.String{}
 	for i, pod := range pods {

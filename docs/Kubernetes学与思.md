@@ -235,6 +235,11 @@
 
 - [ ] Kubelet是如何调用CRI的？
 - [ ] Kubelet有几种可用的CRI？每种CRI有何区别？如何指定Kubelet使用不同的CRI?
+- [ ] 抽象结构
+    - [ ] CloudProvider
+    - [ ] PodStorage
+    - [ ] Kubelet认证 & 鉴权
+    - [ ] CGroup
 - [ ] 模块
     - [ ] KubeletServerCertificateManager
     - [ ] CheckpointManager

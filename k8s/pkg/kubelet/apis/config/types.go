@@ -225,6 +225,7 @@ type KubeletConfiguration struct {
 	// CPUManagerPolicyOptions is a set of key=value which 	allows to set extra options
 	// to fine tune the behaviour of the cpu manager policies.
 	// Requires  both the "CPUManager" and "CPUManagerPolicyOptions" feature gates to be enabled.
+	// CPUManager的参数设置
 	CPUManagerPolicyOptions map[string]string
 	// CPU Manager reconciliation period.
 	// Requires the CPUManager feature gate to be enabled.
@@ -242,6 +243,7 @@ type KubeletConfiguration struct {
 	// TopologyManagerPolicyOptions is a set of key=value which allows to set extra options
 	// to fine tune the behaviour of the topology manager policies.
 	// Requires  both the "TopologyManager" and "TopologyManagerPolicyOptions" feature gates to be enabled.
+	// TopologyManger的参数设置
 	TopologyManagerPolicyOptions map[string]string
 	// Map of QoS resource reservation percentages (memory only for now).
 	// Requires the QOSReserved feature gate to be enabled.
@@ -362,11 +364,13 @@ type KubeletConfiguration struct {
 	// that describe resources reserved for non-kubernetes components.
 	// Currently only cpu, memory and local ephemeral storage for root file system are supported.
 	// See http://kubernetes.io/docs/user-guide/compute-resources for more detail.
+	// 为非K8S组件预留的资源
 	SystemReserved map[string]string
 	// A set of ResourceName=ResourceQuantity (e.g. cpu=200m,memory=150G,ephemeral-storage=1G,pid=100) pairs
 	// that describe resources reserved for kubernetes system components.
 	// Currently only cpu, memory and local ephemeral storage for root file system are supported.
 	// See http://kubernetes.io/docs/user-guide/compute-resources for more detail.
+	// 为K8S系统组件预留的资源
 	KubeReserved map[string]string
 	// This flag helps kubelet identify absolute name of top level cgroup used to enforce `SystemReserved` compute resource reservation for OS system daemons.
 	// Refer to [Node Allocatable](https://kubernetes.io/docs/tasks/administer-cluster/reserve-compute-resources/#node-allocatable) doc for more information.

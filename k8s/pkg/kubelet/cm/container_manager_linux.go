@@ -205,6 +205,7 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		return nil, fmt.Errorf("failed to get mounted cgroup subsystems: %v", err)
 	}
 
+	// TODO 分析/proc/swaps的作用
 	if failSwapOn {
 		// Check whether swap is enabled. The Kubelet does not support running with swap enabled.
 		swapFile := "/proc/swaps"
@@ -231,6 +232,7 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 	// It is safe to invoke `MachineInfo` on cAdvisor before logically initializing cAdvisor here because
 	// machine info is computed and cached once as part of cAdvisor object creation.
 	// But `RootFsInfo` and `ImagesFsInfo` are not available at this moment so they will be called later during manager starts
+	// 通过cAdvisor获取机器信息，比如
 	machineInfo, err := cadvisorInterface.MachineInfo()
 	if err != nil {
 		return nil, err

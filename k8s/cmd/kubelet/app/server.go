@@ -566,7 +566,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
-	// 初始化Cloud依赖
+	// TODO 初始化CloudProvider
 	if kubeDeps.Cloud == nil {
 		if !cloudprovider.IsExternal(s.CloudProvider) {
 			cloudprovider.DeprecationWarningForProvider(s.CloudProvider)
@@ -603,6 +603,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		// 非单例模式启动，这个参数重点
 		// TODO 这里主要还是在初始化KubeDeps配置依赖
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
+		// 初始化ClientSet
 		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName)
 		if err != nil {
 			return err
@@ -636,6 +637,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 
 		heartbeatClientConfig.QPS = float32(-1)
+		// 实例化HeartbeatClient
 		kubeDeps.HeartbeatClient, err = clientset.NewForConfig(&heartbeatClientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to initialize kubelet heartbeat client: %w", err)
@@ -673,6 +675,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		cgroupRoots = append(cgroupRoots, s.SystemCgroups)
 	}
 
+	// TODO 实例化cAdvisor
 	if kubeDeps.CAdvisorInterface == nil {
 		imageFsInfoProvider := cadvisor.NewImageFsInfoProvider(s.ContainerRuntimeEndpoint)
 		kubeDeps.CAdvisorInterface, err = cadvisor.New(imageFsInfoProvider, s.RootDirectory, cgroupRoots, cadvisor.UsingLegacyCadvisorStats(s.ContainerRuntimeEndpoint), s.LocalStorageCapacityIsolation)
@@ -712,10 +715,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 			klog.InfoS("After cpu setting is overwritten", "kubeReservedCPUs", s.KubeReserved, "systemReservedCPUs", s.SystemReserved)
 		}
 
+		// 为K8S系统组件预留的资源
 		kubeReserved, err := parseResourceList(s.KubeReserved)
 		if err != nil {
 			return fmt.Errorf("--kube-reserved value failed to parse: %w", err)
 		}
+		// 为非K8S组件预留的资源
 		systemReserved, err := parseResourceList(s.SystemReserved)
 		if err != nil {
 			return fmt.Errorf("--system-reserved value failed to parse: %w", err)
@@ -733,6 +738,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 			return fmt.Errorf("--qos-reserved value failed to parse: %w", err)
 		}
 
+		// CPUManager的参数设置
 		var cpuManagerPolicyOptions map[string]string
 		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManagerPolicyOptions) {
 			cpuManagerPolicyOptions = s.CPUManagerPolicyOptions
@@ -741,6 +747,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 				s.CPUManagerPolicyOptions, features.CPUManager, features.CPUManagerPolicyOptions)
 		}
 
+		// TopologyManager参数设置
 		var topologyManagerPolicyOptions map[string]string
 		if utilfeature.DefaultFeatureGate.Enabled(features.TopologyManagerPolicyOptions) {
 			topologyManagerPolicyOptions = s.TopologyManagerPolicyOptions
@@ -749,6 +756,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 				s.TopologyManagerPolicyOptions, features.TopologyManagerPolicyOptions)
 		}
 
+		// TODO 分析ContainerManager的实例化
 		kubeDeps.ContainerManager, err = cm.NewContainerManager(
 			kubeDeps.Mounter,
 			kubeDeps.CAdvisorInterface,
@@ -794,6 +802,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// TODO 似乎是用来追踪Pod启动延迟时间
 	if kubeDeps.PodStartupLatencyTracker == nil {
 		kubeDeps.PodStartupLatencyTracker = kubeletutil.NewPodStartupLatencyTracker()
 	}

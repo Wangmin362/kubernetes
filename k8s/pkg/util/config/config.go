@@ -24,7 +24,7 @@ import (
 )
 
 type Merger interface {
-	// Invoked when a change from a source is received.  May also function as an incremental
+	// Merge Invoked when a change from a source is received.  May also function as an incremental
 	// merger if you wish to consume changes incrementally.  Must be reentrant when more than
 	// one source is defined.
 	Merge(source string, update interface{}) error
@@ -73,9 +73,11 @@ func (m *Mux) ChannelWithContext(ctx context.Context, source string) chan interf
 	if exists {
 		return channel
 	}
+	// 实例化一个零缓冲队列
 	newChannel := make(chan interface{})
 	m.sources[source] = newChannel
 
+	// 会启动一个协程一直堆区channel,显然，外面某个协程肯定会往里面写入数据
 	go wait.Until(func() { m.listen(source, newChannel) }, 0, ctx.Done())
 	return newChannel
 }

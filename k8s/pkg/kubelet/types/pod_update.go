@@ -42,6 +42,7 @@ const (
 	// ADD signifies pods that are new to this source.
 	ADD
 	// DELETE signifies pods that are gracefully deleted from this source.
+	// TODO Delete和Remove有何区别？
 	DELETE
 	// REMOVE signifies pods that have been removed from this source.
 	REMOVE
@@ -49,6 +50,7 @@ const (
 	UPDATE
 	// RECONCILE signifies pods that have unexpected status in this source,
 	// kubelet should reconcile status with this source.
+	// Pod状态和期望不符，Kubelet应该进行调谐
 	RECONCILE
 )
 

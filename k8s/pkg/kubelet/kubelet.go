@@ -300,6 +300,7 @@ func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, ku
 	// TODO 添加StaticPod来源
 	if kubeCfg.StaticPodPath != "" {
 		klog.InfoS("Adding static pod path", "path", kubeCfg.StaticPodPath)
+		// 定期扫描StaticPod，处理Pod的增删改查并发送到PodConfig当中
 		config.NewSourceFile(kubeCfg.StaticPodPath, nodeName, kubeCfg.FileCheckFrequency.Duration, cfg.Channel(ctx, kubetypes.FileSource))
 	}
 
@@ -405,6 +406,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	// If not nil, we are running as part of a cluster and should sync w/API
 	if kubeDeps.KubeClient != nil {
 		// 同步APIServer的Node资源
+		// TODO 为什么Kubelet需要知道Node的变更？
 		kubeInformers := informers.NewSharedInformerFactoryWithOptions(kubeDeps.KubeClient, 0, informers.WithTweakListOptions(func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.Set{metav1.ObjectNameField: string(nodeName)}.String()
 		}))
@@ -425,7 +427,8 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	if kubeDeps.PodConfig == nil {
 		var err error
-		// TODO 实例化PodConfig
+		// 实例化PodConfig，实际上就是在监听HTTP, StaticPod, APIServer三个来源，一旦返现有数据变化就把数据发送到PodConfig
+		// 最终PLEG消费PodConfig中的数据
 		kubeDeps.PodConfig, err = makePodSourceConfig(kubeCfg, kubeDeps, nodeName, nodeHasSynced)
 		if err != nil {
 			return nil, err

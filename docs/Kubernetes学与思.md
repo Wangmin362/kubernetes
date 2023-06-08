@@ -250,6 +250,9 @@
     - [ ] PodContainerManager
     - [ ] QosContainerManager
     - [ ] CpuManager
+    - [ ] MemoryManager
+    - [ ] DRAManager
+    - [ ] DeviceManager
     - [ ] ConfigMapManager
     - [ ] Runtime
     - [ ] RemoteImageService

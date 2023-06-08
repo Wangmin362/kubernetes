@@ -1432,6 +1432,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 // Note that the modules here must not depend on modules that are not initialized here.
 func (kl *Kubelet) initializeModules() error {
 	// Prometheus metrics.
+	// 注册普罗米修斯指标
 	metrics.Register(
 		collectors.NewVolumeStatsCollector(kl),
 		collectors.NewLogMetricsCollector(kl.StatsProvider.ListPodStats),
@@ -1440,6 +1441,7 @@ func (kl *Kubelet) initializeModules() error {
 	servermetrics.Register()
 
 	// Setup filesystem directories.
+	// TODO 仔细分析
 	if err := kl.setupDataDirs(); err != nil {
 		return err
 	}
@@ -1452,14 +1454,17 @@ func (kl *Kubelet) initializeModules() error {
 	}
 
 	// Start the image manager.
+	// TODO 分析ImageManager
 	kl.imageManager.Start()
 
 	// Start the certificate manager if it was enabled.
+	// TODO 分析ServerCertificateManager
 	if kl.serverCertificateManager != nil {
 		kl.serverCertificateManager.Start()
 	}
 
 	// Start out of memory watcher.
+	// TODO 分析OOMWatcher
 	if kl.oomWatcher != nil {
 		if err := kl.oomWatcher.Start(kl.nodeRef); err != nil {
 			return fmt.Errorf("failed to start OOM watcher: %w", err)
@@ -1467,6 +1472,7 @@ func (kl *Kubelet) initializeModules() error {
 	}
 
 	// Start resource analyzer
+	// TODO 分析ResourceAnalyzer
 	kl.resourceAnalyzer.Start()
 
 	return nil
@@ -1525,6 +1531,7 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 // Run starts the kubelet reacting to config updates
 func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	ctx := context.Background()
+	// TODO 仔细分析
 	if kl.logServer == nil {
 		file := http.FileServer(http.Dir(nodeLogDir))
 		if utilfeature.DefaultFeatureGate.Enabled(features.NodeLogQuery) && kl.kubeletConfiguration.EnableSystemLogQuery {
@@ -1560,15 +1567,23 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 			kl.logServer = http.StripPrefix("/logs/", file)
 		}
 	}
+	// ClientSet肯定不能为空，否则无法和APIServer交互
 	if kl.kubeClient == nil {
 		klog.InfoS("No API server defined - no node status update will be sent")
 	}
 
 	// Start the cloud provider sync manager
+	// TODO 分析CloudResourceSyncManager
 	if kl.cloudResourceSyncManager != nil {
 		go kl.cloudResourceSyncManager.Run(wait.NeverStop)
 	}
 
+	// TODO 1、注册普罗米修斯指标
+	// 2、创建目录
+	// 3、启动ImageManger
+	// 4、启动ServerCertificateManager
+	// 5、启动OOMWatcher
+	// 6、启动ResourceAnalyzer
 	if err := kl.initializeModules(); err != nil {
 		kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.KubeletSetupFailed, err.Error())
 		klog.ErrorS(err, "Failed to initialize internal modules")
@@ -1576,6 +1591,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	}
 
 	// Start volume manager
+	// TODO 启动VolumeManager
 	go kl.volumeManager.Run(kl.sourcesReady, wait.NeverStop)
 
 	if kl.kubeClient != nil {
@@ -1592,31 +1608,38 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 		go kl.fastStatusUpdateOnce()
 
 		// start syncing lease
+		// TODO 启动NodeLeaseController
 		go kl.nodeLeaseController.Run(context.Background())
 	}
+	// TODO 仔细分析
 	go wait.Until(kl.updateRuntimeUp, 5*time.Second, wait.NeverStop)
 
-	// Set up iptables util rules
+	// TODO 创建IPTables规则
 	if kl.makeIPTablesUtilChains {
 		kl.initNetworkUtil()
 	}
 
 	// Start component sync loops.
+	// TODO 启动状态管理器
 	kl.statusManager.Start()
 
 	// Start syncing RuntimeClasses if enabled.
+	// TODO 启动RuntimeClassManager
 	if kl.runtimeClassManager != nil {
 		kl.runtimeClassManager.Start(wait.NeverStop)
 	}
 
 	// Start the pod lifecycle event generator.
+	// TODO 启动PLEG
 	kl.pleg.Start()
 
 	// Start eventedPLEG only if EventedPLEG feature gate is enabled.
+	// TODO 启动EventedPLEG
 	if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
 		kl.eventedPleg.Start()
 	}
 
+	// todo 仔细分析
 	kl.syncLoop(ctx, updates, kl)
 }
 
@@ -2304,6 +2327,7 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 		duration = base
 
 		kl.syncLoopMonitor.Store(kl.clock.Now())
+		// TODO 启动SyncLoop
 		if !kl.syncLoopIteration(ctx, updates, handler, syncTicker.C, housekeepingTicker.C, plegCh) {
 			break
 		}
@@ -2788,6 +2812,12 @@ func (kl *Kubelet) updateRuntimeUp() {
 		return
 	}
 	kl.runtimeState.setRuntimeState(nil)
+	// 1、启动CAdvisor
+	// 2、启动ContainerManager
+	// 3、启动EvictionManager
+	// 4、启动ContainerLogManager
+	// 5、启动PluginManager
+	// 6、启动ShutdownManager
 	kl.oneTimeInitializer.Do(kl.initializeRuntimeDependentModules)
 	kl.runtimeState.setRuntimeSync(kl.clock.Now())
 }

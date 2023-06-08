@@ -757,6 +757,9 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 
 		// TODO 实例化ContainerManager
+		// 1、容器管理器是如何管理容器的？
+		// 2、容器管理器应该具备哪些功能？
+		// ContainerManager内部包含了CgroupManger、QOSContainerManager、TypologyManager、CpuManager、DRAManager、DeviceManager、MemoryManager
 		kubeDeps.ContainerManager, err = cm.NewContainerManager(
 			kubeDeps.Mounter,
 			kubeDeps.CAdvisorInterface,
@@ -1167,7 +1170,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return fmt.Errorf("bad --node-ip %q: %v", kubeServer.NodeIP, err)
 	}
 
-	// TODO 初始化capInstance
+	// TODO 初始化Linux Capabilities
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: true,
 	})
@@ -1210,6 +1213,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		}
 		klog.InfoS("Started kubelet as runonce")
 	} else {
+		// TODO 启动Kubelet
 		startKubelet(k, podCfg, &kubeServer.KubeletConfiguration, kubeDeps, kubeServer.EnableServer)
 		klog.InfoS("Started kubelet")
 	}
@@ -1218,7 +1222,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 
 func startKubelet(k kubelet.Bootstrap, podCfg *config.PodConfig, kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *kubelet.Dependencies, enableServer bool) {
 	// start the kubelet
-	// 运行Kubelet
+	// TODO 运行Kubelet，参数为PodUpdate事件，实际上就是一个Channel
 	go k.Run(podCfg.Updates())
 
 	// start the kubelet server

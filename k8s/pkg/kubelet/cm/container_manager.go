@@ -135,30 +135,31 @@ type ContainerManager interface {
 	podresources.DynamicResourcesProvider
 }
 
+// NodeConfig TODO 什么叫做NodeConfig?  这玩意似乎抽象为了Node的配置
 type NodeConfig struct {
-	RuntimeCgroupsName    string
-	SystemCgroupsName     string
-	KubeletCgroupsName    string
-	KubeletOOMScoreAdj    int32
-	ContainerRuntime      string
-	CgroupsPerQOS         bool
-	CgroupRoot            string
-	CgroupDriver          string
-	KubeletRootDir        string
-	ProtectKernelDefaults bool
-	NodeAllocatableConfig
-	QOSReserved                              map[v1.ResourceName]int64
-	CPUManagerPolicy                         string
-	CPUManagerPolicyOptions                  map[string]string
-	TopologyManagerScope                     string
-	CPUManagerReconcilePeriod                time.Duration
-	ExperimentalMemoryManagerPolicy          string
-	ExperimentalMemoryManagerReservedMemory  []kubeletconfig.MemoryReservation
-	PodPidsLimit                             int64
-	EnforceCPULimits                         bool
-	CPUCFSQuotaPeriod                        time.Duration
-	TopologyManagerPolicy                    string
-	ExperimentalTopologyManagerPolicyOptions map[string]string
+	RuntimeCgroupsName                       string                            // RuntimeCgroupsName、SystemCgroupsName、KubeletCgroupName有何区别？
+	SystemCgroupsName                        string                            // TODO 分析
+	KubeletCgroupsName                       string                            // TODO 分析
+	KubeletOOMScoreAdj                       int32                             // TODO 分析
+	ContainerRuntime                         string                            // 选择的容器运行时，目前应该只支持remote,实际上kubelet内部使用的是CRI接口，只要实现了这个接口就可以作为Kubernetes的容器运行时
+	CgroupsPerQOS                            bool                              // TODO 分析
+	CgroupRoot                               string                            // TODO 分析
+	CgroupDriver                             string                            // TODO 分析
+	KubeletRootDir                           string                            // TODO 分析
+	ProtectKernelDefaults                    bool                              // TODO 分析
+	NodeAllocatableConfig                                                      // 用于配置当前节点可以分配的资源
+	QOSReserved                              map[v1.ResourceName]int64         // TODO 分析
+	CPUManagerPolicy                         string                            // 用于配置CPUManager策略
+	CPUManagerPolicyOptions                  map[string]string                 // TODO 分析
+	TopologyManagerScope                     string                            // TODO 分析
+	CPUManagerReconcilePeriod                time.Duration                     // TODO 分析
+	ExperimentalMemoryManagerPolicy          string                            // TODO 分析
+	ExperimentalMemoryManagerReservedMemory  []kubeletconfig.MemoryReservation // TODO 分析
+	PodPidsLimit                             int64                             // TODO 分析
+	EnforceCPULimits                         bool                              // TODO 分析
+	CPUCFSQuotaPeriod                        time.Duration                     // TODO 分析
+	TopologyManagerPolicy                    string                            // TODO 分析
+	ExperimentalTopologyManagerPolicyOptions map[string]string                 // TODO 分析
 }
 
 type NodeAllocatableConfig struct {

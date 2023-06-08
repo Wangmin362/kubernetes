@@ -72,7 +72,8 @@ type PodConfig struct {
 	mux *config.Mux
 
 	// the channel of denormalized changes passed to listeners
-	// 这里应该也是采用了异步接受Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
+	// 1、这里应该也是采用了异步接受Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
+	// 2、updates的数据来源有：1、StaticPod, 2、HTTP  3、APIServer
 	updates chan kubetypes.PodUpdate
 
 	// contains the list of all configured sources

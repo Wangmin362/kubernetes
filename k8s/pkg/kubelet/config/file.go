@@ -62,6 +62,7 @@ type sourceFile struct {
 // NewSourceFile watches a config file for changes.
 func NewSourceFile(path string, nodeName types.NodeName, period time.Duration, updates chan<- interface{}) {
 	// "github.com/sigma/go-inotify" requires a path without trailing "/"
+	// 去掉路径最后的斜杠
 	path = strings.TrimRight(path, string(os.PathSeparator))
 
 	config := newSourceFile(path, nodeName, period, updates)
@@ -76,17 +77,19 @@ func newSourceFile(path string, nodeName types.NodeName, period time.Duration, u
 		for _, o := range objs {
 			pods = append(pods, o.(*v1.Pod))
 		}
+		// 把变更的Pod写入到Channel当中，这个updates channel是一个无缓冲队列
 		updates <- kubetypes.PodUpdate{Pods: pods, Op: kubetypes.SET, Source: kubetypes.FileSource}
 	}
-	// cache.MetaNamespaceKeyFunc用于获取Pod的唯一Key，其实就是namespace + podName
+	// 1、cache.MetaNamespaceKeyFunc用于获取Pod的唯一Key，其实就是namespace + podName
+	// 2、store应该是用来记录当前已经监听到的Pod,防止重复出发PLEG
 	store := cache.NewUndeltaStore(send, cache.MetaNamespaceKeyFunc)
 	return &sourceFile{
-		path:           path,
-		nodeName:       nodeName,
-		period:         period,
+		path:           path,     // 监听的StaticPod路径
+		nodeName:       nodeName, // 当前Node名字
+		period:         period,   // 定时扫描StaticPod的周期
 		store:          store,
 		fileKeyMapping: map[string]string{},
-		updates:        updates,
+		updates:        updates, // SourceFile会监听文件路径，并把Pod变更放入到这个channel当中
 		watchEvents:    make(chan *watchEvent, eventBufferLen),
 	}
 }
@@ -101,11 +104,11 @@ func (s *sourceFile) run() {
 		}
 		for {
 			select {
-			case <-listTicker.C:
+			case <-listTicker.C: // 定时扫描StaticPodPath，每秒钟扫描一次
 				if err := s.listConfig(); err != nil {
 					klog.ErrorS(err, "Unable to read config path", "path", s.path)
 				}
-			case e := <-s.watchEvents:
+			case e := <-s.watchEvents: // 一旦StaticPodPath路径中的文件发生变更，就会触发这里
 				if err := s.consumeWatchEvent(e); err != nil {
 					klog.ErrorS(err, "Unable to process watch event")
 				}
@@ -113,6 +116,7 @@ func (s *sourceFile) run() {
 		}
 	}()
 
+	// 通过Linux的机制监听文件的变更，一旦发现文件变更就把变更事件写入到watchEvents channel当中
 	s.startWatch()
 }
 
@@ -134,6 +138,7 @@ func (s *sourceFile) listConfig() error {
 
 	switch {
 	case statInfo.Mode().IsDir():
+		// 如果当前路径是一个目录，那么从目录中的所有文件抽取定义的Pod
 		pods, err := s.extractFromDir(path)
 		if err != nil {
 			return err
@@ -143,13 +148,16 @@ func (s *sourceFile) listConfig() error {
 			s.updates <- kubetypes.PodUpdate{Pods: pods, Op: kubetypes.SET, Source: kubetypes.FileSource}
 			return nil
 		}
+		// 直接全量更新，每次扫描StaticPodPath都是以文件中的内容为准
 		return s.replaceStore(pods...)
 
 	case statInfo.Mode().IsRegular():
+		// 如果当前路径是一个普通文件，那么从文件当中抽取Pod
 		pod, err := s.extractFromFile(path)
 		if err != nil {
 			return err
 		}
+		// 直接全量更新，每次扫描StaticPodPath都是以文件中的内容为准
 		return s.replaceStore(pod)
 
 	default:
@@ -181,8 +189,10 @@ func (s *sourceFile) extractFromDir(name string) ([]*v1.Pod, error) {
 
 		switch {
 		case statInfo.Mode().IsDir():
+			// 可以看到StaticPod所配置的路径中即使配置了目录也没啥卵用
 			klog.ErrorS(nil, "Provided manifest path is a directory, not recursing into manifest path", "path", path)
 		case statInfo.Mode().IsRegular():
+			// 解析文件，抽取所有的Pod
 			pod, err := s.extractFromFile(path)
 			if err != nil {
 				if !os.IsNotExist(err) {
@@ -227,6 +237,7 @@ func (s *sourceFile) extractFromFile(filename string) (pod *v1.Pod, err error) {
 		return s.applyDefaults(pod, filename)
 	}
 
+	// 从文件当中解析Pod
 	parsed, pod, podErr := tryDecodeSinglePod(data, defaultFn)
 	if parsed {
 		if podErr != nil {

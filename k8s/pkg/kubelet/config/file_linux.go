@@ -83,6 +83,7 @@ func (s *sourceFile) doWatch() error {
 	}
 	defer w.Close()
 
+	// 监听StaticPodPath
 	err = w.Add(s.path)
 	if err != nil {
 		return fmt.Errorf("unable to create inotify for path %q: %v", s.path, err)
@@ -117,6 +118,7 @@ func (s *sourceFile) produceWatchEvent(e *fsnotify.Event) error {
 	case (e.Op & fsnotify.Remove) > 0:
 		eventType = podDelete
 	case (e.Op & fsnotify.Rename) > 0:
+		// TODO 为啥文件的重命名，也认为是PodDelete删除事件？
 		eventType = podDelete
 	default:
 		// Ignore rest events

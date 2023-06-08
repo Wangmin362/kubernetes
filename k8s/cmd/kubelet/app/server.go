@@ -760,7 +760,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		// TODO 实例化ContainerManager
 		// 1、容器管理器是如何管理容器的？
 		// 2、容器管理器应该具备哪些功能？
-		// ContainerManager内部包含了CgroupManger、QOSContainerManager、TypologyManager、CpuManager、DRAManager、DeviceManager、MemoryManager
+		// 3、实例化了CGroupManger、QOSContainerManager、TypologyManager、CpuManager、DRAManager、DeviceManager、MemoryManager
 		kubeDeps.ContainerManager, err = cm.NewContainerManager(
 			kubeDeps.Mounter,
 			kubeDeps.CAdvisorInterface,
@@ -1171,7 +1171,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		return fmt.Errorf("bad --node-ip %q: %v", kubeServer.NodeIP, err)
 	}
 
-	// TODO 初始化Linux Capabilities
+	// 初始化Linux Capabilities
 	capabilities.Initialize(capabilities.Capabilities{
 		AllowPrivileged: true,
 	})
@@ -1247,7 +1247,7 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 	// TODO: block until all sources have delivered at least one update to the channel, or break the sync loop
 	// up into "per source" synchronizations
 
-	// TODO 实例化Kubelet
+	// TODO 实例化MainKubelet
 	k, err = kubelet.NewMainKubelet(&kubeServer.KubeletConfiguration,
 		kubeDeps,
 		&kubeServer.ContainerRuntimeOptions,
@@ -1282,8 +1282,8 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 	// 发送StartingKubelet事件
 	k.BirthCry()
 
-	// 1、收集容器
-	// 2、收集镜像
+	// TODO 1、收集容器
+	// TODO 2、收集镜像
 	k.StartGarbageCollection()
 
 	return k, nil

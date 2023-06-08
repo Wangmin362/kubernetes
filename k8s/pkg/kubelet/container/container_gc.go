@@ -25,15 +25,19 @@ import (
 )
 
 // GCPolicy specifies a policy for garbage collecting containers.
+// TODO 垃圾手机策略
 type GCPolicy struct {
 	// Minimum age at which a container can be garbage collected, zero for no limit.
+	// 一个容器创建出来之后，最小生存时间，如果为零，表示没有限制。
 	MinAge time.Duration
 
 	// Max number of dead containers any single pod (UID, container name) pair is
 	// allowed to have, less than zero for no limit.
+	// 每个Pod中限制的容器数量，0表示不限制
 	MaxPerPodContainer int
 
 	// Max number of total dead containers, less than zero for no limit.
+	// 最多容许多少个已经删除的容器
 	MaxContainers int
 }
 
@@ -41,7 +45,7 @@ type GCPolicy struct {
 //
 // Implementation is thread-compatible.
 type GC interface {
-	// Garbage collect containers.
+	// GarbageCollect Garbage collect containers.
 	GarbageCollect(ctx context.Context) error
 	// Deletes all unused containers, including containers belonging to pods that are terminated but not deleted
 	DeleteAllUnusedContainers(ctx context.Context) error

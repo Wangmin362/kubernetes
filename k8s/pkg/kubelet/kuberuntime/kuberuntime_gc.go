@@ -187,7 +187,9 @@ func (cgc *containerGC) removeSandbox(ctx context.Context, sandboxID string) {
 
 // evictableContainers gets all containers that are evictable. Evictable containers are: not running
 // and created more than MinAge ago.
+// 获取当前Node节点上所有不是运行中的容器，并且此容器的年龄已经超过了minAge
 func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Duration) (containersByEvictUnit, error) {
+	// 通过RuntimeService获取当前Node的所有容器
 	containers, err := cgc.manager.getKubeletContainers(ctx, true)
 	if err != nil {
 		return containersByEvictUnit{}, err
@@ -196,16 +198,18 @@ func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Dur
 	evictUnits := make(containersByEvictUnit)
 	newestGCTime := time.Now().Add(-minAge)
 	for _, container := range containers {
-		// Prune out running containers.
+		// 如果当前容器正在运行，肯定不能删除
 		if container.State == runtimeapi.ContainerState_CONTAINER_RUNNING {
 			continue
 		}
 
 		createdAt := time.Unix(0, container.CreatedAt)
+		// 如果当前容器才被创建出来一会儿，还没有过最小生成时间，则直接跳过
 		if newestGCTime.Before(createdAt) {
 			continue
 		}
 
+		// 获取容器的信息，譬如PodName, Namespace, PodUID以及容器名字
 		labeledInfo := getContainerInfoFromLabels(container.Labels)
 		containerInfo := containerGCInfo{
 			id:         container.Id,
@@ -225,7 +229,7 @@ func (cgc *containerGC) evictableContainers(ctx context.Context, minAge time.Dur
 
 // evict all containers that are evictable
 func (cgc *containerGC) evictContainers(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
-	// Separate containers by evict units.
+	// 获取当前Node节点上所有不是运行中的容器，并且此容器的年龄已经超过了minAge
 	evictUnits, err := cgc.evictableContainers(ctx, gcPolicy.MinAge)
 	if err != nil {
 		return err
@@ -409,11 +413,13 @@ func (cgc *containerGC) evictPodLogsDirectories(ctx context.Context, allSourcesR
 // * removes oldest dead containers by enforcing gcPolicy.MaxContainers.
 // * gets evictable sandboxes which are not ready and contains no containers.
 // * removes evictable sandboxes.
-func (cgc *containerGC) GarbageCollect(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
+func (cgc *containerGC) GarbageCollect(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool,
+	evictNonDeletedPods bool) error {
 	ctx, otelSpan := cgc.tracer.Start(ctx, "Containers/GarbageCollect")
 	defer otelSpan.End()
 	errors := []error{}
 	// Remove evictable containers
+	// TODO 删除容器
 	if err := cgc.evictContainers(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods); err != nil {
 		errors = append(errors, err)
 	}

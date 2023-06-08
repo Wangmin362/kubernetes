@@ -46,6 +46,7 @@ type Mux struct {
 	// Sources and their lock.
 	sourceLock sync.RWMutex
 	// Maps source names to channels
+	// Key为不同的Pod来源，Value为零缓冲队列
 	sources map[string]chan interface{}
 }
 

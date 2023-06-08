@@ -419,11 +419,13 @@ func (cgc *containerGC) GarbageCollect(ctx context.Context, gcPolicy kubecontain
 	}
 
 	// Remove sandboxes with zero containers
+	// TODO 这里的Sandbox应该是Infra/Pause容器
 	if err := cgc.evictSandboxes(ctx, evictNonDeletedPods); err != nil {
 		errors = append(errors, err)
 	}
 
 	// Remove pod sandbox log directory
+	// 容器被删除了，那么这个记录这个容器日志也就没啥用了，直接删除
 	if err := cgc.evictPodLogsDirectories(ctx, allSourcesReady); err != nil {
 		errors = append(errors, err)
 	}

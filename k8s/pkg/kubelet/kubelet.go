@@ -231,6 +231,7 @@ type SyncHandler interface {
 type Option func(*Kubelet)
 
 // Bootstrap is a bootstrapping interface for kubelet, targets the initialization protocol
+// TODO 如何理解这里的抽象接口
 type Bootstrap interface {
 	GetConfiguration() kubeletconfiginternal.KubeletConfiguration
 	BirthCry()
@@ -1383,6 +1384,7 @@ func (kl *Kubelet) StartGarbageCollection() {
 	loggedContainerGCFailure := false
 	go wait.Until(func() {
 		ctx := context.Background()
+		// 1、每分钟收集一次，那么哪些容器可以收集呢？
 		if err := kl.containerGC.GarbageCollect(ctx); err != nil {
 			klog.ErrorS(err, "Container garbage collection failed")
 			kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.ContainerGCFailed, err.Error())

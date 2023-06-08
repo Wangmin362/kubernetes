@@ -593,16 +593,16 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// if in standalone mode, indicate as much by setting all clients to nil
 	switch {
-	// 单例模式启动，一般人不会使用单例模式，除非是拿来玩
 	case standaloneMode:
+		// 单例模式启动，一般人不会使用单例模式，除非是拿来玩
 		kubeDeps.KubeClient = nil
 		kubeDeps.EventClient = nil
 		kubeDeps.HeartbeatClient = nil
 		klog.InfoS("Standalone mode, no API client")
 
-		// 非单例模式启动，这个参数重点
-		// TODO 这里主要还是在初始化KubeDeps配置依赖
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
+		// 非单例模式启动，这个参数重点  这里主要还是在初始化KubeDeps配置依赖
+
 		// 初始化ClientSet
 		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName)
 		if err != nil {
@@ -698,6 +698,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		if err != nil {
 			return err
 		}
+		// 系统预留CPU资源
 		reservedSystemCPUs, err := getReservedCPUs(machineInfo, s.ReservedSystemCPUs)
 		if err != nil {
 			return err
@@ -1281,7 +1282,8 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 	// 发送StartingKubelet事件
 	k.BirthCry()
 
-	// TODO 收集了哪些垃圾？
+	// 1、收集容器
+	// 2、收集镜像
 	k.StartGarbageCollection()
 
 	return k, nil

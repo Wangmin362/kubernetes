@@ -189,6 +189,11 @@ type Pod struct {
 	// to Container temporarily to avoid substantial changes to other
 	// components. This is only populated by kuberuntime.
 	// TODO: use the runtimeApi.PodSandbox type directly.
+	// 1、所谓的Sandbox实际上就是所谓的沙箱，也就是容器运行时环境，当K8S需要运行一个容器的时候，底层的容器运行时必须要创建一个沙箱环境，
+	// 然后才能运行容器，容器一定是运行在沙箱环境当中的
+	// 2、不同的容器运行时，其底层的沙箱实现原理可能是不同的。譬如，对于ContainerD来说，其沙箱环境就是通过cgroup创建的infra/pause容器，
+	// 而对于kataContainer来说，其沙箱实现原理为虚拟机
+	// 3、TODO 对于一个Pod来说，其沙箱应该只有一个才对，为什么这里会是一个数组？
 	Sandboxes []*Container
 }
 

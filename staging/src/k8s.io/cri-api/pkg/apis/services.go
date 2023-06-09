@@ -66,6 +66,9 @@ type ContainerManager interface {
 
 // PodSandboxManager contains methods for operating on PodSandboxes. The methods
 // are thread-safe.
+// 1、Sandbox就是所谓的沙箱，对于不同的容器运行时，沙箱原理是不同的。譬如对于containerD来说，沙箱就是通过cgroup创建的隔离空间，也就是我
+// 们通常说的infra/pause容器。而对于kataContainer来说，沙箱就是虚拟机。
+// 2、不管是containerD还是kata，他们创建Sandbox的目的是为了运行容器。
 type PodSandboxManager interface {
 	// RunPodSandbox creates and starts a pod-level sandbox. Runtimes should ensure
 	// the sandbox is in ready state.

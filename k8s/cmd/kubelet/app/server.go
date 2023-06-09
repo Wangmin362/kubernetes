@@ -1227,6 +1227,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 func startKubelet(k kubelet.Bootstrap, podCfg *config.PodConfig, kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *kubelet.Dependencies, enableServer bool) {
 	// start the kubelet
 	// TODO 运行Kubelet，参数为PodUpdate事件，实际上就是一个Channel
+	// 2、podCfg.Updates()的数据来源有HTTP, StaticPod, APIServer
 	go k.Run(podCfg.Updates())
 
 	// start the kubelet server

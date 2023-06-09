@@ -373,12 +373,14 @@ func (m *kubeGenericRuntimeManager) Status(ctx context.Context) (*kubecontainer.
 // exited and dead containers (used for garbage collection).
 func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*kubecontainer.Pod, error) {
 	pods := make(map[kubetypes.UID]*kubecontainer.Pod)
+	// 通过CRI接口获取当前运行Kubelet节点的所有沙箱，需要知道的是，容器肯定是运行在沙箱当中
 	sandboxes, err := m.getKubeletSandboxes(ctx, all)
 	if err != nil {
 		return nil, err
 	}
 	for i := range sandboxes {
 		s := sandboxes[i]
+		// 如果一个沙箱没有任何元信息，就认为这个沙箱是无效的，直接跳过
 		if s.Metadata == nil {
 			klog.V(4).InfoS("Sandbox does not have metadata", "sandbox", s)
 			continue
@@ -391,30 +393,37 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 				Namespace: s.Metadata.Namespace,
 			}
 		}
+		// 通过沙箱的PodUID获取当前的Pod实例
 		p := pods[podUID]
+		// 把沙箱数据结构转换为容器数据结构
 		converted, err := m.sandboxToKubeContainer(s)
 		if err != nil {
 			klog.V(4).InfoS("Convert sandbox of pod failed", "runtimeName", m.runtimeName, "sandbox", s, "podUID", podUID, "err", err)
 			continue
 		}
+		// TODO 对于一个Pod来说，沙箱应该只有一个才对，为什么这里K8S会考虑多个沙箱？
 		p.Sandboxes = append(p.Sandboxes, converted)
 		p.CreatedAt = uint64(s.GetCreatedAt())
 	}
 
+	// 通过CRI接口查询当前运行Kubelet所在节点的所有容器
 	containers, err := m.getKubeletContainers(ctx, all)
 	if err != nil {
 		return nil, err
 	}
 	for i := range containers {
 		c := containers[i]
+		// 如果当前容器的元数据为空，就认为当前容器是无效容器
 		if c.Metadata == nil {
 			klog.V(4).InfoS("Container does not have metadata", "container", c)
 			continue
 		}
 
+		// 获取当前容器的Label，因为PodUID就放在容器的标签之上
 		labelledInfo := getContainerInfoFromLabels(c.Labels)
 		pod, found := pods[labelledInfo.PodUID]
 		if !found {
+			// TODO 什么情况下，一个Pod的容器存在，但是其对应的沙箱不存在？ 正常情况应该不可能存在这种情况吧
 			pod = &kubecontainer.Pod{
 				ID:        labelledInfo.PodUID,
 				Name:      labelledInfo.PodName,
@@ -423,17 +432,20 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 			pods[labelledInfo.PodUID] = pod
 		}
 
+		// 把通过CRI容器的数据结构转换为Kubelet的容器数据结构
 		converted, err := m.toKubeContainer(c)
 		if err != nil {
 			klog.V(4).InfoS("Convert container of pod failed", "runtimeName", m.runtimeName, "container", c, "podUID", labelledInfo.PodUID, "err", err)
 			continue
 		}
 
+		// 这里的数据是可以理解的，因为一个通常一个Pod会存在多个容器
 		pod.Containers = append(pod.Containers, converted)
 	}
 
 	// Convert map to list.
 	var result []*kubecontainer.Pod
+	// 把Map数据结构转为数组数据结构
 	for _, pod := range pods {
 		result = append(result, pod)
 	}
@@ -443,6 +455,7 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 	// To avoid unexpected behavior on container name based search (for example
 	// by calling *Kubelet.findContainer() without specifying a pod ID), we now
 	// return the list of pods ordered by their creation time.
+	// 容器排序，创建时间越晚就排在前面
 	sort.SliceStable(result, func(i, j int) bool {
 		return result[i].CreatedAt > result[j].CreatedAt
 	})

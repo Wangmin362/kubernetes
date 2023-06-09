@@ -36,6 +36,7 @@ import (
 // and the blocking GetNewerThan() method. The component responsible for
 // populating the cache is expected to call Delete() to explicitly free the
 // cache entries.
+// TODO 如何理解这个接口？
 type Cache interface {
 	Get(types.UID) (*PodStatus, error)
 	// Set updates the cache by setting the PodStatus for the pod only
@@ -46,6 +47,7 @@ type Cache interface {
 	// when it is newer than the given time.
 	GetNewerThan(types.UID, time.Time) (*PodStatus, error)
 	Delete(types.UID)
+	// UpdateTime TODO 为什么需要这个接口？
 	UpdateTime(time.Time)
 }
 

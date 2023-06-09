@@ -52,19 +52,25 @@ import (
 // periodic sync in kubelet as the safety net.
 type GenericPLEG struct {
 	// The container runtime.
+	// 容器运行时的抽象，底层就是在调用CRI接口
 	runtime kubecontainer.Runtime
 	// The channel from which the subscriber listens events.
+	// TODO 干啥的？ 谁会往里面放数据？
 	eventChannel chan *PodLifecycleEvent
-	// The internal cache for pod/container information.
+	// 1、用于记录K8S Pod前后两个时间点的状态， 从而可以通过对比前后两个时间点之间的变化得出Pod的状态
+	// TODO 2、这里的Pod是当前Node的Pod还是K8S所有的Pod?
 	podRecords podRecords
 	// Time of the last relisting.
+	// TODO 分析此属性的作用
 	relistTime atomic.Value
 	// Cache for storing the runtime states required for syncing pods.
+	// TODO 这个属性有何用？
 	cache kubecontainer.Cache
 	// For testability.
 	clock clock.Clock
 	// Pods that failed to have their status retrieved during a relist. These pods will be
 	// retried during the next relisting.
+	// TODO 分析此属性作用？
 	podsToReinspect map[types.UID]*kubecontainer.Pod
 	// Stop the Generic PLEG by closing the channel.
 	stopCh chan struct{}
@@ -109,10 +115,12 @@ func convertState(state kubecontainer.State) plegContainerState {
 }
 
 type podRecord struct {
-	old     *kubecontainer.Pod
-	current *kubecontainer.Pod
+	old     *kubecontainer.Pod // 上一次的状态
+	current *kubecontainer.Pod // 当前状态，显然一旦PLEG执行Relist动作，那么就需要把current赋值给old，然后把当前时刻的Pod状态复制给current
 }
 
+// 用于记录一个Pod的前后两个时刻的状态，对比此有意义。因为要得出一个事物的状态，一定是前后两个时刻的对比从而产生的结果，因此我们需要记录
+// 一个Pod前后两次的所有属性，才能对比出这个Pod在前后两个时间点之间发生了什么
 type podRecords map[types.UID]*podRecord
 
 // NewGenericPLEG instantiates a new GenericPLEG object and return it.
@@ -142,7 +150,9 @@ func (g *GenericPLEG) Start() {
 	defer g.runningMu.Unlock()
 	if !g.isRunning {
 		g.isRunning = true
+		// 初始停止Channel
 		g.stopCh = make(chan struct{})
+		// 每300秒执行一次
 		go wait.Until(g.Relist, g.relistDuration.RelistPeriod, g.stopCh)
 	}
 }
@@ -177,6 +187,7 @@ func (g *GenericPLEG) Healthy() (bool, error) {
 }
 
 func generateEvents(podID types.UID, cid string, oldState, newState plegContainerState) []*PodLifecycleEvent {
+	// 如果新旧状态相等，那么就认为当前容器没有发生变化
 	if newState == oldState {
 		return nil
 	}
@@ -233,27 +244,34 @@ func (g *GenericPLEG) Relist() {
 	}()
 
 	// Get all the pods.
+	// 通过CRI接口获取当前运行Kubelet的节点上所有运行的Pod，这里的数据是通过查询Sandbox以及容器组合出来的
 	podList, err := g.runtime.GetPods(ctx, true)
 	if err != nil {
 		klog.ErrorS(err, "GenericPLEG: Unable to retrieve pods")
 		return
 	}
 
+	// 更新relistTime属性
 	g.updateRelistTime(timestamp)
 
 	pods := kubecontainer.Pods(podList)
 	// update running pod and container count
+	// TODO
 	updateRunningPodAndContainerMetrics(pods)
+	// 更新PodRecord的current属性, TODO 为什么不把current的属性赋值给old属性？
 	g.podRecords.setCurrent(pods)
 
 	// Compare the old and the current pods, and generate events.
+	// Key为PodID
 	eventsByPodID := map[types.UID][]*PodLifecycleEvent{}
 	for pid := range g.podRecords {
 		oldPod := g.podRecords.getOld(pid)
 		pod := g.podRecords.getCurrent(pid)
 		// Get all containers in the old and the new pod.
+		// 合并current以及old两个时刻的所有容器，然后在current以及old状态中对比，从而得出当前容器的状态，到底是创建、删除还是修改、死亡等等
 		allContainers := getContainersFromPods(oldPod, pod)
 		for _, container := range allContainers {
+			// 对比两个时刻的容器的状态，从而得出当前的容器的事件
 			events := computeEvents(oldPod, pod, &container.ID)
 			for _, e := range events {
 				updateEvents(eventsByPodID, e)
@@ -388,6 +406,7 @@ func getContainersFromPods(pods ...*kubecontainer.Pod) []*kubecontainer.Containe
 
 func computeEvents(oldPod, newPod *kubecontainer.Pod, cid *kubecontainer.ContainerID) []*PodLifecycleEvent {
 	var pid types.UID
+	// PodID一定可以从current和old总的一个状态当中获取到
 	if oldPod != nil {
 		pid = oldPod.ID
 	} else if newPod != nil {
@@ -502,15 +521,18 @@ func updateEvents(eventsByPodID map[types.UID][]*PodLifecycleEvent, e *PodLifecy
 
 func getContainerState(pod *kubecontainer.Pod, cid *kubecontainer.ContainerID) plegContainerState {
 	// Default to the non-existent state.
+	// 默认认为容器不存在
 	state := plegContainerNonExistent
 	if pod == nil {
 		return state
 	}
+	// 先从Pod的Containers中获取容器专改
 	c := pod.FindContainerByID(*cid)
 	if c != nil {
 		return convertState(c.State)
 	}
 	// Search through sandboxes too.
+	// 如果没有获取到，那么就从沙箱中获取其状态
 	c = pod.FindSandboxByID(*cid)
 	if c != nil {
 		return convertState(c.State)
@@ -566,6 +588,7 @@ func (pr podRecords) getCurrent(id types.UID) *kubecontainer.Pod {
 }
 
 func (pr podRecords) setCurrent(pods []*kubecontainer.Pod) {
+	// 把PodCache的current置空
 	for i := range pr {
 		pr[i].current = nil
 	}
@@ -573,6 +596,7 @@ func (pr podRecords) setCurrent(pods []*kubecontainer.Pod) {
 		if r, ok := pr[pod.ID]; ok {
 			r.current = pod
 		} else {
+			// 第一次出现的话就实例化一个PodRecord
 			pr[pod.ID] = &podRecord{current: pod}
 		}
 	}

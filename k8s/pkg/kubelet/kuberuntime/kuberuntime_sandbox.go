@@ -283,7 +283,7 @@ func (m *kubeGenericRuntimeManager) generatePodSandboxWindowsConfig(pod *v1.Pod)
 // getKubeletSandboxes lists all (or just the running) sandboxes managed by kubelet.
 func (m *kubeGenericRuntimeManager) getKubeletSandboxes(ctx context.Context, all bool) ([]*runtimeapi.PodSandbox, error) {
 	var filter *runtimeapi.PodSandboxFilter
-	if !all {
+	if !all { // 如果不是获取所有的容器，那么只需要获取所有处于Ready状态的容器
 		readyState := runtimeapi.PodSandboxState_SANDBOX_READY
 		filter = &runtimeapi.PodSandboxFilter{
 			State: &runtimeapi.PodSandboxStateValue{
@@ -292,6 +292,7 @@ func (m *kubeGenericRuntimeManager) getKubeletSandboxes(ctx context.Context, all
 		}
 	}
 
+	// 获取当前运行kubelet进程的节点的所有沙箱
 	resp, err := m.runtimeService.ListPodSandbox(ctx, filter)
 	if err != nil {
 		klog.ErrorS(err, "Failed to list pod sandboxes")

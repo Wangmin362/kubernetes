@@ -217,12 +217,19 @@ func getContainerEtcHostsPath() string {
 }
 
 // SyncHandler is an interface implemented by Kubelet, for testability
+// TODO 如何理解这个接口定义？
 type SyncHandler interface {
+	// HandlePodAdditions 处理Pod增加
 	HandlePodAdditions(pods []*v1.Pod)
+	// HandlePodUpdates 处理Pod更新
 	HandlePodUpdates(pods []*v1.Pod)
+	// HandlePodRemoves 处理Pod移除
 	HandlePodRemoves(pods []*v1.Pod)
+	// HandlePodReconcile 处理Pod调谐  TODO 什么时候会触发这个事件？
 	HandlePodReconcile(pods []*v1.Pod)
+	// HandlePodSyncs 处理Pod同步  TODO 什么时候会出发这个事件？
 	HandlePodSyncs(pods []*v1.Pod)
+	// HandlePodCleanups 清理所有的Pod
 	HandlePodCleanups(ctx context.Context) error
 }
 
@@ -1246,6 +1253,7 @@ type Kubelet struct {
 	maxPods int
 
 	// Monitor Kubelet's sync loop
+	// TODO 这个属性有啥用？
 	syncLoopMonitor atomic.Value
 
 	// Container restart Backoff
@@ -1281,7 +1289,7 @@ type Kubelet struct {
 	lastNodeUnschedulable bool
 
 	// the list of handlers to call during pod admission.
-	// TODO 这玩意干嘛的？
+	// TODO 这玩意干嘛的？  都添加了哪些Handler?
 	admitHandlers lifecycle.PodAdmitHandlers
 
 	// softAdmithandlers are applied to the pod after it is admitted by the Kubelet, but before it is
@@ -2374,9 +2382,9 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 	// The syncTicker wakes up kubelet to checks if there are any pod workers
 	// that need to be sync'd. A one-second period is sufficient because the
 	// sync interval is defaulted to 10s.
-	syncTicker := time.NewTicker(time.Second)
+	syncTicker := time.NewTicker(time.Second) // 每秒钟执行一次
 	defer syncTicker.Stop()
-	housekeepingTicker := time.NewTicker(housekeepingPeriod)
+	housekeepingTicker := time.NewTicker(housekeepingPeriod) // 每两秒钟执行一次
 	defer housekeepingTicker.Stop()
 	plegCh := kl.pleg.Watch()
 	const (
@@ -2389,10 +2397,12 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 	// The limits do not have anything to do with individual pods
 	// Since this is called in syncLoop, we don't need to call it anywhere else
 	if kl.dnsConfigurer != nil && kl.dnsConfigurer.ResolverConfig != "" {
+		// TODO 这里在干嘛？
 		kl.dnsConfigurer.CheckLimitsForResolvConf()
 	}
 
 	for {
+		// TODO 这里在检查啥？
 		if err := kl.runtimeState.runtimeErrors(); err != nil {
 			klog.ErrorS(err, "Skipping pod synchronization")
 			// exponential backoff
@@ -2403,6 +2413,7 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 		// reset backoff if we have a success
 		duration = base
 
+		// TODO syncLoopMonitor有啥用？
 		kl.syncLoopMonitor.Store(kl.clock.Now())
 		// TODO 启动SyncLoop
 		if !kl.syncLoopIteration(ctx, updates, handler, syncTicker.C, housekeepingTicker.C, plegCh) {
@@ -2447,7 +2458,7 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubetypes.PodUpdate, handler SyncHandler,
 	syncCh <-chan time.Time, housekeepingCh <-chan time.Time, plegCh <-chan *pleg.PodLifecycleEvent) bool {
 	select {
-	case u, open := <-configCh:
+	case u, open := <-configCh: // 数据来源于PodConfig,也就是HTTP, StaticPod, APIServer
 		// Update from a config source; dispatch it to the right handler
 		// callback.
 		if !open {
@@ -2502,7 +2513,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 				kl.cleanUpContainersInPod(e.ID, containerID)
 			}
 		}
-	case <-syncCh:
+	case <-syncCh: // 每秒钟执行一次
 		// Sync pods waiting for sync
 		podsToSync := kl.getPodsToSync()
 		if len(podsToSync) == 0 {
@@ -2511,10 +2522,12 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 		klog.V(4).InfoS("SyncLoop (SYNC) pods", "total", len(podsToSync), "pods", klog.KObjSlice(podsToSync))
 		handler.HandlePodSyncs(podsToSync)
 	case update := <-kl.livenessManager.Updates():
+		// TODO ?
 		if update.Result == proberesults.Failure {
 			handleProbeSync(kl, update, handler, "liveness", "unhealthy")
 		}
 	case update := <-kl.readinessManager.Updates():
+		// TODO ?
 		ready := update.Result == proberesults.Success
 		kl.statusManager.SetContainerReadiness(update.PodUID, update.ContainerID, ready)
 
@@ -2532,7 +2545,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 			status = "started"
 		}
 		handleProbeSync(kl, update, handler, "startup", status)
-	case <-housekeepingCh:
+	case <-housekeepingCh: // 每两秒钟执行一次
 		if !kl.sourcesReady.AllReady() {
 			// If the sources aren't ready or volume manager has not yet synced the states,
 			// skip housekeeping, as we may accidentally delete pods from unready sources.

@@ -2473,6 +2473,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 			// ADD as if they are new pods. These pods will then go through the
 			// admission process and *may* be rejected. This can be resolved
 			// once we have checkpointing.
+			// TODO  这里干了啥？
 			handler.HandlePodAdditions(u.Pods)
 		case kubetypes.UPDATE:
 			klog.V(2).InfoS("SyncLoop UPDATE", "source", u.Source, "pods", klog.KObjSlice(u.Pods))
@@ -2496,7 +2497,8 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 
 		kl.sourcesReady.AddSource(u.Source)
 
-	case e := <-plegCh:
+	case e := <-plegCh: // 这里的数据来源为PLEG，即通过CRI接口扫描当前节点运行的所有容器，通过对比前后两个状态得出容器的生命周期事件
+		// 如果Pod中的容器没有被删除，那么就值得Sync这个Pod
 		if isSyncPodWorthy(e) {
 			// PLEG event for a pod; sync it.
 			if pod, ok := kl.podManager.GetPodByUID(e.ID); ok {

@@ -55,13 +55,15 @@ type GenericPLEG struct {
 	// 容器运行时的抽象，底层就是在调用CRI接口
 	runtime kubecontainer.Runtime
 	// The channel from which the subscriber listens events.
-	// TODO 干啥的？ 谁会往里面放数据？
+	// 1、eventChannel当中存放的数据是每个Pod的容器的生命周期事件，而data属性为ContainerID
+	// 2、channel深度为1000
 	eventChannel chan *PodLifecycleEvent
 	// 1、用于记录K8S Pod前后两个时间点的状态， 从而可以通过对比前后两个时间点之间的变化得出Pod的状态
-	// TODO 2、这里的Pod是当前Node的Pod还是K8S所有的Pod?
+	// 2、这里缓存的是当前运行Kubelet进程节点的所有容器
 	podRecords podRecords
 	// Time of the last relisting.
-	// TODO 分析此属性的作用
+	// 1、PLEG每次relist成功之后都会更新relistTime，从而说明PLEG是否正常工作，说白了就是健康检测
+	// 2、PLEG的健康阈值为10分钟，如果每隔10分钟PLEG都没有重新relist，说明PLEG处于非健康的工作状态
 	relistTime atomic.Value
 	// Cache for storing the runtime states required for syncing pods.
 	// TODO 这个属性有何用？
@@ -141,6 +143,7 @@ func NewGenericPLEG(runtime kubecontainer.Runtime, eventChannel chan *PodLifecyc
 // events.
 // TODO: support multiple subscribers.
 func (g *GenericPLEG) Watch() chan *PodLifecycleEvent {
+	// 返回事件Channel, 这个channel的缓存深度为1000
 	return g.eventChannel
 }
 
@@ -180,6 +183,7 @@ func (g *GenericPLEG) Healthy() (bool, error) {
 	// Expose as metric so you can alert on `time()-pleg_last_seen_seconds > nn`
 	metrics.PLEGLastSeen.Set(float64(relistTime.Unix()))
 	elapsed := g.clock.Since(relistTime)
+	// 如果PLEG启动后的每隔10分钟都没有重新relist，说明PLEG的运行除了问题
 	if elapsed > g.relistDuration.RelistThreshold {
 		return false, fmt.Errorf("pleg was last seen active %v ago; threshold is %v", elapsed, g.relistDuration.RelistThreshold)
 	}
@@ -262,18 +266,18 @@ func (g *GenericPLEG) Relist() {
 	g.podRecords.setCurrent(pods)
 
 	// Compare the old and the current pods, and generate events.
-	// Key为PodID
+	// Key为PodID，value为容器的生命周期事件
 	eventsByPodID := map[types.UID][]*PodLifecycleEvent{}
 	for pid := range g.podRecords {
 		oldPod := g.podRecords.getOld(pid)
 		pod := g.podRecords.getCurrent(pid)
-		// Get all containers in the old and the new pod.
 		// 合并current以及old两个时刻的所有容器，然后在current以及old状态中对比，从而得出当前容器的状态，到底是创建、删除还是修改、死亡等等
 		allContainers := getContainersFromPods(oldPod, pod)
 		for _, container := range allContainers {
 			// 对比两个时刻的容器的状态，从而得出当前的容器的事件
 			events := computeEvents(oldPod, pod, &container.ID)
 			for _, e := range events {
+				// events是以容器的角度获取到的事件，而这里需要以Pod为单位合并所有的容器事件
 				updateEvents(eventsByPodID, e)
 			}
 		}
@@ -287,6 +291,7 @@ func (g *GenericPLEG) Relist() {
 	// If there are events associated with a pod, we should update the
 	// podCache.
 	for pid, events := range eventsByPodID {
+		// 获取Pod的当前状态
 		pod := g.podRecords.getCurrent(pid)
 		if g.cacheEnabled() {
 			// updateCache() will inspect the pod and update the cache. If an
@@ -298,6 +303,7 @@ func (g *GenericPLEG) Relist() {
 			// inspecting the pod and getting the PodStatus to update the cache
 			// serially may take a while. We should be aware of this and
 			// parallelize if needed.
+			// TODO 分析这里的Cache作用
 			if err, updated := g.updateCache(ctx, pod, pid); err != nil {
 				// Rely on updateCache calling GetPodStatus to log the actual error.
 				klog.V(4).ErrorS(err, "PLEG: Ignoring events for pod", "pod", klog.KRef(pod.Namespace, pod.Name))
@@ -318,24 +324,26 @@ func (g *GenericPLEG) Relist() {
 				}
 			}
 		}
-		// Update the internal storage and send out the events.
+		// 更新PodRecord, 把current赋值给old，然后把current置为空，下一次relist的时候会重新赋值current
 		g.podRecords.update(pid)
 
 		// Map from containerId to exit code; used as a temporary cache for lookup
 		containerExitCode := make(map[string]int)
 
-		for i := range events {
+		for i := range events { // 遍历Pod的容器事件
 			// Filter out events that are not reliable and no other components use yet.
+			// ContainerChanged事件是由于当前的容器处于Unknown状态造成的，所以跳过
 			if events[i].Type == ContainerChanged {
 				continue
 			}
 			select {
-			case g.eventChannel <- events[i]:
+			case g.eventChannel <- events[i]: // 把容器事件写入到channel当中
 			default:
 				metrics.PLEGDiscardEvents.Inc()
 				klog.ErrorS(nil, "Event channel is full, discard this relist() cycle event")
 			}
 			// Log exit code of containers when they finished in a particular event
+			// 如果当前的容器通过对比前后状态，被认为是死亡
 			if events[i].Type == ContainerDied {
 				// Fill up containerExitCode map for ContainerDied event when first time appeared
 				if len(containerExitCode) == 0 && pod != nil && g.cache != nil {
@@ -611,11 +619,13 @@ func (pr podRecords) update(id types.UID) {
 }
 
 func (pr podRecords) updateInternal(id types.UID, r *podRecord) {
+	// 如果current还是为空，说明上一次这个Pod还存在，而当前这个pod已经不存在了，直接删除podRecord
 	if r.current == nil {
 		// Pod no longer exists; delete the entry.
 		delete(pr, id)
 		return
 	}
+	// current赋值给old,然后把current设置为空
 	r.old = r.current
 	r.current = nil
 }

@@ -457,3 +457,5 @@
 ## 4.7. CSI
 ## 4.8. Pod Disruption Budget
 ## 4.9. 学习K8S对于分布式链路追踪的使用 OpenTelemetry
+## 4.10. CFS Quota
+## 4.11. CGroup

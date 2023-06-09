@@ -95,18 +95,23 @@ type podStateProvider interface {
 	ShouldPodRuntimeBeRemoved(kubetypes.UID) bool
 }
 
+// kubeGenericRuntimeManager TODO 如何理解KubeGenericRuntimeManager的抽象？
 type kubeGenericRuntimeManager struct {
 	runtimeName string
 	recorder    record.EventRecorder
+	// 对于目录，Pipe的常规操作抽象
 	osInterface kubecontainer.OSInterface
 
 	// machineInfo contains the machine information.
+	// 通过cAdvisor获取的机器信息
 	machineInfo *cadvisorapi.MachineInfo
 
 	// Container GC manager
+	// TODO 定期回收容器
 	containerGC *containerGC
 
 	// Keyring for pulling images
+	// TODO 如何理解这玩意？
 	keyring credentialprovider.DockerKeyring
 
 	// Runner of lifecycle events.
@@ -121,6 +126,7 @@ type kubeGenericRuntimeManager struct {
 	startupManager   proberesults.Manager
 
 	// If true, enforce container cpu limits with CFS quota support
+	// TODO CFS Quota干嘛用的？
 	cpuCFSQuota bool
 
 	// CPUCFSQuotaPeriod sets the CPU CFS quota period value, cpu.cfs_period_us, defaults to 100ms
@@ -130,10 +136,12 @@ type kubeGenericRuntimeManager struct {
 	imagePuller images.ImageManager
 
 	// gRPC service clients
+	// TODO CRI接口抽象
 	runtimeService internalapi.RuntimeService
 	imageService   internalapi.ImageManagerService
 
 	// The version cache of runtime daemon.
+	// TODO 这玩意缓存了啥？
 	versionCache *cache.ObjectCache
 
 	// The directory path for seccomp profiles.
@@ -171,6 +179,7 @@ type kubeGenericRuntimeManager struct {
 }
 
 // KubeGenericRuntime is a interface contains interfaces for container runtime and command.
+// TODO 如何理解这个接口？
 type KubeGenericRuntime interface {
 	kubecontainer.Runtime
 	kubecontainer.StreamingRuntime
@@ -214,6 +223,7 @@ func NewKubeGenericRuntimeManager(
 	runtimeService = newInstrumentedRuntimeService(runtimeService)
 	imageService = newInstrumentedImageManagerService(imageService)
 	tracer := tracerProvider.Tracer(instrumentationScope)
+	// TODO 这玩意干了啥？
 	kubeRuntimeManager := &kubeGenericRuntimeManager{
 		recorder:               recorder,
 		cpuCFSQuota:            cpuCFSQuota,
@@ -276,7 +286,7 @@ func NewKubeGenericRuntimeManager(
 	}
 	kubeRuntimeManager.keyring = credentialprovider.NewDockerKeyring()
 
-	// 实例化ImageManager
+	// TODO 实例化ImageManager
 	kubeRuntimeManager.imagePuller = images.NewImageManager(
 		kubecontainer.FilterEventRecorder(recorder),
 		kubeRuntimeManager,
@@ -287,6 +297,7 @@ func NewKubeGenericRuntimeManager(
 		imagePullBurst,
 		podPullingTimeRecorder)
 	kubeRuntimeManager.runner = lifecycle.NewHandlerRunner(insecureContainerLifecycleHTTPClient, kubeRuntimeManager, kubeRuntimeManager, recorder)
+	// TODO 实例化ContainerGC
 	kubeRuntimeManager.containerGC = newContainerGC(runtimeService, podStateProvider, kubeRuntimeManager, tracer)
 	kubeRuntimeManager.podStateProvider = podStateProvider
 

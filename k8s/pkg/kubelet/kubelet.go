@@ -727,6 +727,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	// TODO 实例化GenericRuntimeManager
 	// 1、实例化KubeGenericRuntimeManager
 	// 2、实例化ImageManager
+	// 3、实例化ContainerGCManager
 	runtime, err := kuberuntime.NewKubeGenericRuntimeManager(
 		kubecontainer.FilterEventRecorder(kubeDeps.Recorder),
 		klet.livenessManager,

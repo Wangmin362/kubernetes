@@ -1250,7 +1250,38 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 	// TODO: block until all sources have delivered at least one update to the channel, or break the sync loop
 	// up into "per source" synchronizations
 
-	// TODO 实例化MainKubelet
+	// 1、检查IPTables配置
+	// 2、创建并启动NodeInformer，用于监听Node资源的变更
+	// 3、实例化PodConfig (TODO 非常重要)
+	// 4、创建并启动ServiceInformer，用于监听Service资源的变更
+	// 5、实例化OOMWatcher
+	// 6、实例化Kubelet
+	// 7、实例化SecretManager以及ConfigManager
+	// 8、实例化LivenessManager, ReadinessManager, StartupManager
+	// 9、实例化PodCache
+	// 10、实例化PodManager
+	// 11、实例化StatusManager
+	// 12、实例化ResourceAnalyzer
+	// 13、实例化RuntimeClassManager
+	// 14、实例化ContainerLogManager
+	// 15、实例化ReasonCache
+	// 16、实例化PodWorker
+	// 17、实例化KubeGenericRuntimeManager
+	// 18、实例化RuntimeCache
+	// 19、实例化CadvisorStatsProvider或者CRIStatsProvider
+	// 20、实例化PLEG, EventedPLEG
+	// 21、实例化ContainerGC
+	// 22、实例化PodContainerDeletor
+	// 23、实例化ImageGCManager
+	// 24、实例化KubeletServerCertificateManager
+	// 25、实例化ProbeManager
+	// 26、实例化TokenManager
+	// 27、实例化VolumePluginManager
+	// 28、实例化PluginManager
+	// 29、实例化VolumeManager
+	// 30、实例化EvictionManager
+	// 31、实例化LeaseController
+	// 32、实例化ShutdownManager
 	k, err = kubelet.NewMainKubelet(&kubeServer.KubeletConfiguration,
 		kubeDeps,
 		&kubeServer.ContainerRuntimeOptions,

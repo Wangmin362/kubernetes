@@ -257,6 +257,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// make the kubelet's config safe for logging
 			config := kubeletServer.KubeletConfiguration.DeepCopy()
+			// TODO 初始化StaticPodURLHeader
 			for k := range config.StaticPodURLHeader {
 				config.StaticPodURLHeader[k] = []string{"<masked>"}
 			}
@@ -560,6 +561,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	if kubeDeps == nil {
+		// TODO 初始化Kubelet Dependencies
 		kubeDeps, err = UnsecuredDependencies(s, featureGate)
 		if err != nil {
 			return err
@@ -694,6 +696,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 			s.CgroupRoot = "/"
 		}
 
+		// 通过cAdvisor获取机器信息
 		machineInfo, err := kubeDeps.CAdvisorInterface.MachineInfo()
 		if err != nil {
 			return err

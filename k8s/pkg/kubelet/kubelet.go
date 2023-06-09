@@ -342,6 +342,38 @@ func PreInitRuntimeService(kubeCfg *kubeletconfiginternal.KubeletConfiguration, 
 
 // NewMainKubelet instantiates a new Kubelet object along with all the required internal modules.
 // No initialization of Kubelet and its modules should happen here.
+// 1、检查IPTables配置
+// 2、创建并启动NodeInformer，用于监听Node资源的变更
+// 3、实例化PodConfig (TODO 非常重要)
+// 4、创建并启动ServiceInformer，用于监听Service资源的变更
+// 5、实例化OOMWatcher
+// 6、实例化Kubelet
+// 7、实例化SecretManager以及ConfigManager
+// 8、实例化LivenessManager, ReadinessManager, StartupManager
+// 9、实例化PodCache
+// 10、实例化PodManager
+// 11、实例化StatusManager
+// 12、实例化ResourceAnalyzer
+// 13、实例化RuntimeClassManager
+// 14、实例化ContainerLogManager
+// 15、实例化ReasonCache
+// 16、实例化PodWorker
+// 17、实例化KubeGenericRuntimeManager
+// 18、实例化RuntimeCache
+// 19、实例化CadvisorStatsProvider或者CRIStatsProvider
+// 20、实例化PLEG, EventedPLEG
+// 21、实例化ContainerGC
+// 22、实例化PodContainerDeletor
+// 23、实例化ImageGCManager
+// 24、实例化KubeletServerCertificateManager
+// 25、实例化ProbeManager
+// 26、实例化TokenManager
+// 27、实例化VolumePluginManager
+// 28、实例化PluginManager
+// 29、实例化VolumeManager
+// 30、实例化EvictionManager
+// 31、实例化LeaseController
+// 32、实例化ShutdownManager
 func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	kubeDeps *Dependencies,
 	crOptions *config.ContainerRuntimeOptions,
@@ -437,6 +469,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}
 	}
 
+	// 容器垃圾回收策略
 	containerGCPolicy := kubecontainer.GCPolicy{
 		MinAge:             minimumGCAge.Duration,
 		MaxPerPodContainer: int(maxPerPodContainerCount),
@@ -447,6 +480,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		KubeletEndpoint: v1.DaemonEndpoint{Port: kubeCfg.Port},
 	}
 
+	// 镜像垃圾回收策略
 	imageGCPolicy := images.ImageGCPolicy{
 		MinAge:               kubeCfg.ImageMinimumGCAge.Duration,
 		HighThresholdPercent: int(kubeCfg.ImageGCHighThresholdPercent),
@@ -458,7 +492,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		// Do not provide kubeCfg.EnforceNodeAllocatable to eviction threshold parsing if we are not enforcing Evictions
 		enforceNodeAllocatable = []string{}
 	}
-	// TODO 分析？
+	// TODO 应该是和Pod驱逐相关测配置
 	thresholds, err := eviction.ParseThresholdConfig(enforceNodeAllocatable, kubeCfg.EvictionHard, kubeCfg.EvictionSoft, kubeCfg.EvictionSoftGracePeriod, kubeCfg.EvictionMinimumReclaim)
 	if err != nil {
 		return nil, err
@@ -493,6 +527,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		Namespace: "",
 	}
 
+	// TODO 实例化OOMWatcher
 	oomWatcher, err := oomwatcher.NewWatcher(kubeDeps.Recorder)
 	if err != nil {
 		if libcontaineruserns.RunningInUserNS() {
@@ -510,6 +545,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		}
 	}
 
+	// TODO ClusterDNS
 	clusterDNS := make([]net.IP, 0, len(kubeCfg.ClusterDNS))
 	for _, ipEntry := range kubeCfg.ClusterDNS {
 		ip := netutils.ParseIPSloppy(ipEntry)
@@ -525,6 +561,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	//
 	// This client must not be modified to include credentials, because it is
 	// critical that credentials not leak from the client to arbitrary hosts.
+	// TODO 干啥的？
 	insecureContainerLifecycleHTTPClient := &http.Client{}
 	if utilfeature.DefaultFeatureGate.Enabled(features.ConsistentHTTPGetHandlers) {
 		insecureTLSTransport := &http.Transport{
@@ -536,6 +573,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	tracer := kubeDeps.TracerProvider.Tracer(instrumentationScope)
 
+	// TODO 实例化Kubelet
 	klet := &Kubelet{
 		hostname:                                hostname,
 		hostnameOverridden:                      hostnameOverridden,
@@ -596,6 +634,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	var secretManager secret.Manager
 	var configMapManager configmap.Manager
 	if klet.kubeClient != nil {
+		// TODO 这三种策略对于SecretManager以及ConfigManager有何不同？
 		switch kubeCfg.ConfigMapAndSecretChangeDetectionStrategy {
 		case kubeletconfiginternal.WatchChangeDetectionStrategy:
 			secretManager = secret.NewWatchingSecretManager(klet.kubeClient, klet.resyncInterval)
@@ -620,6 +659,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		klog.InfoS("Experimental host user namespace defaulting is enabled")
 	}
 
+	// 通过cAdvisor获取机器信息
 	machineInfo, err := klet.cadvisor.MachineInfo()
 	if err != nil {
 		return nil, err
@@ -631,26 +671,34 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	imageBackOff := flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)
 
+	// TODO 分析ProbeManager
 	klet.livenessManager = proberesults.NewManager()
 	klet.readinessManager = proberesults.NewManager()
 	klet.startupManager = proberesults.NewManager()
+	// TODO PodCache缓存了啥？
 	klet.podCache = kubecontainer.NewCache()
 
 	// podManager is also responsible for keeping secretManager and configMapManager contents up-to-date.
+	// TODO BasicMirrorClient用来干嘛的？
 	mirrorPodClient := kubepod.NewBasicMirrorClient(klet.kubeClient, string(nodeName), nodeLister)
+	// TODO PodManager
 	klet.podManager = kubepod.NewBasicPodManager(mirrorPodClient)
 
+	// TODO StatusManager
 	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet, kubeDeps.PodStartupLatencyTracker, klet.getRootDir())
 
+	// TODO ResourceAnalyzer
 	klet.resourceAnalyzer = serverstats.NewResourceAnalyzer(klet, kubeCfg.VolumeStatsAggPeriod.Duration, kubeDeps.Recorder)
 
 	klet.runtimeService = kubeDeps.RemoteRuntimeService
 
 	if kubeDeps.KubeClient != nil {
+		// TODO RuntimeClassManager
 		klet.runtimeClassManager = runtimeclass.NewManager(kubeDeps.KubeClient)
 	}
 
 	// setup containerLogManager for CRI container runtime
+	// TODO 实例化ContainerLogManager
 	containerLogManager, err := logs.NewContainerLogManager(
 		klet.runtimeService,
 		kubeDeps.OSInterface,
@@ -662,8 +710,11 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	}
 	klet.containerLogManager = containerLogManager
 
+	// TODO 实例化ReasonCache
 	klet.reasonCache = NewReasonCache()
+	// TODO 实例化BasicWorkQueue
 	klet.workQueue = queue.NewBasicWorkQueue(klet.clock)
+	// TODO 实例化PodWorker
 	klet.podWorkers = newPodWorkers(
 		klet,
 		kubeDeps.Recorder,
@@ -673,6 +724,9 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		klet.podCache,
 	)
 
+	// TODO 实例化GenericRuntimeManager
+	// 1、实例化KubeGenericRuntimeManager
+	// 2、实例化ImageManager
 	runtime, err := kuberuntime.NewKubeGenericRuntimeManager(
 		kubecontainer.FilterEventRecorder(kubeDeps.Recorder),
 		klet.livenessManager,
@@ -712,6 +766,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.streamingRuntime = runtime
 	klet.runner = runtime
 
+	// 实例化RuntimeCache
 	runtimeCache, err := kubecontainer.NewRuntimeCache(klet.containerRuntime, runtimeCacheRefreshPeriod)
 	if err != nil {
 		return nil, err
@@ -719,10 +774,12 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.runtimeCache = runtimeCache
 
 	// common provider to get host file system usage associated with a pod managed by kubelet
+	// TODO 实例化HostStatsProvider
 	hostStatsProvider := stats.NewHostStatsProvider(kubecontainer.RealOS{}, func(podUID types.UID) string {
 		return getEtcHostsPath(klet.getPodDir(podUID))
 	})
 	if kubeDeps.useLegacyCadvisorStats {
+		// TODO 实例化CadvisorStatsProvider
 		klet.StatsProvider = stats.NewCadvisorStatsProvider(
 			klet.cadvisor,
 			klet.resourceAnalyzer,
@@ -732,6 +789,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			klet.statusManager,
 			hostStatsProvider)
 	} else {
+		// TODO 实例化CRIStatsProvider
 		klet.StatsProvider = stats.NewCRIStatsProvider(
 			klet.cadvisor,
 			klet.resourceAnalyzer,
@@ -751,6 +809,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			RelistPeriod:    eventedPlegRelistPeriod,
 			RelistThreshold: eventedPlegRelistThreshold,
 		}
+		// TODO 实例化PLEG
 		klet.pleg = pleg.NewGenericPLEG(klet.containerRuntime, eventChannel, genericRelistDuration, klet.podCache, clock.RealClock{})
 		// In case Evented PLEG has to fall back on Generic PLEG due to an error,
 		// Evented PLEG should be able to reset the Generic PLEG relisting duration
@@ -759,6 +818,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			RelistPeriod:    genericPlegRelistPeriod,
 			RelistThreshold: genericPlegRelistThreshold,
 		}
+		// TODO 实例化EventedPLEG
 		klet.eventedPleg = pleg.NewEventedPLEG(klet.containerRuntime, klet.runtimeService, eventChannel,
 			klet.podCache, klet.pleg, eventedPlegMaxStreamRetries, eventedRelistDuration, clock.RealClock{})
 	} else {
@@ -778,15 +838,16 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		klog.ErrorS(err, "Pod CIDR update failed")
 	}
 
-	// setup containerGC
+	// TODO 实例化ContainerGC
 	containerGC, err := kubecontainer.NewContainerGC(klet.containerRuntime, containerGCPolicy, klet.sourcesReady)
 	if err != nil {
 		return nil, err
 	}
 	klet.containerGC = containerGC
+	// TODO 实例化PodContainerDeletor
 	klet.containerDeletor = newPodContainerDeletor(klet.containerRuntime, integer.IntMax(containerGCPolicy.MaxPerPodContainer, minDeadContainerInPod))
 
-	// setup imageManager
+	// TODO 实例化ImageGCManager
 	imageManager, err := images.NewImageGCManager(klet.containerRuntime, klet.StatsProvider, kubeDeps.Recorder, nodeRef, imageGCPolicy, crOptions.PodSandboxImage, kubeDeps.TracerProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize image manager: %v", err)
@@ -794,6 +855,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	klet.imageManager = imageManager
 
 	if kubeCfg.ServerTLSBootstrap && kubeDeps.TLSOptions != nil && utilfeature.DefaultFeatureGate.Enabled(features.RotateKubeletServerCertificate) {
+		// TODO 实例化KubeletServerCertificateManager
 		klet.serverCertificateManager, err = kubeletcertificate.NewKubeletServerCertificateManager(klet.kubeClient, kubeCfg, klet.nodeName, klet.getLastObservedNodeAddresses, certDirectory)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize certificate manager: %v", err)
@@ -810,6 +872,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	if kubeDeps.ProbeManager != nil {
 		klet.probeManager = kubeDeps.ProbeManager
 	} else {
+		// TODO 实例化ProbeManager
 		klet.probeManager = prober.NewManager(
 			klet.statusManager,
 			klet.livenessManager,
@@ -819,16 +882,19 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			kubeDeps.Recorder)
 	}
 
+	// TODO 实例化TokenManager
 	tokenManager := token.NewManager(kubeDeps.KubeClient)
 
 	// NewInitializedVolumePluginMgr initializes some storageErrors on the Kubelet runtimeState (in csi_plugin.go init)
 	// which affects node ready status. This function must be called before Kubelet is initialized so that the Node
 	// ReadyState is accurate with the storage state.
+	// TODO 实例化VolumePluginManager
 	klet.volumePluginMgr, err =
 		NewInitializedVolumePluginMgr(klet, secretManager, configMapManager, tokenManager, kubeDeps.VolumePlugins, kubeDeps.DynamicPluginProber)
 	if err != nil {
 		return nil, err
 	}
+	// TODO 实例化PluginManager
 	klet.pluginManager = pluginmanager.NewPluginManager(
 		klet.getPluginsRegistrationDir(), /* sockDir */
 		kubeDeps.Recorder,
@@ -839,10 +905,11 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 	if len(experimentalMounterPath) != 0 {
 		// Replace the nameserver in containerized-mounter's rootfs/etc/resolv.conf with kubelet.ClusterDNS
 		// so that service name could be resolved
+		// TODO 分析
 		klet.dnsConfigurer.SetupDNSinContainerizedMounter(experimentalMounterPath)
 	}
 
-	// setup volumeManager
+	// TODO 实例化VolumeManager
 	klet.volumeManager = volumemanager.NewVolumeManager(
 		kubeCfg.EnableControllerAttachDetach,
 		nodeName,
@@ -858,9 +925,10 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		keepTerminatedPodVolumes,
 		volumepathhandler.NewBlockVolumePathHandler())
 
+	// TODO ?
 	klet.backOff = flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)
 
-	// setup eviction manager
+	// TODO 实例化EvictionManager
 	evictionManager, evictionAdmitHandler := eviction.NewManager(klet.resourceAnalyzer, evictionConfig,
 		killPodNow(klet.podWorkers, kubeDeps.Recorder), klet.podManager.GetMirrorPodByPod, klet.imageManager, klet.containerGC, kubeDeps.Recorder, nodeRef, klet.clock, kubeCfg.LocalStorageCapacityIsolation)
 
@@ -901,6 +969,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	leaseDuration := time.Duration(kubeCfg.NodeLeaseDurationSeconds) * time.Second
 	renewInterval := time.Duration(float64(leaseDuration) * nodeLeaseRenewIntervalFraction)
+	// TODO 实例化NodeLeaseController
 	klet.nodeLeaseController = lease.NewController(
 		klet.clock,
 		klet.heartbeatClient,
@@ -913,6 +982,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 		util.SetNodeOwnerFunc(klet.heartbeatClient, string(klet.nodeName)))
 
 	// setup node shutdown manager
+	// TODO 实例化ShutdownManager
 	shutdownManager, shutdownAdmitHandler := nodeshutdown.NewManager(&nodeshutdown.Config{
 		Logger:                           logger,
 		ProbeManager:                     klet.probeManager,
@@ -1210,6 +1280,7 @@ type Kubelet struct {
 	lastNodeUnschedulable bool
 
 	// the list of handlers to call during pod admission.
+	// TODO 这玩意干嘛的？
 	admitHandlers lifecycle.PodAdmitHandlers
 
 	// softAdmithandlers are applied to the pod after it is admitted by the Kubelet, but before it is

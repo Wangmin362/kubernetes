@@ -105,6 +105,7 @@ type containerManagerImpl struct {
 	// External containers being managed.
 	systemContainers []*systemContainer
 	// Tasks that are run periodically
+	// TODO 这里缓存了哪些任务？
 	periodicTasks []func()
 	// Holds all the mounted cgroup subsystems
 	subsystems *CgroupSubsystems
@@ -573,6 +574,7 @@ func (cm *containerManagerImpl) Start(node *v1.Node,
 	ctx := context.Background()
 
 	// Initialize CPU manager
+	// TODO 启动CpuManager
 	containerMap := buildContainerMapFromRuntime(ctx, runtimeService)
 	err := cm.cpuManager.Start(cpumanager.ActivePodsFunc(activePods), sourcesReady, podStatusProvider, runtimeService, containerMap)
 	if err != nil {
@@ -580,6 +582,7 @@ func (cm *containerManagerImpl) Start(node *v1.Node,
 	}
 
 	// Initialize memory manager
+	// TODO 启动MemoryManager
 	if utilfeature.DefaultFeatureGate.Enabled(kubefeatures.MemoryManager) {
 		containerMap := buildContainerMapFromRuntime(ctx, runtimeService)
 		err := cm.memoryManager.Start(memorymanager.ActivePodsFunc(activePods), sourcesReady, podStatusProvider, runtimeService, containerMap)
@@ -603,11 +606,13 @@ func (cm *containerManagerImpl) Start(node *v1.Node,
 	}
 
 	// Ensure that node allocatable configuration is valid.
+	// TODO 校验Node分配
 	if err := cm.validateNodeAllocatable(); err != nil {
 		return err
 	}
 
 	// Setup the node
+	// TODO 这里初始化了什么？
 	if err := cm.setupNode(activePods); err != nil {
 		return err
 	}
@@ -645,6 +650,7 @@ func (cm *containerManagerImpl) Start(node *v1.Node,
 	}
 
 	// Starts device manager.
+	// TODO 启动DeviceManager
 	if err := cm.deviceManager.Start(devicemanager.ActivePodsFunc(activePods), sourcesReady); err != nil {
 		return err
 	}

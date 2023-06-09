@@ -276,6 +276,7 @@ func NewKubeGenericRuntimeManager(
 	}
 	kubeRuntimeManager.keyring = credentialprovider.NewDockerKeyring()
 
+	// 实例化ImageManager
 	kubeRuntimeManager.imagePuller = images.NewImageManager(
 		kubecontainer.FilterEventRecorder(recorder),
 		kubeRuntimeManager,
@@ -289,6 +290,7 @@ func NewKubeGenericRuntimeManager(
 	kubeRuntimeManager.containerGC = newContainerGC(runtimeService, podStateProvider, kubeRuntimeManager, tracer)
 	kubeRuntimeManager.podStateProvider = podStateProvider
 
+	// 实例化ObjectCache
 	kubeRuntimeManager.versionCache = cache.NewObjectCache(
 		func() (interface{}, error) {
 			return kubeRuntimeManager.getTypedVersion(ctx)

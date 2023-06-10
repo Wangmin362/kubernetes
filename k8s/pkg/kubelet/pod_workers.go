@@ -139,6 +139,7 @@ type podWork struct {
 }
 
 // PodWorkers is an abstract interface for testability.
+// TODO 如何理解这里的PodWorker接口的抽象？ 如何理解这个接口是为了可测试性？
 type PodWorkers interface {
 	// UpdatePod notifies the pod worker of a change to a pod, which will then
 	// be processed in FIFO order by a goroutine per pod UID. The state of the

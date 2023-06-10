@@ -42,6 +42,11 @@ import (
 // status of the mirror pod always reflects the actual status of the static
 // pod. When a static pod gets deleted, the associated orphaned mirror pod
 // will also be removed.
+// 1、PodManager主要用于管理可以访问的Pod，并且维护StaticPod以及MirrorPod之间的映射关系
+// 2、所谓的StaticPod，实际上指的不是来资源APIServer的所有Pod，简单来说就是来资源File以及HTTP的Pod
+// 3、由于StaticPod是直接通过Kubelet运行的，因此APIServer无法感知StaticPod。为了能够让APIServer能够感知StaticPod，PodManager为
+// 每一个StaticPod创建了一个MirrorPod。并且StaticPod的状态会影响MirrorPod。如果StaticPod被删除了，那么也需要删除MirrorPod
+// 4、PodManager的实现非常简单，就是一个map缓存，缓存了常规Pod以及MirrorPod
 type Manager interface {
 	// GetPods returns the regular pods bound to the kubelet and their spec.
 	GetPods() []*v1.Pod
@@ -101,9 +106,9 @@ type basicManager struct {
 	// Protects all internal maps.
 	lock sync.RWMutex
 
-	// Regular pods indexed by UID.
+	// 常规Pod缓存，Key为PodUID,而Value为Pod
 	podByUID map[kubetypes.ResolvedPodUID]*v1.Pod
-	// Mirror pods indexed by UID.
+	// MirrorPod缓存，Key为PodUID,而Value为MirrorPod
 	mirrorPodByUID map[kubetypes.MirrorPodUID]*v1.Pod
 
 	// Pods indexed by full name for easy access.
@@ -169,13 +174,18 @@ func updateMetrics(oldPod, newPod *v1.Pod) {
 // lock.
 func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 	for _, pod := range pods {
+		// FullName = <podName>_<namespace>
 		podFullName := kubecontainer.GetPodFullName(pod)
 		// This logic relies on a static pod and its mirror to have the same name.
 		// It is safe to type convert here due to the IsMirrorPod guard.
+		// 1、所谓的MirrorPod实际上就是StaticPod，这些Pod来自于File以及HTTP
+		// 2、StaticPod在创建的时候会被打上kubernetes.io/config.mirror注解
 		if kubetypes.IsMirrorPod(pod) {
 			mirrorPodUID := kubetypes.MirrorPodUID(pod.UID)
+			// 更新缓存
 			pm.mirrorPodByUID[mirrorPodUID] = pod
 			pm.mirrorPodByFullName[podFullName] = pod
+			// 如果MirrorPod出现在了常规Pod缓存当中，需要更新MirrorPod PodUID以及Pod UID之间的映射关系
 			if p, ok := pm.podByFullName[podFullName]; ok {
 				pm.translationByUID[mirrorPodUID] = kubetypes.ResolvedPodUID(p.UID)
 			}

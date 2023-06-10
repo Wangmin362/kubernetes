@@ -70,6 +70,7 @@ type UpdatePodOptions struct {
 	// StartTime is an optional timestamp for when this update was created. If set,
 	// when this update is fully realized by the pod worker it will be recorded in
 	// the PodWorkerDuration metric.
+	// 当前更新动作创建的时间
 	StartTime time.Time
 	// Pod to update. Required.
 	Pod *v1.Pod
@@ -78,6 +79,7 @@ type UpdatePodOptions struct {
 	MirrorPod *v1.Pod
 	// RunningPod is a runtime pod that is no longer present in config. Required
 	// if Pod is nil, ignored if Pod is set.
+	// TODO 什么情况下RunningPod不为空，但是Pod是nil呢？
 	RunningPod *kubecontainer.Pod
 	// KillPodOptions is used to override the default termination behavior of the
 	// pod or to update the pod status after an operation is completed. Since a
@@ -150,6 +152,7 @@ type PodWorkers interface {
 	// UpdatePod() calls will be ignored for that pod until it has been forgotten
 	// due to significant time passing. A pod that is terminated will never be
 	// restarted.
+	// 1、此函数用于通知PodWorker关于一个Pod的变更，PodWorker会
 	UpdatePod(options UpdatePodOptions)
 	// SyncKnownPods removes workers for pods that are not in the desiredPods set
 	// and have been terminated for a significant period of time. Once this method
@@ -247,6 +250,7 @@ type PodWorkers interface {
 // until it returns no error. Then the SyncTerminatedPod method is invoked until it exits without
 // error, and the pod is considered terminal. Implementations of this interface must be threadsafe
 // for simultaneous invocation of these methods for multiple pods.
+// TODO 如何理解这个接口？
 type podSyncer interface {
 	// SyncPod configures the pod and starts and restarts all containers. If it returns true, the
 	// pod has reached a terminal state and the presence of the error indicates succeeded or failed.
@@ -560,14 +564,18 @@ type podWorkers struct {
 	// processing updates received through its corresponding channel. Sending
 	// a message on this channel will signal the corresponding goroutine to
 	// consume podSyncStatuses[uid].pendingUpdate if set.
+	// TODO ?
 	podUpdates map[types.UID]chan struct{}
 	// Tracks by UID the termination status of a pod - syncing, terminating,
 	// terminated, and evicted.
+	// TODO ?
 	podSyncStatuses map[types.UID]*podSyncStatus
 
 	// Tracks all uids for started static pods by full name
+	// TODO ?
 	startedStaticPodsByFullname map[string]types.UID
 	// Tracks all uids for static pods that are waiting to start by full name
+	// TODO ?
 	waitingToStartStaticPodsByFullname map[string][]types.UID
 
 	workQueue queue.WorkQueue
@@ -740,11 +748,12 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// the terminating part of the lifecycle. A running pod contains only a minimal set of information
 	// about the pod
 	var isRuntimePod bool
-	var uid types.UID
-	var name, ns string
+	var uid types.UID   // PodUID
+	var name, ns string // PodName以及Pod所在的名称空间
 	if runningPod := options.RunningPod; runningPod != nil {
 		if options.Pod == nil {
 			// the sythetic pod created here is used only as a placeholder and not tracked
+			// 如果从APIServer中没有找到Pod,但是runningPod非空，那么说明Pod一定是被删除了，因此这种状态下更新事件必须是Kill事件，否则忽略此次更新
 			if options.UpdateType != kubetypes.SyncPodKill {
 				klog.InfoS("Pod update is ignored, runtime pods can only be killed", "pod", klog.KRef(runningPod.Namespace, runningPod.Name), "podUID", runningPod.ID, "updateType", options.UpdateType)
 				return
@@ -752,6 +761,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			uid, ns, name = runningPod.ID, runningPod.Namespace, runningPod.Name
 			isRuntimePod = true
 		} else {
+			// 如果Pod不为空，那么忽略RunningPod属性
 			options.RunningPod = nil
 			uid, ns, name = options.Pod.UID, options.Pod.Namespace, options.Pod.Name
 			klog.InfoS("Pod update included RunningPod which is only valid when Pod is not specified", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)

@@ -65,17 +65,19 @@ type KillPodOptions struct {
 
 // UpdatePodOptions is an options struct to pass to a UpdatePod operation.
 type UpdatePodOptions struct {
-	// The type of update (create, update, sync, kill).
+	// Pod的更新类型，有四种更新类型，分别是：create, update, sync, kill
 	UpdateType kubetypes.SyncPodType
 	// StartTime is an optional timestamp for when this update was created. If set,
 	// when this update is fully realized by the pod worker it will be recorded in
 	// the PodWorkerDuration metric.
-	// 当前更新动作创建的时间
+	// 当前更新动作创建的时间，通过这个开始事件可以用来排序，也可以用来做阈值检测
 	StartTime time.Time
 	// Pod to update. Required.
+	// 当前需要更新的Pod
 	Pod *v1.Pod
 	// MirrorPod is the mirror pod if Pod is a static pod. Optional when UpdateType
 	// is kill or terminated.
+	// 如果当前Pod是一个StaticPod，那么必然会有一个MirrorPod与之对应
 	MirrorPod *v1.Pod
 	// RunningPod is a runtime pod that is no longer present in config. Required
 	// if Pod is nil, ignored if Pod is set.
@@ -86,6 +88,7 @@ type UpdatePodOptions struct {
 	// pod can be killed for multiple reasons, PodStatusFunc is invoked in order
 	// and later kills have an opportunity to override the status (i.e. a preemption
 	// may be later turned into an eviction).
+	// 1、这个参数应该是当UpdateType = SyncPodKill才会生效
 	KillPodOptions *KillPodOptions
 }
 
@@ -142,6 +145,11 @@ type podWork struct {
 
 // PodWorkers is an abstract interface for testability.
 // TODO 如何理解这里的PodWorker接口的抽象？ 如何理解这个接口是为了可测试性？
+// 1、PodWorker是Kubelet非常核心的一个组件，APIServer中保存的所有Pod元数据就是通过PodWorker落地实现的。了解K8S的人都知道，APIServer中
+// 仅仅是保存了我们希望的Pod元数据，而我们期望的最终目标就是在节点上运行我们期望的Pod。PodWorker就是干这个事情的，它为每一个Pod启动了一个
+// 协程，一旦这个Pod发生变化，就会触发这个协程同步更新用户期望并落地到真实的容器当中的。
+// 2、从上面的描述当中，自然不难发现；PodManager仅仅是Kubelet的一个缓存，记录了Kubelet当前管理的所有Pod。更加重要的是，PodManager记录了
+// StaticPod与MirrorPod之间的映射关系。即通过PodManager我们可以快速知道一个Pod到底是否是MirrorPod。
 type PodWorkers interface {
 	// UpdatePod notifies the pod worker of a change to a pod, which will then
 	// be processed in FIFO order by a goroutine per pod UID. The state of the
@@ -324,6 +332,7 @@ const (
 
 // podSyncStatus tracks per-pod transitions through the three phases of pod
 // worker sync (setup, terminating, terminated).
+// TODO 似乎是用来记录Pod同步状态的数据结构
 type podSyncStatus struct {
 	// ctx is the context that is associated with the current pod sync.
 	// TODO: remove this from the struct by having the context initialized
@@ -333,11 +342,12 @@ type podSyncStatus struct {
 	// cancelFn if set is expected to cancel the current podSyncer operation.
 	cancelFn context.CancelFunc
 
-	// fullname of the pod
+	// fullname of the pod，即<podName>_<namespace>
 	fullname string
 
 	// working is true if an update is pending or being worked by a pod worker
 	// goroutine.
+	// TODO 这里似乎在说，当go协程在处理这个Pod的时候就会设置为true
 	working bool
 	// pendingUpdate is the updated state the pod worker should observe. It is
 	// cleared and moved to activeUpdate when a pod worker reads it. A new update
@@ -345,6 +355,7 @@ type podSyncStatus struct {
 	// that all intermediate states are synced to a worker, only the most recent.
 	// This state will not be visible to downstream components until a pod worker
 	// has begun processing it.
+	// TODO 干嘛的？
 	pendingUpdate *UpdatePodOptions
 	// activeUpdate is the most recent version of the pod's state that will be
 	// passed to a sync*Pod function. A pod becomes visible to downstream components
@@ -353,6 +364,7 @@ type podSyncStatus struct {
 	// known version), and the value of KillPodOptions is accumulated as pods cannot
 	// have their grace period shortened. This is the source of truth for the pod spec
 	// the kubelet is reconciling towards for all components that act on running pods.
+	// TODO 干嘛的？
 	activeUpdate *UpdatePodOptions
 
 	// syncedAt is the time at which the pod worker first observed this pod.
@@ -564,7 +576,9 @@ type podWorkers struct {
 	// processing updates received through its corresponding channel. Sending
 	// a message on this channel will signal the corresponding goroutine to
 	// consume podSyncStatuses[uid].pendingUpdate if set.
-	// TODO ?
+	// 1、key为PodUID，而value为一个channel
+	// 2、podWorker会给每为每一个Pod启动一个协程，同时这里的Value就是协程的数据来源，每当数据Pod状态变动时，就会把数据写入到channel当中，
+	// 启动的协程只需要监听这个channel即可
 	podUpdates map[types.UID]chan struct{}
 	// Tracks by UID the termination status of a pod - syncing, terminating,
 	// terminated, and evicted.
@@ -575,7 +589,7 @@ type podWorkers struct {
 	// TODO ?
 	startedStaticPodsByFullname map[string]types.UID
 	// Tracks all uids for static pods that are waiting to start by full name
-	// TODO ?
+	// TODO 当某个Pod是StaticPod的时候，就会更新这个属性，Key为：<podName>_<namespace>，value为PodUID
 	waitingToStartStaticPodsByFullname map[string][]types.UID
 
 	workQueue queue.WorkQueue
@@ -588,6 +602,7 @@ type podWorkers struct {
 	// workerChannelFn is exposed for testing to allow unit tests to impose delays
 	// in channel communication. The function is invoked once each time a new worker
 	// goroutine starts.
+	// todo 这玩意似乎是用来做单元测试的
 	workerChannelFn func(uid types.UID, in chan struct{}) (out <-chan struct{})
 
 	// The EventRecorder to use
@@ -600,6 +615,7 @@ type podWorkers struct {
 	resyncInterval time.Duration
 
 	// podCache stores kubecontainer.PodStatus for all pods.
+	// TODO 1、缓存所有Pod的状态
 	podCache kubecontainer.Cache
 
 	// clock is used for testing timing
@@ -790,6 +806,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			// Check to see if the pod is not running and the pod is terminal; if this succeeds then record in the podWorker that it is terminated.
 			// This is needed because after a kubelet restart, we need to ensure terminal pods will NOT be considered active in Pod Admission. See http://issues.k8s.io/105523
 			// However, `filterOutInactivePods`, considers pods that are actively terminating as active. As a result, `IsPodKnownTerminated()` needs to return true and thus `terminatedAt` needs to be set.
+			// TODO
 			if statusCache, err := p.podCache.Get(uid); err == nil {
 				if isPodStatusCacheTerminal(statusCache) {
 					// At this point we know:
@@ -809,6 +826,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 				}
 			}
 		}
+		// 如果这个Pod是第一次出现，显然还没有记录过这个pod的状态，因此这里需要把初始化的状态记录下来
 		p.podSyncStatuses[uid] = status
 	}
 
@@ -857,7 +875,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 	// check for a transition to terminating
 	var becameTerminating bool
-	// 设置status属性
+	// 如果当前Pod没有处于Termination状态，那么更新podSyncStatuses属性
 	if !status.IsTerminationRequested() {
 		switch {
 		case isRuntimePod:
@@ -888,6 +906,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 	// once a pod is terminating, all updates are kills and the grace period can only decrease
 	var wasGracePeriodShortened bool
+	// TODO 这里在干嘛？
 	switch {
 	case status.IsTerminated():
 		// A terminated pod may still be waiting for cleanup - if we receive a runtime pod kill request
@@ -938,6 +957,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// start the pod worker goroutine if it doesn't exist
 	podUpdates, exists := p.podUpdates[uid]
 	if !exists {
+		// 之前没有处理过这个Pod
 		// buffer the channel to avoid blocking this method
 		podUpdates = make(chan struct{}, 1)
 		p.podUpdates[uid] = podUpdates
@@ -976,6 +996,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	status.pendingUpdate = &options
 	status.working = true
 	klog.V(4).InfoS("Notifying pod of pending update", "pod", klog.KRef(ns, name), "podUID", uid, "workType", status.WorkType())
+	// 通知协程当前Pod已经发生了变更
 	select {
 	case podUpdates <- struct{}{}:
 	default:
@@ -1117,11 +1138,13 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 	// verify we are known to the pod worker still
 	status, ok := p.podSyncStatuses[podUID]
 	if !ok {
+		// 既然go协程开始处理这个pod了，那么肯定这个pod的状态一定经过初始化，如果没有拿到，那一定是哪里出问题了
 		// pod status has disappeared, the worker should exit
 		klog.V(4).InfoS("Pod worker no longer has status, worker should exit", "podUID", podUID)
 		return nil, update, false, false, false
 	}
 	if !status.working {
+		// 当Pod已经有一个go协程在处理时，podSyncStatuses.working必须是true，否则就是程序哪里出错了
 		// working is used by unit tests to observe whether a worker is currently acting on this pod
 		klog.V(4).InfoS("Pod should be marked as working by the pod worker, programmer error", "podUID", podUID)
 	}
@@ -1220,6 +1243,7 @@ func podUIDAndRefForUpdate(update UpdatePodOptions) (types.UID, klog.ObjectRef) 
 func (p *podWorkers) podWorkerLoop(podUID types.UID, podUpdates <-chan struct{}) {
 	var lastSyncTime time.Time
 	for range podUpdates {
+		// TODO startPodSync干了啥？
 		ctx, update, canStart, canEverStart, ok := p.startPodSync(podUID)
 		// If we had no update waiting, it means someone initialized the channel without filling out pendingUpdate.
 		if !ok {

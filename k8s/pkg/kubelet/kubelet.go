@@ -2377,6 +2377,13 @@ func (kl *Kubelet) canRunPod(pod *v1.Pod) lifecycle.PodAdmitResult {
 // any new change seen, will run a sync against desired state and running state. If
 // no changes are seen to the configuration, will synchronize the last known desired
 // state every sync-frequency seconds. Never returns.
+// 1、syncLoop的核心目标就是把需要变更的Pod交给PodWorker，让PodWorker和CRI交互，从而落地用户期望
+// 2、syncLoop的Pod变更数据来源有以下几类：
+// 2.1、APIServer、File、HTTP
+// 2.2、PLEG，原理就是通过对比前后两个时刻的Pod变化，从而计算出Pod的状态
+// 2.3、定时同步（每秒钟一次）
+// 2.4、livenessManager, readinessManager, startupManager
+// 2.5、housekeeping (每两秒钟一次)
 func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpdate, handler SyncHandler) {
 	klog.InfoS("Starting kubelet main sync loop")
 	// The syncTicker wakes up kubelet to checks if there are any pod workers
@@ -2455,10 +2462,18 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 //   - housekeepingCh: trigger cleanup of pods
 //   - health manager: sync pods that have failed or in which one or more
 //     containers have failed health checks
+//
+// 1、syncLoopIteration的核心目标就是把需要变更的Pod交给PodWorker，让PodWorker和CRI交互，从而落地用户期望
+// 2、syncLoopIteration的Pod变更数据来源有以下几类：
+// 2.1、APIServer、File、HTTP
+// 2.2、PLEG，原理就是通过对比前后两个时刻的Pod变化，从而计算出Pod的状态
+// 2.3、定时同步（每秒钟一次）
+// 2.4、livenessManager, readinessManager, startupManager
+// 2.5、housekeeping (每两秒钟一次)
 func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubetypes.PodUpdate, handler SyncHandler,
 	syncCh <-chan time.Time, housekeepingCh <-chan time.Time, plegCh <-chan *pleg.PodLifecycleEvent) bool {
 	select {
-	case u, open := <-configCh: // 数据来源于PodConfig,也就是HTTP, StaticPod, APIServer
+	case u, open := <-configCh: // 数据来源于PodConfig,也就是HTTP, File, APIServer
 		// Update from a config source; dispatch it to the right handler
 		// callback.
 		if !open {
@@ -2497,8 +2512,9 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 
 		kl.sourcesReady.AddSource(u.Source)
 
-	case e := <-plegCh: // 这里的数据来源为PLEG，即通过CRI接口扫描当前节点运行的所有容器，通过对比前后两个状态得出容器的生命周期事件
-		// 如果Pod中的容器没有被删除，那么就值得Sync这个Pod
+	case e := <-plegCh:
+		// 1、这里的数据来源为PLEG，即通过CRI接口扫描当前节点运行的所有容器，通过对比前后两个状态得出容器的生命周期事件, 如果Pod中的容器
+		// 没有被删除，那么就值得Sync这个Pod
 		if isSyncPodWorthy(e) {
 			// PLEG event for a pod; sync it.
 			if pod, ok := kl.podManager.GetPodByUID(e.ID); ok {

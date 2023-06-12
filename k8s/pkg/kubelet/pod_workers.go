@@ -776,6 +776,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// decide what to do with this pod - we are either setting it up, tearing it down, or ignoring it
 	var firstTime bool
 	now := p.clock.Now()
+	// 获取Pod是Sync状态，如果没有找到，就实例化一个
 	status, ok := p.podSyncStatuses[uid]
 	if !ok {
 		klog.V(4).InfoS("Pod is being synced for the first time", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)
@@ -856,6 +857,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 	// check for a transition to terminating
 	var becameTerminating bool
+	// 设置status属性
 	if !status.IsTerminationRequested() {
 		switch {
 		case isRuntimePod:

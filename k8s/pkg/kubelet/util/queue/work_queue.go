@@ -53,6 +53,7 @@ func (q *basicWorkQueue) GetWork() []types.UID {
 	now := q.clock.Now()
 	var items []types.UID
 	for k, v := range q.queue {
+		// 如果当前元素已经过了delay时间，就取出来
 		if v.Before(now) {
 			items = append(items, k)
 			delete(q.queue, k)

@@ -1263,6 +1263,7 @@ type Kubelet struct {
 	daemonEndpoints *v1.NodeDaemonEndpoints
 
 	// A queue used to trigger pod workers.
+	// 一个简单的队列，实现原理为: map， key为PodUID, value为delay时间
 	workQueue queue.WorkQueue
 
 	// oneTimeInitializer is used to initialize modules that are dependent on the runtime to be up.
@@ -1299,6 +1300,7 @@ type Kubelet struct {
 	softAdmitHandlers lifecycle.PodAdmitHandlers
 
 	// the list of handlers to call during pod sync loop.
+	// TODO 什么时候一个Pod需要同步？
 	lifecycle.PodSyncLoopHandlers
 
 	// the list of handlers to call during pod sync.
@@ -2265,7 +2267,9 @@ func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus
 //   - pod whose work is ready.
 //   - internal modules that request sync of a pod.
 func (kl *Kubelet) getPodsToSync() []*v1.Pod {
+	// TODO 获取Kubelet缓存的所有Pod
 	allPods := kl.podManager.GetPods()
+	// 取出workQueue中所有已经ready的pod
 	podUIDs := kl.workQueue.GetWork()
 	podUIDSet := sets.NewString()
 	for _, podUID := range podUIDs {
@@ -2532,7 +2536,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 			}
 		}
 	case <-syncCh: // 每秒钟执行一次
-		// Sync pods waiting for sync
+		// 获取所有需要同步的Pod
 		podsToSync := kl.getPodsToSync()
 		if len(podsToSync) == 0 {
 			break

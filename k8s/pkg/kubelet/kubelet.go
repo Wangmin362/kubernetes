@@ -817,7 +817,8 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			RelistPeriod:    eventedPlegRelistPeriod,
 			RelistThreshold: eventedPlegRelistThreshold,
 		}
-		// TODO 实例化PLEG
+		// 1、实例化PLEG，PLEG的核心作用就是定时扫描当前节点运行的所有容器，并通过对比前后两个时刻的容器状态从而得出容器的事件，并把改事件通知给syncLoop
+		// 2、如果EventedPLEG在运行过程中获取容器的事件出错并超过五次，EventedPLEG就会重置GenericPLEG的扫描时间，从三百秒，重置为一秒钟
 		klet.pleg = pleg.NewGenericPLEG(klet.containerRuntime, eventChannel, genericRelistDuration, klet.podCache, clock.RealClock{})
 		// In case Evented PLEG has to fall back on Generic PLEG due to an error,
 		// Evented PLEG should be able to reset the Generic PLEG relisting duration
@@ -826,7 +827,7 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 			RelistPeriod:    genericPlegRelistPeriod,
 			RelistThreshold: genericPlegRelistThreshold,
 		}
-		// TODO 实例化EventedPLEG
+		// TODO EventPLEG是通过获取容器的事件，并向plegCh中发送事件
 		klet.eventedPleg = pleg.NewEventedPLEG(klet.containerRuntime, klet.runtimeService, eventChannel,
 			klet.podCache, klet.pleg, eventedPlegMaxStreamRetries, eventedRelistDuration, clock.RealClock{})
 	} else {
@@ -2568,6 +2569,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 		}
 		handleProbeSync(kl, update, handler, "startup", status)
 	case <-housekeepingCh: // 每两秒钟执行一次
+		// TODO housekeeping干了啥？
 		if !kl.sourcesReady.AllReady() {
 			// If the sources aren't ready or volume manager has not yet synced the states,
 			// skip housekeeping, as we may accidentally delete pods from unready sources.

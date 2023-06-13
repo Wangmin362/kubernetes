@@ -62,6 +62,7 @@ type PodLifecycleEvent struct {
 }
 
 // PodLifecycleEventGenerator contains functions for generating pod life cycle events.
+// TODO 如何理解这个接口？
 type PodLifecycleEventGenerator interface {
 	Start()
 	Stop()

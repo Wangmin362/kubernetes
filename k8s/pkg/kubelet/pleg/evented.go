@@ -60,21 +60,25 @@ func setEventedPLEGUsage(enable bool) {
 }
 
 type EventedPLEG struct {
-	// The container runtime.
+	// 容器运行时，可以等价认为是CRI接口
 	runtime kubecontainer.Runtime
-	// The runtime service.
+	// 容器运行时，可以等价认为是CRI接口
 	runtimeService internalapi.RuntimeService
 	// The channel from which the subscriber listens events.
+	// 容量默认是1000
 	eventChannel chan *PodLifecycleEvent
 	// Cache for storing the runtime states required for syncing pods.
+	// 缓存Pod
 	cache kubecontainer.Cache
 	// For testability.
 	clock clock.Clock
 	// GenericPLEG is used to force relist when required.
+	// 引用GenericPLEG，用于强制执行GenericPLEG.relist方法，重新扫描当前节点的所有docker容器
 	genericPleg PodLifecycleEventGenerator
 	// The maximum number of retries when getting container events from the runtime.
+	// 目前设置的是五次
 	eventedPlegMaxStreamRetries int
-	// Indicates relisting related parameters
+	// 重新扫描周期
 	relistDuration *RelistDuration
 	// Stop the Evented PLEG by closing the channel.
 	stopCh chan struct{}
@@ -85,6 +89,7 @@ type EventedPLEG struct {
 }
 
 // NewEventedPLEG instantiates a new EventedPLEG object and return it.
+// TODO 通过获取容器事件，并向plegCh中发送事件
 func NewEventedPLEG(runtime kubecontainer.Runtime, runtimeService internalapi.RuntimeService, eventChannel chan *PodLifecycleEvent,
 	cache kubecontainer.Cache, genericPleg PodLifecycleEventGenerator, eventedPlegMaxStreamRetries int,
 	relistDuration *RelistDuration, clock clock.Clock) PodLifecycleEventGenerator {
@@ -114,9 +119,11 @@ func (e *EventedPLEG) Relist() {
 func (e *EventedPLEG) Start() {
 	e.runningMu.Lock()
 	defer e.runningMu.Unlock()
+	// 如果EventedPLEG已经启动过了，就无需再次启动
 	if isEventedPLEGInUse() {
 		return
 	}
+	// 设置EventedPLEG标志位，设置为启动
 	setEventedPLEGUsage(true)
 	e.stopCh = make(chan struct{})
 	e.stopCacheUpdateCh = make(chan struct{})
@@ -176,6 +183,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 	go func() {
 		numAttempts := 0
 		for {
+			// 如果通过CRI接口获取容器事件超过五次调用失败，就停止EventedPLEG，同时更新GenericPLEG的重新扫描容器的时间，然后重新启动GenericPLEG
 			if numAttempts >= e.eventedPlegMaxStreamRetries {
 				if isEventedPLEGInUse() {
 					// Fall back to Generic PLEG relisting since Evented PLEG is not working.
@@ -188,6 +196,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 				}
 			}
 
+			// 获取容器的事件，并吧事件写入到containerEventsResponseCh通道当中
 			err := e.runtimeService.GetContainerEvents(containerEventsResponseCh)
 			if err != nil {
 				metrics.EventedPLEGConnErr.Inc()
@@ -199,6 +208,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 	}()
 
 	if isEventedPLEGInUse() {
+		// TODO 处理容器事件
 		e.processCRIEvents(containerEventsResponseCh)
 	}
 }
@@ -221,6 +231,7 @@ func (e *EventedPLEG) processCRIEvents(containerEventsResponseCh chan *runtimeap
 		podID := types.UID(event.PodSandboxStatus.Metadata.Uid)
 		shouldSendPLEGEvent := false
 
+		// 获取Pod状态
 		status, err := e.runtime.GeneratePodStatus(event)
 		if err != nil {
 			// nolint:logcheck // Not using the result of klog.V inside the

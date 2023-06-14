@@ -25,17 +25,22 @@ import (
 )
 
 // Manager provides a probe results cache and channel of updates.
+// 用于管理探针的结果，并且把结果通过Update channel传出
 type Manager interface {
 	// Get returns the cached result for the container with the given ID.
+	// 获取容器的探针状态
 	Get(kubecontainer.ContainerID) (Result, bool)
 	// Set sets the cached result for the container with the given ID.
 	// The pod is only included to be sent with the update.
+	// 设置容器的探针状态
 	Set(kubecontainer.ContainerID, Result, *v1.Pod)
 	// Remove clears the cached result for the container with the given ID.
 	Remove(kubecontainer.ContainerID)
 	// Updates creates a channel that receives an Update whenever its result changes (but not
 	// removed).
 	// NOTE: The current implementation only supports a single updates channel.
+	// 1、通过channel监听容器的探针状态
+	// 2、通过缓存容器的状态，放入这个channel一定是容器的探针状态发生了改变
 	Updates() <-chan Update
 }
 
@@ -106,6 +111,7 @@ func NewManager() Manager {
 func (m *manager) Get(id kubecontainer.ContainerID) (Result, bool) {
 	m.RLock()
 	defer m.RUnlock()
+	// 直接从缓存当中获取
 	result, found := m.cache[id]
 	return result, found
 }
@@ -121,6 +127,7 @@ func (m *manager) setInternal(id kubecontainer.ContainerID, result Result) bool 
 	m.Lock()
 	defer m.Unlock()
 	prev, exists := m.cache[id]
+	// 如果当前容器还没有探针状态或者当前容器的探针状态发生了改变，就把探针结果缓存起来
 	if !exists || prev != result {
 		m.cache[id] = result
 		return true

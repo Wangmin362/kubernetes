@@ -66,6 +66,8 @@ var ProberDuration = metrics.NewHistogramVec(
 // probe (AddPod). The worker periodically probes its assigned container and caches the results. The
 // manager use the cached probe results to set the appropriate Ready state in the PodStatus when
 // requested (UpdatePodStatus). Updating probe parameters is not currently supported.
+// 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程定时通过探针
+// 的配置检查状态
 type Manager interface {
 	// AddPod creates new probe workers for every container probe. This should be called for every
 	// pod created.
@@ -89,6 +91,8 @@ type Manager interface {
 
 type manager struct {
 	// Map of active workers for probes
+	// 1、Key由三个字段构成，粉笔是：PodUID, ContainerID, 探针类型（liveness, readiness, startup）
+	// 2、value抽象为一个worker，实际上将来会针对每个worker启动一个协程运行
 	workers map[probeKey]*worker
 	// Lock for accessing & mutating workers
 	workerLock sync.RWMutex
@@ -96,18 +100,23 @@ type manager struct {
 	// The statusManager cache provides pod IP and container IDs for probing.
 	statusManager status.Manager
 
-	// readinessManager manages the results of readiness probes
+	// 用于记录Readiness探针的结果，每个容器只要指定了readiness探针，ProbeManager就会启动一个协程定期按照探针配置的规则执行，并把
+	// 结果保存到ResultManager当中
 	readinessManager results.Manager
 
-	// livenessManager manages the results of liveness probes
+	// 用于记录Readiness探针的结果，每个容器只要指定了readiness探针，ProbeManager就会启动一个协程定期按照探针配置的规则执行，并把
+	// 结果保存到ResultManager当中
 	livenessManager results.Manager
 
-	// startupManager manages the results of startup probes
+	// 用于记录Readiness探针的结果，每个容器只要指定了readiness探针，ProbeManager就会启动一个协程定期按照探针配置的规则执行，并把
+	// 结果保存到ResultManager当中
 	startupManager results.Manager
 
 	// prober executes the probe actions.
+	// TODO 用于执行tcp, exec, http, grpc方式的探针规则
 	prober *prober
 
+	// 实例化ProbeManager的时间
 	start time.Time
 }
 
@@ -171,9 +180,11 @@ func (m *manager) AddPod(pod *v1.Pod) {
 	defer m.workerLock.Unlock()
 
 	key := probeKey{podUID: pod.UID}
+	// 遍历当前Pod中所办含的容器，由于InitContainer不会一直存在，因此没有探针的说法
 	for _, c := range pod.Spec.Containers {
 		key.containerName = c.Name
 
+		// 如果当前容器指定了Startup类型的探针，那么就启动一个协程定期按照探针指定的规则定期执行
 		if c.StartupProbe != nil {
 			key.probeType = startup
 			if _, ok := m.workers[key]; ok {
@@ -186,6 +197,7 @@ func (m *manager) AddPod(pod *v1.Pod) {
 			go w.run()
 		}
 
+		// 如果当前容器指定了Readiness类型的探针，那么就启动一个协程定期按照探针指定的规则定期执行
 		if c.ReadinessProbe != nil {
 			key.probeType = readiness
 			if _, ok := m.workers[key]; ok {
@@ -198,6 +210,7 @@ func (m *manager) AddPod(pod *v1.Pod) {
 			go w.run()
 		}
 
+		// 如果当前容器指定了Liveness类型的探针，那么就启动一个协程定期按照探针指定的规则定期执行
 		if c.LivenessProbe != nil {
 			key.probeType = liveness
 			if _, ok := m.workers[key]; ok {
@@ -255,6 +268,7 @@ func (m *manager) CleanupPods(desiredPods map[types.UID]sets.Empty) {
 	}
 }
 
+// UpdatePodStatus 主要是为了触发Pod的Readiness探针
 func (m *manager) UpdatePodStatus(podUID types.UID, podStatus *v1.PodStatus) {
 	for i, c := range podStatus.ContainerStatuses {
 		var started bool

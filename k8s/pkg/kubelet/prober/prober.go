@@ -97,6 +97,7 @@ func (pb *prober) probe(ctx context.Context, probeType probeType, pod *v1.Pod, s
 		return results.Success, nil
 	}
 
+	// TODO 执行探针
 	result, output, err := pb.runProbeWithRetries(ctx, probeType, probeSpec, pod, status, container, containerID, maxProbeRetries)
 	if err != nil || (result != probe.Success && result != probe.Warning) {
 		// Probe failed in one way or another.
@@ -135,11 +136,14 @@ func (pb *prober) runProbeWithRetries(ctx context.Context, probeType probeType, 
 
 func (pb *prober) runProbe(ctx context.Context, probeType probeType, p *v1.Probe, pod *v1.Pod, status v1.PodStatus, container v1.Container, containerID kubecontainer.ContainerID) (probe.Result, string, error) {
 	timeout := time.Duration(p.TimeoutSeconds) * time.Second
+	// 执行命令
 	if p.Exec != nil {
 		klog.V(4).InfoS("Exec-Probe runProbe", "pod", klog.KObj(pod), "containerName", container.Name, "execCommand", p.Exec.Command)
 		command := kubecontainer.ExpandContainerCommandOnlyStatic(p.Exec.Command, container.Env)
 		return pb.exec.Probe(pb.newExecInContainer(ctx, container, containerID, command, timeout))
 	}
+
+	// 执行HTTP请求
 	if p.HTTPGet != nil {
 		req, err := httpprobe.NewRequestForHTTPGetAction(p.HTTPGet, &container, status.PodIP, "probe")
 		if err != nil {
@@ -155,6 +159,7 @@ func (pb *prober) runProbe(ctx context.Context, probeType probeType, p *v1.Probe
 		}
 		return pb.http.Probe(req, timeout)
 	}
+	// 执行TCPSocket请求
 	if p.TCPSocket != nil {
 		port, err := probe.ResolveContainerPort(p.TCPSocket.Port, &container)
 		if err != nil {
@@ -168,6 +173,7 @@ func (pb *prober) runProbe(ctx context.Context, probeType probeType, p *v1.Probe
 		return pb.tcp.Probe(host, port, timeout)
 	}
 
+	// 执行GRPC请求
 	if p.GRPC != nil {
 		host := status.PodIP
 		service := ""

@@ -2229,6 +2229,7 @@ type Probe struct {
 	// How often (in seconds) to perform the probe.
 	// Default to 10 seconds. Minimum value is 1.
 	// +optional
+	// 执行探针的周期
 	PeriodSeconds int32 `json:"periodSeconds,omitempty" protobuf:"varint,4,opt,name=periodSeconds"`
 	// Minimum consecutive successes for the probe to be considered successful after having failed.
 	// Defaults to 1. Must be 1 for liveness and startup. Minimum value is 1.

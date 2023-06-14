@@ -69,17 +69,28 @@ type versionedPodStatus struct {
 // Updates pod statuses in apiserver. Writes only when new status has changed.
 // All methods are thread-safe.
 type manager struct {
+	// ClientSet
 	kubeClient clientset.Interface
+	// 1、PodManager主要用于管理可以访问的Pod，并且维护StaticPod以及MirrorPod之间的映射关系
+	// 2、所谓的StaticPod，实际上指的不是来资源APIServer的所有Pod，简单来说就是来资源File以及HTTP的Pod
+	// 3、由于StaticPod是直接通过Kubelet运行的，因此APIServer无法感知StaticPod。为了能够让APIServer能够感知StaticPod，PodManager为
+	// 每一个StaticPod创建了一个MirrorPod。并且StaticPod的状态会影响MirrorPod。如果StaticPod被删除了，那么也需要删除MirrorPod
+	// 4、PodManager的实现非常简单，就是一个map缓存，缓存了常规Pod以及MirrorPod
+	// 5、PodManager的数据来源就是syncLoop,syncLoop对于感知到的所有Pod的增删改查都会维护PodManager
 	podManager kubepod.Manager
-	// Map from pod UID to sync status of the corresponding pod.
-	podStatuses      map[types.UID]versionedPodStatus
-	podStatusesLock  sync.RWMutex
+	// 缓存Pod状态，Key为PodUID
+	podStatuses     map[types.UID]versionedPodStatus
+	podStatusesLock sync.RWMutex
+	// TODO ?
 	podStatusChannel chan struct{}
 	// Map from (mirror) pod UID to latest status version successfully sent to the API server.
 	// apiStatusVersions must only be accessed from the sync thread.
+	// TODO ?
 	apiStatusVersions map[kubetypes.MirrorPodUID]uint64
+	// TODO ?
 	podDeletionSafety PodDeletionSafetyProvider
 
+	// TODO ?
 	podStartupLatencyHelper PodStartupLatencyStateHelper
 	// state allows to save/restore pod resource allocation and tolerate kubelet restarts.
 	state state.State
@@ -108,6 +119,7 @@ type PodStartupLatencyStateHelper interface {
 
 // Manager is the Source of truth for kubelet pod status, and should be kept up-to-date with
 // the latest v1.PodStatus. It also syncs updates back to the API server.
+// TODO 如何理解这个抽象接口？  感觉就是一个Pod状态缓存
 type Manager interface {
 	PodStatusProvider
 

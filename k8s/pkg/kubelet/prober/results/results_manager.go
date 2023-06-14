@@ -25,7 +25,8 @@ import (
 )
 
 // Manager provides a probe results cache and channel of updates.
-// 用于管理探针的结果，并且把结果通过Update channel传出
+// 1、用于管理探针的结果，并且把结果通过Update channel传出
+// 2、ResultManager的核心目的其实是为了在Pod的容器探针状态发生改变的时候触发PLEG的更新
 type Manager interface {
 	// Get returns the cached result for the container with the given ID.
 	// 获取容器的探针状态

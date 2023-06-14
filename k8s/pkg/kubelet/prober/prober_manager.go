@@ -68,6 +68,7 @@ var ProberDuration = metrics.NewHistogramVec(
 // requested (UpdatePodStatus). Updating probe parameters is not currently supported.
 // 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程定时通过探针
 // 的配置检查状态
+// 2、于此同时，每个容器的每种类型的探针结果都会被存入到ResultManager，从而触发PLEG的syncLoop更新Pod状态
 type Manager interface {
 	// AddPod creates new probe workers for every container probe. This should be called for every
 	// pod created.

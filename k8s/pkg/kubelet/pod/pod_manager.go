@@ -48,6 +48,7 @@ import (
 // 每一个StaticPod创建了一个MirrorPod。并且StaticPod的状态会影响MirrorPod。如果StaticPod被删除了，那么也需要删除MirrorPod
 // 4、PodManager的实现非常简单，就是一个map缓存，缓存了常规Pod以及MirrorPod
 // 5、PodManager的数据来源就是syncLoop,syncLoop对于感知到的所有Pod的增删改查都会维护PodManager
+// 6、TODO 非StaticPod也会创建与之对应的MirrorPod?
 type Manager interface {
 	// GetPods returns the regular pods bound to the kubelet and their spec.
 	GetPods() []*v1.Pod

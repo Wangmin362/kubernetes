@@ -66,10 +66,60 @@ type versionedPodStatus struct {
 	status v1.PodStatus
 }
 
+/* Pod状态示例如下
+status:
+  conditions:
+  - lastProbeTime: null
+    lastTransitionTime: "2023-06-13T01:54:54Z"
+    status: "True"
+    type: Initialized
+  - lastProbeTime: null
+    lastTransitionTime: "2023-06-15T02:58:13Z"
+    status: "True"
+    type: Ready
+  - lastProbeTime: null
+    lastTransitionTime: "2023-06-15T02:58:13Z"
+    status: "True"
+    type: ContainersReady
+  - lastProbeTime: null
+    lastTransitionTime: "2023-06-13T01:54:32Z"
+    status: "True"
+    type: PodScheduled
+  containerStatuses:
+  - containerID: docker://13aabc5a5cb8a5b11968d00e109dfb9d58bd057a8f5c764dc07ac321b581b8a5
+    image: 172.30.3.150/k8s/kube-rbac-proxy:v0.8.0
+    imageID: docker-pullable://172.30.3.150/k8s/kube-rbac-proxy@sha256:34e8724e0f47e31eb2ec3279ac398b657db5f60f167426ee73138e2e84af6486
+    lastState: {}
+    name: kube-rbac-proxy
+    ready: true
+    restartCount: 0
+    started: true
+    state:
+      running:
+        startedAt: "2023-06-13T01:54:57Z"
+  - containerID: docker://55f5c9b0145d5aef9c7d6e471902f4c61d9ed275882b3e5855f0a6f9746739af
+    image: 172.30.3.150/cloud/sk-gatorcloud-operator-manager:f36b66ab
+    imageID: docker-pullable://172.30.3.150/cloud/sk-gatorcloud-operator-manager@sha256:0ed2e2b4b6d3377491d93c4103d13d3b9a26fa171e67c826da2330aca9f5038e
+    lastState:
+      terminated:
+        containerID: docker://5d20106555ef399334004849452d39a489f212fe4693434739c9cb0e9ae6cb76
+        exitCode: 1
+        finishedAt: "2023-06-15T02:46:18Z"
+        reason: Error
+        startedAt: "2023-06-14T00:00:58Z"
+    name: manager
+    ready: true
+    restartCount: 5
+    started: true
+    state:
+      running:
+        startedAt: "2023-06-15T02:49:15Z"
+*/
+
 // Updates pod statuses in apiserver. Writes only when new status has changed.
 // All methods are thread-safe.
 type manager struct {
-	// ClientSet
+	// ClientSet，将来StatusManager需要更新Pod状态时就通过kubeClient访问APIServer
 	kubeClient clientset.Interface
 	// 1、PodManager主要用于管理可以访问的Pod，并且维护StaticPod以及MirrorPod之间的映射关系
 	// 2、所谓的StaticPod，实际上指的不是来资源APIServer的所有Pod，简单来说就是来资源File以及HTTP的Pod
@@ -81,14 +131,15 @@ type manager struct {
 	// 缓存Pod状态，Key为PodUID
 	podStatuses     map[types.UID]versionedPodStatus
 	podStatusesLock sync.RWMutex
-	// TODO 1、StatusManager.SetContainerReadiness方法会调用StatusManager.updateStatusInternal方法写入数据
+	// 1、StatusManager.SetContainerReadiness方法会调用StatusManager.updateStatusInternal方法写入数据
 	// 2、StatusManager.SetContainerStartup方法会调用StatusManager.updateStatusInternal方法写入数据
 	// 3、StatusManager.SetPodStatus方法会调用StatusManager.updateStatusInternal方法写入数据
 	// 4、StatusManager.TerminatePod方法会调用StatusManager.updateStatusInternal方法写入数据
+	// 5、当其它组件通过调用StatusManager的这些方法时，StatusManager就会把消息发送到这个Channel当中
 	podStatusChannel chan struct{}
 	// Map from (mirror) pod UID to latest status version successfully sent to the API server.
 	// apiStatusVersions must only be accessed from the sync thread.
-	// TODO ?
+	// 维护最新的PodStatus版本号，每次版本修改都会加一
 	apiStatusVersions map[kubetypes.MirrorPodUID]uint64
 	// TODO ?
 	podDeletionSafety PodDeletionSafetyProvider
@@ -124,6 +175,8 @@ type PodStartupLatencyStateHelper interface {
 // Manager is the Source of truth for kubelet pod status, and should be kept up-to-date with
 // the latest v1.PodStatus. It also syncs updates back to the API server.
 // TODO 如何理解这个抽象接口？  感觉就是一个Pod状态缓存
+// 1、StatusManager的核心目标是把Pod的状态更新到APIServer，也就是说APIServer的Pod的状态来源就是StatusManager
+// 2、StatusManager并不会主动建通Pod的状态变化，而是通过对外暴露接口供其它的Manager调用
 type Manager interface {
 	PodStatusProvider
 
@@ -226,6 +279,8 @@ func (m *manager) Start() {
 	syncTicker := time.NewTicker(syncPeriod).C
 
 	// syncPod and syncBatch share the same go routine to avoid sync races.
+	// 触发StatusManager更新Pod状态的数据来源有两种方式，其一就是通过定时器触发，每10秒钟触发一次；其二就是通过其它组件调用StatusManager
+	// 对外暴露的接口，从而把数据写入到podStatusChannel当中，从而触发StatusManager更新APIServer
 	go wait.Forever(func() {
 		for {
 			select {
@@ -819,8 +874,10 @@ func (m *manager) syncBatch(all bool) int {
 }
 
 // syncPod syncs the given status with the API server. The caller must not hold the status lock.
+// 1、syncPod方法的核心目标是为了更新Pod的状态到APIServer
 func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 	// TODO: make me easier to express from client code
+	// 直接通过APIServer查询Pod的状态，如果没找到这个Pod或者查询异常，那肯定更新状态必然会失败，因此直接退出
 	pod, err := m.kubeClient.CoreV1().Pods(status.podNamespace).Get(context.TODO(), status.podName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		klog.V(3).InfoS("Pod does not exist on the server",
@@ -838,19 +895,24 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 		return
 	}
 
+	// 通过MirrorPod UID找到与之对应的Pod UID
 	translatedUID := m.podManager.TranslatePodUID(pod.UID)
 	// Type convert original uid just for the purpose of comparison.
+	// 如果当前的Pod是MirrorPod，并且其PodUID发生了改变，那么一定是这个Pod被重建了
 	if len(translatedUID) > 0 && translatedUID != kubetypes.ResolvedPodUID(uid) {
 		klog.V(2).InfoS("Pod was deleted and then recreated, skipping status update",
 			"pod", klog.KObj(pod),
 			"oldPodUID", uid,
 			"podUID", translatedUID)
+		// TODO 删除Pod状态
 		m.deletePodStatus(uid)
 		return
 	}
 
+	// TODO 合并Pod状态
 	mergedStatus := mergePodStatus(pod.Status, status.status, m.podDeletionSafety.PodCouldHaveRunningContainers(pod))
 
+	// 更新APServer Pod的状态
 	newPod, patchBytes, unchanged, err := statusutil.PatchPodStatus(context.TODO(), m.kubeClient, pod.Namespace, pod.Name, pod.UID, pod.Status, mergedStatus)
 	klog.V(3).InfoS("Patch status for pod", "pod", klog.KObj(pod), "podUID", uid, "patch", string(patchBytes))
 
@@ -875,6 +937,7 @@ func (m *manager) syncPod(uid types.UID, status versionedPodStatus) {
 		metrics.PodStatusSyncDuration.Observe(duration.Seconds())
 	}
 
+	// 记录Pod的版本
 	m.apiStatusVersions[kubetypes.MirrorPodUID(pod.UID)] = status.version
 
 	// We don't handle graceful deletion of mirror pods.

@@ -81,7 +81,10 @@ type manager struct {
 	// 缓存Pod状态，Key为PodUID
 	podStatuses     map[types.UID]versionedPodStatus
 	podStatusesLock sync.RWMutex
-	// TODO ?
+	// TODO 1、StatusManager.SetContainerReadiness方法会调用StatusManager.updateStatusInternal方法写入数据
+	// 2、StatusManager.SetContainerStartup方法会调用StatusManager.updateStatusInternal方法写入数据
+	// 3、StatusManager.SetPodStatus方法会调用StatusManager.updateStatusInternal方法写入数据
+	// 4、StatusManager.TerminatePod方法会调用StatusManager.updateStatusInternal方法写入数据
 	podStatusChannel chan struct{}
 	// Map from (mirror) pod UID to latest status version successfully sent to the API server.
 	// apiStatusVersions must only be accessed from the sync thread.
@@ -93,6 +96,7 @@ type manager struct {
 	// TODO ?
 	podStartupLatencyHelper PodStartupLatencyStateHelper
 	// state allows to save/restore pod resource allocation and tolerate kubelet restarts.
+	// TODO ?
 	state state.State
 	// stateFileDirectory holds the directory where the state file for checkpoints is held.
 	stateFileDirectory string
@@ -228,7 +232,7 @@ func (m *manager) Start() {
 			case <-m.podStatusChannel:
 				klog.V(4).InfoS("Syncing updated statuses")
 				m.syncBatch(false)
-			case <-syncTicker:
+			case <-syncTicker: // 每10秒钟触发一次
 				klog.V(4).InfoS("Syncing all statuses")
 				m.syncBatch(true)
 			}
@@ -566,27 +570,33 @@ func checkContainerStateTransition(oldStatuses, newStatuses []v1.ContainerStatus
 // This method IS NOT THREAD SAFE and must be called from a locked function.
 func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUpdate, podIsFinished bool) {
 	var oldStatus v1.PodStatus
+	// 获取当前缓存的Pod状态
 	cachedStatus, isCached := m.podStatuses[pod.UID]
 	if isCached {
+		// 记录Pod上一次的状态
 		oldStatus = cachedStatus.status
 		// TODO(#116484): Also assign terminal phase to static pods.
 		if !kubetypes.IsStaticPod(pod) {
+			// 如果当前Pod处于Finished阶段，但是调用此方法的调用方说改Pod没有处于Finished，那一定是程序有问题
 			if cachedStatus.podIsFinished && !podIsFinished {
 				klog.InfoS("Got unexpected podIsFinished=false, while podIsFinished=true in status cache, programmer error.", "pod", klog.KObj(pod))
 				podIsFinished = true
 			}
 		}
 	} else if mirrorPod, ok := m.podManager.GetMirrorPodByPod(pod); ok {
+		// 如果当前Pod是一个MirrorPod，那么当前Pod的状态是由MirrorPod状态决定的
 		oldStatus = mirrorPod.Status
 	} else {
 		oldStatus = pod.Status
 	}
 
 	// Check for illegal state transition in containers
+	// TODO 暂时没看懂这里在干嘛
 	if err := checkContainerStateTransition(oldStatus.ContainerStatuses, status.ContainerStatuses, pod.Spec.RestartPolicy); err != nil {
 		klog.ErrorS(err, "Status update on pod aborted", "pod", klog.KObj(pod))
 		return
 	}
+	// TODO 暂时没看懂这里在干嘛
 	if err := checkContainerStateTransition(oldStatus.InitContainerStatuses, status.InitContainerStatuses, pod.Spec.RestartPolicy); err != nil {
 		klog.ErrorS(err, "Status update on pod aborted", "pod", klog.KObj(pod))
 		return
@@ -679,6 +689,7 @@ func (m *manager) updateStatusInternal(pod *v1.Pod, status v1.PodStatus, forceUp
 		newStatus.at = cachedStatus.at
 	}
 
+	// 缓存Pod状态
 	m.podStatuses[pod.UID] = newStatus
 
 	select {
@@ -739,6 +750,7 @@ func (m *manager) syncBatch(all bool) int {
 	}
 
 	var updatedStatuses []podSync
+	// 获取StaticPod和MirrorPod之间的映射关系
 	podToMirror, mirrorToPod := m.podManager.GetUIDTranslations()
 	func() { // Critical section
 		m.podStatusesLock.RLock()
@@ -750,6 +762,7 @@ func (m *manager) syncBatch(all bool) int {
 				_, hasPod := m.podStatuses[types.UID(uid)]
 				_, hasMirror := mirrorToPod[uid]
 				if !hasPod && !hasMirror {
+					// 清理apiStatusVersions中的数据
 					delete(m.apiStatusVersions, uid)
 				}
 			}

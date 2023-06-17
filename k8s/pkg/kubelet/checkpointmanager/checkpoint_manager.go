@@ -26,7 +26,8 @@ import (
 )
 
 // Checkpoint provides the process checkpoint data
-// TODO 如何理解Checkpoint接口设计？
+// 1、从Checkpoint接口的设计上来看，checkpoint仅仅规定了其序列化与反序列化以及校验checksum，也就是说该接口并没有规定checkpoint应该
+// 如何使用，仅仅规定了如何保存checkpoint
 type Checkpoint interface {
 	MarshalCheckpoint() ([]byte, error)
 	UnmarshalCheckpoint(blob []byte) error

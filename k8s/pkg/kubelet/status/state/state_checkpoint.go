@@ -56,6 +56,7 @@ func NewStateCheckpoint(stateDir, checkpointName string) (State, error) {
 }
 
 // restores state from a checkpoint and creates it if it doesn't exist
+// 恢复Pod资源分配状态
 func (sc *stateCheckpoint) restoreState() error {
 	sc.mux.Lock()
 	defer sc.mux.Unlock()

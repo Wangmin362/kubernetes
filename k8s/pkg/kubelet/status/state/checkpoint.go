@@ -27,6 +27,7 @@ import (
 var _ checkpointmanager.Checkpoint = &PodResourceAllocationCheckpoint{}
 
 // PodResourceAllocationCheckpoint is used to store resources allocated to a pod in checkpoint
+// 用于持久化Pod分配的资源
 type PodResourceAllocationCheckpoint struct {
 	AllocationEntries   map[string]map[string]v1.ResourceList `json:"allocationEntries,omitempty"`
 	ResizeStatusEntries map[string]v1.PodResizeStatus         `json:"resizeStatusEntries,omitempty"`

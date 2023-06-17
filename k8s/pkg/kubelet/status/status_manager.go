@@ -174,7 +174,6 @@ type PodStartupLatencyStateHelper interface {
 
 // Manager is the Source of truth for kubelet pod status, and should be kept up-to-date with
 // the latest v1.PodStatus. It also syncs updates back to the API server.
-// TODO 如何理解这个抽象接口？  感觉就是一个Pod状态缓存
 // 1、StatusManager的核心目标是把Pod的状态更新到APIServer，也就是说APIServer的Pod的状态来源就是StatusManager
 // 2、StatusManager并不会主动建通Pod的状态变化，而是通过对外暴露接口供其它的Manager调用
 type Manager interface {

@@ -33,6 +33,7 @@ const (
 // FileStore is an implementation of the Store interface which stores data in files.
 type FileStore struct {
 	// Absolute path to the base directory for storing data files.
+	// 文件存储路径
 	directoryPath string
 
 	// filesystem to use.

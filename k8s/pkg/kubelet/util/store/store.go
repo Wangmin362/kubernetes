@@ -40,6 +40,7 @@ var (
 
 // Store provides the interface for storing keyed data.
 // Store must be thread-safe
+// 这个接口抽象还是相当之简单的，就是一个KV数据库的抽象
 type Store interface {
 	// key must contain one or more characters in [A-Za-z0-9]
 	// Write writes data with key.

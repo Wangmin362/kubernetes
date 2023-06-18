@@ -463,6 +463,7 @@ func (m *kubeGenericRuntimeManager) makeMounts(opts *kubecontainer.RunContainerO
 // getKubeletContainers lists containers managed by kubelet.
 // The boolean parameter specifies whether returns all containers including
 // those already exited and dead containers (used for garbage collection).
+// 通过CRI接口查询当前节点运行的所有容器
 func (m *kubeGenericRuntimeManager) getKubeletContainers(ctx context.Context, allContainers bool) ([]*runtimeapi.Container, error) {
 	filter := &runtimeapi.ContainerFilter{}
 	if !allContainers {
@@ -661,6 +662,7 @@ func (m *kubeGenericRuntimeManager) executePreStopHook(ctx context.Context, pod 
 func (m *kubeGenericRuntimeManager) restoreSpecsFromContainerLabels(ctx context.Context, containerID kubecontainer.ContainerID) (*v1.Pod, *v1.Container, error) {
 	var pod *v1.Pod
 	var container *v1.Container
+	// 通过CRI接口调用容器运行时查询容器的状态
 	resp, err := m.runtimeService.ContainerStatus(ctx, containerID.ID, false)
 	if err != nil {
 		return nil, nil, err
@@ -670,7 +672,9 @@ func (m *kubeGenericRuntimeManager) restoreSpecsFromContainerLabels(ctx context.
 		return nil, nil, remote.ErrContainerStatusNil
 	}
 
+	// 获取容器的Label
 	l := getContainerInfoFromLabels(s.Labels)
+	// 获取容器的注解
 	a := getContainerInfoFromAnnotations(s.Annotations)
 	// Notice that the followings are not full spec. The container killing code should not use
 	// un-restored fields.
@@ -701,15 +705,18 @@ func (m *kubeGenericRuntimeManager) restoreSpecsFromContainerLabels(ctx context.
 // killContainer kills a container through the following steps:
 // * Run the pre-stop lifecycle hooks (if applicable).
 // * Stop the container.
-func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, containerName string, message string, reason containerKillReason, gracePeriodOverride *int64) error {
+func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID,
+	containerName string, message string, reason containerKillReason, gracePeriodOverride *int64) error {
 	var containerSpec *v1.Container
 	if pod != nil {
+		// 获取容器的Spec
 		if containerSpec = kubecontainer.GetContainerSpec(pod, containerName); containerSpec == nil {
 			return fmt.Errorf("failed to get containerSpec %q (id=%q) in pod %q when killing container for reason %q",
 				containerName, containerID.String(), format.Pod(pod), message)
 		}
 	} else {
 		// Restore necessary information if one of the specs is nil.
+		// 如果没有传递Pod，那么只能通过CRI接口调用容器运行时获取到容器的状态以及Pod
 		restoredPod, restoredContainer, err := m.restoreSpecsFromContainerLabels(ctx, containerID)
 		if err != nil {
 			return err
@@ -718,6 +725,7 @@ func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.P
 	}
 
 	// From this point, pod and container must be non-nil.
+	// TODO ?
 	gracePeriod := setTerminationGracePeriod(pod, containerSpec, containerName, containerID, reason)
 
 	if len(message) == 0 {
@@ -742,6 +750,7 @@ func (m *kubeGenericRuntimeManager) killContainer(ctx context.Context, pod *v1.P
 	klog.V(2).InfoS("Killing container with a grace period", "pod", klog.KObj(pod), "podUID", pod.UID,
 		"containerName", containerName, "containerID", containerID.String(), "gracePeriod", gracePeriod)
 
+	// 通过容器运行时移除容器
 	err := m.runtimeService.StopContainer(ctx, containerID.ID, gracePeriod)
 	if err != nil && !crierror.IsNotFound(err) {
 		klog.ErrorS(err, "Container termination failed with gracePeriod", "pod", klog.KObj(pod), "podUID", pod.UID,
@@ -969,16 +978,19 @@ func (m *kubeGenericRuntimeManager) RunInContainer(ctx context.Context, id kubec
 func (m *kubeGenericRuntimeManager) removeContainer(ctx context.Context, containerID string) error {
 	klog.V(4).InfoS("Removing container", "containerID", containerID)
 	// Call internal container post-stop lifecycle hook.
+	// 在移除容器之前，需要限制性内部生命周期的PreStop Hook
 	if err := m.internalLifecycle.PostStopContainer(containerID); err != nil {
 		return err
 	}
 
 	// Remove the container log.
 	// TODO: Separate log and container lifecycle management.
+	// 移除容器日志
 	if err := m.removeContainerLog(ctx, containerID); err != nil {
 		return err
 	}
 	// Remove the container.
+	// 通过CRI接口移除容器
 	return m.runtimeService.RemoveContainer(ctx, containerID)
 }
 
@@ -1016,7 +1028,8 @@ func (m *kubeGenericRuntimeManager) DeleteContainer(ctx context.Context, contain
 }
 
 // setTerminationGracePeriod determines the grace period to use when killing a container
-func setTerminationGracePeriod(pod *v1.Pod, containerSpec *v1.Container, containerName string, containerID kubecontainer.ContainerID, reason containerKillReason) int64 {
+func setTerminationGracePeriod(pod *v1.Pod, containerSpec *v1.Container, containerName string, containerID kubecontainer.ContainerID,
+	reason containerKillReason) int64 {
 	gracePeriod := int64(minimumGracePeriodInSeconds)
 	switch {
 	case pod.DeletionGracePeriodSeconds != nil:

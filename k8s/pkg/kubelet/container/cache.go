@@ -36,7 +36,7 @@ import (
 // and the blocking GetNewerThan() method. The component responsible for
 // populating the cache is expected to call Delete() to explicitly free the
 // cache entries.
-// TODO 如何理解这个接口？
+// 缓存Pod状态
 type Cache interface {
 	Get(types.UID) (*PodStatus, error)
 	// Set updates the cache by setting the PodStatus for the pod only

@@ -25,7 +25,7 @@ import (
 )
 
 // GCPolicy specifies a policy for garbage collecting containers.
-// TODO 垃圾手机策略
+// TODO 垃圾收集策略
 type GCPolicy struct {
 	// Minimum age at which a container can be garbage collected, zero for no limit.
 	// 一个容器创建出来之后，最小生存时间，如果为零，表示没有限制。

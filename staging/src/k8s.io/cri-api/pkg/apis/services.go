@@ -43,6 +43,7 @@ type ContainerManager interface {
 	// ListContainers lists all containers by filters.
 	ListContainers(ctx context.Context, filter *runtimeapi.ContainerFilter) ([]*runtimeapi.Container, error)
 	// ContainerStatus returns the status of the container.
+	// 根据容器的ID查询容器的状态
 	ContainerStatus(ctx context.Context, containerID string, verbose bool) (*runtimeapi.ContainerStatusResponse, error)
 	// UpdateContainerResources updates ContainerConfig of the container synchronously.
 	// If runtime fails to transactionally update the requested resources, an error is returned.

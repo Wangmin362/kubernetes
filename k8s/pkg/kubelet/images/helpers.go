@@ -39,6 +39,7 @@ func throttleImagePulling(imageService kubecontainer.ImageService, qps float32, 
 	}
 }
 
+// 限速拉取镜像
 type throttledImageService struct {
 	kubecontainer.ImageService
 	limiter flowcontrol.RateLimiter

@@ -31,6 +31,7 @@ type backoffEntry struct {
 	lastUpdate time.Time
 }
 
+// Backoff 这玩意到底干嘛的？ 应该如何使用？
 type Backoff struct {
 	sync.RWMutex
 	Clock           clock.Clock

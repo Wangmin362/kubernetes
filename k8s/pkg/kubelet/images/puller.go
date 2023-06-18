@@ -57,6 +57,7 @@ func (pip *parallelImagePuller) pullImage(ctx context.Context, spec kubecontaine
 			defer func() { <-pip.tokens }()
 		}
 		startTime := time.Now()
+		// 通过CRI接口拉取镜像
 		imageRef, err := pip.imageService.PullImage(ctx, spec, pullSecrets, podSandboxConfig)
 		pullChan <- pullResult{
 			imageRef:     imageRef,
@@ -101,6 +102,7 @@ func (sip *serialImagePuller) pullImage(ctx context.Context, spec kubecontainer.
 func (sip *serialImagePuller) processImagePullRequests() {
 	for pullRequest := range sip.pullRequests {
 		startTime := time.Now()
+		// 拉取镜像策略
 		imageRef, err := sip.imageService.PullImage(pullRequest.ctx, pullRequest.spec, pullRequest.pullSecrets, pullRequest.podSandboxConfig)
 		pullRequest.pullChan <- pullResult{
 			imageRef:     imageRef,

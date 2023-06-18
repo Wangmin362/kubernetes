@@ -33,6 +33,7 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/events"
 )
 
+// ImagePodPullingTimeRecorder 记录镜像开始拉取时间，以及镜像拉取结束时间
 type ImagePodPullingTimeRecorder interface {
 	RecordImageStartedPulling(podUID types.UID)
 	RecordImageFinishedPulling(podUID types.UID)
@@ -40,7 +41,8 @@ type ImagePodPullingTimeRecorder interface {
 
 // imageManager provides the functionalities for image pulling.
 type imageManager struct {
-	recorder     record.EventRecorder
+	recorder record.EventRecorder
+	// 对接CRI镜像服务
 	imageService kubecontainer.ImageService
 	backOff      *flowcontrol.Backoff
 	// It will check the presence of the image, and report the 'image pulling', image pulled' events correspondingly.
@@ -52,13 +54,16 @@ type imageManager struct {
 var _ ImageManager = &imageManager{}
 
 // NewImageManager instantiates a new ImageManager object.
-func NewImageManager(recorder record.EventRecorder, imageService kubecontainer.ImageService, imageBackOff *flowcontrol.Backoff, serialized bool, maxParallelImagePulls *int32, qps float32, burst int, podPullingTimeRecorder ImagePodPullingTimeRecorder) ImageManager {
+func NewImageManager(recorder record.EventRecorder, imageService kubecontainer.ImageService, imageBackOff *flowcontrol.Backoff,
+	serialized bool, maxParallelImagePulls *int32, qps float32, burst int, podPullingTimeRecorder ImagePodPullingTimeRecorder) ImageManager {
 	imageService = throttleImagePulling(imageService, qps, burst)
 
 	var puller imagePuller
 	if serialized {
+		// 串行拉取镜像
 		puller = newSerialImagePuller(imageService)
 	} else {
+		// 并行拉取镜像
 		puller = newParallelImagePuller(imageService, maxParallelImagePulls)
 	}
 	return &imageManager{
@@ -104,6 +109,7 @@ func (m *imageManager) EnsureImageExists(ctx context.Context, pod *v1.Pod, conta
 	}
 
 	// If the image contains no tag or digest, a default tag should be applied.
+	// 如果容器的镜像没有指定版本号、latest、摘要，那么使用latest
 	image, err := applyDefaultImageTag(container.Image)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to apply default image tag %q: %v", container.Image, err)
@@ -123,6 +129,7 @@ func (m *imageManager) EnsureImageExists(ctx context.Context, pod *v1.Pod, conta
 		Image:       image,
 		Annotations: podAnnotations,
 	}
+	// 通过CRI接口查询镜像的ID
 	imageRef, err := m.imageService.GetImageRef(ctx, spec)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to inspect image %q: %v", container.Image, err)
@@ -130,7 +137,9 @@ func (m *imageManager) EnsureImageExists(ctx context.Context, pod *v1.Pod, conta
 		return "", msg, ErrImageInspect
 	}
 
+	// 如果镜像ID不为空，说明当前节点已经存在需要的镜像
 	present := imageRef != ""
+	// 如果镜像拉取策略为Never，那么就不需要拉取镜像策略；如果镜像拉拉取策略为Always或者指定为IfNotPresent但是镜像不存在，那么就需要拉取镜像
 	if !shouldPullImage(container, present) {
 		if present {
 			msg := fmt.Sprintf("Container image %q already present on machine", container.Image)
@@ -143,6 +152,7 @@ func (m *imageManager) EnsureImageExists(ctx context.Context, pod *v1.Pod, conta
 	}
 
 	backOffKey := fmt.Sprintf("%s_%s", pod.UID, container.Image)
+	// TODO 这里是在干嘛？
 	if m.backOff.IsInBackOffSinceUpdate(backOffKey, m.backOff.Clock.Now()) {
 		msg := fmt.Sprintf("Back-off pulling image %q", container.Image)
 		m.logIt(ref, v1.EventTypeNormal, events.BackOffPullImage, logPrefix, msg, klog.Info)

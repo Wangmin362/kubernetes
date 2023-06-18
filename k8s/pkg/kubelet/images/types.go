@@ -49,9 +49,11 @@ var (
 // managing, and deleting container images.
 // Implementations are expected to abstract the underlying runtimes.
 // Implementations are expected to be thread safe.
+// 镜像管理器，其和核心目标是确保Pod需要使用的镜像存在
 type ImageManager interface {
 	// EnsureImageExists ensures that image specified in `container` exists.
-	EnsureImageExists(ctx context.Context, pod *v1.Pod, container *v1.Container, pullSecrets []v1.Secret, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, string, error)
+	EnsureImageExists(ctx context.Context, pod *v1.Pod, container *v1.Container, pullSecrets []v1.Secret,
+		podSandboxConfig *runtimeapi.PodSandboxConfig) (string, string, error)
 
 	// TODO(ronl): consolidating image managing and deleting operation in this interface
 }

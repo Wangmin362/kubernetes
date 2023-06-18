@@ -36,6 +36,7 @@ type PassiveRateLimiter interface {
 	QPS() float32
 }
 
+// RateLimiter TODO 如何理解这个接口？ 应该如何正确使用？
 type RateLimiter interface {
 	PassiveRateLimiter
 	// Accept returns once a token becomes available.

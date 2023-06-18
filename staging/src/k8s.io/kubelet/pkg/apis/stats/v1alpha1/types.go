@@ -291,6 +291,7 @@ type PVCReference struct {
 }
 
 // FsStats contains data about filesystem usage.
+// 文件系统使用详情抽象，包括文件系统的可是用量，总容量，已经使用的容量，以及Inode信息
 type FsStats struct {
 	// The time at which these stats were updated.
 	Time metav1.Time `json:"time"`

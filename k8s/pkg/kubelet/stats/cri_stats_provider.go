@@ -387,6 +387,7 @@ func (p *criStatsProvider) getPodAndContainerMaps(ctx context.Context) (map[stri
 
 // ImageFsStats returns the stats of the image filesystem.
 func (p *criStatsProvider) ImageFsStats(ctx context.Context) (*statsapi.FsStats, error) {
+	// 通过CRI接口查询当前节点镜像使用文件系统的情况
 	resp, err := p.imageService.ImageFsInfo(ctx)
 	if err != nil {
 		return nil, err

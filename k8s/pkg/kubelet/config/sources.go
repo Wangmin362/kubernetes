@@ -27,6 +27,7 @@ import (
 type SourcesReadyFn func(sourcesSeen sets.String) bool
 
 // SourcesReady tracks the set of configured sources seen by the kubelet.
+// 1、用于添加Pod的数据来源并提供判断所有来源是否就的接口
 type SourcesReady interface {
 	// AddSource adds the specified source to the set of sources managed.
 	AddSource(source string)

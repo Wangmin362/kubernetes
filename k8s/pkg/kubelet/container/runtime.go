@@ -66,6 +66,7 @@ type ImageStats struct {
 // Runtime interface defines the interfaces that should be implemented
 // by a container runtime.
 // Thread safety is required from implementations of this interface.
+// TODO 这个接口和CRI接口定义有何联系？
 type Runtime interface {
 	// Type returns the type of the container runtime.
 	Type() string

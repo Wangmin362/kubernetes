@@ -44,6 +44,7 @@ const instrumentationScope = "k8s.io/kubernetes/pkg/kubelet/images"
 
 // StatsProvider is an interface for fetching stats used during image garbage
 // collection.
+// 用于返回当前镜像所占用文件系统的详情信息
 type StatsProvider interface {
 	// ImageFsStats returns the stats of the image filesystem.
 	ImageFsStats(ctx context.Context) (*statsapi.FsStats, error)
@@ -51,32 +52,45 @@ type StatsProvider interface {
 
 // ImageGCManager is an interface for managing lifecycle of all images.
 // Implementation is thread-safe.
+// ImageGCManger的原理非常简单，通过Start方法启动，并不停的调用CRI接口维护imageRecord以及imageCache。并且通过GarbageCollect删除掉
+// 无用的镜像，直到删除到ImageGCPolicy.LowThresholdPercent水线以下就可以了。而通过DeleteUnusedImage方法直接删除所有无用的镜像
 type ImageGCManager interface {
-	// Applies the garbage collection policy. Errors include being unable to free
+	// GarbageCollect Applies the garbage collection policy. Errors include being unable to free
 	// enough space as per the garbage collection policy.
+	// 和DeleteUnusedImages方法非常类似，只不过DeleteUnusedImages是直接删除当前节点所有无用的镜像，只有被Pod使用的镜像才算是有用的镜像
+	// 而GarbageCollect方法则是根据GCPolicy来删除镜像，此方法虽然也是删除镜像，但是并不会删除所有无用的镜像，而是只需要把把镜像占用的空间
+	// 释放到ImageGCPolicy.LowThresholdPercent水线以下就可以了
 	GarbageCollect(ctx context.Context) error
 
 	// Start async garbage collection of images.
+	// 异步执行镜像的收集
 	Start()
 
+	// GetImageList 获取当前节点所下载的镜像，这个功能实现起来比较简单，直接通过CRI接口调用底层的容器运行时即可
 	GetImageList() ([]container.Image, error)
 
-	// Delete all unused images.
+	// DeleteUnusedImages Delete all unused images.
+	// 这个功能应该是通过GetImageList方法获取当前节点的所有镜像信息，然后通过遍历所有的Pod的所有容器的镜像信息，就可以找到
+	// 无用的镜像。不过根据kubelet之前的尿性来说，肯定是缓存了当前节点的镜像信息
 	DeleteUnusedImages(ctx context.Context) error
 }
 
 // ImageGCPolicy is a policy for garbage collecting images. Policy defines an allowed band in
 // which garbage collection will be run.
+// 镜像垃圾收集策略
 type ImageGCPolicy struct {
 	// Any usage above this threshold will always trigger garbage collection.
 	// This is the highest usage we will allow.
+	// 只要触发文件系统的最大使用水线，就开始收集镜像
 	HighThresholdPercent int
 
 	// Any usage below this threshold will never trigger garbage collection.
 	// This is the lowest threshold we will try to garbage collect to.
+	// 文件系统的使用量的最低水线，只要文件系统的使用量小于这个值，就不需要收集镜像
 	LowThresholdPercent int
 
 	// Minimum age at which an image can be garbage collected.
+	// 镜像最小生存时间
 	MinAge time.Duration
 }
 
@@ -85,28 +99,35 @@ type realImageGCManager struct {
 	runtime container.Runtime
 
 	// Records of images and their use.
+	// Key为镜像ID
 	imageRecords     map[string]*imageRecord
 	imageRecordsLock sync.Mutex
 
 	// The image garbage collection policy in use.
+	// 镜像收集策略，这是ImageGCManager收集镜像的指导方针
 	policy ImageGCPolicy
 
 	// statsProvider provides stats used during image garbage collection.
+	// 用于统计当前文件系统的使用信息
 	statsProvider StatsProvider
 
 	// Recorder for Kubernetes events.
+	// 用于生成某些事件
 	recorder record.EventRecorder
 
 	// Reference to this node.
+	// 当前Kubelet一定是运行在某个节点上的
 	nodeRef *v1.ObjectReference
 
 	// Track initialization
 	initialized bool
 
 	// imageCache is the cache of latest image list.
+	// 缓存当前节点的所有镜像信息，实际上就是通过CRI接口查询到的
 	imageCache imageCache
 
 	// sandbox image exempted from GC
+	// 沙箱使用的镜像信息，一般来说沙箱镜像不会被回收，除非再使用K8S集群的过程当中更换了镜像信息
 	sandboxImage string
 
 	// tracer for recording spans
@@ -124,6 +145,8 @@ type imageCache struct {
 // set sorts the input list and updates image cache.
 // 'i' takes ownership of the list, you should not reference the list again
 // after calling this function.
+// 之所以set方法是全量覆盖，是因为当前节点所有的镜像可以通过CRI接口一次性获取到，所以每一次都是全量覆盖，因为CRI接口获取的镜像信息就是
+// 最新的
 func (i *imageCache) set(images []container.Image) {
 	i.Lock()
 	defer i.Unlock()
@@ -160,7 +183,8 @@ type imageRecord struct {
 }
 
 // NewImageGCManager instantiates a new ImageGCManager object.
-func NewImageGCManager(runtime container.Runtime, statsProvider StatsProvider, recorder record.EventRecorder, nodeRef *v1.ObjectReference, policy ImageGCPolicy, sandboxImage string, tracerProvider trace.TracerProvider) (ImageGCManager, error) {
+func NewImageGCManager(runtime container.Runtime, statsProvider StatsProvider, recorder record.EventRecorder, nodeRef *v1.ObjectReference,
+	policy ImageGCPolicy, sandboxImage string, tracerProvider trace.TracerProvider) (ImageGCManager, error) {
 	// Validate policy.
 	if policy.HighThresholdPercent < 0 || policy.HighThresholdPercent > 100 {
 		return nil, fmt.Errorf("invalid HighThresholdPercent %d, must be in range [0-100]", policy.HighThresholdPercent)
@@ -191,10 +215,12 @@ func (im *realImageGCManager) Start() {
 	ctx := context.Background()
 	go wait.Until(func() {
 		// Initial detection make detected time "unknown" in the past.
-		var ts time.Time
+		var ts time.Time // TODO 如果这个时间没有初始化，那是多少？
 		if im.initialized {
 			ts = time.Now()
 		}
+		// 1、通过CRI接口获取镜像信息更新imageRecords信息
+		// 2、通过CRI接口获取Pod当前节点运行的Pod信息获取正在使用中的镜像，这不过这个返回值在这里没有作用
 		_, err := im.detectImages(ctx, ts)
 		if err != nil {
 			klog.InfoS("Failed to monitor images", "err", err)
@@ -205,6 +231,7 @@ func (im *realImageGCManager) Start() {
 
 	// Start a goroutine periodically updates image cache.
 	go wait.Until(func() {
+		// 通过CRI接口获取所有的镜像信息
 		images, err := im.runtime.ListImages(ctx)
 		if err != nil {
 			klog.InfoS("Failed to update image list", "err", err)
@@ -215,24 +242,32 @@ func (im *realImageGCManager) Start() {
 
 }
 
-// Get a list of images on this node
+// GetImageList 获取当前节点所有的镜像信息
 func (im *realImageGCManager) GetImageList() ([]container.Image, error) {
 	return im.imageCache.get(), nil
 }
 
+// 首先通过CRI接口获取当前节点所有的镜像，然后通过CRI接口获取当前节点所有运行的Pod，显然所有正在运行的Pod说使用的镜像一定是不能删除的，所以
+// detectImages会更新正在使用镜像的最后使用时间，并记录镜像大小信息，以及是否能够被删除的信息。
+// 1、通过CRI接口获取镜像信息更新imageRecords信息
+// 2、通过CRI接口获取Pod当前节点运行的Pod信息获取正在使用中的镜像
 func (im *realImageGCManager) detectImages(ctx context.Context, detectTime time.Time) (sets.String, error) {
+	// 用于记录当前节点使用中的镜像名
 	imagesInUse := sets.NewString()
 
 	// Always consider the container runtime pod sandbox image in use
+	// 通过CRI接口调用容器运行时获取沙箱使用的镜像，如果此接口没有错误，并且成功获取到了沙箱使用镜像的ID了，就说明当前的沙箱镜像还在使用
 	imageRef, err := im.runtime.GetImageRef(ctx, container.ImageSpec{Image: im.sandboxImage})
 	if err == nil && imageRef != "" {
 		imagesInUse.Insert(imageRef)
 	}
 
+	// 获取当前节点使用的所有镜像信息
 	images, err := im.runtime.ListImages(ctx)
 	if err != nil {
 		return imagesInUse, err
 	}
+	// 获取所有的Pod，当前存在的Pod所使用的镜像一定是不能回收的了，这些镜像都认为时使用中的镜像
 	pods, err := im.runtime.GetPods(ctx, true)
 	if err != nil {
 		return imagesInUse, err
@@ -255,7 +290,7 @@ func (im *realImageGCManager) detectImages(ctx context.Context, detectTime time.
 		klog.V(5).InfoS("Adding image ID to currentImages", "imageID", image.ID)
 		currentImages.Insert(image.ID)
 
-		// New image, set it as detected now.
+		// 如果再ImageRecord缓存中没有找到，说明这个镜像是一个新的镜像
 		if _, ok := im.imageRecords[image.ID]; !ok {
 			klog.V(5).InfoS("Image ID is new", "imageID", image.ID)
 			im.imageRecords[image.ID] = &imageRecord{
@@ -264,6 +299,7 @@ func (im *realImageGCManager) detectImages(ctx context.Context, detectTime time.
 		}
 
 		// Set last used time to now if the image is being used.
+		// 如果镜像还在使用，那么更新镜像最后还在使用的时间
 		if isImageUsed(image.ID, imagesInUse) {
 			klog.V(5).InfoS("Setting Image ID lastUsed", "imageID", image.ID, "lastUsed", now)
 			im.imageRecords[image.ID].lastUsed = now
@@ -276,7 +312,7 @@ func (im *realImageGCManager) detectImages(ctx context.Context, detectTime time.
 		im.imageRecords[image.ID].pinned = image.Pinned
 	}
 
-	// Remove old images from our records.
+	// 遍历imageRecords缓存，如果当前镜像不存在，说明镜像已经删除，直接移除imageRecords缓存中的信息
 	for image := range im.imageRecords {
 		if !currentImages.Has(image) {
 			klog.V(5).InfoS("Image ID is no longer present; removing from imageRecords", "imageID", image)
@@ -291,6 +327,7 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context) error {
 	ctx, otelSpan := im.tracer.Start(ctx, "Images/GarbageCollect")
 	defer otelSpan.End()
 	// Get disk usage on disk holding images.
+	// 获取当前镜像使用文件系统的情况
 	fsStats, err := im.statsProvider.ImageFsStats(ctx)
 	if err != nil {
 		return err
@@ -317,8 +354,11 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context) error {
 	}
 
 	// If over the max threshold, free enough to place us at the lower threshold.
+	// 获取当前节点镜像占用文件系统的百分比
 	usagePercent := 100 - int(available*100/capacity)
+	// 如果镜像使用的容量大于镜像回收策略的最大水线，就需要回收镜像
 	if usagePercent >= im.policy.HighThresholdPercent {
+		// 计算需要释放的容量大小，只有释放了这么的镜像，才能把镜像占用文件系统的百分比降到LowThresholdPercent以下
 		amountToFree := capacity*int64(100-im.policy.LowThresholdPercent)/100 - available
 		klog.InfoS("Disk usage on image filesystem is over the high threshold, trying to free bytes down to the low threshold", "usage", usagePercent, "highThreshold", im.policy.HighThresholdPercent, "amountToFree", amountToFree, "lowThreshold", im.policy.LowThresholdPercent)
 		freed, err := im.freeSpace(ctx, amountToFree, time.Now())
@@ -326,6 +366,7 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context) error {
 			return err
 		}
 
+		// 如果实际上释放的空间小于需要释放的空间
 		if freed < amountToFree {
 			err := fmt.Errorf("Failed to garbage collect required amount of images. Attempted to free %d bytes, but only found %d bytes eligible to free.", amountToFree, freed)
 			im.recorder.Eventf(im.nodeRef, v1.EventTypeWarning, events.FreeDiskSpaceFailed, err.Error())
@@ -338,6 +379,7 @@ func (im *realImageGCManager) GarbageCollect(ctx context.Context) error {
 
 func (im *realImageGCManager) DeleteUnusedImages(ctx context.Context) error {
 	klog.InfoS("Attempting to delete unused images")
+	// 删除所有没有使用的镜像
 	_, err := im.freeSpace(ctx, math.MaxInt64, time.Now())
 	return err
 }
@@ -349,6 +391,7 @@ func (im *realImageGCManager) DeleteUnusedImages(ctx context.Context) error {
 // Note that error may be nil and the number of bytes free may be less
 // than bytesToFree.
 func (im *realImageGCManager) freeSpace(ctx context.Context, bytesToFree int64, freeTime time.Time) (int64, error) {
+	// 获取当前使用的镜像信息，显然如果当前镜像正在使用，那肯定不能释放
 	imagesInUse, err := im.detectImages(ctx, freeTime)
 	if err != nil {
 		return 0, err
@@ -360,21 +403,25 @@ func (im *realImageGCManager) freeSpace(ctx context.Context, bytesToFree int64, 
 	// Get all images in eviction order.
 	images := make([]evictionInfo, 0, len(im.imageRecords))
 	for image, record := range im.imageRecords {
+		// 如果当前镜像正在使用，那肯定时不能删除镜像，释放磁盘空间
 		if isImageUsed(image, imagesInUse) {
 			klog.V(5).InfoS("Image ID is being used", "imageID", image)
 			continue
 		}
 		// Check if image is pinned, prevent garbage collection
+		// 如果当前镜像虽然没有Pod正在使用，但是处于Pinned状态，也是不能删除的
 		if record.pinned {
 			klog.V(5).InfoS("Image is pinned, skipping garbage collection", "imageID", image)
 			continue
 
 		}
+		// 否则，当前镜像就是可以删除的
 		images = append(images, evictionInfo{
 			id:          image,
 			imageRecord: *record,
 		})
 	}
+	// 现根据LastUsed排序，再根据Detected进行排序，原则就是做老的镜像最先被删除
 	sort.Sort(byLastUsedAndDetected(images))
 
 	// Delete unused images until we've freed up enough space.
@@ -383,6 +430,7 @@ func (im *realImageGCManager) freeSpace(ctx context.Context, bytesToFree int64, 
 	for _, image := range images {
 		klog.V(5).InfoS("Evaluating image ID for possible garbage collection", "imageID", image.id)
 		// Images that are currently in used were given a newer lastUsed.
+		// 如果当前镜像正在使用那就暂时不删除，防止后面再次使用该镜像
 		if image.lastUsed.Equal(freeTime) || image.lastUsed.After(freeTime) {
 			klog.V(5).InfoS("Image ID was used too recently, not eligible for garbage collection", "imageID", image.id, "lastUsed", image.lastUsed, "freeTime", freeTime)
 			continue
@@ -390,7 +438,7 @@ func (im *realImageGCManager) freeSpace(ctx context.Context, bytesToFree int64, 
 
 		// Avoid garbage collect the image if the image is not old enough.
 		// In such a case, the image may have just been pulled down, and will be used by a container right away.
-
+		// 如果当前镜像才生存了一小会儿，还没有超过最小生存时间，那么也暂时不进行回收
 		if freeTime.Sub(image.firstDetected) < im.policy.MinAge {
 			klog.V(5).InfoS("Image ID's age is less than the policy's minAge, not eligible for garbage collection", "imageID", image.id, "age", freeTime.Sub(image.firstDetected), "minAge", im.policy.MinAge)
 			continue
@@ -398,14 +446,18 @@ func (im *realImageGCManager) freeSpace(ctx context.Context, bytesToFree int64, 
 
 		// Remove image. Continue despite errors.
 		klog.InfoS("Removing image to free bytes", "imageID", image.id, "size", image.size)
+		// 通过调用CRI接口，移除镜像
 		err := im.runtime.RemoveImage(ctx, container.ImageSpec{Image: image.id})
 		if err != nil {
 			deletionErrors = append(deletionErrors, err)
 			continue
 		}
+		// 如果移除成功，那么需要把已经移除的镜像从ImageRecords缓存当中删除
 		delete(im.imageRecords, image.id)
+		// 记录已经释放的镜像大小
 		spaceFreed += image.size
 
+		// 如果已经释放了需要的空间，那就直接推出
 		if spaceFreed >= bytesToFree {
 			break
 		}

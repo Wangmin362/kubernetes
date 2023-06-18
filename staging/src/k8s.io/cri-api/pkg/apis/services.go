@@ -109,7 +109,9 @@ type ContainerStatsManager interface {
 
 // RuntimeService interface should be implemented by a container runtime.
 // The methods should be thread-safe.
+// CRI对于运行时服务所定义的规范
 type RuntimeService interface {
+	// RuntimeVersioner 用于获取当前运行时的版本信息
 	RuntimeVersioner
 	ContainerManager
 	PodSandboxManager

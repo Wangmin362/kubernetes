@@ -45,8 +45,10 @@ import (
 )
 
 // remoteRuntimeService is a gRPC implementation of internalapi.RuntimeService.
+// 实现容器运行时服务
 type remoteRuntimeService struct {
-	timeout       time.Duration
+	timeout time.Duration
+	// 通过GRPC调用底层真正的容器运行时
 	runtimeClient runtimeapi.RuntimeServiceClient
 	// Cache last per-container error message to reduce log spam
 	logReduction *logreduction.LogReduction
@@ -106,6 +108,7 @@ func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration, t
 		logReduction: logreduction.NewLogReduction(identicalErrorDelay),
 	}
 
+	// 通过调用底层容器运行时的版本接口，从而确定当前容器运行时是否可用
 	if err := service.validateServiceConnection(ctx, conn, endpoint); err != nil {
 		return nil, fmt.Errorf("validate service connection: %w", err)
 	}

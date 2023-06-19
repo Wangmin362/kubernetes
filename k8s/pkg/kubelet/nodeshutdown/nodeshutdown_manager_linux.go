@@ -57,6 +57,7 @@ var systemDbus = func() (dbusInhibiter, error) {
 	return systemd.NewDBusCon()
 }
 
+// dbusInhibiter 用于Linux进程间交互
 type dbusInhibiter interface {
 	CurrentInhibitDelay() (time.Duration, error)
 	InhibitShutdown() (systemd.InhibitLock, error)
@@ -83,7 +84,8 @@ type managerImpl struct {
 	inhibitLock systemd.InhibitLock
 
 	nodeShuttingDownMutex sync.Mutex
-	nodeShuttingDownNow   bool
+	// 当前节点是否正在关机？ 如果当前节点正在关机，那么新创建的Pod不能调度到当前节点上
+	nodeShuttingDownNow bool
 
 	clock clock.Clock
 
@@ -93,6 +95,7 @@ type managerImpl struct {
 
 // NewManager returns a new node shutdown manager.
 func NewManager(conf *Config) (Manager, lifecycle.PodAdmitHandler) {
+	// 如果没有启用GracefulNodeShutdown特性，就不需要管理Node关机
 	if !utilfeature.DefaultFeatureGate.Enabled(features.GracefulNodeShutdown) {
 		m := managerStub{}
 		return m, m
@@ -111,7 +114,7 @@ func NewManager(conf *Config) (Manager, lifecycle.PodAdmitHandler) {
 		return m, m
 	}
 
-	// Sort by priority from low to high
+	// 按照优先级从第到高进行排序
 	sort.Slice(shutdownGracePeriodByPodPriority, func(i, j int) bool {
 		return shutdownGracePeriodByPodPriority[i].Priority < shutdownGracePeriodByPodPriority[j].Priority
 	})
@@ -143,6 +146,7 @@ func NewManager(conf *Config) (Manager, lifecycle.PodAdmitHandler) {
 }
 
 // Admit rejects all pods if node is shutting
+// 如果当前节点正在关机，那么不允许新创建的Pod调度到新的节点上
 func (m *managerImpl) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
 	nodeShuttingDown := m.ShutdownStatus() != nil
 

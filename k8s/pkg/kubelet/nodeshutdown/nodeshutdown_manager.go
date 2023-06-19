@@ -39,11 +39,11 @@ type Manager interface {
 // Config represents Manager configuration
 type Config struct {
 	Logger                           klog.Logger
-	ProbeManager                     prober.Manager
-	Recorder                         record.EventRecorder
-	NodeRef                          *v1.ObjectReference
-	GetPodsFunc                      eviction.ActivePodsFunc
-	KillPodFunc                      eviction.KillPodFunc
+	ProbeManager                     prober.Manager          // 探针管理器
+	Recorder                         record.EventRecorder    // 事件记录器
+	NodeRef                          *v1.ObjectReference     // 节点
+	GetPodsFunc                      eviction.ActivePodsFunc // 激活Pod
+	KillPodFunc                      eviction.KillPodFunc    // Kill Pod
 	SyncNodeStatusFunc               func()
 	ShutdownGracePeriodRequested     time.Duration
 	ShutdownGracePeriodCriticalPods  time.Duration

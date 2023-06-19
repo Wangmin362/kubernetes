@@ -43,6 +43,7 @@ type dBusConnector interface {
 }
 
 // DBusCon has functions that can be used to interact with systemd and logind over dbus.
+// DBus用于进程间交互
 type DBusCon struct {
 	SystemBus dBusConnector
 }

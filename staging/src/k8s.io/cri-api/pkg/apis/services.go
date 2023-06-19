@@ -58,6 +58,7 @@ type ContainerManager interface {
 	// ReopenContainerLog asks runtime to reopen the stdout/stderr log file
 	// for the container. If it returns error, new container log file MUST NOT
 	// be created.
+	// TODO 如何理解这个接口定义？ 容器运行时干了啥？
 	ReopenContainerLog(ctx context.Context, ContainerID string) error
 	// CheckpointContainer checkpoints a container
 	CheckpointContainer(ctx context.Context, options *runtimeapi.CheckpointContainerRequest) error
@@ -109,7 +110,8 @@ type ContainerStatsManager interface {
 
 // RuntimeService interface should be implemented by a container runtime.
 // The methods should be thread-safe.
-// CRI对于运行时服务所定义的规范
+// CRI对于运行时服务所定义的规范，Kubelet中，RuntimeService就是对于CRI运行时的抽象，实际上其实现也非常的简单，就是通过gRPC调用真正
+// 的容器运行时
 type RuntimeService interface {
 	// RuntimeVersioner 用于获取当前运行时的版本信息
 	RuntimeVersioner

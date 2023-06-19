@@ -45,7 +45,7 @@ import (
 )
 
 // remoteRuntimeService is a gRPC implementation of internalapi.RuntimeService.
-// 实现容器运行时服务
+// 实现容器运行时服务，底层通过gRPC调用真正的容器运行时
 type remoteRuntimeService struct {
 	timeout time.Duration
 	// 通过GRPC调用底层真正的容器运行时

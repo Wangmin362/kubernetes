@@ -55,21 +55,31 @@ const (
 //
 // Implementation is thread-safe.
 type ContainerLogManager interface {
-	// TODO(random-liu): Add RotateLogs function and call it under disk pressure.
+	// Start TODO(random-liu): Add RotateLogs function and call it under disk pressure.
 	// Start container log manager.
+	// 1、每隔十秒钟，通过CRI接口调用底层的容器运行时获取到容器，然后遍历每隔容器的日志（也是通过CRI接口查询容器状态），如果发现容器当前使用的日志
+	// 大小大于日志切割策略的最大值，那么就压缩容器日志，同时调用CRI接口要求容器把日志写入到新的文件当中。
+	// 2、在遍历容器日志的同时，ContainerLogManager会删除.tmp以及已经压缩过的容器日志。实际上，如果是程序正常执行，是不会有.tmp以及已经压缩过的
+	// 日志的，因为这些日志会在ContainerLogManager压缩完日志之后删除
+	// TODO 3、为什么在实现的时候先压缩日志然后在调用CRI接口要求容器写入新的日志到新的文件当中？
 	Start()
 	// Clean removes all logs of specified container.
+	// 移除指定容器的所有所有日志
 	Clean(ctx context.Context, containerID string) error
 }
 
 // LogRotatePolicy is a policy for container log rotation. The policy applies to all
 // containers managed by kubelet.
+// 日志切割策略，容器的日志不应该全部写入到一个文件中。很多时候，我们需要按照一定的策略来保存日志，譬如每天的日志保存在一个文件中，一到凌晨十二点
+// 就从新写入一个文件。又比如，有些人可能需要按照固定大小保存日志，譬如每个日志文件最多保存50M的日志，一旦超过50M日志，就从新写入新的文件。
 type LogRotatePolicy struct {
 	// MaxSize in bytes of the container log file before it is rotated. Negative
 	// number means to disable container log rotation.
+	// TODO 默认策略是多大？
 	MaxSize int64
 	// MaxFiles is the maximum number of log files that can be present.
 	// If rotating the logs creates excess files, the oldest file is removed.
+	// TODO 默认策略是多少个文件？
 	MaxFiles int
 }
 
@@ -143,18 +153,22 @@ func parseMaxSize(size string) (int64, error) {
 }
 
 type containerLogManager struct {
+	// 容器运行时接口
 	runtimeService internalapi.RuntimeService
 	osInterface    kubecontainer.OSInterface
-	policy         LogRotatePolicy
-	clock          clock.Clock
-	mutex          sync.Mutex
+	// 日志切分策略
+	policy LogRotatePolicy
+	clock  clock.Clock
+	mutex  sync.Mutex
 }
 
 // NewContainerLogManager creates a new container log manager.
-func NewContainerLogManager(runtimeService internalapi.RuntimeService, osInterface kubecontainer.OSInterface, maxSize string, maxFiles int) (ContainerLogManager, error) {
+func NewContainerLogManager(runtimeService internalapi.RuntimeService, osInterface kubecontainer.OSInterface,
+	maxSize string, maxFiles int) (ContainerLogManager, error) {
 	if maxFiles <= 1 {
 		return nil, fmt.Errorf("invalid MaxFiles %d, must be > 1", maxFiles)
 	}
+	// 每个日志文件保存的最大大小
 	parsedMaxSize, err := parseMaxSize(maxSize)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse container log max size %q: %v", maxSize, err)
@@ -181,6 +195,7 @@ func (c *containerLogManager) Start() {
 	ctx := context.Background()
 	// Start a goroutine periodically does container log rotation.
 	go wait.Forever(func() {
+		// 切分日志，每10秒钟运行一次
 		if err := c.rotateLogs(ctx); err != nil {
 			klog.ErrorS(err, "Failed to rotate container logs")
 		}
@@ -188,6 +203,7 @@ func (c *containerLogManager) Start() {
 }
 
 // Clean removes all logs of specified container (including rotated one).
+// 移除指定容器的所有日志
 func (c *containerLogManager) Clean(ctx context.Context, containerID string) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
@@ -217,6 +233,7 @@ func (c *containerLogManager) rotateLogs(ctx context.Context) error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	// TODO(#59998): Use kubelet pod cache.
+	// 通过CRI接口调用底层的容器运行时获取所有的容器
 	containers, err := c.runtimeService.ListContainers(ctx, &runtimeapi.ContainerFilter{})
 	if err != nil {
 		return fmt.Errorf("failed to list containers: %v", err)
@@ -225,20 +242,23 @@ func (c *containerLogManager) rotateLogs(ctx context.Context) error {
 	for _, container := range containers {
 		// Only rotate logs for running containers. Non-running containers won't
 		// generate new output, it doesn't make sense to keep an empty latest log.
+		// 如果容器并没有处于运行中的状态，就忽略该容器
 		if container.GetState() != runtimeapi.ContainerState_CONTAINER_RUNNING {
 			continue
 		}
 		id := container.GetId()
 		// Note that we should not block log rotate for an error of a single container.
+		// 获取容器的状态
 		resp, err := c.runtimeService.ContainerStatus(ctx, id, false)
 		if err != nil {
 			klog.ErrorS(err, "Failed to get container status", "containerID", id)
 			continue
 		}
-		if resp.GetStatus() == nil {
+		if resp.GetStatus() == nil { // 如果容器的状态为空，那就忽略这个容器
 			klog.ErrorS(err, "Container status is nil", "containerID", id)
 			continue
 		}
+		// 获取到容器保存日志的路径
 		path := resp.GetStatus().GetLogPath()
 		info, err := c.osInterface.Stat(path)
 		if err != nil {
@@ -260,10 +280,12 @@ func (c *containerLogManager) rotateLogs(ctx context.Context) error {
 				continue
 			}
 		}
+		// 如果当前的容器的日志文件的大小并没有超过策略的最大值，就忽略这个容器
 		if info.Size() < c.policy.MaxSize {
 			continue
 		}
 		// Perform log rotation.
+		// 切割容器的日志
 		if err := c.rotateLog(ctx, id, path); err != nil {
 			klog.ErrorS(err, "Failed to rotate log for container", "path", path, "containerID", id)
 			continue
@@ -275,16 +297,23 @@ func (c *containerLogManager) rotateLogs(ctx context.Context) error {
 func (c *containerLogManager) rotateLog(ctx context.Context, id, log string) error {
 	// pattern is used to match all rotated files.
 	pattern := fmt.Sprintf("%s.*", log)
+	// 获取到容器的所有日志
 	logs, err := filepath.Glob(pattern)
 	if err != nil {
 		return fmt.Errorf("failed to list all log files with pattern %q: %v", pattern, err)
 	}
 
+	// 清理掉无用的文件，所有的.gz文件以及普通的日志文件都认为是无用的文件，而以.tmp以及已经被压缩过的日志文件都被认为是无用的日志文件，
+	// 这类文件是需要被删除的
 	logs, err = c.cleanupUnusedLogs(logs)
 	if err != nil {
 		return fmt.Errorf("failed to cleanup logs: %v", err)
 	}
 
+	// 1、从cleanupUnusedLogs方法中得到的logs都是还需要使用的文件，只不过里面包含.gz压缩文件以及普通的日志文件
+	// 2、由于后面压缩日志的时候，ContainerLogManager会生成.gz以及.tmp日志，而如果用户指定的日志切割策略，那么不能应为.gz以及.tmp文件
+	// 而超出这个限制。显然，如果此时日志文件的数量已经达到了最大值，我们就需要把一些老的日志文件删除，从而给最终要生成的.gz文件以及临时文件
+	// .tmp文件腾出位置
 	logs, err = c.removeExcessLogs(logs)
 	if err != nil {
 		return fmt.Errorf("failed to remove excess logs: %v", err)
@@ -292,14 +321,19 @@ func (c *containerLogManager) rotateLog(ctx context.Context, id, log string) err
 
 	// Compress uncompressed log files.
 	for _, l := range logs {
+		// 如果当前日志文件已经是压缩文件了，就不需要要再次压缩文件
 		if strings.HasSuffix(l, compressSuffix) {
 			continue
 		}
+		// 使用gzip压缩日志文件为.gz文件，然后删除原始日志文件
 		if err := c.compressLog(l); err != nil {
 			return fmt.Errorf("failed to compress log %q: %v", l, err)
 		}
 	}
 
+	// 1、重命名当前使用的日志文件
+	// 2、通过gRPC调用容器运行时要求容器重新打开一个文件写入文件日志
+	// 3、TODO 为什么不是先让容器重新打开一个文件，然后再压缩日志文件么？ 目前这种顺序不会导致容器丢失日志？
 	if err := c.rotateLatestLog(ctx, id, log); err != nil {
 		return fmt.Errorf("failed to rotate log %q: %v", log, err)
 	}
@@ -310,6 +344,8 @@ func (c *containerLogManager) rotateLog(ctx context.Context, id, log string) err
 // cleanupUnusedLogs cleans up temporary or unused log files generated by previous log rotation
 // failure.
 func (c *containerLogManager) cleanupUnusedLogs(logs []string) ([]string, error) {
+	// 从一堆日志文件中根据文件名后缀找出正在使用中的文件以及不再使用的日志，其中
+	// .gz文件和普通日志文件都认为是正在使用中的日志文件，.tmp以及日志文件已经被压缩的日志文件都认为是无用的日志文件
 	inuse, unused := filterUnusedLogs(logs)
 	for _, l := range unused {
 		if err := c.osInterface.Remove(l); err != nil {
@@ -333,6 +369,10 @@ func filterUnusedLogs(logs []string) (inuse []string, unused []string) {
 }
 
 // isInUse checks whether a container log file is still inuse.
+// 1、日志文件名以.tmp结尾的文件，都认为是没有使用中的文件
+// 2、日志文件名以.gz结尾的文件，都是认为在使用中的文件，因为这个日志文件是kubelet压缩过的文件，肯定是有用的
+// 3、如果当前的日志文件名字拼接上.gz出现在日志文件中，说明当前日志文件已经被压缩过，所以此日志文件可以被删除
+// 4、其它的日志文件都认为是在使用中的文件
 func isInUse(l string, logs []string) bool {
 	// All temporary files are not in use.
 	if strings.HasSuffix(l, tmpSuffix) {
@@ -343,34 +383,13 @@ func isInUse(l string, logs []string) bool {
 		return true
 	}
 	// Files has already been compressed are not in use.
+	// 实际上，这里表达的意思是当前日志文件已经被压缩到了.gz文件当中，因此当前日志文件被认为是无用的文件
 	for _, another := range logs {
 		if l+compressSuffix == another {
 			return false
 		}
 	}
 	return true
-}
-
-// removeExcessLogs removes old logs to make sure there are only at most MaxFiles log files.
-func (c *containerLogManager) removeExcessLogs(logs []string) ([]string, error) {
-	// Sort log files in oldest to newest order.
-	sort.Strings(logs)
-	// Container will create a new log file, and we'll rotate the latest log file.
-	// Other than those 2 files, we can have at most MaxFiles-2 rotated log files.
-	// Keep MaxFiles-2 files by removing old files.
-	// We should remove from oldest to newest, so as not to break ongoing `kubectl logs`.
-	maxRotatedFiles := c.policy.MaxFiles - 2
-	if maxRotatedFiles < 0 {
-		maxRotatedFiles = 0
-	}
-	i := 0
-	for ; i < len(logs)-maxRotatedFiles; i++ {
-		if err := c.osInterface.Remove(logs[i]); err != nil {
-			return nil, fmt.Errorf("failed to remove old log %q: %v", logs[i], err)
-		}
-	}
-	logs = logs[i:]
-	return logs, nil
 }
 
 // compressLog compresses a log to log.gz with gzip.
@@ -392,22 +411,50 @@ func (c *containerLogManager) compressLog(log string) error {
 	defer f.Close()
 	w := gzip.NewWriter(f)
 	defer w.Close()
+	// 把当前的日志文件拷贝到.tmp日志文件中
 	if _, err := io.Copy(w, r); err != nil {
 		return fmt.Errorf("failed to compress %q to %q: %v", log, tmpLog, err)
 	}
 	// The archive needs to be closed before renaming, otherwise an error will occur on Windows.
 	w.Close()
 	f.Close()
+	// 拷贝完成之后，把.tmp文件重命名为.gz文件
 	compressedLog := log + compressSuffix
 	if err := c.osInterface.Rename(tmpLog, compressedLog); err != nil {
 		return fmt.Errorf("failed to rename %q to %q: %v", tmpLog, compressedLog, err)
 	}
 	// Remove old log file.
 	r.Close()
+	// 移除当前日志文件
 	if err := c.osInterface.Remove(log); err != nil {
 		return fmt.Errorf("failed to remove log %q after compress: %v", log, err)
 	}
 	return nil
+}
+
+// removeExcessLogs removes old logs to make sure there are only at most MaxFiles log files.
+// ContainerLogManager的最终目的是为了压缩日志，而压缩日志的时候会产生.gz以及.tmp文件，因此需要腾出两个位置给.gz以及.tmp文件。如果当前容器
+// 的日志已经达到了日志切割策略指定的日志最大数量，此时需要删除一部分日志，显然，删除日志应该删除最老的日志
+func (c *containerLogManager) removeExcessLogs(logs []string) ([]string, error) {
+	// Sort log files in oldest to newest order.
+	// 按照文件名创建的先后时间顺序排序，最先创建的日志文件在前面，最后创建的日志文件在后面
+	sort.Strings(logs)
+	// Container will create a new log file, and we'll rotate the latest log file.
+	// Other than those 2 files, we can have at most MaxFiles-2 rotated log files.
+	// Keep MaxFiles-2 files by removing old files.
+	// We should remove from oldest to newest, so as not to break ongoing `kubectl logs`.
+	maxRotatedFiles := c.policy.MaxFiles - 2
+	if maxRotatedFiles < 0 {
+		maxRotatedFiles = 0
+	}
+	i := 0
+	for ; i < len(logs)-maxRotatedFiles; i++ {
+		if err := c.osInterface.Remove(logs[i]); err != nil {
+			return nil, fmt.Errorf("failed to remove old log %q: %v", logs[i], err)
+		}
+	}
+	logs = logs[i:]
+	return logs, nil
 }
 
 // rotateLatestLog rotates latest log without compression, so that container can still write

@@ -37,6 +37,7 @@ import (
 )
 
 // remoteImageService is a gRPC implementation of internalapi.ImageManagerService.
+// 底层通过gRPC调用真正的容器运行时
 type remoteImageService struct {
 	timeout     time.Duration
 	imageClient runtimeapi.ImageServiceClient

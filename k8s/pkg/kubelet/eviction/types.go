@@ -41,8 +41,10 @@ const (
 )
 
 // Config holds information about how eviction is configured.
+// EvictionManager的配置
 type Config struct {
 	// PressureTransitionPeriod is duration the kubelet has to wait before transitioning out of a pressure condition.
+	// TODO ？
 	PressureTransitionPeriod time.Duration
 	// Maximum allowed grace period (in seconds) to use when terminating pods in response to a soft eviction threshold being met.
 	MaxPodGracePeriodSeconds int64
@@ -78,12 +80,15 @@ type DiskInfoProvider interface {
 // ImageGC is responsible for performing garbage collection of unused images.
 type ImageGC interface {
 	// DeleteUnusedImages deletes unused images.
+	// 删除无用的镜像，那么什么是有用的镜像，什么是无用的镜像呢？所谓的有用的镜像，就是正在运行中的Pod所使用的镜像就是有用的镜像，除此之外的其它
+	// 镜像都是无用镜像
 	DeleteUnusedImages(ctx context.Context) error
 }
 
 // ContainerGC is responsible for performing garbage collection of unused containers.
 type ContainerGC interface {
 	// DeleteAllUnusedContainers deletes all unused containers, even those that belong to pods that are terminated, but not deleted.
+	// 所谓的无用容器，实际上就是那些处于非运行中的容器
 	DeleteAllUnusedContainers(ctx context.Context) error
 }
 

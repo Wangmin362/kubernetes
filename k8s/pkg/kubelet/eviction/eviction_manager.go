@@ -140,6 +140,7 @@ func NewManager(
 }
 
 // Admit rejects a pod if its not safe to admit for node stability.
+// 如果EvictionManager认为当前Node已经处于非稳定的状态，那么就会拒绝部署新的Pod
 func (m *managerImpl) Admit(attrs *lifecycle.PodAdmitAttributes) lifecycle.PodAdmitResult {
 	m.RLock()
 	defer m.RUnlock()

@@ -20,6 +20,7 @@ import "k8s.io/api/core/v1"
 
 // PodAdmitAttributes is the context for a pod admission decision.
 // The member fields of this struct should never be mutated.
+// TODO 什么叫做Pod准入属性？
 type PodAdmitAttributes struct {
 	// the pod to evaluate for admission
 	Pod *v1.Pod

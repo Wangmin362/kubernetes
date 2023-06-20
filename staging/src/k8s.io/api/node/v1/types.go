@@ -49,6 +49,7 @@ type RuntimeClass struct {
 	// in a pod.
 	// The Handler must be lowercase, conform to the DNS Label (RFC 1123) requirements,
 	// and is immutable.
+	// 用于指定底层的容器运行时
 	Handler string `json:"handler" protobuf:"bytes,2,opt,name=handler"`
 
 	// overhead represents the resource overhead associated with running a pod for a

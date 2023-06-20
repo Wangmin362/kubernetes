@@ -19,6 +19,7 @@ package oom
 import v1 "k8s.io/api/core/v1"
 
 // Watcher defines the interface of OOM watchers.
+// 通过监听/dev/kmsg内核日志，如果发现了系统OOM，那就发送OOM事件
 type Watcher interface {
 	Start(ref *v1.ObjectReference) error
 }

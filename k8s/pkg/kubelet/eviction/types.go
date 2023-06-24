@@ -51,6 +51,7 @@ type Config struct {
 	// Thresholds define the set of conditions monitored to trigger eviction.
 	Thresholds []evictionapi.Threshold
 	// KernelMemcgNotification if true will integrate with the kernel memcg notification to determine if memory thresholds are crossed.
+	// TODO 这个是内核的什么特性？
 	KernelMemcgNotification bool
 	// PodCgroupRoot is the cgroup which contains all pods.
 	PodCgroupRoot string

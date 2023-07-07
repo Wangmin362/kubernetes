@@ -647,6 +647,7 @@ const (
 	ReadWriteMany PersistentVolumeAccessMode = "ReadWriteMany"
 	// can be mounted in read/write mode to exactly 1 pod
 	// cannot be used in combination with other access modes
+	// 这种模式下，同一时间只允许一个Pod访问持久卷存储
 	ReadWriteOncePod PersistentVolumeAccessMode = "ReadWriteOncePod"
 )
 

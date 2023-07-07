@@ -63,18 +63,24 @@ type managerImpl struct {
 	//  used to track time
 	clock clock.WithTicker
 	// config is how the manager is configured
+	// EvictionManager的策略配置
 	config Config
 	// the function to invoke to kill a pod
+	// Kill一个Pod
 	killPodFunc KillPodFunc
 	// the function to get the mirror pod by a given static pod
+	// 找到给定的StaticPod的MirrorPod
 	mirrorPodFunc MirrorPodFunc
 	// the interface that knows how to do image gc
+	// 删除无用的镜像
 	imageGC ImageGC
 	// the interface that knows how to do container gc
+	// 删除无用的容器
 	containerGC ContainerGC
 	// protects access to internal state
 	sync.RWMutex
 	// node conditions are the set of conditions present
+	// 当前节点的Condition
 	nodeConditions []v1.NodeConditionType
 	// captures when a node condition was last observed based on a threshold being met
 	nodeConditionsLastObservedAt nodeConditionsObservedAt

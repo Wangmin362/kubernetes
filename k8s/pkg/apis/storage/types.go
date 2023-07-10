@@ -152,6 +152,7 @@ type VolumeAttachmentSpec struct {
 type VolumeAttachmentSource struct {
 	// Name of the persistent volume to attach.
 	// +optional
+	// PersistentVolumeName和InlineVolumeSpec属性只能二选一
 	PersistentVolumeName *string
 
 	// inlineVolumeSpec contains all the information necessary to attach
@@ -161,6 +162,7 @@ type VolumeAttachmentSource struct {
 	// PersistentVolumeSpec. This field is beta-level and is only
 	// honored by servers that enabled the CSIMigration feature.
 	// +optional
+	// TODO 什么叫做InlineVolumeSpec?
 	InlineVolumeSpec *api.PersistentVolumeSpec
 }
 

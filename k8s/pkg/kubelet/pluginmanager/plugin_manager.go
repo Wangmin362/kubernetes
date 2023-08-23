@@ -30,16 +30,30 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/pluginmanager/reconciler"
 )
 
+/*
+root@k8s-master1:/var/lib/kubelet# tree plugins_registry plugins device-plugins/
+plugins_registry
+└── nfs.csi.k8s.io-reg.sock
+plugins
+└── csi-nfsplugin
+    └── csi.sock
+device-plugins/
+└── kubelet.sock
+*/
+
 // PluginManager runs a set of asynchronous loops that figure out which plugins
 // need to be registered/deregistered and makes it so.
 type PluginManager interface {
-	// Starts the plugin manager and all the asynchronous loops that it controls
+	// Run Starts the plugin manager and all the asynchronous loops that it controls
+	// TODO PluginManager需要关系哪些资源就绪？
 	Run(sourcesReady config.SourcesReady, stopCh <-chan struct{})
 
 	// AddHandler adds the given plugin handler for a specific plugin type, which
 	// will be added to the actual state of world cache so that it can be passed to
 	// the desired state of world cache in order to be used during plugin
 	// registration/deregistration
+	// 1、pluginType有CSIPlugin, DevicePlugin, DRAPlugin
+	// TODO 1、pluginHandler是插件回调，每个插件的回调需要完成什么事情？
 	AddHandler(pluginType string, pluginHandler cache.PluginHandler)
 }
 
@@ -62,7 +76,7 @@ func NewPluginManager(
 				recorder,
 			),
 		),
-		loopSleepDuration,
+		loopSleepDuration, // 每隔一秒钟循环一次
 		dsw,
 		asw,
 	)
@@ -94,12 +108,14 @@ type pluginManager struct {
 	// the world according to the manager: i.e. which plugins are registered.
 	// The data structure is populated upon successful completion of register
 	// and unregister actions triggered by the reconciler.
+	// 插件的实际状态
 	actualStateOfWorld cache.ActualStateOfWorld
 
 	// desiredStateOfWorld is a data structure containing the desired state of
 	// the world according to the plugin manager: i.e. what plugins are registered.
 	// The data structure is populated by the desired state of the world
 	// populator (plugin watcher).
+	// 插件的期望状态
 	desiredStateOfWorld cache.DesiredStateOfWorld
 }
 
@@ -108,6 +124,10 @@ var _ PluginManager = &pluginManager{}
 func (pm *pluginManager) Run(sourcesReady config.SourcesReady, stopCh <-chan struct{}) {
 	defer runtime.HandleCrash()
 
+	// 1、遍历/var/lib/kubelet/plugins_registry目录,把/var/lib/kubelet/plugins_registry目录下的所有socket文件遍历出来，保存到缓存当中
+	// 2、监听/var/lib/kubelet/plugins_registry目录，如果有socket文件被删除了，那么从desiredStateOfWorld缓存中移除
+	// 3、说白了desiredStateOfWorldPopulator实际上就是要给监听器，用于监听/var/lib/kubelet/plugins_registry，于此同时
+	// 维护desiredStateOfWorld
 	if err := pm.desiredStateOfWorldPopulator.Start(stopCh); err != nil {
 		klog.ErrorS(err, "The desired_state_of_world populator (plugin watcher) starts failed!")
 		return

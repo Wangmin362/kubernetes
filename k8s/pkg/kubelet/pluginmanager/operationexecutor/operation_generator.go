@@ -139,13 +139,16 @@ func (og *operationGenerator) GenerateUnregisterPluginFunc(
 	actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error {
 
 	unregisterPluginFunc := func() error {
+		// 如果handler不存在，那么无法完成注销动作
 		if pluginInfo.Handler == nil {
 			return fmt.Errorf("UnregisterPlugin error -- failed to get plugin handler for %s", pluginInfo.SocketPath)
 		}
 		// We remove the plugin to the actual state of world cache before calling a plugin consumer's Unregister handle
 		// so that if we receive a register event during Register Plugin, we can process it as a Register call.
+		// 冲缓存中删除
 		actualStateOfWorldUpdater.RemovePlugin(pluginInfo.SocketPath)
 
+		// 注销插件
 		pluginInfo.Handler.DeRegisterPlugin(pluginInfo.Name)
 
 		klog.V(4).InfoS("DeRegisterPlugin called", "pluginName", pluginInfo.Name, "pluginHandler", pluginInfo.Handler)

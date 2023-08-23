@@ -63,6 +63,7 @@ type desiredStateOfWorld struct {
 
 	// socketFileToInfo is a map containing the set of successfully registered plugins
 	// The keys are plugin socket file paths. The values are PluginInfo objects
+	// key为socket文件的路径，譬如：/var/lib/kubelet/plugins_registry/<socket-file>
 	socketFileToInfo map[string]PluginInfo
 	sync.RWMutex
 }
@@ -135,6 +136,7 @@ func (dsw *desiredStateOfWorld) AddOrUpdatePlugin(socketPath string) error {
 	// Note that we only update the timestamp in the desired state of world, not the actual state of world
 	// because in the reconciler, we need to check if the plugin in the actual state of world is the same
 	// version as the plugin in the desired state of world
+	// 保存当前插件，并更新时间戳我
 	dsw.socketFileToInfo[socketPath] = PluginInfo{
 		SocketPath: socketPath,
 		Timestamp:  time.Now(),

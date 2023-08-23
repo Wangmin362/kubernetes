@@ -1597,12 +1597,15 @@ func (kl *Kubelet) initializeRuntimeDependentModules() {
 	// and inform container to reopen log file after log rotation.
 	kl.containerLogManager.Start()
 	// Adding Registration Callback function for CSI Driver
+	// TODO 注册CSI类型插件的回调
 	kl.pluginManager.AddHandler(pluginwatcherapi.CSIPlugin, plugincache.PluginHandler(csi.PluginHandler))
 	// Adding Registration Callback function for DRA Plugin
+	// TODO 注册DRA类型插件的回调
 	if utilfeature.DefaultFeatureGate.Enabled(features.DynamicResourceAllocation) {
 		kl.pluginManager.AddHandler(pluginwatcherapi.DRAPlugin, plugincache.PluginHandler(draplugin.NewRegistrationHandler()))
 	}
 	// Adding Registration Callback function for Device Manager
+	// TODO 注册Device类型插件的回调
 	kl.pluginManager.AddHandler(pluginwatcherapi.DevicePlugin, kl.containerManager.GetPluginRegistrationHandler())
 
 	// Start the plugin manager

@@ -38,6 +38,7 @@ type Reconciler interface {
 	// Run starts running the reconciliation loop which executes periodically,
 	// checks if plugins are correctly registered or unregistered.
 	// If not, it will trigger register/unregister operations to rectify.
+	// 对比期望状态缓存和实际状态缓存，如果实际状态缓存中不存在某个插件，或者个插件在实际缓存和期望缓存的时间不等，就需要重新注册插件
 	Run(stopCh <-chan struct{})
 
 	// AddHandler adds the given plugin handler for a specific plugin type,
@@ -86,7 +87,7 @@ func (rc *reconciler) Run(stopCh <-chan struct{}) {
 	wait.Until(func() {
 		rc.reconcile()
 	},
-		rc.loopSleepDuration,
+		rc.loopSleepDuration, // 一秒钟执行一次reconcile
 		stopCh)
 }
 
@@ -112,15 +113,21 @@ func (rc *reconciler) reconcile() {
 	// Unregisterations are triggered before registrations
 
 	// Ensure plugins that should be unregistered are unregistered.
+	// 从实际状态缓存中获取value
 	for _, registeredPlugin := range rc.actualStateOfWorld.GetRegisteredPlugins() {
+		// 默认不注销kubelet插件
 		unregisterPlugin := false
+		// 判断期望缓存中是否还存在
 		if !rc.desiredStateOfWorld.PluginExists(registeredPlugin.SocketPath) {
+			// 如果不存在了，说明当前缓存需要注销
 			unregisterPlugin = true
 		} else {
 			// We also need to unregister the plugins that exist in both actual state of world
 			// and desired state of world cache, but the timestamps don't match.
 			// Iterate through desired state of world plugins and see if there's any plugin
 			// with the same socket path but different timestamp.
+			// 如果实际状态缓存和期望状态缓存的时间不一样，那么需要注销此插件，因为很有可能是被删除了重新创建的，所以需要注销插件，让插件自己
+			// 重新注册
 			for _, dswPlugin := range rc.desiredStateOfWorld.GetPluginsToRegister() {
 				if dswPlugin.SocketPath == registeredPlugin.SocketPath && dswPlugin.Timestamp != registeredPlugin.Timestamp {
 					klog.V(5).InfoS("An updated version of plugin has been found, unregistering the plugin first before reregistering", "plugin", registeredPlugin)
@@ -130,6 +137,7 @@ func (rc *reconciler) reconcile() {
 			}
 		}
 
+		// 如果当前插件需要注销，所谓的注销插件，其实就是执行插件的DeRegisterPlugin方法，同时从实际状态缓存当中删除
 		if unregisterPlugin {
 			klog.V(5).InfoS("Starting operationExecutor.UnregisterPlugin", "plugin", registeredPlugin)
 			err := rc.operationExecutor.UnregisterPlugin(registeredPlugin, rc.actualStateOfWorld)
@@ -147,7 +155,9 @@ func (rc *reconciler) reconcile() {
 	}
 
 	// Ensure plugins that should be registered are registered
+	// 遍历期望状态缓存
 	for _, pluginToRegister := range rc.desiredStateOfWorld.GetPluginsToRegister() {
+		// 如果实际缓存中不存在此插件，或者时间和期望状态的缓存时间不等，就需要重新进行注册
 		if !rc.actualStateOfWorld.PluginExistsWithCorrectTimestamp(pluginToRegister) {
 			klog.V(5).InfoS("Starting operationExecutor.RegisterPlugin", "plugin", pluginToRegister)
 			err := rc.operationExecutor.RegisterPlugin(pluginToRegister.SocketPath, pluginToRegister.Timestamp, rc.getHandlers(), rc.actualStateOfWorld)

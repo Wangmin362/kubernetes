@@ -121,6 +121,7 @@ func (nim *nodeInfoManager) InstallCSIDriver(driverName string, driverNodeID str
 		return fmt.Errorf("error updating Node object with CSI driver node info: %v", err)
 	}
 
+	// 更新CSINode信息
 	err = nim.updateCSINode(driverName, driverNodeID, maxAttachLimit, topology)
 	if err != nil {
 		return fmt.Errorf("error updating CSINode object with CSI driver node info: %v", err)

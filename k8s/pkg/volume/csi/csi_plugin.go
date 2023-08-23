@@ -85,6 +85,7 @@ type RegistrationHandler struct {
 // TODO (verult) consider using a struct instead of global variables
 // csiDrivers map keep track of all registered CSI drivers on the node and their
 // corresponding sockets
+// 这里的CSIDriver其实一个Map,key为CSI插件的名字，value为插件的Socket文件路径以及
 var csiDrivers = &DriversStore{}
 
 var nim nodeinfomanager.Interface
@@ -99,6 +100,7 @@ func (h *RegistrationHandler) ValidatePlugin(pluginName string, endpoint string,
 	klog.Infof(log("Trying to validate a new CSI Driver with name: %s endpoint: %s versions: %s",
 		pluginName, endpoint, strings.Join(versions, ",")))
 
+	// 这里主要是校验CSI的插件版本，如果已经注册过同名的高版本的CSI插件，那么就不能注册低版本的CSI插件；反之，则可以注册
 	_, err := h.validateVersions("ValidatePlugin", pluginName, endpoint, versions)
 	if err != nil {
 		return fmt.Errorf("validation failed for CSI Driver %s at endpoint %s: %v", pluginName, endpoint, err)
@@ -111,6 +113,7 @@ func (h *RegistrationHandler) ValidatePlugin(pluginName string, endpoint string,
 func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string, versions []string) error {
 	klog.Infof(log("Register new plugin with name: %s at endpoint: %s", pluginName, endpoint))
 
+	// 校验当前CSI插件，并获取当前CSI支持的最高版本
 	highestSupportedVersion, err := h.validateVersions("RegisterPlugin", pluginName, endpoint, versions)
 	if err != nil {
 		return err
@@ -118,12 +121,14 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 
 	// Storing endpoint of newly registered CSI driver into the map, where CSI driver name will be the key
 	// all other CSI components will be able to get the actual socket of CSI drivers by its name.
+	// 保存到缓存当中
 	csiDrivers.Set(pluginName, Driver{
 		endpoint:                endpoint,
 		highestSupportedVersion: highestSupportedVersion,
 	})
 
 	// Get node info from the driver.
+	// 生成当前CSI存储插件的NodeService客户端，使得kubelet可以通过调用CSISpec NodeService接口完成volume的格式化、挂载、卸载、拔出、扩容等等操作
 	csi, err := newCsiDriverClient(csiDriverName(pluginName))
 	if err != nil {
 		return err
@@ -132,8 +137,11 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 	ctx, cancel := context.WithTimeout(context.Background(), csiTimeout)
 	defer cancel()
 
+	// 1、通过GRPC调用CSI插件的NodeGetInfo接口，获取当前CSI插件的信息，
+	// 2、所谓的driverNodeId其实就是当前node名字，也就是当前CSI插件所在的Node名称
 	driverNodeID, maxVolumePerNode, accessibleTopology, err := csi.NodeGetInfo(ctx)
 	if err != nil {
+		// 如果获取信息错误，就注销当前CSI插件。 TODO 猜测CSI插件之后会自动尝试重新注册
 		if unregErr := unregisterDriver(pluginName); unregErr != nil {
 			klog.Error(log("registrationHandler.RegisterPlugin failed to unregister plugin due to previous error: %v", unregErr))
 		}
@@ -151,19 +159,22 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 	return nil
 }
 
+// 这里主要是校验CSI的插件版本，如果已经注册过同名的高版本的CSI插件，那么就不能注册低版本的CSI插件；反之，则可以注册
 func (h *RegistrationHandler) validateVersions(callerName, pluginName string, endpoint string, versions []string) (*utilversion.Version, error) {
 	if len(versions) == 0 {
 		return nil, errors.New(log("%s for CSI driver %q failed. Plugin returned an empty list for supported versions", callerName, pluginName))
 	}
 
-	// Validate version
+	// Validate version 获取语义化的最高版本
 	newDriverHighestVersion, err := highestSupportedVersion(versions)
 	if err != nil {
 		return nil, errors.New(log("%s for CSI driver %q failed. None of the versions specified %q are supported. err=%v", callerName, pluginName, versions, err))
 	}
 
+	// 获取当前CSI趋动，
 	existingDriver, driverExists := csiDrivers.Get(pluginName)
 	if driverExists {
+		// 如果已经注册的CSI趋动支持更改的版本，这里需要报错
 		if !existingDriver.highestSupportedVersion.LessThan(newDriverHighestVersion) {
 			return nil, errors.New(log("%s for CSI driver %q failed. Another driver with the same name is already registered with a higher supported version: %q", callerName, pluginName, existingDriver.highestSupportedVersion))
 		}

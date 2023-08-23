@@ -150,16 +150,20 @@ func newV1NodeClient(addr csiAddr, metricsManager *MetricsManager) (nodeClient c
 	return nodeClient, conn, nil
 }
 
+// 生成当前CSI存储插件的NodeService客户端，使得kubelet可以通过调用CSISpec NodeService接口完成volume的格式化、挂载、卸载、拔出、扩容等等操作
 func newCsiDriverClient(driverName csiDriverName) (*csiDriverClient, error) {
 	if driverName == "" {
 		return nil, fmt.Errorf("driver name is empty")
 	}
 
+	// 主要的目的是为了获取endpoint
 	existingDriver, driverExists := csiDrivers.Get(string(driverName))
 	if !driverExists {
 		return nil, fmt.Errorf("driver name %s not found in the list of registered CSI drivers", driverName)
 	}
 
+	// 1、newV1NodeClient实际上就是CSI Spec的NodeService实现方的客户端
+	// 2、通过NodeClient，kubelet可以完成volume的格式化、挂载、卸载、扩容等等操作
 	nodeV1ClientCreator := newV1NodeClient
 	return &csiDriverClient{
 		driverName:          driverName,

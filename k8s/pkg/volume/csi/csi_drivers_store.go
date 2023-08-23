@@ -25,7 +25,9 @@ import (
 // Driver is a description of a CSI Driver, defined by an endpoint and the
 // highest CSI version supported
 type Driver struct {
-	endpoint                string
+	// 这里说的是csi插件的socket文件路径
+	endpoint string
+	// 当前CSI插件最高支持的版本
 	highestSupportedVersion *utilversion.Version
 }
 

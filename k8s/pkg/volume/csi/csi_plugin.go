@@ -123,7 +123,7 @@ func (h *RegistrationHandler) RegisterPlugin(pluginName string, endpoint string,
 	// all other CSI components will be able to get the actual socket of CSI drivers by its name.
 	// 保存到缓存当中
 	csiDrivers.Set(pluginName, Driver{
-		endpoint:                endpoint,
+		endpoint:                endpoint, // CSI插件的服务socket
 		highestSupportedVersion: highestSupportedVersion,
 	})
 

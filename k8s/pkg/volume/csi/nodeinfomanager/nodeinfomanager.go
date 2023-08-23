@@ -74,7 +74,7 @@ type nodeInfoManager struct {
 type nodeUpdateFunc func(*v1.Node) (newNode *v1.Node, updated bool, err error)
 
 // Interface implements an interface for managing labels of a node
-// 如何理解这个接口？
+// 如何理解这个接口？ 其实主要还是在维护CSINode资源
 type Interface interface {
 	CreateCSINode() (*storagev1.CSINode, error)
 

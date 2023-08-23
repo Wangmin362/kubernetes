@@ -29,6 +29,7 @@ import (
 )
 
 // Manager manages all the Device Plugins running on a node.
+// 1、用于管理运行在一个节点上的设备插件
 type Manager interface {
 	// Start starts device plugin registration service.
 	Start(activePods ActivePodsFunc, sourcesReady config.SourcesReady) error

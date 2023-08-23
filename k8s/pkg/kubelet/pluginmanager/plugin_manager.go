@@ -43,9 +43,13 @@ device-plugins/
 
 // PluginManager runs a set of asynchronous loops that figure out which plugins
 // need to be registered/deregistered and makes it so.
+// 1、监听/var/lib/kubelet/plugins_registry目录，维护插件期望状态缓存。如果有socket文件新增，就把这个插件添加到期望缓存中。
+// 同时，如果有socket文件被删除，PlugingManager也会把此插件从期望状态缓存中删除
+// 2、对比期望状态缓存和实际状态缓存的插件，如果实际状态缓存不存在此插件，就说明此插件还没有初始化，那么调用这个插件的Register函数进行注册。
+// 另外，如果这个插件在期望状态缓存和实际状态缓存中存在，但是两个缓存的时间不一致，就会把这个插件从实际状态缓存中注销。
 type PluginManager interface {
 	// Run Starts the plugin manager and all the asynchronous loops that it controls
-	// TODO PluginManager需要关系哪些资源就绪？
+	// 1、PluginManager需要关系哪些资源就绪？ 实际上并不需要等待任何资源
 	Run(sourcesReady config.SourcesReady, stopCh <-chan struct{})
 
 	// AddHandler adds the given plugin handler for a specific plugin type, which
@@ -128,6 +132,7 @@ func (pm *pluginManager) Run(sourcesReady config.SourcesReady, stopCh <-chan str
 	// 2、监听/var/lib/kubelet/plugins_registry目录，如果有socket文件被删除了，那么从desiredStateOfWorld缓存中移除
 	// 3、说白了desiredStateOfWorldPopulator实际上就是要给监听器，用于监听/var/lib/kubelet/plugins_registry，于此同时
 	// 维护desiredStateOfWorld
+	// 4、这里实际上可以理解为插件的发现原理。实际上就是通过linux文件来发现插件
 	if err := pm.desiredStateOfWorldPopulator.Start(stopCh); err != nil {
 		klog.ErrorS(err, "The desired_state_of_world populator (plugin watcher) starts failed!")
 		return
@@ -136,6 +141,7 @@ func (pm *pluginManager) Run(sourcesReady config.SourcesReady, stopCh <-chan str
 	klog.V(2).InfoS("The desired_state_of_world populator (plugin watcher) starts")
 
 	klog.InfoS("Starting Kubelet Plugin Manager")
+	// 对比插件期望状态缓存以及插件实际状态缓存，执行插件的注册、注销动作
 	go pm.reconciler.Run(stopCh)
 
 	metrics.Register(pm.actualStateOfWorld, pm.desiredStateOfWorld)

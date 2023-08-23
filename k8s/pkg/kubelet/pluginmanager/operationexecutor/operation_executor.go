@@ -93,13 +93,14 @@ func (oe *operationExecutor) IsOperationPending(socketPath string) bool {
 }
 
 func (oe *operationExecutor) RegisterPlugin(
-	socketPath string,
+	socketPath string, // socket的路径，譬如/var/lib/kubelet/plugins_registry/<socket>
 	timestamp time.Time,
-	pluginHandlers map[string]cache.PluginHandler,
+	pluginHandlers map[string]cache.PluginHandler, // 不同类型插件的注册函数，目前支持CSIPlugin, DRAPlugin, DevicePlugin
 	actualStateOfWorld ActualStateOfWorldUpdater) error {
 	generatedOperation :=
 		oe.operationGenerator.GenerateRegisterPluginFunc(socketPath, timestamp, pluginHandlers, actualStateOfWorld)
 
+	// 开启一个协程注册插件
 	return oe.pendingOperations.Run(
 		socketPath, generatedOperation)
 }

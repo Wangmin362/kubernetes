@@ -44,6 +44,7 @@ package cache
 // registers at foo.com/foo-1.9.9
 //
 // DeRegistration: When ReRegistration happens only the deletion of the new socket will trigger a DeRegister call
+// TODO 如何理解这个接口的定义？
 type PluginHandler interface {
 	// Validate returns an error if the information provided by
 	// the potential plugin is erroneous (unsupported version, ...)

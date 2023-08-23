@@ -79,6 +79,7 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 	actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error {
 
 	registerPluginFunc := func() error {
+		// 建立和kubelet插件的链接
 		client, conn, err := dial(socketPath, dialTimeoutDuration)
 		if err != nil {
 			return fmt.Errorf("RegisterPlugin error -- dial failed at socket %s, err: %v", socketPath, err)
@@ -88,22 +89,31 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 		defer cancel()
 
+		// 获取插件的注册信息
 		infoResp, err := client.GetInfo(ctx, &registerapi.InfoRequest{})
 		if err != nil {
 			return fmt.Errorf("RegisterPlugin error -- failed to get plugin info using RPC GetInfo at socket %s, err: %v", socketPath, err)
 		}
 
+		// 获取插件注册回调函数
 		handler, ok := pluginHandlers[infoResp.Type]
 		if !ok {
+			// 如果没有找到当前插件注册类型的回调函数，就要通知插件是现房，注册失败
 			if err := og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- no handler registered for plugin type: %s at socket %s", infoResp.Type, socketPath)); err != nil {
 				return fmt.Errorf("RegisterPlugin error -- failed to send error at socket %s, err: %v", socketPath, err)
 			}
 			return fmt.Errorf("RegisterPlugin error -- no handler registered for plugin type: %s at socket %s", infoResp.Type, socketPath)
 		}
 
+		// 1、如果没有指定socket路径，就认为当前的socket所在服务实现了插件的接口
+		// 2、不同的插件需要实现的接口不一样，譬如，对于DevicePlugin需要实现设备插件相关的接口，而对于CSI类型的插件则需要实现CSI Spec的
+		// NodeService接口用于对卷的格式化、挂载、卸载、扩容等操作
+		// 3、虽然这一步看起来挺坑人的插件服务socket在不写的情况下就是注册socket，但是仔细一想，其实作为插件的实现方，我们本身就应该显示的指定
+		// 服务socket所在路径，即使当前注册socket本身就实现了插件服务相关的接口，这种情况下，我们也可以声明为注册socket路径，仅此而已。
 		if infoResp.Endpoint == "" {
 			infoResp.Endpoint = socketPath
 		}
+		// 校验插件，DevicePlugin, DraPlugin, CSIPlugin插件的校验路径是不一样的
 		if err := handler.ValidatePlugin(infoResp.Name, infoResp.Endpoint, infoResp.SupportedVersions); err != nil {
 			if err = og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- plugin validation failed with err: %v", err)); err != nil {
 				return fmt.Errorf("RegisterPlugin error -- failed to send error at socket %s, err: %v", socketPath, err)
@@ -112,8 +122,9 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		}
 		// We add the plugin to the actual state of world cache before calling a plugin consumer's Register handle
 		// so that if we receive a delete event during Register Plugin, we can process it as a DeRegister call.
+		// 向实际状态插件状态注册当前插件，只要没有想同路径的socket，就认为注册成功
 		err = actualStateOfWorldUpdater.AddPlugin(cache.PluginInfo{
-			SocketPath: socketPath,
+			SocketPath: socketPath, // 这里的socket路径还是注册socket，因为只要知道了这个socket，我们就可以调用接口获取服务socket的位置
 			Timestamp:  timestamp,
 			Handler:    handler,
 			Name:       infoResp.Name,
@@ -121,11 +132,14 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		if err != nil {
 			klog.ErrorS(err, "RegisterPlugin error -- failed to add plugin", "path", socketPath)
 		}
+		// 1、这里才是真正插件注册的地方，不同类型的插件会有一个插件管理器，用于维护插件状态
 		if err := handler.RegisterPlugin(infoResp.Name, infoResp.Endpoint, infoResp.SupportedVersions); err != nil {
+			// 注册有问题，就通知注册socket，插件注册失败
 			return og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- plugin registration failed with err: %v", err))
 		}
 
 		// Notify is called after register to guarantee that even if notify throws an error Register will always be called after validate
+		// 注册没有问题，就通知注册socket，插件注册成功
 		if err := og.notifyPlugin(client, true, ""); err != nil {
 			return fmt.Errorf("RegisterPlugin error -- failed to send registration status at socket %s, err: %v", socketPath, err)
 		}
@@ -145,7 +159,7 @@ func (og *operationGenerator) GenerateUnregisterPluginFunc(
 		}
 		// We remove the plugin to the actual state of world cache before calling a plugin consumer's Unregister handle
 		// so that if we receive a register event during Register Plugin, we can process it as a Register call.
-		// 冲缓存中删除
+		// 从缓存中删除
 		actualStateOfWorldUpdater.RemovePlugin(pluginInfo.SocketPath)
 
 		// 注销插件

@@ -17,17 +17,20 @@ option (gogoproto.goproto_unrecognized_all) = false;
 // PluginInfo is the message sent from a plugin to the Kubelet pluginwatcher for plugin registration
 message PluginInfo {
 	// Type of the Plugin. CSIPlugin or DevicePlugin
+	// 插件的类型
 	string type = 1;
 	// Plugin name that uniquely identifies the plugin for the given plugin type.
 	// For DevicePlugin, this is the resource name that the plugin manages and
 	// should follow the extended resource name convention.
 	// For CSI, this is the CSI driver registrar name.
+	// 插件的名字
 	string name = 2;
 	// Optional endpoint location. If found set by Kubelet component,
 	// Kubelet component will use this endpoint for specific requests.
 	// This allows the plugin to register using one endpoint and possibly use
 	// a different socket for control operations. CSI uses this model to delegate
 	// its registration external from the plugin.
+	// 插件监听的socket路径
 	string endpoint = 3;
 	// Plugin service API versions the plugin supports.
 	// For DevicePlugin, this maps to the deviceplugin API versions the
@@ -35,6 +38,7 @@ message PluginInfo {
 	// The Kubelet component communicating with the plugin should be able
 	// to choose any preferred version from this list, or returns an error
 	// if none of the listed versions is supported.
+	// 插件支持的版本
 	repeated string supported_versions = 4;
 }
 
@@ -55,6 +59,8 @@ message InfoRequest {
 }
 
 // Registration is the service advertised by the Plugins.
+// 每个插件都需要实现这个接口，与此同时需要通过监听Unix Domain Socket的方式启动服务，此服务监听的socket需要放在
+// /var/lib/kubelet/plugins_registry路径下面，kubelet会自动发现这个socket
 service Registration {
 	rpc GetInfo(InfoRequest) returns (PluginInfo) {}
 	rpc NotifyRegistrationStatus(RegistrationStatus) returns (RegistrationStatusResponse) {}

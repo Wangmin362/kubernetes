@@ -43,6 +43,8 @@ type Reconciler interface {
 
 	// AddHandler adds the given plugin handler for a specific plugin type,
 	// which will be added to the actual state of world cache.
+	// 1、这里的pluginType实际上只有DevicePlugin, DRAPlugin, CSIPlugin
+	// 2、而插件的Handler，实际上就是不同类型插件的注册、注销回调方法
 	AddHandler(pluginType string, pluginHandler cache.PluginHandler)
 }
 
@@ -160,6 +162,7 @@ func (rc *reconciler) reconcile() {
 		// 如果实际缓存中不存在此插件，或者时间和期望状态的缓存时间不等，就需要重新进行注册
 		if !rc.actualStateOfWorld.PluginExistsWithCorrectTimestamp(pluginToRegister) {
 			klog.V(5).InfoS("Starting operationExecutor.RegisterPlugin", "plugin", pluginToRegister)
+			// 注册插件
 			err := rc.operationExecutor.RegisterPlugin(pluginToRegister.SocketPath, pluginToRegister.Timestamp, rc.getHandlers(), rc.actualStateOfWorld)
 			if err != nil &&
 				!goroutinemap.IsAlreadyExists(err) &&

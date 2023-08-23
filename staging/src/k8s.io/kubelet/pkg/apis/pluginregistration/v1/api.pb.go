@@ -48,17 +48,20 @@ const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 // PluginInfo is the message sent from a plugin to the Kubelet pluginwatcher for plugin registration
 type PluginInfo struct {
 	// Type of the Plugin. CSIPlugin or DevicePlugin
+	// 当前插件的类型，支持CSIPlugin, DevicePlugin, DRAPlugin
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Plugin name that uniquely identifies the plugin for the given plugin type.
 	// For DevicePlugin, this is the resource name that the plugin manages and
 	// should follow the extended resource name convention.
 	// For CSI, this is the CSI driver registrar name.
+	// 当前插件的类型
 	Name string `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	// Optional endpoint location. If found set by Kubelet component,
 	// Kubelet component will use this endpoint for specific requests.
 	// This allows the plugin to register using one endpoint and possibly use
 	// a different socket for control operations. CSI uses this model to delegate
 	// its registration external from the plugin.
+	// 当前插件的
 	Endpoint string `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	// Plugin service API versions the plugin supports.
 	// For DevicePlugin, this maps to the deviceplugin API versions the

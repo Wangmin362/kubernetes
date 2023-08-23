@@ -354,6 +354,7 @@ type AttachDetachVolumeHost interface {
 }
 
 // VolumeHost is an interface that plugins can use to access the kubelet.
+// TODO 如何理解这个接口的抽象？
 type VolumeHost interface {
 	// GetPluginDir returns the absolute path to a directory under which
 	// a given plugin may store data.  This directory might not actually

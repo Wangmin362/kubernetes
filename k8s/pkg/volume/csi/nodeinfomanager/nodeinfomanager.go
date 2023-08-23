@@ -62,6 +62,7 @@ var (
 // nodeInfoManager contains necessary common dependencies to update node info on both
 // the Node and CSINode objects.
 type nodeInfoManager struct {
+	// kubelet当前所在Node的名字
 	nodeName        types.NodeName
 	volumeHost      volume.VolumeHost
 	migratedPlugins map[string](func() bool)
@@ -73,18 +74,21 @@ type nodeInfoManager struct {
 type nodeUpdateFunc func(*v1.Node) (newNode *v1.Node, updated bool, err error)
 
 // Interface implements an interface for managing labels of a node
+// 如何理解这个接口？
 type Interface interface {
 	CreateCSINode() (*storagev1.CSINode, error)
 
-	// Updates or Creates the CSINode object with annotations for CSI Migration
+	// InitializeCSINodeWithAnnotation Updates or Creates the CSINode object with annotations for CSI Migration
+	// 似乎也是在尝试创建CSINode资源
 	InitializeCSINodeWithAnnotation() error
 
-	// Record in the cluster the given node information from the CSI driver with the given name.
+	// InstallCSIDriver Record in the cluster the given node information from the CSI driver with the given name.
 	// Concurrent calls to InstallCSIDriver() is allowed, but they should not be intertwined with calls
 	// to other methods in this interface.
+	// 1、向CSIDriver资源中添加新的CSI插件
 	InstallCSIDriver(driverName string, driverNodeID string, maxVolumeLimit int64, topology map[string]string) error
 
-	// Remove in the cluster node information from the CSI driver with the given name.
+	// UninstallCSIDriver Remove in the cluster node information from the CSI driver with the given name.
 	// Concurrent calls to UninstallCSIDriver() is allowed, but they should not be intertwined with calls
 	// to other methods in this interface.
 	UninstallCSIDriver(driverName string) error
@@ -433,12 +437,15 @@ func (nim *nodeInfoManager) tryInitializeCSINodeWithAnnotation(csiKubeClient cli
 
 func (nim *nodeInfoManager) CreateCSINode() (*storagev1.CSINode, error) {
 
+	// 获取kubeclient客户端工具
 	csiKubeClient := nim.volumeHost.GetKubeClient()
 	if csiKubeClient == nil {
 		return nil, fmt.Errorf("error getting CSI client")
 	}
 
+	// 根据kubelet当前所在的节点名，查询apiServer是否存在同名的CSINode资源
 	node, err := csiKubeClient.CoreV1().Nodes().Get(context.TODO(), string(nim.nodeName), metav1.GetOptions{})
+	// TODO 这里不需要判断NotFound错误么？
 	if err != nil {
 		return nil, err
 	}
@@ -460,8 +467,10 @@ func (nim *nodeInfoManager) CreateCSINode() (*storagev1.CSINode, error) {
 		},
 	}
 
+	// TODO 这里是在干嘛？
 	setMigrationAnnotation(nim.migratedPlugins, nodeInfo)
 
+	// 创建CSINode资源
 	return csiKubeClient.StorageV1().CSINodes().Create(context.TODO(), nodeInfo, metav1.CreateOptions{})
 }
 

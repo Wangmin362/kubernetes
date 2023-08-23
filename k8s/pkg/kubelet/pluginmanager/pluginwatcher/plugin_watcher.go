@@ -199,7 +199,8 @@ func (w *Watcher) handleCreateEvent(event fsnotify.Event) error {
 			return nil
 		}
 
-		// 把当前插件的socket路径包装为PluginInfo保存起来，TODO 这里是否可以认为就是注册流程
+		// 1、把当前插件的socket路径包装为PluginInfo保存起来，实际上这里可以认为是插件的发现流程
+		// 2、后续PluginManager会通过对比插件的实际状态判断是否需要注册当前插件
 		return w.handlePluginRegistration(event.Name)
 	}
 

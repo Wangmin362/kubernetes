@@ -894,6 +894,7 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 }
 
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
+	// APIServer的鉴权
 	handler := filterlatency.TrackCompleted(apiHandler)
 	handler = genericapifilters.WithAuthorization(handler, c.Authorization.Authorizer, c.Serializer)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "authorization")
@@ -921,6 +922,7 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 
 	failedHandler = filterlatency.TrackCompleted(failedHandler)
+	// APIServer的认证
 	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithAuthentication(handler, c.Authentication.Authenticator, failedHandler, c.Authentication.APIAudiences, c.Authentication.RequestHeaderConfig)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "authentication")

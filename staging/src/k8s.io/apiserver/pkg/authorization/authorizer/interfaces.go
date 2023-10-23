@@ -90,16 +90,18 @@ type RequestAttributesGetter interface {
 
 // AttributesRecord implements Attributes interface.
 type AttributesRecord struct {
+	// 用户信息，想要对于当前的请求进行鉴权，那么肯定要知道发出当前请求的用户是谁？
+	// 当APIServer对当前请求认证通过之后，用户信息会被填充进来
 	User            user.Info
-	Verb            string
-	Namespace       string
-	APIGroup        string
-	APIVersion      string
-	Resource        string
-	Subresource     string
-	Name            string
-	ResourceRequest bool
-	Path            string
+	Verb            string // 当前请求想要执行的动作，譬如get, list, create, watch, patch, delete等动作
+	Namespace       string // 当前请求要操作的资源所在的名称空间
+	APIGroup        string // 当前请求要操作资源的group
+	APIVersion      string // 当前请求要操作资源的版本
+	Resource        string // 当前请求要操作的资源
+	Subresource     string // 当前请求要操作的子资源
+	Name            string // TODO 这个字段代表着谁的名字？
+	ResourceRequest bool   // TODO 这个字段是啥意思？
+	Path            string // 这里应该是URL路径
 }
 
 func (a AttributesRecord) GetUser() user.Info {

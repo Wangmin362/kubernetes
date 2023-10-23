@@ -91,6 +91,7 @@ func (r *NodeAuthorizer) RulesFor(user user.Info, namespace string) ([]authorize
 }
 
 func (r *NodeAuthorizer) Authorize(ctx context.Context, attrs authorizer.Attributes) (authorizer.Decision, string, error) {
+	// 当前请求必须是节点上的kubelet发出的，否则我们不进行鉴权（不鉴权并非鉴权失败，二是让后面的鉴权器继续进行鉴权）
 	nodeName, isNode := r.identifier.NodeIdentity(attrs.GetUser())
 	if !isNode {
 		// reject requests from non-nodes
@@ -106,6 +107,7 @@ func (r *NodeAuthorizer) Authorize(ctx context.Context, attrs authorizer.Attribu
 	if attrs.IsResourceRequest() {
 		requestResource := schema.GroupResource{Group: attrs.GetAPIGroup(), Resource: attrs.GetResource()}
 		switch requestResource {
+		// TODO 这里硬编码的原因是不是因为用户有可能禁用RBAC鉴权？
 		case secretResource:
 			return r.authorizeReadNamespacedObject(nodeName, secretVertexType, attrs)
 		case configMapResource:

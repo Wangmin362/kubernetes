@@ -50,6 +50,7 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		ctx := req.Context()
 
+		// 获取鉴权需要用到的属性，譬如用户信息、当前要访问的资源，以及当前要执行的动作
 		attributes, err := GetAuthorizerAttributes(ctx)
 		if err != nil {
 			responsewriters.InternalError(w, req, err)

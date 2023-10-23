@@ -91,7 +91,7 @@ func (r *NodeAuthorizer) RulesFor(user user.Info, namespace string) ([]authorize
 }
 
 func (r *NodeAuthorizer) Authorize(ctx context.Context, attrs authorizer.Attributes) (authorizer.Decision, string, error) {
-	// 当前请求必须是节点上的kubelet发出的，否则我们不进行鉴权（不鉴权并非鉴权失败，二是让后面的鉴权器继续进行鉴权）
+	// 当前请求必须是节点上的kubelet发出的，否则APIServer不进行鉴权（不鉴权并非鉴权失败，二是让后面的鉴权器继续进行鉴权）
 	nodeName, isNode := r.identifier.NodeIdentity(attrs.GetUser())
 	if !isNode {
 		// reject requests from non-nodes
@@ -104,6 +104,7 @@ func (r *NodeAuthorizer) Authorize(ctx context.Context, attrs authorizer.Attribu
 	}
 
 	// subdivide access to specific resources
+	// TODO K8S中除了资源请求，哪些请求被认为是非资源请求？
 	if attrs.IsResourceRequest() {
 		requestResource := schema.GroupResource{Group: attrs.GetAPIGroup(), Resource: attrs.GetResource()}
 		switch requestResource {
@@ -132,6 +133,7 @@ func (r *NodeAuthorizer) Authorize(ctx context.Context, attrs authorizer.Attribu
 	}
 
 	// Access to other resources is not subdivided, so just evaluate against the statically defined node rules
+	// TODO 这里是在干嘛？
 	if rbac.RulesAllow(attrs, r.nodeRules...) {
 		return authorizer.DecisionAllow, "", nil
 	}

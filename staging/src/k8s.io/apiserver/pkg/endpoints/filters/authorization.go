@@ -56,12 +56,14 @@ func WithAuthorization(handler http.Handler, a authorizer.Authorizer, s runtime.
 			responsewriters.InternalError(w, req, err)
 			return
 		}
+		// 遍历所有的鉴权器
 		authorized, reason, err := a.Authorize(ctx, attributes)
 		// an authorizer like RBAC could encounter evaluation errors and still allow the request, so authorizer decision is checked before error here.
 		if authorized == authorizer.DecisionAllow {
 			audit.AddAuditAnnotations(ctx,
 				decisionAnnotationKey, decisionAllow,
 				reasonAnnotationKey, reason)
+			// 鉴权都过了，APIServer就要开始处理真正的请求了
 			handler.ServeHTTP(w, req)
 			return
 		}

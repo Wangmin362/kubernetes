@@ -392,7 +392,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 
 	return &Config{
 		Serializer:                     codecs,
-		BuildHandlerChainFunc:          DefaultBuildHandlerChain,
+		BuildHandlerChainFunc:          DefaultBuildHandlerChain, // APIServer的鉴权、认证、审计
 		NonLongRunningRequestWaitGroup: new(utilwaitgroup.SafeWaitGroup),
 		WatchRequestWaitGroup:          &utilwaitgroup.RateLimitedSafeWaitGroup{},
 		LegacyAPIGroupPrefixes:         sets.NewString(DefaultLegacyAPIPrefix),

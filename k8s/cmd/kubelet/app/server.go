@@ -200,7 +200,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 				klog.InfoS("--pod-infra-container-image will not be pruned by the image garbage collector in kubelet and should also be set in the remote runtime")
 			}
 
-			// load kubelet config file, if provided
+			// 如果提供了kubelet配置文件，那么加载配置文件
 			if configFile := kubeletFlags.KubeletConfigFile; len(configFile) > 0 {
 				kubeletConfig, err = loadConfigFile(configFile)
 				if err != nil {
@@ -227,7 +227,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// We always validate the local configuration (command line + config file).
 			// This is the default "last-known-good" config for dynamic config, and must always remain valid.
-			// 校验KubeletConfiguration配置
+			// 校验KubeletConfiguration配置, KubeletConfiguration是kubelet的配置，kubelet大部分配置都放到了KubeletConfiguration配置当汇总
 			if err := kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig, utilfeature.DefaultFeatureGate); err != nil {
 				return fmt.Errorf("failed to validate kubelet configuration, error: %w, path: %s", err, kubeletConfig)
 			}

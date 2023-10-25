@@ -44,6 +44,8 @@ func (a *Authenticator) AuthenticateRequest(req *http.Request) (*authenticator.R
 	if auth == "" {
 		return nil, false, nil
 	}
+	// Bearer的格式为：Authorization: Bearer <token>
+	// 在K8S当中有以下集中BearerToken认证认证方式：1、原始的BearerToken认证方式  2、BootstrapToken认证方式，这种方式是专门为kubelet设计的
 	parts := strings.SplitN(auth, " ", 3)
 	if len(parts) < 2 || strings.ToLower(parts[0]) != "bearer" {
 		return nil, false, nil

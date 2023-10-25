@@ -88,13 +88,16 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 //
 //	( token-id ).( token-secret )
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	// 解析tokenId以及tokenSecret
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
 	if err != nil {
 		// Token isn't of the correct form, ignore it.
 		return nil, false, nil
 	}
 
+	// 通过tokenID获取到承载Token的Secret名字
 	secretName := bootstrapapi.BootstrapTokenSecretPrefix + tokenID
+	// 从Informer当中获取这个Secret
 	secret, err := t.lister.Get(secretName)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -115,6 +118,7 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 	}
 
 	ts := bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenSecretKey)
+	// 比较tokenSecret是否相等
 	if subtle.ConstantTimeCompare([]byte(ts), []byte(tokenSecret)) != 1 {
 		tokenErrorf(secret, "has invalid value for key %s.", bootstrapapi.BootstrapTokenSecretKey)
 		return nil, false, nil

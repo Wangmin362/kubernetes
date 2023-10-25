@@ -2559,6 +2559,7 @@ type ProbeHandler struct {
 
 // LifecycleHandler defines a specific action that should be taken in a lifecycle
 // hook. One and only one of the fields, except TCPSocket must be specified.
+// 注意：从注释当中可以看出，下面三种方式只能使用其中的一种；从功能上来看，确实只应该执行其中的一个。
 type LifecycleHandler struct {
 	// Exec specifies the action to take.
 	// +optional

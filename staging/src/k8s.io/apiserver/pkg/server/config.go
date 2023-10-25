@@ -893,6 +893,8 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 	return DefaultBuildHandlerChain(handler, c)
 }
 
+// DefaultBuildHandlerChain 这里的请求就和俄罗斯套娃一毛一样，最先写最后才会执行，最后写的最先执行；所以DefaultBuildHandlerChain
+// 正确的看法应该是从下网上看
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// APIServer的鉴权
 	handler := filterlatency.TrackCompleted(apiHandler)
@@ -914,10 +916,12 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = genericapifilters.WithImpersonation(handler, c.Authorization.Authorizer, c.Serializer)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "impersonation")
 
+	// 审计日志
 	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithAudit(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator, c.LongRunningFunc)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "audit")
 
+	// 这里应该是处理认证异常的请求
 	failedHandler := genericapifilters.Unauthorized(c.Serializer)
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
 

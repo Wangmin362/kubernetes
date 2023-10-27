@@ -93,6 +93,8 @@ type ServerRunOptions struct {
 }
 
 func NewServerRunOptions() *ServerRunOptions {
+	// TODO 实例化GenericAPIServer配置，其中会设置一些默认值
+	// 可以看出来，这里实例化出来的defaults并没有什么卵用，这里就是为了获取GenericAPIServer的一些默认配置值
 	defaults := server.NewConfig(serializer.CodecFactory{})
 	return &ServerRunOptions{
 		MaxRequestsInFlight:                 defaults.MaxRequestsInFlight,
@@ -104,7 +106,7 @@ func NewServerRunOptions() *ServerRunOptions {
 		ShutdownWatchTerminationGracePeriod: defaults.ShutdownWatchTerminationGracePeriod,
 		JSONPatchMaxCopyBytes:               defaults.JSONPatchMaxCopyBytes,
 		MaxRequestBodyBytes:                 defaults.MaxRequestBodyBytes,
-		EnablePriorityAndFairness:           true,
+		EnablePriorityAndFairness:           true, // 默认启用APIServer请求的优先级个公平性功能
 		ShutdownSendRetryAfter:              false,
 	}
 }

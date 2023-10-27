@@ -122,6 +122,7 @@ func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, option
 
 // CodecFactory provides methods for retrieving codecs and serializers for specific
 // versions and content types.
+// TODO 如何理解CodecFactory的设计，完成了什么功能？
 type CodecFactory struct {
 	scheme    *runtime.Scheme
 	universal runtime.Decoder

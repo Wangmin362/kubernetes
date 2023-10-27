@@ -66,6 +66,7 @@ func NewAdmissionOptions() *AdmissionOptions {
 
 // AddFlags adds flags related to admission for kube-apiserver to the specified FlagSet
 func (a *AdmissionOptions) AddFlags(fs *pflag.FlagSet) {
+	// 用于设置启用的准入控制插件列表
 	fs.StringSliceVar(&a.PluginNames, "admission-control", a.PluginNames, ""+
 		"Admission is divided into two phases. "+
 		"In the first phase, only mutating admission plugins run. "+

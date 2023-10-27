@@ -46,17 +46,17 @@ import (
 // BuiltInAuthenticationOptions contains all build-in authentication options for API Server
 type BuiltInAuthenticationOptions struct {
 	APIAudiences    []string
-	Anonymous       *AnonymousAuthenticationOptions
-	BootstrapToken  *BootstrapTokenAuthenticationOptions
-	ClientCert      *genericoptions.ClientCertAuthenticationOptions
-	OIDC            *OIDCAuthenticationOptions
-	RequestHeader   *genericoptions.RequestHeaderAuthenticationOptions
-	ServiceAccounts *ServiceAccountAuthenticationOptions
-	TokenFile       *TokenFileAuthenticationOptions
-	WebHook         *WebHookAuthenticationOptions
+	Anonymous       *AnonymousAuthenticationOptions                    // 是否允许匿名用户访问K8S
+	BootstrapToken  *BootstrapTokenAuthenticationOptions               // BootstrapToken认证，这种认证方式是专门给Kubelet使用的
+	ClientCert      *genericoptions.ClientCertAuthenticationOptions    // 证书认证方式
+	OIDC            *OIDCAuthenticationOptions                         // OIDC认证
+	RequestHeader   *genericoptions.RequestHeaderAuthenticationOptions // 代理认证
+	ServiceAccounts *ServiceAccountAuthenticationOptions               // ServiceAccount认证
+	TokenFile       *TokenFileAuthenticationOptions                    // BearerToken认证
+	WebHook         *WebHookAuthenticationOptions                      // Webhook认证
 
-	TokenSuccessCacheTTL time.Duration
-	TokenFailureCacheTTL time.Duration
+	TokenSuccessCacheTTL time.Duration // Token认证成功之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证通过
+	TokenFailureCacheTTL time.Duration // Token认证失败之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证失败
 }
 
 // AnonymousAuthenticationOptions contains anonymous authentication options for API Server

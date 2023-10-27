@@ -37,7 +37,9 @@ import (
 	cliflag "k8s.io/component-base/cli/flag"
 )
 
+// SecureServingOptions 安全服务配置
 type SecureServingOptions struct {
+	// TODO 参数作用
 	BindAddress net.IP
 	// BindPort is ignored when Listener is set, will serve https even with 0.
 	BindPort int
@@ -48,6 +50,7 @@ type SecureServingOptions struct {
 	Required bool
 	// ExternalAddress is the address advertised, even if BindAddress is a loopback. By default this
 	// is set to BindAddress if the later no loopback, or to the first host interface address.
+	// TODO 参数作用
 	ExternalAddress net.IP
 
 	// Listener is the secure server network listener.

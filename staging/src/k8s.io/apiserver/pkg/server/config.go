@@ -95,6 +95,7 @@ const (
 
 // Config is a structure used to configure a GenericAPIServer.
 // Its members are sorted roughly in order of importance for composers.
+// 1、GenericAPIServer的配置  TODO 思考K8S开发者认为GenericAPIServer应该有哪些能力？对于普通开发者我们可以通过GenericAPIServer干什么？
 type Config struct {
 	// SecureServing is required to serve https
 	SecureServing *SecureServingInfo
@@ -108,6 +109,7 @@ type Config struct {
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
+	// 可以理解为是kubeconfig文件，其目的就是告诉客户端如何连接服务器，以及以什么样的身份连接服务器
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
@@ -361,8 +363,10 @@ func init() {
 
 // NewConfig returns a Config struct with the default values
 func NewConfig(codecs serializer.CodecFactory) *Config {
+	// TODO 这玩意有啥用？
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
+	// 生成APIServer的ID
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
 		hostname, err := os.Hostname()
 		if err != nil {
@@ -388,11 +392,12 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		hash := sha256.Sum256(hashData)
 		id = "apiserver-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:16]))
 	}
+	// TODO 生命周期信号是啥？
 	lifecycleSignals := newLifecycleSignals()
 
 	return &Config{
 		Serializer:                     codecs,
-		BuildHandlerChainFunc:          DefaultBuildHandlerChain, // APIServer的鉴权、认证、审计
+		BuildHandlerChainFunc:          DefaultBuildHandlerChain, // APIServer的认证、审计、鉴权
 		NonLongRunningRequestWaitGroup: new(utilwaitgroup.SafeWaitGroup),
 		WatchRequestWaitGroup:          &utilwaitgroup.RateLimitedSafeWaitGroup{},
 		LegacyAPIGroupPrefixes:         sets.NewString(DefaultLegacyAPIPrefix),
@@ -401,15 +406,15 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...),
 		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...),
 		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...),
-		EnableIndex:                    true,
-		EnableDiscovery:                true,
-		EnableProfiling:                true,
+		EnableIndex:                    true, // TODO
+		EnableDiscovery:                true, // TODO
+		EnableProfiling:                true, // TODO
 		DebugSocketPath:                "",
 		EnableMetrics:                  true,
-		MaxRequestsInFlight:            400,
-		MaxMutatingRequestsInFlight:    200,
-		RequestTimeout:                 time.Duration(60) * time.Second,
-		MinRequestTimeout:              1800,
+		MaxRequestsInFlight:            400,                             // 默认APIServer每秒钟最多只能同时处理400个请求
+		MaxMutatingRequestsInFlight:    200,                             // 默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
+		RequestTimeout:                 time.Duration(60) * time.Second, // 默认请求超时时间为60秒
+		MinRequestTimeout:              1800,                            // TODO
 		LivezGracePeriod:               time.Duration(0),
 		ShutdownDelayDuration:          time.Duration(0),
 		// 1.5MB is the default client request size in bytes
@@ -437,9 +442,11 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		StorageObjectCountTracker:           flowcontrolrequest.NewStorageObjectCountTracker(),
 		ShutdownWatchTerminationGracePeriod: time.Duration(0),
 
-		APIServerID:           id,
+		APIServerID: id,
+		// TODO StorageVersionManager干嘛用的？用于解决什么问题？
 		StorageVersionManager: storageversion.NewDefaultManager(),
-		TracerProvider:        tracing.NewNoopTracerProvider(),
+		// TODO 链路跟踪
+		TracerProvider: tracing.NewNoopTracerProvider(),
 	}
 }
 

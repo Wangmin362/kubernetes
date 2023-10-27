@@ -31,6 +31,7 @@ type Token interface {
 
 // Request attempts to extract authentication information from a request and
 // returns a Response or an error if the request could not be checked.
+// 1、认证器的核心目标是从请求当中抽取出认证信息，不同的认证方式会有不同的认证器从请求当中获取用户信息
 type Request interface {
 	AuthenticateRequest(req *http.Request) (*Response, bool, error)
 }

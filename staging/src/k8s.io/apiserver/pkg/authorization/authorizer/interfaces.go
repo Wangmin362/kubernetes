@@ -67,6 +67,10 @@ type Attributes interface {
 // Authorizer makes an authorization decision based on information gained by making
 // zero or more calls to methods of the Attributes interface.  It returns nil when an action is
 // authorized, otherwise it returns an error.
+// 1、APIServer中实现了：Node, ABAC, RBAC, Webhook, AlwaysDeny, AlwaysAllow这集中鉴权器
+// 2、APIServer在初始化过程中，会根据用户启用的鉴权模式，对所有启用的鉴权模式实例化一个鉴权器
+// 3、APIServer最终使用的鉴权器实际上是UnionAuthorizer，这玩意就一个鉴权器数组，在实际鉴权的时候，UnionAuthorizer把请求挨个
+// 交给其中的每一个鉴权器进行鉴权，只要其中一个鉴权器鉴权成功，就认为本次请求鉴权成功。
 type Authorizer interface {
 	Authorize(ctx context.Context, a Attributes) (authorized Decision, reason string, err error)
 }

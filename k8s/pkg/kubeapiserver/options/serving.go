@@ -26,11 +26,14 @@ import (
 // "normal" API servers running on the platform
 func NewSecureServingOptions() *genericoptions.SecureServingOptionsWithLoopback {
 	o := genericoptions.SecureServingOptions{
+		// TODO 默认APIServer监听0.0.0.0地址，这样所有的IP地址都可以和APIServer建立TCP连接
 		BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
 		BindPort:    6443,
 		Required:    true,
 		ServerCert: genericoptions.GeneratableKeyCert{
-			PairName:      "apiserver",
+			PairName: "apiserver",
+			// 对应到--cert-dir参数，只要我们通过--tls-cert-file参数以及--tls-private-key-file指定了APIServer使用的证书以及密钥
+			// 这个参数就会被忽略
 			CertDirectory: "/var/run/kubernetes",
 		},
 	}

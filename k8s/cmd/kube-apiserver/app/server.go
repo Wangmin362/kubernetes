@@ -93,6 +93,7 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
+	// TODO 实例化APIServer需要的参数,
 	s := options.NewServerRunOptions()
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -110,23 +111,31 @@ cluster's shared state through which all other components interact.`,
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 如果使用传入了-h、--help, -v都会打印当前参数，并退出，该操作会停止启动APIServer
 			verflag.PrintAndExitIfRequested()
+			// TODO 获取启动APIServer时传递的参数
 			fs := cmd.Flags()
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
+			// TODO
 			if err := logsapi.ValidateAndApply(s.Logs, utilfeature.DefaultFeatureGate); err != nil {
 				return err
 			}
+			// 在APIServer启动之前打印所有的参数
 			cliflag.PrintFlags(fs)
 
 			// set default options
+			// 1、设置AdvertiseAddress
+			// 2、根据用户设置的--service-cluster-ip-range参数计算出来kubernetes.default.svc的IP地址以及主从SVC地址范围
+			// 3、校验用户启用的认证模式，如果启用了AlwaysAllow的认证器，并且允许匿名用户访问，则允许匿名用户访问这个设置是多余的，会被设置为false
+			// 4、检查ServiceAccountSigningKeyFile配置以及Etcd.EnableWatchCache配置
 			completedOptions, err := Complete(s)
 			if err != nil {
 				return err
 			}
 
-			// validate options
+			// 验证参数
 			if errs := completedOptions.Validate(); len(errs) != 0 {
 				return utilerrors.NewAggregate(errs)
 			}
@@ -181,6 +190,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
+	//
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err
@@ -242,9 +252,11 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	[]admission.PluginInitializer,
 	error,
 ) {
+	// TODO 理解golang HTTP设计
 	proxyTransport := CreateProxyTransport()
 
-	genericConfig, versionedInformers, serviceResolver, pluginInitializers, admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
+	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
+		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -518,15 +530,24 @@ type completedServerRunOptions struct {
 
 // Complete set default ServerRunOptions.
 // Should be called after kube-apiserver flags parsed.
+// 1、设置AdvertiseAddress
+// 2、根据用户设置的--service-cluster-ip-range参数计算出来kubernetes.default.svc的IP地址以及主从SVC地址范围
+// 3、校验用户启用的认证模式，如果启用了AlwaysAllow的认证器，并且允许匿名用户访问，则允许匿名用户访问这个设置是多余的，会被设置为false
+// 4、检查ServiceAccountSigningKeyFile配置以及Etcd.EnableWatchCache配置
 func Complete(s *options.ServerRunOptions) (completedServerRunOptions, error) {
 	var options completedServerRunOptions
 	// set defaults
+	// TODO 根据安全服务设置AdvertiseAddress参数设置通用服务运行参数的AdvertiseAddress地址
 	if err := s.GenericServerRunOptions.DefaultAdvertiseAddress(s.SecureServing.SecureServingOptions); err != nil {
 		return options, err
 	}
 
 	// process s.ServiceClusterIPRange from list to Primary and Secondary
 	// we process secondary only if provided by user
+	// 1、通过用户设置的Service IP地址范围解析出apiServerServiceIP, primaryServiceIPRange, secondaryServiceIPRange
+	// 2、K8S是可以支持双栈的，也就是说我们可以同时启用IPv4协议栈和IPv6协议栈，只需要通过--service-cluster-ip-range参数同时配置
+	// 两个协议栈的Service地址范围即可
+	// 3、K8S会分配SVC地址范围的第一个地址给名字为kubernetes.default.svc
 	apiServerServiceIP, primaryServiceIPRange, secondaryServiceIPRange, err := getServiceIPAndRanges(s.ServiceClusterIPRanges)
 	if err != nil {
 		return options, err
@@ -552,6 +573,7 @@ func Complete(s *options.ServerRunOptions) (completedServerRunOptions, error) {
 		klog.Infof("external host was not specified, using %v", s.GenericServerRunOptions.ExternalHost)
 	}
 
+	// 校验用户启用的认证模式，如果启用了AlwaysAllow的认证器，并且允许匿名用户访问，则允许匿名用户访问这个设置是多余的，会被设置为false
 	s.Authentication.ApplyAuthorization(s.Authorization)
 
 	// Use (ServiceAccountSigningKeyFile != "") as a proxy to the user enabling

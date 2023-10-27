@@ -40,6 +40,7 @@ import (
 )
 
 // ServerRunOptions runs a kubernetes api server.
+// 1、APIServer的运行参数，这些参数是通过命令行参数传递过来
 type ServerRunOptions struct {
 	GenericServerRunOptions *genericoptions.ServerRunOptions
 	Etcd                    *genericoptions.EtcdOptions
@@ -66,6 +67,7 @@ type ServerRunOptions struct {
 	ServiceClusterIPRanges string
 	// PrimaryServiceClusterIPRange and SecondaryServiceClusterIPRange are the results
 	// of parsing ServiceClusterIPRange into actual values
+	// TODO 这两个参数的作用
 	PrimaryServiceClusterIPRange   net.IPNet
 	SecondaryServiceClusterIPRange net.IPNet
 	// APIServerServiceIP is the first valid IP from PrimaryServiceClusterIPRange
@@ -92,20 +94,35 @@ type ServerRunOptions struct {
 // NewServerRunOptions creates a new ServerRunOptions object with default parameters
 func NewServerRunOptions() *ServerRunOptions {
 	s := ServerRunOptions{
+		// 通用配置，其中的值是通过实例化了一个默认的GenericAPIServer配置，然后拷贝其默认值到此配置当中
 		GenericServerRunOptions: genericoptions.NewServerRunOptions(),
-		Etcd:                    genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
-		SecureServing:           kubeoptions.NewSecureServingOptions(),
-		Audit:                   genericoptions.NewAuditOptions(),
-		Features:                genericoptions.NewFeatureOptions(),
-		Admission:               kubeoptions.NewAdmissionOptions(),
-		Authentication:          kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
-		Authorization:           kubeoptions.NewBuiltInAuthorizationOptions(),
-		CloudProvider:           kubeoptions.NewCloudProviderOptions(),
-		APIEnablement:           genericoptions.NewAPIEnablementOptions(),
-		EgressSelector:          genericoptions.NewEgressSelectorOptions(),
-		Metrics:                 metrics.NewOptions(),
-		Logs:                    logs.NewOptions(),
-		Traces:                  genericoptions.NewTracingOptions(),
+		// ETCD相关配置，譬如APIServer访问ETCD使用的证书，以及ETCD的服务器根证书
+		// TODO 猜测这里的存储后端是一个抽象接口，让我们可以选择把数据存入其它数据库当中
+		Etcd: genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
+		// 安全服务配置，用于设置APIServer监听的地址、端口以及提供HTTPS所使用的证书
+		SecureServing: kubeoptions.NewSecureServingOptions(),
+		// 审计配置，审计功能解决了APIServer持久化审计事件，方便K8S用户溯源
+		Audit: genericoptions.NewAuditOptions(),
+		// 特性配置，主要用户Debug K8S, 查看K8S的性能
+		Features: genericoptions.NewFeatureOptions(),
+		// 准入控制配置
+		Admission: kubeoptions.NewAdmissionOptions(),
+		// 认证参数
+		Authentication: kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),
+		// 鉴权参数
+		Authorization: kubeoptions.NewBuiltInAuthorizationOptions(),
+		// TODO CloudProvider配置
+		CloudProvider: kubeoptions.NewCloudProviderOptions(),
+		// 用于启用或者禁用K8S的API
+		APIEnablement: genericoptions.NewAPIEnablementOptions(),
+		// TODO Konnectivity配置
+		EgressSelector: genericoptions.NewEgressSelectorOptions(),
+		// APIServer Metric指标
+		Metrics: metrics.NewOptions(),
+		// APIServer的日志配置
+		Logs: logs.NewOptions(),
+		// TODO 链路追踪
+		Traces: genericoptions.NewTracingOptions(),
 
 		EnableLogsHandler:      true,
 		EventTTL:               1 * time.Hour,

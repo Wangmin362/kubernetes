@@ -31,6 +31,7 @@ type SecureServingOptionsWithLoopback struct {
 	*SecureServingOptions
 }
 
+// TODO K8S当中的Loopback代表了什么含义？
 func (o *SecureServingOptions) WithLoopback() *SecureServingOptionsWithLoopback {
 	return &SecureServingOptionsWithLoopback{o}
 }

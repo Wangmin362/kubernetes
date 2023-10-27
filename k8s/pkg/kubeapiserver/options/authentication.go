@@ -460,6 +460,7 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		return errors.New("uninitialized OpenAPIConfig")
 	}
 
+	// 根据用户配置的参数生成认证配置
 	authenticatorConfig, err := o.ToAuthenticationConfig()
 	if err != nil {
 		return err

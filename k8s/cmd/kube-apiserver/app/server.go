@@ -493,6 +493,7 @@ func buildGenericConfig(
 
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
+	// TODO StorageFactoryConfig
 	storageFactory, lastErr = storageFactoryConfig.Complete(s.Etcd).New()
 	if lastErr != nil {
 		return
@@ -505,6 +506,7 @@ func buildGenericConfig(
 	// Since not every generic apiserver has to support protobufs, we
 	// cannot default to it in generic apiserver and need to explicitly
 	// set it in kube-apiserver.
+	// TODO content-type为什么是这个？有啥用？
 	genericConfig.LoopbackClientConfig.ContentConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	// Disable compression for self-communication, since we are going to be
 	// on a fast local network
@@ -516,6 +518,7 @@ func buildGenericConfig(
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
 		return
 	}
+	// TODO 分析ShardInformer
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present

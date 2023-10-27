@@ -30,6 +30,7 @@ import (
 
 // APIEnablementOptions contains the options for which resources to turn on and off.
 // Given small aggregated API servers, this option isn't required for "normal" API servers
+// 用于用户设置启用/禁用API
 type APIEnablementOptions struct {
 	RuntimeConfig cliflag.ConfigurationMap
 }
@@ -92,6 +93,7 @@ func (s *APIEnablementOptions) ApplyTo(c *server.Config, defaultResourceConfig *
 		return nil
 	}
 
+	// TODO 这里为什么需要registry
 	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
 	c.MergedResourceConfig = mergedResourceConfig
 

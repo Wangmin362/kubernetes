@@ -28,9 +28,13 @@ type APIResourceConfigSource interface {
 
 var _ APIResourceConfigSource = &ResourceConfig{}
 
+// ResourceConfig 用于表示GV的启用/禁用，或者是GVR的启用/禁用
 type ResourceConfig struct {
+	// 1、启用的GV。显然相较于ResourceConfigs，GroupVersionConfigs是一个大一点的配置，一个GV被启用之后，此GV底下的所有资源肯定都是启用的。
+	// 同理，一个GV被禁用之后，此GV底下的所有GV默认都是禁用的。
 	GroupVersionConfigs map[schema.GroupVersion]bool
-	ResourceConfigs     map[schema.GroupVersionResource]bool
+	// 2、用于标识一个GVR的启用/禁用
+	ResourceConfigs map[schema.GroupVersionResource]bool
 }
 
 func NewResourceConfig() *ResourceConfig {

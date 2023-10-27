@@ -96,20 +96,25 @@ const (
 // Config is a structure used to configure a GenericAPIServer.
 // Its members are sorted roughly in order of importance for composers.
 // 1、GenericAPIServer的配置  TODO 思考K8S开发者认为GenericAPIServer应该有哪些能力？对于普通开发者我们可以通过GenericAPIServer干什么？
+// 2、此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、流控（也就是限速）、审计、链路追踪配置
 type Config struct {
 	// SecureServing is required to serve https
+	// 提供HTTPS服务配置，主要有监听地址，监听端口、证书
 	SecureServing *SecureServingInfo
 
 	// Authentication is the configuration for authentication
+	// 认证相关配置
 	Authentication AuthenticationInfo
 
 	// Authorization is the configuration for authorization
+	// 鉴权相关配置
 	Authorization AuthorizationInfo
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
 	// This is required for proper functioning of the PostStartHooks on a GenericAPIServer
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
-	// 可以理解为是kubeconfig文件，其目的就是告诉客户端如何连接服务器，以及以什么样的身份连接服务器
+	// 1、可以理解为是KubeConfig文件，其目的就是告诉客户端如何连接服务器，以及以什么样的身份连接服务器
+	// 2、这里的Loopback实际上指的是机器的回环网卡，也就是说这里的配置主要用于向本地的回环网卡发送数据
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
@@ -237,6 +242,8 @@ type Config struct {
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
 	// This is composed of genericapiserver defaultAPIResourceConfig and those parsed from flags.
 	// If not specify any in flags, then genericapiserver will only enable defaultAPIResourceConfig.
+	// 1、用于表示GV的启用/禁用，或者是GVR的启用/禁用
+	// 2、通过MergedResourceConfig，我们可以知道某个资源是否被启用，还是被禁用
 	MergedResourceConfig *serverstore.ResourceConfig
 
 	// lifecycleSignals provides access to the various signals
@@ -346,8 +353,10 @@ type AuthenticationInfo struct {
 	// used by some authenticators to validate audience bound credentials.
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
+	// 认证器，请求进来时就由这里的认证器完成认证
 	Authenticator authenticator.Request
 
+	// 代理认证
 	RequestHeaderConfig *authenticatorfactory.RequestHeaderConfig
 }
 
@@ -362,6 +371,8 @@ func init() {
 }
 
 // NewConfig returns a Config struct with the default values
+// 1、此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、流控（也就是限速）、审计、链路追踪配置
+// 2、NewConfig在这里主要是为了创建一个默认配置，仅仅会设置一些默认参数，用户配置的参数还没有赋值
 func NewConfig(codecs serializer.CodecFactory) *Config {
 	// TODO 这玩意有啥用？
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
@@ -403,12 +414,12 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		LegacyAPIGroupPrefixes:         sets.NewString(DefaultLegacyAPIPrefix),
 		DisabledPostStartHooks:         sets.NewString(),
 		PostStartHooks:                 map[string]PostStartHookConfigEntry{},
-		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...),
-		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...),
-		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...),
-		EnableIndex:                    true, // TODO
-		EnableDiscovery:                true, // TODO
-		EnableProfiling:                true, // TODO
+		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 健康检测
+		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 就绪检测
+		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 存活检测
+		EnableIndex:                    true,                                                      // TODO
+		EnableDiscovery:                true,                                                      // TODO
+		EnableProfiling:                true,                                                      // TODO
 		DebugSocketPath:                "",
 		EnableMetrics:                  true,
 		MaxRequestsInFlight:            400,                             // 默认APIServer每秒钟最多只能同时处理400个请求

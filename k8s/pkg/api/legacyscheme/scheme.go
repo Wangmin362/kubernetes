@@ -27,6 +27,7 @@ var (
 	// extensions group instead. This Scheme is special and should appear ONLY in
 	// the api group, unless you really know what you're doing.
 	// TODO(lavalamp): make the above error impossible.
+	// 这里说的Legacy资源其实就是核心资源
 	Scheme = runtime.NewScheme()
 
 	// Codecs provides access to encoding and decoding for the scheme

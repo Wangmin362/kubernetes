@@ -31,17 +31,19 @@ type SecureServingOptionsWithLoopback struct {
 	*SecureServingOptions
 }
 
-// TODO K8S当中的Loopback代表了什么含义？
+// WithLoopback Loopback实际上就是回环网卡，这里主要是想在物理机上通过回环网卡请求自己
 func (o *SecureServingOptions) WithLoopback() *SecureServingOptionsWithLoopback {
 	return &SecureServingOptionsWithLoopback{o}
 }
 
 // ApplyTo fills up serving information in the server configuration.
+// TODO secureServingInfo为什么要使用二级指针？
 func (s *SecureServingOptionsWithLoopback) ApplyTo(secureServingInfo **server.SecureServingInfo, loopbackClientConfig **rest.Config) error {
 	if s == nil || s.SecureServingOptions == nil || secureServingInfo == nil {
 		return nil
 	}
 
+	// 初始化启动HTTPS相关的参数
 	if err := s.SecureServingOptions.ApplyTo(secureServingInfo); err != nil {
 		return err
 	}

@@ -188,6 +188,32 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 	return prepared.Run(stopCh)
 }
 
+//                          Request
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |          AggregatorServer		        |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-----------|-------------+      |
+//          +------------------|--------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |              APIServer		        |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-----------|-------------+      |
+//          +------------------|--------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |           ExtensionServer             |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-------------------------+      |
+//          +---------------------------------------+
+
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
 	//
@@ -245,6 +271,32 @@ func CreateProxyTransport() *http.Transport {
 	return proxyTransport
 }
 
+//                          Request
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |          AggregatorServer		        |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-----------|-------------+      |
+//          +------------------|--------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |              APIServer		        |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-----------|-------------+      |
+//          +------------------|--------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |           ExtensionServer             |
+//          |      +-----------↓-------------+      |
+//			|      |    GenericAPIServer     |      |
+//          |      +-------------------------+      |
+//          +---------------------------------------+
+
 // CreateKubeAPIServerConfig creates all the resources for running the API server, but runs none of them
 func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	*controlplane.Config,
@@ -253,8 +305,11 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	error,
 ) {
 	// TODO 理解golang HTTP设计
+	// Transport用于完成HTTP数据解析
 	proxyTransport := CreateProxyTransport()
 
+	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的
+	// 2、在KubeAPIServer当中，APIServer, ExtensionServer, AggregatedServer都是GenericServer
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
 		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
@@ -352,8 +407,8 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 
 // BuildGenericConfig takes the master server options and produces the genericapiserver.Config associated with it
 func buildGenericConfig(
-	s *options.ServerRunOptions,
-	proxyTransport *http.Transport,
+	s *options.ServerRunOptions, // 此参数为用户启动KubeAPIServer传入的参数
+	proxyTransport *http.Transport, // 此参数用于完成HTTP协议的解析
 ) (
 	genericConfig *genericapiserver.Config,
 	versionedInformers clientgoinformers.SharedInformerFactory,
@@ -363,38 +418,56 @@ func buildGenericConfig(
 	storageFactory *serverstorage.DefaultStorageFactory,
 	lastErr error,
 ) {
-	// 1、生成APIServer的通用配置相当重要，里面配置了K8S的认证、鉴权流程
+	// 1、生成GenericServer配置，此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、
+	// 流控（也就是限速）、审计、链路追踪配置
+	// 2、这里生成的配置仅仅是初始化配置，仅仅会设置一些默认参数，用户配置的参数还没有赋值
+	// 3、TODO 这里比较重要的就是其中配置了请求处理链
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
+
+	// 后续开始给初始化GenericServerConfig配置
+
+	// 1、MergedResourceConfig用于表示GV的启用/禁用，或者是GVR的启用/禁用
+	// 2、通过MergedResourceConfig，我们可以知道某个资源是否被启用，还是被禁用
+	// 3、这里在设置默认的启用或禁用的GVR，启用所有处于稳定版本的GRV，禁用所有处于Alpha/Beta版本的资源（但是启用流控相关的GVR）
 	genericConfig.MergedResourceConfig = controlplane.DefaultAPIResourceConfigSource()
 
+	// 利用GenericServerRunOptions参数初始化GenericServerConfig某些参数
 	if lastErr = s.GenericServerRunOptions.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
 
+	// 利用用户设置的SecureServing参数初始化GenericServerConfig配置的HTTPS服务启动参数、回环客户端参数
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
+	// 给GenericServerConfig配置一些特性相关的参数
 	if lastErr = s.Features.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
+	// 设置启用/禁用的资源
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); lastErr != nil {
 		return
 	}
+	// TODO 和Konnectity相关
 	if lastErr = s.EgressSelector.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
+
+	// 如果启用的APIServer链路追踪的功能，就初始化链路追踪配置 TODO OTLP
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		if lastErr = s.Traces.ApplyTo(genericConfig.EgressSelector, genericConfig); lastErr != nil {
 			return
 		}
 	}
 	// wrap the definitions to revert any changes from disabled features
+	// TODO Swagger是不是和这里相关
 	getOpenAPIDefinitions := openapi.GetOpenAPIDefinitionsWithoutDisabledFeatures(generatedopenapi.GetOpenAPIDefinitions)
 	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(getOpenAPIDefinitions, openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIConfig.Info.Title = "Kubernetes"
 	genericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(getOpenAPIDefinitions, openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIV3Config.Info.Title = "Kubernetes"
 
+	// TODO 这里的长时间运行的请求为什么要单独处理，K8S又是怎样处理的？
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
 		sets.NewString("watch", "proxy"),
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"),
@@ -403,9 +476,12 @@ func buildGenericConfig(
 	kubeVersion := version.Get()
 	genericConfig.Version = &kubeVersion
 
+	// TODO Konnectity为什么和ETCD还有关系
 	if genericConfig.EgressSelector != nil {
 		s.Etcd.StorageConfig.Transport.EgressLookup = genericConfig.EgressSelector.Lookup
 	}
+
+	// 启用了链路追踪，还需要跟踪ETCD处理请求
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		s.Etcd.StorageConfig.Transport.TracerProvider = genericConfig.TracerProvider
 	} else {

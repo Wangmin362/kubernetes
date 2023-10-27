@@ -743,16 +743,21 @@ var (
 )
 
 // DefaultAPIResourceConfigSource returns default configuration for an APIResource.
+// 启用所有处于稳定版本的GRV，禁用所有处于Alpha/Beta版本的资源（但是启用流控相关的GVR）
 func DefaultAPIResourceConfigSource() *serverstorage.ResourceConfig {
 	ret := serverstorage.NewResourceConfig()
 	// NOTE: GroupVersions listed here will be enabled by default. Don't put alpha or beta versions in the list.
+	// 默认启用所有处于稳定版本的GRV
 	ret.EnableVersions(stableAPIGroupVersionsEnabledByDefault...)
 
 	// disable alpha and beta versions explicitly so we have a full list of what's possible to serve
+	// 默认禁用所有处于beta版本的GRV
 	ret.DisableVersions(betaAPIGroupVersionsDisabledByDefault...)
+	// 默认禁用处于alpha的GRV
 	ret.DisableVersions(alphaAPIGroupVersionsDisabledByDefault...)
 
 	// enable the legacy beta resources that were present before stopped serving new beta APIs by default.
+	// 启用流控相关的GRV
 	ret.EnableResources(legacyBetaEnabledByDefaultResources...)
 
 	return ret

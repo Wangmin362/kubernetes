@@ -64,9 +64,11 @@ type SecureServingOptions struct {
 	SNICertKeys []cliflag.NamedCertKey
 	// CipherSuites is the list of allowed cipher suites for the server.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// 支持的TLS加密套件
 	CipherSuites []string
 	// MinTLSVersion is the minimum TLS version supported.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// 设置APIServer最低支持的TLS版本
 	MinTLSVersion string
 
 	// HTTP2MaxStreamsPerConnection is the limit that the api server imposes on each client.
@@ -234,9 +236,11 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 		c := net.ListenConfig{}
 
 		ctls := multipleControls{}
+		// TODO 共享端口啥意思
 		if s.PermitPortSharing {
 			ctls = append(ctls, permitPortReuse)
 		}
+		// TODO 共享IP地址是啥意思？
 		if s.PermitAddressSharing {
 			ctls = append(ctls, permitAddressReuse)
 		}
@@ -264,6 +268,7 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 
 	serverCertFile, serverKeyFile := s.ServerCert.CertKey.CertFile, s.ServerCert.CertKey.KeyFile
 	// load main cert
+	// APIServer需要提供HTTPS服务，因此需要配置证书以及私钥
 	if len(serverCertFile) != 0 || len(serverKeyFile) != 0 {
 		var err error
 		c.Cert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)

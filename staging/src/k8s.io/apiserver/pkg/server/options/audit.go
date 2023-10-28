@@ -286,7 +286,7 @@ func (o *AuditOptions) ApplyTo(
 		return fmt.Errorf("server config must be non-nil")
 	}
 
-	// 1. Build policy evaluator
+	// 1. Build policy evaluator 构建审计策略评估器
 	evaluator, err := o.newPolicyRuleEvaluator()
 	if err != nil {
 		return err

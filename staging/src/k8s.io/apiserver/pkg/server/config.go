@@ -115,6 +115,7 @@ type Config struct {
 	// TODO: move into SecureServing(WithLoopback) as soon as insecure serving is gone
 	// 1、可以理解为是KubeConfig文件，其目的就是告诉客户端如何连接服务器，以及以什么样的身份连接服务器
 	// 2、这里的Loopback实际上指的是机器的回环网卡，也就是说这里的配置主要用于向本地的回环网卡发送数据
+	// TODO 3、K8S用这个客户端做了什么事情？
 	LoopbackClientConfig *restclient.Config
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
@@ -141,6 +142,7 @@ type Config struct {
 	EnableContentionProfiling bool
 	EnableMetrics             bool
 
+	// TODO PostStartHook在什么时候点被调用？一般如何使用？最佳实践是什么？
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
 	PostStartHooks map[string]PostStartHookConfigEntry
@@ -351,9 +353,14 @@ type SecureServingInfo struct {
 type AuthenticationInfo struct {
 	// APIAudiences is a list of identifier that the API identifies as. This is
 	// used by some authenticators to validate audience bound credentials.
+	// TODO 这个参数是给OIDC这类的认证器使用的
 	APIAudiences authenticator.Audiences
 	// Authenticator determines which subject is making the request
-	// 认证器，请求进来时就由这里的认证器完成认证
+	// 1、认证器，请求进来时就由这里的认证器完成认证
+	// 2、实际上，这里的认证器是一个UnionAuthenticator，K8S对于用户启用的每个认证模式，都会实例化对应的认证器用于认证特定的模式。
+	// 请求到来时，我们需要把请求依次给每个认证器认证一次，但凡有一个认证器认证通过，那么就认为当前请求认证通过。
+	// 3、认证的核心目标就是判断当前发出请求的用户是否是系统认可的用户，如果认可，认证器需要在请求上下文中添加User, Group信息，方便
+	// 后续鉴权器进行鉴权
 	Authenticator authenticator.Request
 
 	// 代理认证

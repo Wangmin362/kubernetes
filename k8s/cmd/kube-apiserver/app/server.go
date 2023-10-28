@@ -175,6 +175,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 
 	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
+	// 1、这里所说的ServerChain其实指的是AggregatorServer, APIServer, ExtensionServer，这三个Server
 	server, err := CreateServerChain(completeOptions)
 	if err != nil {
 		return err
@@ -491,6 +492,7 @@ func buildGenericConfig(
 		return
 	}
 
+	// TODO APIServer的存储系统这一节必须得好好分析分析
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
 	// TODO StorageFactoryConfig
@@ -513,6 +515,7 @@ func buildGenericConfig(
 	genericConfig.LoopbackClientConfig.DisableCompression = true
 
 	kubeClientConfig := genericConfig.LoopbackClientConfig
+	// TODO 为什么叫做ExternalClient? 这是为了和LoopbackClient做区分么？
 	clientgoExternalClient, err := clientgoclientset.NewForConfig(kubeClientConfig)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
@@ -522,19 +525,26 @@ func buildGenericConfig(
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
-	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector, genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
+	// 1、这里主要还是在初始化认证参数，仅仅实例化了BootstrapToken认证器，其余的认证器并没有实例化
+	// 2、所有的认证器初始化完成之后，会实例化一个UnionAuthenticator，用于包装所有的认证器。
+	// TODO 那么其它认证模式的认证器在什么地方初始化的？
+	if lastErr = s.Authentication.ApplyTo(&genericConfig.Authentication, genericConfig.SecureServing, genericConfig.EgressSelector,
+		genericConfig.OpenAPIConfig, genericConfig.OpenAPIV3Config, clientgoExternalClient, versionedInformers); lastErr != nil {
 		return
 	}
 
+	// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver, err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
 		lastErr = fmt.Errorf("invalid authorization config: %v", err)
 		return
 	}
+	// 如果没有启用RBAC模式，那么需要禁用名为rbac/bootstrap-roles的PostStartHook
 	if !sets.NewString(s.Authorization.Modes...).Has(modes.ModeRBAC) {
 		genericConfig.DisabledPostStartHooks.Insert(rbacrest.PostStartHookName)
 	}
 
+	// TODO 审计配置
 	lastErr = s.Audit.ApplyTo(genericConfig)
 	if lastErr != nil {
 		return
@@ -545,7 +555,9 @@ func buildGenericConfig(
 		LoopbackClientConfig: genericConfig.LoopbackClientConfig,
 		CloudConfigFile:      s.CloudProvider.CloudConfigFile,
 	}
+	// 所谓的服务解析器实际上就是把一个Service
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
+	// TODO 这玩意是干嘛的
 	schemaResolver := resolver.NewDefinitionsSchemaResolver(k8sscheme.Scheme, genericConfig.OpenAPIConfig.GetDefinitions)
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider, schemaResolver)
 	if err != nil {
@@ -575,7 +587,9 @@ func buildGenericConfig(
 }
 
 // BuildAuthorizer constructs the authorizer
+// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
 func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector, versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
+	// 生成认证配置
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 
 	if EgressSelector != nil {
@@ -586,6 +600,7 @@ func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector
 		authorizationConfig.CustomDial = egressDialer
 	}
 
+	// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
 	return authorizationConfig.New()
 }
 

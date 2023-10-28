@@ -43,6 +43,7 @@ import (
 type AuthenticationInfoResolverWrapper func(AuthenticationInfoResolver) AuthenticationInfoResolver
 
 // NewDefaultAuthenticationInfoResolverWrapper builds a default authn resolver wrapper
+// TODO 如何理解这个包装器，包装了什么？
 func NewDefaultAuthenticationInfoResolverWrapper(
 	proxyTransport *http.Transport,
 	egressSelector *egressselector.EgressSelector,
@@ -109,6 +110,7 @@ func NewDefaultAuthenticationInfoResolverWrapper(
 
 // AuthenticationInfoResolver builds rest.Config base on the server or service
 // name and service namespace.
+// TODO AuthenticationInfoResolver是干嘛的？ 为什么需要？完成了什么功能？
 type AuthenticationInfoResolver interface {
 	// ClientConfigFor builds rest.Config based on the hostPort.
 	ClientConfigFor(hostPort string) (*rest.Config, error)
@@ -118,6 +120,7 @@ type AuthenticationInfoResolver interface {
 }
 
 // AuthenticationInfoResolverDelegator implements AuthenticationInfoResolver.
+// 这玩意实际上就是一个包装器
 type AuthenticationInfoResolverDelegator struct {
 	ClientConfigForFunc        func(hostPort string) (*rest.Config, error)
 	ClientConfigForServiceFunc func(serviceName, serviceNamespace string, servicePort int) (*rest.Config, error)

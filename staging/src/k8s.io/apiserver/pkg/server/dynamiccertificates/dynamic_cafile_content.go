@@ -73,6 +73,7 @@ type caBundleAndVerifier struct {
 }
 
 // NewDynamicCAContentFromFile returns a CAContentProvider based on a filename that automatically reloads content
+// TODO 仔细分析
 func NewDynamicCAContentFromFile(purpose, filename string) (*DynamicFileCAContent, error) {
 	if len(filename) == 0 {
 		return nil, fmt.Errorf("missing filename for ca bundle")

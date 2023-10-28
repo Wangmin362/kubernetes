@@ -82,6 +82,7 @@ func (f AuthorizerFunc) Authorize(ctx context.Context, a Attributes) (Decision, 
 }
 
 // RuleResolver provides a mechanism for resolving the list of rules that apply to a given user within a namespace.
+// TODO 如何理解RuleResolver这种设计？
 type RuleResolver interface {
 	// RulesFor get the list of cluster wide rules, the list of rules in the specific namespace, incomplete status and errors.
 	RulesFor(user user.Info, namespace string) ([]ResourceRuleInfo, []NonResourceRuleInfo, bool, error)

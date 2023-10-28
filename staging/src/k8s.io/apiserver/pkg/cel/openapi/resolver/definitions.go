@@ -28,6 +28,7 @@ import (
 
 // DefinitionsSchemaResolver resolves the schema of a built-in type
 // by looking up the OpenAPI definitions.
+// TODO 这玩意干嘛的？
 type DefinitionsSchemaResolver struct {
 	defs        map[string]common.OpenAPIDefinition
 	gvkToSchema map[schema.GroupVersionKind]*spec.Schema

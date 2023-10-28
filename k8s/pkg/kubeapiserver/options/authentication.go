@@ -375,6 +375,7 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 }
 
 // ToAuthenticationConfig convert BuiltInAuthenticationOptions to kubeauthenticator.Config
+// 1、这里主要是在初始化认证配置，并没有实例化认证器
 func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticator.Config, error) {
 	ret := kubeauthenticator.Config{
 		TokenSuccessCacheTTL: o.TokenSuccessCacheTTL,
@@ -385,10 +386,12 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		ret.Anonymous = o.Anonymous.Allow
 	}
 
+	// 是否启用BootstrapToken这种认证方式
 	if o.BootstrapToken != nil {
 		ret.BootstrapToken = o.BootstrapToken.Enable
 	}
 
+	// X509证书认证，一般都会开启这个选项，所以肯定会初始化ClientCAContentProvider
 	if o.ClientCert != nil {
 		var err error
 		ret.ClientCAContentProvider, err = o.ClientCert.GetClientCAContentProvider()
@@ -427,6 +430,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		ret.ServiceAccountLookup = o.ServiceAccounts.Lookup
 	}
 
+	// BearerToken认证
 	if o.TokenFile != nil {
 		ret.TokenAuthFile = o.TokenFile.TokenFile
 	}
@@ -451,26 +455,37 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 }
 
 // ApplyTo requires already applied OpenAPIConfig and EgressSelector if present.
-func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.AuthenticationInfo, secureServing *genericapiserver.SecureServingInfo, egressSelector *egressselector.EgressSelector, openAPIConfig *openapicommon.Config, openAPIV3Config *openapicommon.Config, extclient kubernetes.Interface, versionedInformer informers.SharedInformerFactory) error {
+// 这里主要还是在初始化认证参数，仅仅实例化了BootstrapToken认证器，其余的认证器并没有实例化
+func (o *BuiltInAuthenticationOptions) ApplyTo(
+	authInfo *genericapiserver.AuthenticationInfo,
+	secureServing *genericapiserver.SecureServingInfo,
+	egressSelector *egressselector.EgressSelector,
+	openAPIConfig *openapicommon.Config,
+	openAPIV3Config *openapicommon.Config,
+	extclient kubernetes.Interface,
+	versionedInformer informers.SharedInformerFactory) error {
 	if o == nil {
 		return nil
 	}
 
+	// TODO 为什么需要OpenAPI
 	if openAPIConfig == nil {
 		return errors.New("uninitialized OpenAPIConfig")
 	}
 
-	// 根据用户配置的参数生成认证配置
+	// 根据用户配置的参数生成认证配置，这里仅仅是初始化认证配置，并没有做认证器的初始化
 	authenticatorConfig, err := o.ToAuthenticationConfig()
 	if err != nil {
 		return err
 	}
 
+	// TODO 分析这里的作用
 	if authenticatorConfig.ClientCAContentProvider != nil {
 		if err = authInfo.ApplyClientCert(authenticatorConfig.ClientCAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
 	}
+	// TODO 分析这里的作用
 	if authenticatorConfig.RequestHeaderConfig != nil && authenticatorConfig.RequestHeaderConfig.CAContentProvider != nil {
 		if err = authInfo.ApplyClientCert(authenticatorConfig.RequestHeaderConfig.CAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
@@ -483,6 +498,9 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 		authInfo.APIAudiences = authenticator.Audiences(o.ServiceAccounts.Issuers)
 	}
 
+	// 1、ServiceAccount这种认证方式需要关心Pod, ServiceAccount, Secret这三种资源。之所以要关心Pod，是因为进行ServiceAccount认证的
+	// 就只有Pod，而ServiceAccount这种认证方式是通过给Pod指定ServiceAccount资源赋予权限，因此需要监听ServiceAccount的变化。另外，
+	// ServiceAccount这种认证方式的token是从Secret当中获取的，所以需要监听Secret
 	authenticatorConfig.ServiceAccountTokenGetter = serviceaccountcontroller.NewGetterFromClient(
 		extclient,
 		versionedInformer.Core().V1().Secrets().Lister(),
@@ -491,10 +509,16 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(authInfo *genericapiserver.Authen
 	)
 	authenticatorConfig.SecretsWriter = extclient.CoreV1()
 
+	// 1、BootstrapToken这种认证方式是通过比较类型为bootstrap.kubernetes.io/token的Secret,并且这个Secret是在kube-system名称空间
+	// 所以BootstrapToken这种认证方式需要监听kube-system名称空间下的Secret
+	// 2、实际上BootstrapToken所使用的Secret的名字也是有固定格式的，必须是bootstrap-token-<token id>这种格式，所以这里肯定在拿到
+	// Secret之后一定做了依次过滤
+	// 3、实例化BootstrapToken认证器
 	authenticatorConfig.BootstrapTokenAuthenticator = bootstrap.NewTokenAuthenticator(
 		versionedInformer.Core().V1().Secrets().Lister().Secrets(metav1.NamespaceSystem),
 	)
 
+	// TODO 分析Konnectivity
 	if egressSelector != nil {
 		egressDialer, err := egressSelector.Lookup(egressselector.ControlPlane.AsNetworkContext())
 		if err != nil {

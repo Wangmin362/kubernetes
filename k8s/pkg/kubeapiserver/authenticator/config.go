@@ -54,20 +54,28 @@ type Config struct {
 	Anonymous      bool
 	BootstrapToken bool
 
-	TokenAuthFile               string
-	OIDCIssuerURL               string
-	OIDCClientID                string
-	OIDCCAFile                  string
-	OIDCUsernameClaim           string
-	OIDCUsernamePrefix          string
-	OIDCGroupsClaim             string
-	OIDCGroupsPrefix            string
-	OIDCSigningAlgs             []string
-	OIDCRequiredClaims          map[string]string
-	ServiceAccountKeyFiles      []string
-	ServiceAccountLookup        bool
-	ServiceAccountIssuers       []string
-	APIAudiences                authenticator.Audiences
+	// BearerToken认证配置文件
+	TokenAuthFile string
+
+	// OIDC认证参数
+	OIDCIssuerURL      string
+	OIDCClientID       string
+	OIDCCAFile         string
+	OIDCUsernameClaim  string
+	OIDCUsernamePrefix string
+	OIDCGroupsClaim    string
+	OIDCGroupsPrefix   string
+	OIDCSigningAlgs    []string
+	OIDCRequiredClaims map[string]string
+
+	// ServiceAccount认证参数
+	ServiceAccountKeyFiles []string
+	ServiceAccountLookup   bool
+	ServiceAccountIssuers  []string
+
+	APIAudiences authenticator.Audiences
+
+	// Webhook认证参数
 	WebhookTokenAuthnConfigFile string
 	WebhookTokenAuthnVersion    string
 	WebhookTokenAuthnCacheTTL   time.Duration
@@ -79,15 +87,19 @@ type Config struct {
 	TokenSuccessCacheTTL time.Duration
 	TokenFailureCacheTTL time.Duration
 
+	// 代理认证参数
 	RequestHeaderConfig *authenticatorfactory.RequestHeaderConfig
 
 	// TODO, this is the only non-serializable part of the entire config.  Factor it out into a clientconfig
-	ServiceAccountTokenGetter   serviceaccount.ServiceAccountTokenGetter
-	SecretsWriter               typedv1core.SecretsGetter
+	ServiceAccountTokenGetter serviceaccount.ServiceAccountTokenGetter
+	SecretsWriter             typedv1core.SecretsGetter
+
+	// BootstrapToken认证器，BootstrapToken认证这种方式本身就是BearerToken这种认证方式
 	BootstrapTokenAuthenticator authenticator.Token
 	// ClientCAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this value is nil, then mutual TLS is disabled.
+	// TODO 分析这玩意的工作原理
 	ClientCAContentProvider dynamiccertificates.CAContentProvider
 
 	// Optional field, custom dial function used to connect to webhook

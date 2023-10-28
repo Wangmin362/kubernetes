@@ -48,8 +48,16 @@ type Config struct {
 }
 
 // New sets up the plugins and admission start hooks needed for admission
-func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselector.EgressSelector, serviceResolver webhook.ServiceResolver, tp trace.TracerProvider, schemaResolver resolver.SchemaResolver) ([]admission.PluginInitializer, genericapiserver.PostStartHookFunc, error) {
+func (c *Config) New(
+	proxyTransport *http.Transport,
+	egressSelector *egressselector.EgressSelector,
+	serviceResolver webhook.ServiceResolver,
+	tp trace.TracerProvider,
+	schemaResolver resolver.SchemaResolver,
+) ([]admission.PluginInitializer, genericapiserver.PostStartHookFunc, error) {
+	// TODO 分析这个包装器的作用
 	webhookAuthResolverWrapper := webhook.NewDefaultAuthenticationInfoResolverWrapper(proxyTransport, egressSelector, c.LoopbackClientConfig, tp)
+	// webhookPluginInitializer主要是为了给webhook插件初始化serviceResolver以及authenticationInfoResolver
 	webhookPluginInitializer := webhookinit.NewPluginInitializer(webhookAuthResolverWrapper, serviceResolver)
 
 	var cloudConfig []byte
@@ -66,6 +74,7 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 	}
 	discoveryClient := cacheddiscovery.NewMemCacheClient(clientset.Discovery())
 	discoveryRESTMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+	// kubePluginInitializer主要是为了向webhook插件注入cloudConfig,discoveryRESTMapper,quotaConfiguration,schemaResolver
 	kubePluginInitializer := NewPluginInitializer(
 		cloudConfig,
 		discoveryRESTMapper,
@@ -73,6 +82,7 @@ func (c *Config) New(proxyTransport *http.Transport, egressSelector *egressselec
 		schemaResolver,
 	)
 
+	// TODO 这个PostStartHook是为了干嘛？
 	admissionPostStartHook := func(context genericapiserver.PostStartHookContext) error {
 		discoveryRESTMapper.Reset()
 		go utilwait.Until(discoveryRESTMapper.Reset, 30*time.Second, context.StopCh)

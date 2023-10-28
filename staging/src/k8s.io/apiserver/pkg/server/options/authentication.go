@@ -166,7 +166,7 @@ type ClientCertAuthenticationOptions struct {
 	CAContentProvider dynamiccertificates.CAContentProvider
 }
 
-// GetClientVerifyOptionFn provides verify options for your authenticator while respecting the preferred order of verifiers.
+// GetClientCAContentProvider provides verify options for your authenticator while respecting the preferred order of verifiers.
 func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamiccertificates.CAContentProvider, error) {
 	if s.CAContentProvider != nil {
 		return s.CAContentProvider, nil
@@ -176,6 +176,7 @@ func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamicc
 		return nil, nil
 	}
 
+	// TODO 仔细分析
 	return dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", s.ClientCA)
 }
 

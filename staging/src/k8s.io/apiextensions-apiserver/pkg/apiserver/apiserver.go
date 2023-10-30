@@ -53,7 +53,9 @@ import (
 )
 
 var (
+	// TODO ExtensionServer的Scheme中会注册什么?
 	Scheme = runtime.NewScheme()
+	// TODO 如何理解这个设计？
 	Codecs = serializer.NewCodecFactory(Scheme)
 
 	// if you modify this, make sure you update the crEncoder
@@ -138,6 +140,27 @@ func (cfg *Config) Complete() CompletedConfig {
 // 1、delegationTarget就是后续处理器，只要ExtensionServer处理不了就需要把请求转交给delegationTarget处理
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
 	// TODO 分析GenericServer的原理
+	// 1、实例化APIServerHandler，APIServerHandler可以理解为请求的处理函数
+	// 2、根据GenericConfig配置实例化GenericServer TODO 具体分析GenericServer
+	// 3、把Delegator的PostStartHook以及PreShutdownHook拷贝到刚才实例化的GenericServer当汇总，因为最终只有ServerChain的最后一个Server
+	// 会被启动，其余的Server不会被启动，因此需要在最后一个Server当中把之前所有Server的PostStartHook以及PreShutdownHook添加进来，从而
+	// 间接启动ServerChain中除最后一个Server之前的所有Server。
+	// 4、添加名为generic-apiserver-start-informers的PostStartHook TODO 分析作用
+	// 5、添加名为priority-and-fairness-config-consumer的PostStartHook TODO 分析作用
+	// 6、如果启用了FlowControl，那么添加名为priority-and-fairness-filter的PostStartHook，如果没有启用FlowControl，那么添加名为
+	// max-in-flight-filter的PostStartHook TODO 分析作用
+	// 7、如果启用了StorageObjectCountTracker特性，那么添加名为storage-object-count-tracker-hook的PostStartHook，TODO 分析作用
+	// 8、拷贝Delegator的HealthzCheck添加到前面实例化的GenericServer当中
+	// 9、注册销毁函数
+	// 10、安装API，其中包括：
+	// 10.1、NonGoRestfulMux添加/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
+	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests路由
+	// 10.2、GoRestfulContainer添加/versions, /apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+	// /apis/<group>/<version>/<resource>路由, 当然，这并不包含核心资源路由
+	// 11、总结一下，实例化GenericServer主要干了这么几个事情，一个是实例化APIServerHandler，可以理解为一个Mux，用于把不同的URL路由到不同的
+	// Handler当中。然后拷贝Delegator的PostStartHook以及PreShutdownHook到自己的当中。添加一些必要的PostStartHook，注册销毁函数，添加
+	// 一些必要的API
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
@@ -146,6 +169,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// hasCRDInformerSyncedSignal is closed when the CRD informer this server uses has been fully synchronized.
 	// It ensures that requests to potential custom resource endpoints while the server hasn't installed all known HTTP paths get a 503 error instead of a 404
 	hasCRDInformerSyncedSignal := make(chan struct{})
+	// TODO 添加一个信号，用于表示CRDInformer已经同步完成
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("CRDInformerHasNotSynced", hasCRDInformerSyncedSignal); err != nil {
 		return nil, err
 	}
@@ -154,6 +178,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		GenericAPIServer: genericServer,
 	}
 
+	// 用于表示哪些资源被启用/禁用
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
 	storage := map[string]rest.Storage{}

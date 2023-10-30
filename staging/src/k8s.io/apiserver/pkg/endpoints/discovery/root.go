@@ -36,6 +36,7 @@ type GroupManager interface {
 	AddGroup(apiGroup metav1.APIGroup)
 	RemoveGroup(groupName string)
 	ServeHTTP(resp http.ResponseWriter, req *http.Request)
+	// TODO 仔细分析
 	WebService() *restful.WebService
 }
 
@@ -120,6 +121,7 @@ func (s *rootAPIsHandler) restfulHandle(req *restful.Request, resp *restful.Resp
 
 // WebService returns a webservice serving api group discovery.
 // Note: during the server runtime apiGroups might change.
+// TODO 仔细分析
 func (s *rootAPIsHandler) WebService() *restful.WebService {
 	mediaTypes, _ := negotiation.MediaTypesForSerializer(s.serializer)
 	ws := new(restful.WebService)

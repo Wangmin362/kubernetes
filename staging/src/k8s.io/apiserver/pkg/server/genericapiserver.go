@@ -62,8 +62,10 @@ import (
 	"k8s.io/utils/clock"
 )
 
-// Info about an API group.
+// APIGroupInfo Info about an API group.
+// TODO APIGroupInfo是如何抽象的？
 type APIGroupInfo struct {
+	// TODO 什么叫做优先选择的版本
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
@@ -72,10 +74,12 @@ type APIGroupInfo struct {
 	// define a version "v1beta1" but want to use the Kubernetes "v1" internal objects.
 	// If nil, defaults to groupMeta.GroupVersion.
 	// TODO: Remove this when https://github.com/kubernetes/kubernetes/issues/19018 is fixed.
+	// TODO 这玩意是干嘛的，K8S中似乎还有一个InternalVersion
 	OptionsExternalVersion *schema.GroupVersion
 	// MetaGroupVersion defaults to "meta.k8s.io/v1" and is the scheme group version used to decode
 	// common API implementations like ListOptions. Future changes will allow this to vary by group
 	// version (for when the inevitable meta/v2 group emerges).
+	// 组的元信息，其实就是当前的Group是啥，Version是啥
 	MetaGroupVersion *schema.GroupVersion
 
 	// Scheme includes all of the types used by this group and how to convert between them (or
@@ -83,8 +87,10 @@ type APIGroupInfo struct {
 	// TODO: replace with interfaces
 	Scheme *runtime.Scheme
 	// NegotiatedSerializer controls how this group encodes and decodes data
+	// TODO 数据编解码器
 	NegotiatedSerializer runtime.NegotiatedSerializer
 	// ParameterCodec performs conversions for query parameters passed to API calls
+	// TODO 一个组下的所有资源的参数解码器都是一样的？
 	ParameterCodec runtime.ParameterCodec
 
 	// StaticOpenAPISpec is the spec derived from the definitions of all resources installed together.
@@ -259,6 +265,7 @@ type GenericAPIServer struct {
 	// it exists primarily to avoid returning a 404 response when a resource actually exists but we haven't installed the path to a handler.
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
+	// TODO 仔细分析， 生命周期
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP

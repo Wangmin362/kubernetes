@@ -136,7 +136,11 @@ type Config struct {
 	// 1、这里的Index，并所值开启索引，而是是否开启网站的/index.html路由以及/路由
 	// 2、开启之后，GenericServer在启动的时候会注册/路由以及/index.html路由，我们可以通过kubectl get --raw=/ 或者是通过
 	// kubectl get --raw=/index.html来获取Server支持的路由
-	EnableIndex     bool
+	// 3、默认都是启用Index页面的
+	EnableIndex bool
+	// 1、开启profile之后，会想GenericServer当中添加/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	// /debug/pprof/trace路由
+	// 2、我们可以通过kubectl get --raw=/debug/pprof来测试接口
 	EnableProfiling bool
 	DebugSocketPath string // TODO 分析DebugSocket的作用
 	EnableDiscovery bool   // TODO 这玩意干嘛的？
@@ -708,7 +712,12 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // 7、如果启用了StorageObjectCountTracker特性，那么添加名为storage-object-count-tracker-hook的PostStartHook，TODO 分析作用
 // 8、拷贝Delegator的HealthzCheck添加到前面实例化的GenericServer当中
 // 9、注册销毁函数
-// 10、安装API
+// 10、安装API，其中包括：
+// 10.1、NonGoRestfulMux添加/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
+// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests路由
+// 10.2、GoRestfulContainer添加/versions, /apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+// /apis/<group>/<version>/<resource>路由, 当然，这并不包含核心资源路由
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
@@ -940,6 +949,11 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	// 列出所有支持的路由，包括Delegator的路由
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
+	// 1、NonGoRestfulMux添加/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
+	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests路由
+	// 2、GoRestfulContainer添加/versions, /apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+	// /apis/<group>/<version>/<resource>路由, 当然，这并不包含核心资源路由
 	installAPI(s, c.Config)
 
 	// use the UnprotectedHandler from the delegation target to ensure that we don't attempt to double authenticator, authorize,
@@ -1034,10 +1048,17 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	return handler
 }
 
+// 1、NonGoRestfulMux添加/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
+// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests路由
+// 2、GoRestfulContainer添加/versions, /apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+// /apis/<group>/<version>/<resource>路由, 当然，这并不包含核心资源路由
 func installAPI(s *GenericAPIServer, c *Config) {
+	// 如果启用了Index页面，添加/, /index.html路由
 	if c.EnableIndex {
 		routes.Index{}.Install(s.listedPathProvider, s.Handler.NonGoRestfulMux)
 	}
+	// 如果启用了Profiling，那么添加/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol, /debug/pprof/trace路由
 	if c.EnableProfiling {
 		routes.Profiling{}.Install(s.Handler.NonGoRestfulMux)
 		if c.EnableContentionProfiling {
@@ -1046,6 +1067,9 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		// so far, only logging related endpoints are considered valid to add for these debug flags.
 		routes.DebugFlags{}.Install(s.Handler.NonGoRestfulMux, "v", routes.StringFlagPutHandler(logs.GlogSetter))
 	}
+	// 1、如果启用了DebugSocket特性，那么添加/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	// /debug/pprof/trace路由
+	// 2、如果启用了DebugSocket特性，添加/debug/flags, /debug/flags/路由
 	if s.UnprotectedDebugSocket != nil {
 		s.UnprotectedDebugSocket.InstallProfiling()
 		s.UnprotectedDebugSocket.InstallDebugFlag("v", routes.StringFlagPutHandler(logs.GlogSetter))
@@ -1054,6 +1078,7 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		}
 	}
 
+	// 如果启用了Metric，添加/metrics, /metrics/slis路由
 	if c.EnableMetrics {
 		if c.EnableProfiling {
 			routes.MetricsWithReset{}.Install(s.Handler.NonGoRestfulMux)
@@ -1068,8 +1093,12 @@ func installAPI(s *GenericAPIServer, c *Config) {
 		}
 	}
 
+	// 添加/version路由
 	routes.Version{Version: c.Version}.Install(s.Handler.GoRestfulContainer)
 
+	// 添加/apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>, /apis/<group>/<version>/<resource>路由，并遍历安装所有除了核心资源外的其余资源的路由
+	// root@k8s-master1:~# kubectl get --raw=/apis 可以获取到当前所有的
+	// {"kind":"APIGroupList","apiVersion":"v1","groups":[{"name":"apiregistration.k8s.io","versions":[{"groupVersion":"apiregistration.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"apiregistration.k8s.io/v1","version":"v1"}},{"name":"apps","versions":[{"groupVersion":"apps/v1","version":"v1"}],"preferredVersion":{"groupVersion":"apps/v1","version":"v1"}},{"name":"events.k8s.io","versions":[{"groupVersion":"events.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"events.k8s.io/v1","version":"v1"}},{"name":"authentication.k8s.io","versions":[{"groupVersion":"authentication.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"authentication.k8s.io/v1","version":"v1"}},{"name":"authorization.k8s.io","versions":[{"groupVersion":"authorization.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"authorization.k8s.io/v1","version":"v1"}},{"name":"autoscaling","versions":[{"groupVersion":"autoscaling/v2","version":"v2"},{"groupVersion":"autoscaling/v1","version":"v1"}],"preferredVersion":{"groupVersion":"autoscaling/v2","version":"v2"}},{"name":"batch","versions":[{"groupVersion":"batch/v1","version":"v1"}],"preferredVersion":{"groupVersion":"batch/v1","version":"v1"}},{"name":"certificates.k8s.io","versions":[{"groupVersion":"certificates.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"certificates.k8s.io/v1","version":"v1"}},{"name":"networking.k8s.io","versions":[{"groupVersion":"networking.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"networking.k8s.io/v1","version":"v1"}},{"name":"policy","versions":[{"groupVersion":"policy/v1","version":"v1"}],"preferredVersion":{"groupVersion":"policy/v1","version":"v1"}},{"name":"rbac.authorization.k8s.io","versions":[{"groupVersion":"rbac.authorization.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"rbac.authorization.k8s.io/v1","version":"v1"}},{"name":"storage.k8s.io","versions":[{"groupVersion":"storage.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"storage.k8s.io/v1","version":"v1"}},{"name":"admissionregistration.k8s.io","versions":[{"groupVersion":"admissionregistration.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"admissionregistration.k8s.io/v1","version":"v1"}},{"name":"apiextensions.k8s.io","versions":[{"groupVersion":"apiextensions.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"apiextensions.k8s.io/v1","version":"v1"}},{"name":"scheduling.k8s.io","versions":[{"groupVersion":"scheduling.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"scheduling.k8s.io/v1","version":"v1"}},{"name":"coordination.k8s.io","versions":[{"groupVersion":"coordination.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"coordination.k8s.io/v1","version":"v1"}},{"name":"node.k8s.io","versions":[{"groupVersion":"node.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"node.k8s.io/v1","version":"v1"}},{"name":"discovery.k8s.io","versions":[{"groupVersion":"discovery.k8s.io/v1","version":"v1"}],"preferredVersion":{"groupVersion":"discovery.k8s.io/v1","version":"v1"}},{"name":"flowcontrol.apiserver.k8s.io","versions":[{"groupVersion":"flowcontrol.apiserver.k8s.io/v1beta3","version":"v1beta3"},{"groupVersion":"flowcontrol.apiserver.k8s.io/v1beta2","version":"v1beta2"}],"preferredVersion":{"groupVersion":"flowcontrol.apiserver.k8s.io/v1beta3","version":"v1beta3"}},{"name":"crd.projectcalico.org","versions":[{"groupVersion":"crd.projectcalico.org/v1","version":"v1"}],"preferredVersion":{"groupVersion":"crd.projectcalico.org/v1","version":"v1"}},{"name":"metrics.k8s.io","versions":[{"groupVersion":"metrics.k8s.io/v1beta1","version":"v1beta1"}],"preferredVersion":{"groupVersion":"metrics.k8s.io/v1beta1","version":"v1beta1"}}]}
 	if c.EnableDiscovery {
 		if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 			wrapped := discoveryendpoint.WrapAggregatedDiscoveryToHandler(s.DiscoveryGroupManager, s.AggregatedDiscoveryGroupManager)
@@ -1078,6 +1107,9 @@ func installAPI(s *GenericAPIServer, c *Config) {
 			s.Handler.GoRestfulContainer.Add(s.DiscoveryGroupManager.WebService())
 		}
 	}
+
+	// 添加/debug/api_priority_and_fairness/dump_priority_levels, /debug/api_priority_and_fairness/dump_queues,
+	// /debug/api_priority_and_fairness/dump_requests路由
 	if c.FlowControl != nil && utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) {
 		c.FlowControl.Install(s.Handler.NonGoRestfulMux)
 	}

@@ -35,6 +35,8 @@ const (
 	queryIncludeRequestDetails = "includeRequestDetails"
 )
 
+// Install 添加/debug/api_priority_and_fairness/dump_priority_levels, /debug/api_priority_and_fairness/dump_queues,
+// /debug/api_priority_and_fairness/dump_requests路由
 func (cfgCtlr *configController) Install(c *mux.PathRecorderMux) {
 	// TODO(yue9944882): handle "Accept" header properly
 	// debugging dumps a CSV content for three levels of granularity

@@ -31,6 +31,21 @@ type Version struct {
 }
 
 // Install registers the APIServer's `/version` handler.
+// 添加/version路由，返回K8S相关的版本信息
+/*
+root@k8s-master1:~# kubectl get --raw=/version
+{
+  "major": "1",
+  "minor": "27",
+  "gitVersion": "v1.27.2",
+  "gitCommit": "7f6f68fdabc4df88cfea2dcf9a19b2b830f1e647",
+  "gitTreeState": "clean",
+  "buildDate": "2023-05-17T14:13:28Z",
+  "goVersion": "go1.20.4",
+  "compiler": "gc",
+  "platform": "linux/amd64"
+}
+*/
 func (v Version) Install(c *restful.Container) {
 	if v.Version == nil {
 		return

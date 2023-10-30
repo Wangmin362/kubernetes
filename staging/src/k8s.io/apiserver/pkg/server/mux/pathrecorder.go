@@ -32,6 +32,7 @@ import (
 )
 
 // PathRecorderMux wraps a mux object and records the registered exposedPaths.
+// TODO go-restful有自己的Mux，为什么K8S需要抽象自己的Mux
 type PathRecorderMux struct {
 	// name is used for logging so you can trace requests through
 	name string

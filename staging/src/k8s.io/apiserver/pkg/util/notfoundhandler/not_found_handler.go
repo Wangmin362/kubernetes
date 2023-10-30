@@ -34,16 +34,21 @@ import (
 //
 // Note that we don't want to add additional checks to the readyz path as it might prevent fixing bricked clusters.
 // This specific handler is meant to "protect" requests that arrive before the paths and handlers are fully initialized.
-func New(serializer runtime.NegotiatedSerializer, isMuxAndDiscoveryCompleteFn func(ctx context.Context) bool) *Handler {
+func New(
+	serializer runtime.NegotiatedSerializer, // TODO 序列化器
+	isMuxAndDiscoveryCompleteFn func(ctx context.Context) bool, // 用于判断路由是否发现完成，可以理解为判断Server是否启动好
+) *Handler {
 	return &Handler{serializer: serializer, isMuxAndDiscoveryCompleteFn: isMuxAndDiscoveryCompleteFn}
 }
 
+// Handler 这玩意本质上就是一个简单的http.Handler
 type Handler struct {
 	serializer                  runtime.NegotiatedSerializer
 	isMuxAndDiscoveryCompleteFn func(ctx context.Context) bool
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	// 如果Server还没有启动完成，就需要提示用户等一会儿再请求
 	if !h.isMuxAndDiscoveryCompleteFn(req.Context()) {
 		errMsg := "the request has been made before all known HTTP paths have been installed, please try again"
 		err := apierrors.NewServiceUnavailable(errMsg)

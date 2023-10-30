@@ -287,6 +287,7 @@ type GenericAPIServer struct {
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
+// TODO 如何理解这玩意的设计  这玩意是不是可以理解为就是一个GenericServer
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
 	UnprotectedHandler() http.Handler

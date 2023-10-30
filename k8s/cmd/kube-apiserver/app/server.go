@@ -232,6 +232,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 	// If additional API servers are added, they should be gated.
 	// 创建ExtensionServer配置，ExtensionServer允许需要这些参数进行配置
+	// TODO 分析RESTOptionsGetter原理
 	apiExtensionsConfig, err := createAPIExtensionsConfig(
 		*kubeAPIServerConfig.GenericConfig,                 // GenericServer的通用配置
 		kubeAPIServerConfig.ExtraConfig.VersionedInformers, // SharedInformerFactory，用于缓存各种APIServer，可以理解为一个缓存，用于以空间换时间
@@ -250,12 +251,16 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// 当AggregatorServer, APIServer, ExtensionServer都无法解析请求时，只能把请求委托给NotFoundHandler，返回给用户404错误信息
+	// 1、当AggregatorServer, APIServer, ExtensionServer都无法解析请求时，只能把请求委托给NotFoundHandler，返回给用户404错误信息
+	// 2、本质上就是一个http.Handler
+	// 3、请求到了NotFoundHandler并非一定是Server没有这个路由，也有可能是Server正在启动当中，路由还没有完全注册，所以NotFoundHandler
+	// 发现当前Server还没有启动完成的时候，会告诉用户等一会儿再尝试。当然，如果Server已经完全启动，那么请求到了NotFoundHandler一定是
+	// Server没有这个路由导致的，也就是说这个请求是一个非法请求，请求需要的资源Server并没有，所以只能返回404错误
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 
 	// 创建ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
 	apiExtensionsServer, err := createAPIExtensionsServer(
-		apiExtensionsConfig,
+		apiExtensionsConfig, // ExtensionServer配置，其中包含了GenericServer配置，以及ExtensionServer额外的配置
 		genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler),
 	)
 	if err != nil {

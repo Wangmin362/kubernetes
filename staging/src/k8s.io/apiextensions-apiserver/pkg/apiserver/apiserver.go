@@ -77,7 +77,9 @@ func init() {
 	Scheme.AddUnversionedTypes(unversionedVersion, unversionedTypes...)
 }
 
+// ExtraConfig ExtensionServer需要的额外配置
 type ExtraConfig struct {
+	// TODO 这玩意特别重要
 	CRDRESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// MasterCount is used to detect whether cluster is HA, and if it is
@@ -90,9 +92,10 @@ type ExtraConfig struct {
 	AuthResolverWrapper webhook.AuthenticationInfoResolverWrapper
 }
 
+// Config ExtensionServer配置
 type Config struct {
-	GenericConfig *genericapiserver.RecommendedConfig
-	ExtraConfig   ExtraConfig
+	GenericConfig *genericapiserver.RecommendedConfig // GenericServer配置
+	ExtraConfig   ExtraConfig                         // ExtensionServer额外配置
 }
 
 type completedConfig struct {
@@ -119,6 +122,7 @@ func (cfg *Config) Complete() CompletedConfig {
 		&cfg.ExtraConfig,
 	}
 
+	// TODO 这里为什么要禁用路由发现？
 	c.GenericConfig.EnableDiscovery = false
 	if c.GenericConfig.Version == nil {
 		c.GenericConfig.Version = &version.Info{
@@ -131,6 +135,7 @@ func (cfg *Config) Complete() CompletedConfig {
 }
 
 // New returns a new instance of CustomResourceDefinitions from the given config.
+// 1、delegationTarget就是后续处理器，只要ExtensionServer处理不了就需要把请求转交给delegationTarget处理
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
 	if err != nil {

@@ -164,6 +164,7 @@ type StreamSerializerInfo struct {
 // NegotiatedSerializer is an interface used for obtaining encoders, decoders, and serializers
 // for multiple supported media types. This would commonly be accepted by a server component
 // that performs HTTP content negotiation to accept multiple formats.
+// TODO 如何理解这玩意的抽象？
 type NegotiatedSerializer interface {
 	// SupportedMediaTypes is the media types supported for reading and writing single objects.
 	SupportedMediaTypes() []SerializerInfo

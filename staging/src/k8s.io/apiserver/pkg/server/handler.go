@@ -34,11 +34,12 @@ import (
 	"k8s.io/apiserver/pkg/server/mux"
 )
 
-// APIServerHandlers holds the different http.Handlers used by the API server.
+// APIServerHandler holds the different http.Handlers used by the API server.
 // This includes the full handler chain, the director (which chooses between gorestful and nonGoRestful,
 // the gorestful handler (used for the API) which falls through to the nonGoRestful handler on unregistered paths,
 // and the nonGoRestful handler (which can contain a fallthrough of its own)
 // FullHandlerChain -> Director -> {GoRestfulContainer,NonGoRestfulMux} based on inspection of registered web services
+// TODO 如何理解APIServerHandler的抽象
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
@@ -70,7 +71,12 @@ type APIServerHandler struct {
 // It is normally used to apply filtering like authentication and authorization
 type HandlerChainBuilderFn func(apiHandler http.Handler) http.Handler
 
-func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerChainBuilder HandlerChainBuilderFn, notFoundHandler http.Handler) *APIServerHandler {
+func NewAPIServerHandler(
+	name string,
+	s runtime.NegotiatedSerializer, // 序列化器用于响应请求的时候把go结构体序列化响应请求
+	handlerChainBuilder HandlerChainBuilderFn, // 默认的请求处理链
+	notFoundHandler http.Handler, // 如果自己处理不了这个请求，就需要把请求委派给NotFoundHandler
+) *APIServerHandler {
 	nonGoRestfulMux := mux.NewPathRecorderMux(name)
 	if notFoundHandler != nil {
 		nonGoRestfulMux.NotFoundHandler(notFoundHandler)
@@ -101,6 +107,7 @@ func NewAPIServerHandler(name string, s runtime.NegotiatedSerializer, handlerCha
 }
 
 // ListedPaths returns the paths that should be shown under /
+// 列出所有的路由
 func (a *APIServerHandler) ListedPaths() []string {
 	var handledPaths []string
 	// Extract the paths handled using restful.WebService

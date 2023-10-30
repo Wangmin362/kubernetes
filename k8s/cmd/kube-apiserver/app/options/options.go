@@ -42,22 +42,22 @@ import (
 // ServerRunOptions runs a kubernetes api server.
 // 1、APIServer的运行参数，这些参数是通过命令行参数传递过来
 type ServerRunOptions struct {
-	GenericServerRunOptions *genericoptions.ServerRunOptions
-	Etcd                    *genericoptions.EtcdOptions
-	SecureServing           *genericoptions.SecureServingOptionsWithLoopback
-	Audit                   *genericoptions.AuditOptions
-	Features                *genericoptions.FeatureOptions
-	Admission               *kubeoptions.AdmissionOptions
-	Authentication          *kubeoptions.BuiltInAuthenticationOptions
-	Authorization           *kubeoptions.BuiltInAuthorizationOptions
-	CloudProvider           *kubeoptions.CloudProviderOptions
-	APIEnablement           *genericoptions.APIEnablementOptions
-	EgressSelector          *genericoptions.EgressSelectorOptions
-	Metrics                 *metrics.Options
-	Logs                    *logs.Options
-	Traces                  *genericoptions.TracingOptions
+	GenericServerRunOptions *genericoptions.ServerRunOptions                 // Server运行的通用配置
+	Etcd                    *genericoptions.EtcdOptions                      // ETCD相关配置
+	SecureServing           *genericoptions.SecureServingOptionsWithLoopback // HTTPS相关配置
+	Audit                   *genericoptions.AuditOptions                     // 审计相关配置
+	Features                *genericoptions.FeatureOptions                   // 特性管相关配置，譬如pprof,debug
+	Admission               *kubeoptions.AdmissionOptions                    // 准入控制配置
+	Authentication          *kubeoptions.BuiltInAuthenticationOptions        // 认证配置，主要是配置支持几种认证模式，以及每种认证模式相关的配置
+	Authorization           *kubeoptions.BuiltInAuthorizationOptions         // 及安全配置，主要是配置支持集中及安全模式以及每种鉴权模式相关的配置
+	CloudProvider           *kubeoptions.CloudProviderOptions                // TODO CloudProvider相关配置
+	APIEnablement           *genericoptions.APIEnablementOptions             // 配置启用/禁用哪些资源
+	EgressSelector          *genericoptions.EgressSelectorOptions            // TODO Konnectivity配置
+	Metrics                 *metrics.Options                                 // 指标配置
+	Logs                    *logs.Options                                    // 日志配置
+	Traces                  *genericoptions.TracingOptions                   // 链路追踪配置
 
-	AllowPrivileged bool
+	AllowPrivileged bool // 是否允许创建特权容器，通过Linux的Capability来实现
 	// LogHandler有啥作用？什么时候应该开启？
 	EnableLogsHandler bool
 	EventTTL          time.Duration

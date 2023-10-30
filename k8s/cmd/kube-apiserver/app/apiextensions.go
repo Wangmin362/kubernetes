@@ -36,18 +36,21 @@ import (
 )
 
 func createAPIExtensionsConfig(
-	kubeAPIServerConfig genericapiserver.Config,
-	externalInformers kubeexternalinformers.SharedInformerFactory,
+	kubeAPIServerConfig genericapiserver.Config, // GenericServer配置，这里传递的时APIServer通用配置的一个拷贝
+	externalInformers kubeexternalinformers.SharedInformerFactory, // SharedInformerFactory，用于缓存各种资源
 	pluginInitializers []admission.PluginInitializer,
-	commandOptions *options.ServerRunOptions,
-	masterCount int,
-	serviceResolver webhook.ServiceResolver,
-	authResolverWrapper webhook.AuthenticationInfoResolverWrapper,
+	commandOptions *options.ServerRunOptions, // 启动KubeAPIServer时传入的启动参数
+	masterCount int, // Master节点数量
+	serviceResolver webhook.ServiceResolver, // 服务解析器，用于把Service解析为一个合法的URL
+	authResolverWrapper webhook.AuthenticationInfoResolverWrapper, // TODO Webhook认证包装器
 ) (*apiextensionsapiserver.Config, error) {
 	// make a shallow copy to let us twiddle a few things
 	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the apiextensions
 	genericConfig := kubeAPIServerConfig
+	// 1、先清空GenericServer配置的PostStartHooks，因为APIServer已经初始化了自己的PostStartHooks, ExtensionServer并不需要APIServer
+	// 的PostStartHook，因此需要先清空，然后再初始化自己的PostStartHook
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
+	// TODO 和存储相关，这里清空之后，后续肯定会重新初始化
 	genericConfig.RESTOptionsGetter = nil
 
 	// copy the etcd options so we don't mutate originals.
@@ -65,16 +68,21 @@ func createAPIExtensionsConfig(
 	}
 
 	// override MergedResourceConfig with apiextensions defaults and registry
+	// 初始化GenericConfig配置的MergedResourceConfig属性，通过MergedResourceConfig属性我们可以知道这个Server启用/禁用了哪些资源
 	if err := commandOptions.APIEnablement.ApplyTo(
-		&genericConfig,
+		&genericConfig, // GenericServer配置
+		// 启用apiextensions.k8s.io/v1以及apiextensions.k8s.io/v1beta1资源，这个组下的资源只有CRD资源，没有其它资源
 		apiextensionsapiserver.DefaultAPIResourceConfigSource(),
-		apiextensionsapiserver.Scheme); err != nil {
+		apiextensionsapiserver.Scheme,
+	); err != nil {
 		return nil, err
 	}
+	// TODO 分析这里到底是如何存储的
 	crdRESTOptionsGetter, err := apiextensionsoptions.NewCRDRESTOptionsGetter(etcdOptions)
 	if err != nil {
 		return nil, err
 	}
+	// 实例化ExtensionServer的配置
 	apiextensionsConfig := &apiextensionsapiserver.Config{
 		GenericConfig: &genericapiserver.RecommendedConfig{
 			Config:                genericConfig,
@@ -89,6 +97,7 @@ func createAPIExtensionsConfig(
 	}
 
 	// we need to clear the poststarthooks so we don't add them multiple times to all the servers (that fails)
+	// TODO ?
 	apiextensionsConfig.GenericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
 
 	return apiextensionsConfig, nil
@@ -98,5 +107,7 @@ func createAPIExtensionsServer(
 	apiextensionsConfig *apiextensionsapiserver.Config,
 	delegateAPIServer genericapiserver.DelegationTarget,
 ) (*apiextensionsapiserver.CustomResourceDefinitions, error) {
+	// Complete用于补全ExtensionServer的配置
+	// New用于实例化一个ExtensionServer
 	return apiextensionsConfig.Complete().New(delegateAPIServer)
 }

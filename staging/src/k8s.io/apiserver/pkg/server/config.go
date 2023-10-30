@@ -135,8 +135,8 @@ type Config struct {
 
 	EnableIndex     bool
 	EnableProfiling bool
-	DebugSocketPath string
-	EnableDiscovery bool
+	DebugSocketPath string // TODO 分析DebugSocket的作用
+	EnableDiscovery bool   // TODO 这玩意干嘛的？
 
 	// Requires generic profiling enabled
 	EnableContentionProfiling bool
@@ -165,6 +165,7 @@ type Config struct {
 	//===========================================================================
 
 	// BuildHandlerChainFunc allows you to build custom handler chains by decorating the apiHandler.
+	// 用于构建请求处理链，默认的请求处理链所在位置为：staging/src/k8s.io/apiserver/pkg/server/config.go
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// NonLongRunningRequestWaitGroup allows you to wait for all chain
 	// handlers associated with non long-running requests
@@ -277,6 +278,7 @@ type Config struct {
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
 	// and the kind associated with a given resource. As resources are installed, they are registered here.
+	// TODO 这玩意是啥？
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// APIServerID is the ID of this API server
@@ -306,6 +308,7 @@ type Config struct {
 	ShutdownWatchTerminationGracePeriod time.Duration
 }
 
+// RecommendedConfig TODO 如何里理解这个 “推荐的GenericConfig”?，仅仅是因为多了SharedInformerFactory缓存？
 type RecommendedConfig struct {
 	Config
 
@@ -687,6 +690,7 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // New creates a new server which logically combines the handling chain with the passed server.
 // name is used to differentiate for logging. The handler chain in particular can be difficult as it starts delegating.
 // delegationTarget may not be nil.
+// 1、实例化GenericServer
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
@@ -698,6 +702,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.EquivalentResourceRegistry == nil")
 	}
 
+	// 用于构建请求处理链，实际上这里就是把请求的真正处理放在了请求处理链的最后一个位置
 	handlerChainBuilder := func(handler http.Handler) http.Handler {
 		return c.BuildHandlerChainFunc(handler, c.Config)
 	}
@@ -707,7 +712,13 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		debugSocket = routes.NewDebugSocket(c.DebugSocketPath)
 	}
 
-	apiServerHandler := NewAPIServerHandler(name, c.Serializer, handlerChainBuilder, delegationTarget.UnprotectedHandler())
+	// TODO 分析APIServerHandler架构
+	apiServerHandler := NewAPIServerHandler(
+		name,                                  // APIServerHandler名字有何作用？ 打日志？
+		c.Serializer,                          // 序列化器
+		handlerChainBuilder,                   // 请求处理链
+		delegationTarget.UnprotectedHandler(), // 如果自己处理不了，就需要把请求委派给Delegator
+	)
 
 	s := &GenericAPIServer{
 		discoveryAddresses:             c.DiscoveryAddresses,
@@ -918,8 +929,10 @@ func BuildHandlerChainWithStorageVersionPrecondition(apiHandler http.Handler, c 
 	return DefaultBuildHandlerChain(handler, c)
 }
 
-// DefaultBuildHandlerChain 这里的请求就和俄罗斯套娃一毛一样，最先写最后才会执行，最后写的最先执行；所以DefaultBuildHandlerChain
+// DefaultBuildHandlerChain 1、这里的请求就和俄罗斯套娃一毛一样，最先写最后才会执行，最后写的最先执行；所以DefaultBuildHandlerChain
 // 正确的看法应该是从下网上看
+// 2、apiHandler参数实际上就是要处理的请求，DefaultBuildHandlerChain把这个请求放在了请求处理链的最后，只有前面的Handler处理完成了才会
+// 真正调用apiHandler处理请求
 func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	// APIServer的鉴权
 	handler := filterlatency.TrackCompleted(apiHandler)

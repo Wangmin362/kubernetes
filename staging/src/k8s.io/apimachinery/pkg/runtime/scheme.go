@@ -43,6 +43,7 @@ import (
 //
 // Schemes are not expected to change at runtime and are only threadsafe after
 // registration is complete.
+// TODO 仔细分析
 type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.

@@ -103,6 +103,7 @@ func createAPIExtensionsConfig(
 	return apiextensionsConfig, nil
 }
 
+// ExtensionServer本质上就是一个GenericServer
 func createAPIExtensionsServer(
 	apiextensionsConfig *apiextensionsapiserver.Config,
 	delegateAPIServer genericapiserver.DelegationTarget,

@@ -115,6 +115,7 @@ func (i *informerSync) Check(_ *http.Request) error {
 		informersByStarted[started] = append(informersByStarted[started], informerType.String())
 	}
 
+	// 只要其中的任何一个资源没有同步完成，就认为SharedInformerFactory没有同步完成
 	if notStarted := informersByStarted[false]; len(notStarted) > 0 {
 		return fmt.Errorf("%d informers not started yet: %v", len(notStarted), notStarted)
 	}

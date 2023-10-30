@@ -137,6 +137,7 @@ func (cfg *Config) Complete() CompletedConfig {
 // New returns a new instance of CustomResourceDefinitions from the given config.
 // 1、delegationTarget就是后续处理器，只要ExtensionServer处理不了就需要把请求转交给delegationTarget处理
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
+	// TODO 分析GenericServer的原理
 	genericServer, err := c.GenericConfig.New("apiextensions-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err

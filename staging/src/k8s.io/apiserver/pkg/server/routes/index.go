@@ -26,6 +26,7 @@ import (
 )
 
 // ListedPathProvider is an interface for providing paths that should be reported at /.
+// 用于列出所有支持的路由，简单来说，就是列出所有支持的URL
 type ListedPathProvider interface {
 	// ListedPaths is an alphabetically sorted list of paths to be reported at /.
 	ListedPaths() []string

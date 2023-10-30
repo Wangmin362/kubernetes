@@ -133,6 +133,9 @@ type Config struct {
 	// FlowControl, if not nil, gives priority and fairness to request handling
 	FlowControl utilflowcontrol.Interface
 
+	// 1、这里的Index，并所值开启索引，而是是否开启网站的/index.html路由以及/路由
+	// 2、开启之后，GenericServer在启动的时候会注册/路由以及/index.html路由，我们可以通过kubectl get --raw=/ 或者是通过
+	// kubectl get --raw=/index.html来获取Server支持的路由
 	EnableIndex     bool
 	EnableProfiling bool
 	DebugSocketPath string // TODO 分析DebugSocket的作用
@@ -145,6 +148,7 @@ type Config struct {
 	// TODO PostStartHook在什么时候点被调用？一般如何使用？最佳实践是什么？
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
+	// TODO GenericServer配置在初始化的时候一般会添加哪些PostStartHook，APIServer, AggregatorServer, ExtensionServer都添加了哪些PostStartHook?
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
@@ -427,17 +431,19 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 健康检测
 		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 就绪检测
 		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 存活检测
-		EnableIndex:                    true,                                                      // TODO
-		EnableDiscovery:                true,                                                      // TODO
-		EnableProfiling:                true,                                                      // TODO
-		DebugSocketPath:                "",
-		EnableMetrics:                  true,
-		MaxRequestsInFlight:            400,                             // 默认APIServer每秒钟最多只能同时处理400个请求
-		MaxMutatingRequestsInFlight:    200,                             // 默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
-		RequestTimeout:                 time.Duration(60) * time.Second, // 默认请求超时时间为60秒
-		MinRequestTimeout:              1800,                            // TODO
-		LivezGracePeriod:               time.Duration(0),
-		ShutdownDelayDuration:          time.Duration(0),
+		// 开启APIServer的/index.html路由，开启之后我们可以直接访问https://172.30.3.130:6443/index.html或者是
+		// https://172.30.3.130:6443/获取当前Server支持的所有路由
+		EnableIndex:                 true,
+		EnableDiscovery:             true, // TODO
+		EnableProfiling:             true, // TODO
+		DebugSocketPath:             "",
+		EnableMetrics:               true,
+		MaxRequestsInFlight:         400,                             // 默认APIServer每秒钟最多只能同时处理400个请求
+		MaxMutatingRequestsInFlight: 200,                             // 默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
+		RequestTimeout:              time.Duration(60) * time.Second, // 默认请求超时时间为60秒
+		MinRequestTimeout:           1800,                            // TODO
+		LivezGracePeriod:            time.Duration(0),
+		ShutdownDelayDuration:       time.Duration(0),
 		// 1.5MB is the default client request size in bytes
 		// the etcd server should accept. See
 		// https://github.com/etcd-io/etcd/blob/release-3.4/embed/config.go#L56.
@@ -690,7 +696,19 @@ func (c *RecommendedConfig) Complete() CompletedConfig {
 // New creates a new server which logically combines the handling chain with the passed server.
 // name is used to differentiate for logging. The handler chain in particular can be difficult as it starts delegating.
 // delegationTarget may not be nil.
-// 1、实例化GenericServer
+// 1、实例化APIServerHandler，APIServerHandler可以理解为请求的处理函数
+// 2、根据GenericConfig配置实例化GenericServer TODO 具体分析GenericServer
+// 3、把Delegator的PostStartHook以及PreShutdownHook拷贝到刚才实例化的GenericServer当汇总，因为最终只有ServerChain的最后一个Server
+// 会被启动，其余的Server不会被启动，因此需要在最后一个Server当中把之前所有Server的PostStartHook以及PreShutdownHook添加进来，从而
+// 间接启动ServerChain中除最后一个Server之前的所有Server。
+// 4、添加名为generic-apiserver-start-informers的PostStartHook TODO 分析作用
+// 5、添加名为priority-and-fairness-config-consumer的PostStartHook TODO 分析作用
+// 6、如果启用了FlowControl，那么添加名为priority-and-fairness-filter的PostStartHook，如果没有启用FlowControl，那么添加名为
+// max-in-flight-filter的PostStartHook TODO 分析作用
+// 7、如果启用了StorageObjectCountTracker特性，那么添加名为storage-object-count-tracker-hook的PostStartHook，TODO 分析作用
+// 8、拷贝Delegator的HealthzCheck添加到前面实例化的GenericServer当中
+// 9、注册销毁函数
+// 10、安装API
 func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*GenericAPIServer, error) {
 	if c.Serializer == nil {
 		return nil, fmt.Errorf("Genericapiserver.New() called with config.Serializer == nil")
@@ -773,6 +791,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
 	}
 
+	// TODO 1.26加入的特性，不过马上又要在1.32被移除
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		manager := c.AggregatedDiscoveryGroupManager
 		if manager == nil {
@@ -781,6 +800,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		s.AggregatedDiscoveryGroupManager = manager
 		s.AggregatedLegacyDiscoveryGroupManager = discoveryendpoint.NewResourceManager("api")
 	}
+	// TODO 这里是在干嘛？
 	for {
 		if c.JSONPatchMaxCopyBytes <= 0 {
 			break
@@ -795,6 +815,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 	}
 
 	// first add poststarthooks from delegated targets
+	// 这里之所以需要把Delegator的PostStartHook拷贝进来，是因为将来启动只会启动AggregatorServer, APIServer以及ExtensionServer并不会启动
 	for k, v := range delegationTarget.PostStartHooks() {
 		s.postStartHooks[k] = v
 	}
@@ -805,12 +826,14 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	// add poststarthooks that were preconfigured.  Using the add method will give us an error if the same name has already been registered.
 	for name, preconfiguredPostStartHook := range c.PostStartHooks {
+		// 向GenericServer当中添加PostStartHook，被禁用的PostStartHook不允许添加，同名的PostStartHook也不允许添加
 		if err := s.AddPostStartHook(name, preconfiguredPostStartHook.hook); err != nil {
 			return nil, err
 		}
 	}
 
 	// register mux signals from the delegated server
+	// 这里还需要把路由发现的完成信号拷贝过来，因为最终只会启动AggregatorServer, APIServer以及ExtensionServer并不会启动
 	for k, v := range delegationTarget.MuxAndDiscoveryCompleteSignals() {
 		if err := s.RegisterMuxAndDiscoveryCompleteSignal(k, v); err != nil {
 			return nil, err
@@ -819,8 +842,10 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	genericApiServerHookName := "generic-apiserver-start-informers"
 	if c.SharedInformerFactory != nil {
+		// 判断是否注册了名为generic-apiserver-start-informers的PostStartHook
 		if !s.isPostStartHookRegistered(genericApiServerHookName) {
 			err := s.AddPostStartHook(genericApiServerHookName, func(context PostStartHookContext) error {
+				// 启动SharedInformerFactory，缓存K8S各种资源到内存当中
 				c.SharedInformerFactory.Start(context.StopCh)
 				return nil
 			})
@@ -829,6 +854,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 			}
 		}
 		// TODO: Once we get rid of /healthz consider changing this to post-start-hook.
+		// 用于判断SharedInformerFactory是否准备好，只有当所有的Informer同步完成，才认为SharedInformerFactory同步完成
 		err := s.AddReadyzChecks(healthz.NewInformerSyncHealthz(c.SharedInformerFactory))
 		if err != nil {
 			return nil, err
@@ -837,8 +863,11 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	const priorityAndFairnessConfigConsumerHookName = "priority-and-fairness-config-consumer"
 	if s.isPostStartHookRegistered(priorityAndFairnessConfigConsumerHookName) {
+		// 如果名为priority-and-fairness-config-consumer的PostStartHook已经注册，就啥也不干
 	} else if c.FlowControl != nil {
+		// 如果名为priority-and-fairness-config-consumer的PostStartHook没有注册，并且启用了流控，那么需要注册PostStartHook
 		err := s.AddPostStartHook(priorityAndFairnessConfigConsumerHookName, func(context PostStartHookContext) error {
+			// 启动流控
 			go c.FlowControl.Run(context.StopCh)
 			return nil
 		})
@@ -863,6 +892,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 			}
 		}
 	} else {
+		// TODO 是不是在FlowControl启用的情况下，全局限流就不起作用了
 		const maxInFlightFilterHookName = "max-in-flight-filter"
 		if !s.isPostStartHookRegistered(maxInFlightFilterHookName) {
 			err := s.AddPostStartHook(maxInFlightFilterHookName, func(context PostStartHookContext) error {
@@ -907,6 +937,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	})
 
+	// 列出所有支持的路由，包括Delegator的路由
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
 	installAPI(s, c.Config)

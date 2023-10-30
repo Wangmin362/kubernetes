@@ -40,15 +40,19 @@ import (
 // and the nonGoRestful handler (which can contain a fallthrough of its own)
 // FullHandlerChain -> Director -> {GoRestfulContainer,NonGoRestfulMux} based on inspection of registered web services
 // TODO 如何理解APIServerHandler的抽象
+// 1、APIServerHandler本质上就是要一个http.Handler
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
+	// 1、一个Container就是一个Web服务，里面包含了这个Web服务的路由信息
 	GoRestfulContainer *restful.Container
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling
 	// This is where other servers can attach handler to various parts of the chain.
+	// TODO k8s为什么需要自定义PathRecorderMux?
+	// 1、NonGoRestfulMux其实一个多路复用器，里面包含了很多路由
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.
@@ -99,7 +103,7 @@ func NewAPIServerHandler(
 	}
 
 	return &APIServerHandler{
-		FullHandlerChain:   handlerChainBuilder(director),
+		FullHandlerChain:   handlerChainBuilder(director), // 请求调用链
 		GoRestfulContainer: gorestfulContainer,
 		NonGoRestfulMux:    nonGoRestfulMux,
 		Director:           director,

@@ -79,6 +79,8 @@ type preShutdownHookEntry struct {
 }
 
 // AddPostStartHook allows you to add a PostStartHook.
+// 1、被禁用PostStartHook不再允许添加
+// 2、同名的PostStartHook不允许添加
 func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc) error {
 	if len(name) == 0 {
 		return fmt.Errorf("missing name")
@@ -94,9 +96,14 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 	s.postStartHookLock.Lock()
 	defer s.postStartHookLock.Unlock()
 
+	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
+	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加
+	// PostStartHook
 	if s.postStartHooksCalled {
 		return fmt.Errorf("unable to add %q because PostStartHooks have already been called", name)
 	}
+	// 不能重复添加PostStartHook，这里需要报错提醒用户，否则要么用户添加的PostStartHook把别人的覆盖了，要么用户想要添加的PostStartHook
+	// 被忽略，这两种情况下的任意一种都不是我们想看到的。用明确的错误提示用户才是正确的做法。
 	if postStartHook, exists := s.postStartHooks[name]; exists {
 		// this is programmer error, but it can be hard to debug
 		return fmt.Errorf("unable to add %q because it was already registered by: %s", name, postStartHook.originatingStack)
@@ -104,10 +111,13 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 
 	// done is closed when the poststarthook is finished.  This is used by the health check to be able to indicate
 	// that the poststarthook is finished
+	// done实际上是为了两个协程之间的通信，当PostStartHook执行完成之后，BootSequenceHealthCheck就会检测通过
 	done := make(chan struct{})
+	// TODO 猜测是GenericServer启动完成之后会启动健康检测
 	if err := s.AddBootSequenceHealthChecks(postStartHookHealthz{name: "poststarthook/" + name, done: done}); err != nil {
 		return err
 	}
+	// 添加PostStartHook，就是一个简单的Map添加元素
 	s.postStartHooks[name] = postStartHookEntry{hook: hook, originatingStack: string(debug.Stack()), done: done}
 
 	return nil

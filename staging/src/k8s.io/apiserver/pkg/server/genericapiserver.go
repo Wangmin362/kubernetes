@@ -180,10 +180,13 @@ type GenericAPIServer struct {
 	// PostStartHooks are each called after the server has started listening, in a separate go func for each
 	// with no guarantee of ordering between them.  The map key is a name used for error reporting.
 	// It may kill the process with a panic if it wishes to by returning an error.
-	postStartHookLock      sync.Mutex
-	postStartHooks         map[string]postStartHookEntry
+	postStartHookLock sync.Mutex
+	postStartHooks    map[string]postStartHookEntry
+	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
+	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加
+	// PostStartHook
 	postStartHooksCalled   bool
-	disabledPostStartHooks sets.String
+	disabledPostStartHooks sets.String // 被禁用的PostStartHook的名字
 
 	preShutdownHookLock    sync.Mutex
 	preShutdownHooks       map[string]preShutdownHookEntry

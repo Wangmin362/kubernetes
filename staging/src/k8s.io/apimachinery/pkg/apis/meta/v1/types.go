@@ -108,6 +108,7 @@ const (
 
 // ObjectMeta is metadata that all persisted resources must have, which includes all objects
 // users must create.
+// 1、用于表针每个对象的对象元信息，譬如名称、所在名称空间、创建时间
 type ObjectMeta struct {
 	// Name must be unique within a namespace. Is required when creating resources, although
 	// some resources may allow a client to request the generation of an appropriate name
@@ -143,6 +144,7 @@ type ObjectMeta struct {
 	// Cannot be updated.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces
 	// +optional
+	// 对象所在名称空间
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,3,opt,name=namespace"`
 
 	// Deprecated: selfLink is a legacy read-only field that is no longer populated by the system.
@@ -170,6 +172,7 @@ type ObjectMeta struct {
 	// Value must be treated as opaque by clients and .
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#concurrency-control-and-consistency
 	// +optional
+	// 资源版本号，每修改一次，版本号就会加一
 	ResourceVersion string `json:"resourceVersion,omitempty" protobuf:"bytes,6,opt,name=resourceVersion"`
 
 	// A sequence number representing a specific generation of the desired state.
@@ -186,6 +189,7 @@ type ObjectMeta struct {
 	// Null for lists.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	// +optional
+	// 资源创建时间
 	CreationTimestamp Time `json:"creationTimestamp,omitempty" protobuf:"bytes,8,opt,name=creationTimestamp"`
 
 	// DeletionTimestamp is RFC 3339 date and time at which this resource will be deleted. This
@@ -207,6 +211,7 @@ type ObjectMeta struct {
 	// Read-only.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
 	// +optional
+	// 资源删除时间
 	DeletionTimestamp *Time `json:"deletionTimestamp,omitempty" protobuf:"bytes,9,opt,name=deletionTimestamp"`
 
 	// Number of seconds allowed for this object to gracefully terminate before
@@ -214,6 +219,7 @@ type ObjectMeta struct {
 	// May only be shortened.
 	// Read-only.
 	// +optional
+	// 在多少秒之内必须要删除这个资源对象
 	DeletionGracePeriodSeconds *int64 `json:"deletionGracePeriodSeconds,omitempty" protobuf:"varint,10,opt,name=deletionGracePeriodSeconds"`
 
 	// Map of string keys and values that can be used to organize and categorize
@@ -221,6 +227,7 @@ type ObjectMeta struct {
 	// and services.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels
 	// +optional
+	// 资源标签
 	Labels map[string]string `json:"labels,omitempty" protobuf:"bytes,11,rep,name=labels"`
 
 	// Annotations is an unstructured key value map stored with a resource that may be
@@ -228,6 +235,7 @@ type ObjectMeta struct {
 	// queryable and should be preserved when modifying objects.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations
 	// +optional
+	// 资源注解
 	Annotations map[string]string `json:"annotations,omitempty" protobuf:"bytes,12,rep,name=annotations"`
 
 	// List of objects depended by this object. If ALL objects in the list have
@@ -237,6 +245,7 @@ type ObjectMeta struct {
 	// +optional
 	// +patchMergeKey=uid
 	// +patchStrategy=merge
+	// 资源的属主
 	OwnerReferences []OwnerReference `json:"ownerReferences,omitempty" patchStrategy:"merge" patchMergeKey:"uid" protobuf:"bytes,13,rep,name=ownerReferences"`
 
 	// Must be empty before the object is deleted from the registry. Each entry
@@ -254,6 +263,7 @@ type ObjectMeta struct {
 	// are not vulnerable to ordering changes in the list.
 	// +optional
 	// +patchStrategy=merge
+	// Finalizer是K8S留给用户资源删除时的回调机制
 	Finalizers []string `json:"finalizers,omitempty" patchStrategy:"merge" protobuf:"bytes,14,rep,name=finalizers"`
 
 	// Tombstone: ClusterName was a legacy field that was always cleared by
@@ -269,6 +279,7 @@ type ObjectMeta struct {
 	// workflow used when modifying the object.
 	//
 	// +optional
+	// TODO 这玩意有啥用？
 	ManagedFields []ManagedFieldsEntry `json:"managedFields,omitempty" protobuf:"bytes,17,rep,name=managedFields"`
 }
 

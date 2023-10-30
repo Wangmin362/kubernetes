@@ -854,6 +854,7 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 // The <apiGroupInfos> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
 func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) error {
+	// 每个组都需要保证PrioritizedVersions不为空
 	for _, apiGroupInfo := range apiGroupInfos {
 		// Do not register empty group or empty version.  Doing so claims /apis/ for the wrong entity to be returned.
 		// Catching these here places the error  much closer to its origin
@@ -878,7 +879,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 		// setup discovery
 		// Install the version handler.
 		// Add a handler at /apis/<groupName> to enumerate all versions supported by this group.
-		apiVersionsForDiscovery := []metav1.GroupVersionForDiscovery{}
+		var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
 		for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 			// Check the config to make sure that we elide versions that don't have any resources
 			if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
@@ -951,7 +952,12 @@ func (s *GenericAPIServer) newAPIGroupVersion(apiGroupInfo *APIGroupInfo, groupV
 
 // NewDefaultAPIGroupInfo returns an APIGroupInfo stubbed with "normal" values
 // exposed for easier composition from other packages
-func NewDefaultAPIGroupInfo(group string, scheme *runtime.Scheme, parameterCodec runtime.ParameterCodec, codecs serializer.CodecFactory) APIGroupInfo {
+func NewDefaultAPIGroupInfo(
+	group string,
+	scheme *runtime.Scheme,
+	parameterCodec runtime.ParameterCodec,
+	codecs serializer.CodecFactory,
+) APIGroupInfo {
 	return APIGroupInfo{
 		PrioritizedVersions:          scheme.PrioritizedVersionsForGroup(group),
 		VersionedResourcesStorageMap: map[string]map[string]rest.Storage{},

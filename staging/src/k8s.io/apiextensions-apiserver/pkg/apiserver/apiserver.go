@@ -181,6 +181,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 用于表示哪些资源被启用/禁用
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
+	// TODO 重点肥西这个Storage
 	storage := map[string]rest.Storage{}
 	// customresourcedefinitions
 	if resource := "customresourcedefinitions"; apiResourceConfig.ResourceEnabled(v1.SchemeGroupVersion.WithResource(resource)) {
@@ -188,7 +189,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		if err != nil {
 			return nil, err
 		}
+		// 添加对于CRD资源的增删改查
 		storage[resource] = customResourceDefinitionStorage
+		// 添加对于CRD/status子资源的增删改查
 		storage[resource+"/status"] = customresourcedefinition.NewStatusREST(Scheme, customResourceDefinitionStorage)
 	}
 	if len(storage) > 0 {

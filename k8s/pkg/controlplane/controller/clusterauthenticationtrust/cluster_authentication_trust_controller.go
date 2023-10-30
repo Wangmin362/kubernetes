@@ -71,10 +71,13 @@ type Controller struct {
 }
 
 // ClusterAuthenticationInfo holds the information that will included in public configmap.
+// 集群认证信息
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
+	// 证书认证
 	ClientCA dynamiccertificates.CAContentProvider
 
+	// 代理认证
 	// RequestHeaderUsernameHeaders are the headers used by this kube-apiserver to determine username
 	RequestHeaderUsernameHeaders headerrequest.StringSliceProvider
 	// RequestHeaderGroupHeaders are the headers used by this kube-apiserver to determine groups

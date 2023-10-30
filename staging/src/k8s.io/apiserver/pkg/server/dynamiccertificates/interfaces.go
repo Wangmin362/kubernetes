@@ -34,6 +34,7 @@ type Notifier interface {
 }
 
 // CAContentProvider provides ca bundle byte content
+// 用于获取CA内容，当CA变动时，CAContentProvider可以发现，并通知所有的Notifier
 type CAContentProvider interface {
 	Notifier
 

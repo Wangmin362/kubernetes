@@ -32,6 +32,9 @@ type RequestHeaderConfig struct {
 	// CAContentProvider the options for verifying incoming connections using mTLS.  Generally this points to CA bundle file which is used verify the identity of the front proxy.
 	//	It may produce different options at will.
 	// TODO 这玩意干嘛的？
+	// 1、CAContentProvider是用于提供证书用的
+	// 2、由于APIServer开启了双向认证，因此代理是需要配置证书的，所以我们需要给代理配置证书
+	// 3、代理认证的流程为：client -> proxyAuth(代理认证服务器) -> APIServer，代理认证完成之后，必须要把用户相关的认证信息放到请求头当中
 	CAContentProvider dynamiccertificates.CAContentProvider
 	// AllowedClientNames is a list of common names that may be presented by the authenticating front proxy.  Empty means: accept any.
 	AllowedClientNames headerrequest.StringSliceProvider

@@ -57,10 +57,12 @@ type ServerRunOptions struct {
 	Logs                    *logs.Options
 	Traces                  *genericoptions.TracingOptions
 
-	AllowPrivileged           bool
-	EnableLogsHandler         bool
-	EventTTL                  time.Duration
-	KubeletConfig             kubeletclient.KubeletClientConfig
+	AllowPrivileged bool
+	// LogHandler有啥作用？什么时候应该开启？
+	EnableLogsHandler bool
+	EventTTL          time.Duration
+	KubeletConfig     kubeletclient.KubeletClientConfig
+	// 如果设置为0，表示kubernetes.default.svc为ClusterIP模式。如果指定了端口，那么就是NodePort端口
 	KubernetesServiceNodePort int
 	MaxConnectionBytesPerSec  int64
 	// ServiceClusterIPRange is mapped to input provided by user
@@ -78,6 +80,7 @@ type ServerRunOptions struct {
 	ProxyClientCertFile string
 	ProxyClientKeyFile  string
 
+	// TODO 有何作用？
 	EnableAggregatorRouting             bool
 	AggregatorRejectForwardingRedirects bool
 

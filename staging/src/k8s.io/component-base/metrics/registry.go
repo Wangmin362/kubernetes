@@ -32,10 +32,12 @@ import (
 var (
 	showHiddenOnce      sync.Once
 	disabledMetricsLock sync.RWMutex
-	showHidden          atomic.Bool
-	registries          []*kubeRegistry // stores all registries created by NewKubeRegistry()
-	registriesLock      sync.RWMutex
-	disabledMetrics     = map[string]struct{}{}
+	// TODO 这玩意干嘛的？
+	showHidden atomic.Bool
+	// TODO kubeRegistry是啥？
+	registries      []*kubeRegistry // stores all registries created by NewKubeRegistry()
+	registriesLock  sync.RWMutex
+	disabledMetrics = map[string]struct{}{}
 
 	registeredMetrics = NewCounterVec(
 		&CounterOpts{

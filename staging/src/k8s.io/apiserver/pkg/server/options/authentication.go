@@ -52,6 +52,8 @@ func DefaultAuthWebhookRetryBackoff() *wait.Backoff {
 type RequestHeaderAuthenticationOptions struct {
 	// ClientCAFile is the root certificate bundle to verify client certificates on incoming requests
 	// before trusting usernames in headers.
+	// 1、ClientCAFile是客户端的CA根证书，由于APIServer启用了TLS双向认证，因此代理认证也需要开启双向认证。因此需要给代理认证服务器
+	// 配置客户端的CA根证书以校验客户端的证书
 	ClientCAFile string
 
 	UsernameHeaders     []string
@@ -140,6 +142,8 @@ func (s *RequestHeaderAuthenticationOptions) ToAuthenticationRequestHeaderConfig
 		return nil, nil
 	}
 
+	// 1、ClientCAFile是客户端的CA根证书，由于APIServer启用了TLS双向认证，因此代理认证也需要开启双向认证。因此需要给代理认证服务器
+	// 配置客户端的CA根证书以校验客户端的证书
 	caBundleProvider, err := dynamiccertificates.NewDynamicCAContentFromFile("request-header", s.ClientCAFile)
 	if err != nil {
 		return nil, err

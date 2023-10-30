@@ -214,39 +214,82 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 //			|      |    GenericAPIServer     |      |
 //          |      +-------------------------+      |
 //          +---------------------------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |           NotFoundHandler             |
+//          +---------------------------------------+
 
 // CreateServerChain creates the apiservers connected via delegation.
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
-	//
+	// 1、初始化APIServer配置，APIServer配置是通过GenericConfig配置加上额外的配置构成的
+	// 2、ServiceResolver用于把Service解析为一个合法的URL
+	// 3、PluginInitializer中的Plugin指的是准入控制插件，这里的初始化器是为了向准入控制插件当中注入需要的依赖
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err
 	}
 
 	// If additional API servers are added, they should be gated.
-	apiExtensionsConfig, err := createAPIExtensionsConfig(*kubeAPIServerConfig.GenericConfig, kubeAPIServerConfig.ExtraConfig.VersionedInformers, pluginInitializer, completedOptions.ServerRunOptions, completedOptions.MasterCount,
-		serviceResolver, webhook.NewDefaultAuthenticationInfoResolverWrapper(kubeAPIServerConfig.ExtraConfig.ProxyTransport, kubeAPIServerConfig.GenericConfig.EgressSelector, kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, kubeAPIServerConfig.GenericConfig.TracerProvider))
+	// 创建ExtensionServer配置，ExtensionServer允许需要这些参数进行配置
+	apiExtensionsConfig, err := createAPIExtensionsConfig(
+		*kubeAPIServerConfig.GenericConfig,                 // GenericServer的通用配置
+		kubeAPIServerConfig.ExtraConfig.VersionedInformers, // SharedInformerFactory，用于缓存各种APIServer，可以理解为一个缓存，用于以空间换时间
+		pluginInitializer,                                  // 准入控制插件初始化器，用于再准入控制插件初始化的时候注入需要的依赖
+		completedOptions.ServerRunOptions,                  // 用户启动KubeAPIServer时传递的参数
+		completedOptions.MasterCount,                       // Master节点数量
+		serviceResolver,                                    // 服务解析器，用于把Service解析为一个合法的URL
+		webhook.NewDefaultAuthenticationInfoResolverWrapper( // TODO
+			kubeAPIServerConfig.ExtraConfig.ProxyTransport,         // 用于HTTPS传输
+			kubeAPIServerConfig.GenericConfig.EgressSelector,       // TODO 和APIServer的Konnectivity特性相关
+			kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, // TODO 用于请求本地的APIServer
+			kubeAPIServerConfig.GenericConfig.TracerProvider,       // 用于链路追踪
+		),
+	)
 	if err != nil {
 		return nil, err
 	}
 
+	// 当AggregatorServer, APIServer, ExtensionServer都无法解析请求时，只能把请求委托给NotFoundHandler，返回给用户404错误信息
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
-	apiExtensionsServer, err := createAPIExtensionsServer(apiExtensionsConfig, genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler))
+
+	// 创建ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
+	apiExtensionsServer, err := createAPIExtensionsServer(
+		apiExtensionsConfig,
+		genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler),
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	kubeAPIServer, err := CreateKubeAPIServer(kubeAPIServerConfig, apiExtensionsServer.GenericAPIServer)
+	// 实例化APIServer
+	kubeAPIServer, err := CreateKubeAPIServer(
+		kubeAPIServerConfig,                  // APIServer的配置
+		apiExtensionsServer.GenericAPIServer, // TODO
+	)
 	if err != nil {
 		return nil, err
 	}
 
-	// aggregator comes last in the chain
-	aggregatorConfig, err := createAggregatorConfig(*kubeAPIServerConfig.GenericConfig, completedOptions.ServerRunOptions, kubeAPIServerConfig.ExtraConfig.VersionedInformers, serviceResolver, kubeAPIServerConfig.ExtraConfig.ProxyTransport, pluginInitializer)
+	// 初始化AggregatorServer的配置
+	aggregatorConfig, err := createAggregatorConfig(
+		*kubeAPIServerConfig.GenericConfig,
+		completedOptions.ServerRunOptions,
+		kubeAPIServerConfig.ExtraConfig.VersionedInformers,
+		serviceResolver,
+		kubeAPIServerConfig.ExtraConfig.ProxyTransport,
+		pluginInitializer,
+	)
 	if err != nil {
 		return nil, err
 	}
-	aggregatorServer, err := createAggregatorServer(aggregatorConfig, kubeAPIServer.GenericAPIServer, apiExtensionsServer.Informers)
+
+	// 实例化AggregatorServer
+	aggregatorServer, err := createAggregatorServer(
+		aggregatorConfig,
+		kubeAPIServer.GenericAPIServer,
+		apiExtensionsServer.Informers,
+	)
 	if err != nil {
 		// we don't need special handling for innerStopCh because the aggregator server doesn't create any go routines
 		return nil, err
@@ -256,7 +299,10 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 }
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
-func CreateKubeAPIServer(kubeAPIServerConfig *controlplane.Config, delegateAPIServer genericapiserver.DelegationTarget) (*controlplane.Instance, error) {
+func CreateKubeAPIServer(
+	kubeAPIServerConfig *controlplane.Config,
+	delegateAPIServer genericapiserver.DelegationTarget,
+) (*controlplane.Instance, error) {
 	return kubeAPIServerConfig.Complete().New(delegateAPIServer)
 }
 
@@ -297,8 +343,15 @@ func CreateProxyTransport() *http.Transport {
 //			|      |    GenericAPIServer     |      |
 //          |      +-------------------------+      |
 //          +---------------------------------------+
+//                             |
+//                             |
+//			+------------------↓--------------------+
+//          |           NotFoundHandler             |
+//          +---------------------------------------+
 
 // CreateKubeAPIServerConfig creates all the resources for running the API server, but runs none of them
+// 1、初始化APIServer配置，APIServer配置是有GenericServer配置加上额外的参数构成的
+// 2、
 func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	*controlplane.Config,
 	aggregatorapiserver.ServiceResolver,
@@ -311,19 +364,32 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 
 	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的
 	// 2、在KubeAPIServer当中，APIServer, ExtensionServer, AggregatedServer都是GenericServer
+	// 3、versionedInformers：本质上就是SharedInformerFactory，用于缓存K8S各种资源
+	// 4、serviceResolver：用于把Service转为一个可用的URL，其实就是用于把Service转为一个可用的URL
+	// 5、pluginInitializers：这里所说的插件其实指的是准入插件，K8S中有许多内置的准入插件，用户也可以定制Webhook准入插件。这里的插件
+	// 初始化器是为了向插件注入需要的依赖。 TODO 好好再分析下
+	// 6、admissionPostStartHook：准入插件后置启动回调 TODO 什么时候被调用？生命周期？
+	// 7、storageFactory：TODO APIServer的存储是如何设计的？
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
 		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
+	// TODO 通过Linux的Capability设置是否允许创建特权容器，以及每个连接每秒钟传输的最大字节数
 	capabilities.Setup(s.AllowPrivileged, s.MaxConnectionBytesPerSec)
 
+	// TODO 这里在干嘛
 	s.Metrics.Apply()
+	// 注册serviceAccount相关指标
 	serviceaccount.RegisterMetrics()
-
+	// APIServer配置，其中包含了GenericServer使用的通用配置以及APIServer需要的额外配置
 	config := &controlplane.Config{
+		// 1、GenericConfig配置定然是给GenericServer使用的，AggregatorServer, APIServer, ExtensionServer使用的配置肯定都是一样的
+		// 2、如果说AggregatorServer, APIServer, ExtensionServer只有通用配置，没有自己业务相关的配置，那这三个Server也就没有什么差别了
+		// 所以AggregatorServer, APIServer, ExtensionServer还有额外的配置，这些配置和这三个Server不同业务有关
 		GenericConfig: genericConfig,
+		// 3、APIServer特定的配置  TODO 似乎再K8S当中controlPlane代表着APIServer
 		ExtraConfig: controlplane.ExtraConfig{
 			APIResourceConfigSource: storageFactory.APIResourceConfigSource,
 			StorageFactory:          storageFactory,
@@ -332,32 +398,43 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 			EnableLogsSupport:       s.EnableLogsHandler,
 			ProxyTransport:          proxyTransport,
 
-			ServiceIPRange:          s.PrimaryServiceClusterIPRange,
-			APIServerServiceIP:      s.APIServerServiceIP,
+			// ServiceIP主范围
+			ServiceIPRange:     s.PrimaryServiceClusterIPRange,
+			APIServerServiceIP: s.APIServerServiceIP,
+			// ServiceIP从范围
 			SecondaryServiceIPRange: s.SecondaryServiceClusterIPRange,
 
+			// kubernetes.default.svc的端口
 			APIServerServicePort: 443,
 
-			ServiceNodePortRange:      s.ServiceNodePortRange,
+			// NodePort端口范围
+			ServiceNodePortRange: s.ServiceNodePortRange,
+			// kubernetes.default.svc的NodePort端口，默认kubernetes.default.svc是ClusterIP模式，依次这个端口是0
 			KubernetesServiceNodePort: s.KubernetesServiceNodePort,
 
+			// TODO 这玩意干嘛的
 			EndpointReconcilerType: reconcilers.Type(s.EndpointReconcilerType),
-			MasterCount:            s.MasterCount,
+			// Master的数量
+			MasterCount: s.MasterCount,
 
+			// TODO ServiceAccountToken认证机制
 			ServiceAccountIssuer:        s.ServiceAccountIssuer,
 			ServiceAccountMaxExpiration: s.ServiceAccountTokenMaxExpiration,
 			ExtendExpiration:            s.Authentication.ServiceAccounts.ExtendExpiration,
 
+			// SharedInformerFactory
 			VersionedInformers: versionedInformers,
 		},
 	}
 
+	// TODO 用于获取CA实际内容
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err
 	}
 	config.ExtraConfig.ClusterAuthenticationInfo.ClientCA = clientCAProvider
 
+	// 代理认证配置
 	requestHeaderConfig, err := s.Authentication.RequestHeader.ToAuthenticationRequestHeaderConfig()
 	if err != nil {
 		return nil, nil, nil, err
@@ -370,10 +447,12 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		config.ExtraConfig.ClusterAuthenticationInfo.RequestHeaderUsernameHeaders = requestHeaderConfig.UsernameHeaders
 	}
 
+	// 添加回调
 	if err := config.GenericConfig.AddPostStartHook("start-kube-apiserver-admission-initializer", admissionPostStartHook); err != nil {
 		return nil, nil, nil, err
 	}
 
+	// TODO 分析Konnectivity原理
 	if config.GenericConfig.EgressSelector != nil {
 		// Use the config.GenericConfig.EgressSelector lookup to find the dialer to connect to the kubelet
 		config.ExtraConfig.KubeletClientConfig.Lookup = config.GenericConfig.EgressSelector.Lookup
@@ -390,6 +469,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	}
 
 	// Load the public keys.
+	// TODO 分析
 	var pubKeys []interface{}
 	for _, f := range s.Authentication.ServiceAccounts.KeyFiles {
 		keys, err := keyutil.PublicKeysFromFile(f)
@@ -565,6 +645,7 @@ func buildGenericConfig(
 		return
 	}
 
+	// TODO 准入控制插件的初始化
 	err = s.Admission.ApplyTo(
 		genericConfig,
 		versionedInformers,
@@ -576,9 +657,11 @@ func buildGenericConfig(
 		return
 	}
 
+	// TODO 留空初始化
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) && s.GenericServerRunOptions.EnablePriorityAndFairness {
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}
+	// TODO 资源管理器有啥用？
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		genericConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 	}

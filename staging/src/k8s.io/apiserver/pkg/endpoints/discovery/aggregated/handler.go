@@ -45,8 +45,9 @@ const (
 	CRDSource        Source = 200
 )
 
-// This handler serves the /apis endpoint for an aggregated list of
+// ResourceManager This handler serves the /apis endpoint for an aggregated list of
 // api resources indexed by their group version.
+// TODO 资源管理器是如何管理资源的？它提供了什么功能？
 type ResourceManager interface {
 	// Adds knowledge of the given groupversion to the discovery document
 	// If it was already being tracked, updates the stored APIVersionDiscovery

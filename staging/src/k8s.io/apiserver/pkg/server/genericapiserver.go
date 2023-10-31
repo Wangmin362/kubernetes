@@ -774,7 +774,7 @@ func (s *GenericAPIServer) installAPIResources(
 	}
 	var resourceInfos []*storageversion.ResourceInfo
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
-		// 某个组先的某个版本如果没有资源，那么直接跳过
+		// 某个组的某个版本如果没有资源，那么直接跳过
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
 			klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
 			continue

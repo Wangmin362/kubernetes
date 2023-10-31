@@ -98,7 +98,7 @@ type APIGroupVersion struct {
 	// TODO 鉴权 意思是每种资源可以单独设置鉴权？
 	Authorizer authorizer.Authorizer
 
-	// TODO 可以对每种资源进行准入控制？
+	// TODO 可以对每个组进行准入控制？
 	Admit admission.Interface
 
 	MinRequestTimeout time.Duration
@@ -121,6 +121,7 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]apidiscov
 		minRequestTimeout: g.MinRequestTimeout,
 	}
 
+	// TODO 路由注册，相当复杂
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
 	// 注册/<root>/<group>/<version>路由，此路由用于返回某个组的某个版本下的所有可用资源信息
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})

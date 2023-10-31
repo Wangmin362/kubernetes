@@ -68,6 +68,7 @@ const (
 )
 
 // RequestScope encapsulates common fields across all RESTful handler methods.
+// TODO 请求作用域是啥？
 type RequestScope struct {
 	Namer ScopeNamer
 

@@ -435,8 +435,9 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 健康检测
 		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 就绪检测
 		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 存活检测
-		// 开启APIServer的/index.html路由，开启之后我们可以直接访问https://172.30.3.130:6443/index.html或者是
-		// https://172.30.3.130:6443/获取当前Server支持的所有路由
+		// 1、开启APIServer的/index.html路由，开启之后我们可以直接访问https://172.30.3.130:6443/index.html或者是
+		// https://172.30.3.130:6443/获取当前Server支持的所有路由，当然前提是kubernetes.svc开启了NodePort，否则只能用
+		// kubectl get --raw=/  或者 kubectl get --raw=/index.html来测试
 		EnableIndex:                 true,
 		EnableDiscovery:             true, // TODO
 		EnableProfiling:             true, // TODO

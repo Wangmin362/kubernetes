@@ -69,14 +69,17 @@ type Scheme struct {
 
 	// Map from version and resource to the corresponding func to convert
 	// resource field labels in that version to internal version.
+	// TODO 这个字段似乎也是为不同版本之间字段转换实现的
 	fieldLabelConversionFuncs map[schema.GroupVersionKind]FieldLabelConversionFunc
 
 	// defaulterFuncs is a map to funcs to be called with an object to provide defaulting
 	// the provided object must be a pointer.
+	// 1、猜测defaultFuncs用于设置对象的某些属性，用于设置默认值。
 	defaulterFuncs map[reflect.Type]func(interface{})
 
 	// converter stores all registered conversion functions. It also has
 	// default converting behavior.
+	// TODO 用于多个版本之间的相互转换
 	converter *conversion.Converter
 
 	// versionPriority is a map of groups to ordered lists of versions for those groups indicating the

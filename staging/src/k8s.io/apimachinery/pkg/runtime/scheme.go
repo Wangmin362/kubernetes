@@ -47,18 +47,24 @@ import (
 type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.
+	// 1、用于存储GVK到GoStruct之间的映射，这个映射是一对一的
+	// 2、我们在请求进来时，需要对于请求的Body进行序列化时，就需要通过gvkToType确定当前的Body应该反序列化为哪一个结构体。
 	gvkToType map[schema.GroupVersionKind]reflect.Type
 
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
+	// 1、用于存储GoStruct到GVK之间的映射，这个映射是一对多的   TODO 为什么这里是一对多的？
+	// TODO 什么时候需要用到这个字段
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
 	// unversionedTypes are transformed without conversion in ConvertToVersion.
+	// 1、用于存在GoStruct到GVK的映射，由于无版本的资源类型是没有版本的，因此是一对一
 	unversionedTypes map[reflect.Type]schema.GroupVersionKind
 
 	// unversionedKinds are the names of kinds that can be created in the context of any group
 	// or version
 	// TODO: resolve the status of unversioned types.
+	// 1、用于存储GVK到GoStruct的映射
 	unversionedKinds map[string]reflect.Type
 
 	// Map from version and resource to the corresponding func to convert
@@ -103,6 +109,7 @@ func NewScheme() *Scheme {
 	s.converter = conversion.NewConverter(nil)
 
 	// Enable couple default conversions by default.
+	// TODO 这里在干嘛？
 	utilruntime.Must(RegisterEmbeddedConversions(s))
 	utilruntime.Must(RegisterStringConversions(s))
 	return s
@@ -120,6 +127,9 @@ func (s *Scheme) Converter() *conversion.Converter {
 //
 // TODO: there is discussion about removing unversioned and replacing it with objects that are manifest into
 // every version with particular schemas. Resolve this method at that point.
+// 1、所谓的KnownType，其实指的就是有版本的资源类型。在K8S当中，存在一些没有版本的资源类型，被称之为UnVersionedType，譬如APIGroup,
+// APIGroupList,APIResource, APIResourceList等资源，不过K8S中的无版本资源这个概念现在已经逐渐弱化，更多则是KnownType，也就是有版本的
+// 资源类型
 func (s *Scheme) AddUnversionedTypes(version schema.GroupVersion, types ...Object) {
 	s.addObservedVersion(version)
 	s.AddKnownTypes(version, types...)
@@ -138,6 +148,9 @@ func (s *Scheme) AddUnversionedTypes(version schema.GroupVersion, types ...Objec
 // All objects passed to types should be pointers to structs. The name that go reports for
 // the struct becomes the "kind" field when encoding. Version may not be empty - use the
 // APIVersionInternal constant if you have a type that does not have a formal version.
+// 1、所谓的KnownType，其实指的就是有版本的资源类型。在K8S当中，存在一些没有版本的资源类型，被称之为UnVersionedType，譬如APIGroup,
+// APIGroupList,APIResource, APIResourceList等资源，不过K8S中的无版本资源这个概念现在已经逐渐弱化，更多则是KnownType，也就是有版本的
+// 资源类型
 func (s *Scheme) AddKnownTypes(gv schema.GroupVersion, types ...Object) {
 	s.addObservedVersion(gv)
 	for _, obj := range types {

@@ -180,6 +180,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// 用于表示哪些资源被启用/禁用
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
+
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
 	// TODO 重点肥西这个Storage
 	storage := map[string]rest.Storage{}

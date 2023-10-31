@@ -87,9 +87,11 @@ import (
 
 const (
 	// DefaultLegacyAPIPrefix is where the legacy APIs will be located.
+	// 核心资源使用的前缀，核心资源也被称之为Legacy资源
 	DefaultLegacyAPIPrefix = "/api"
 
 	// APIGroupPrefix is where non-legacy API group will be located.
+	// 除了核心资源其余资源都是以/apis打头
 	APIGroupPrefix = "/apis"
 )
 

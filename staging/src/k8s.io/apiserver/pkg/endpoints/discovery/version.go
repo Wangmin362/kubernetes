@@ -40,6 +40,8 @@ func (f APIResourceListerFunc) ListAPIResources() []metav1.APIResource {
 
 // APIVersionHandler creates a webservice serving the supported resources for the version
 // E.g., such a web service will be registered at /apis/extensions/v1beta1.
+// 1、APIVersionHandler本质上就是一个http.Handler，用于返回/apis/<group>/<version>下面的所有资源
+// 2、可以通过类似的命令进行测试，譬如：kubectl get --raw=/apis/apps/v1
 type APIVersionHandler struct {
 	serializer runtime.NegotiatedSerializer
 
@@ -69,7 +71,7 @@ func (s *APIVersionHandler) AddToWebService(ws *restful.WebService) {
 		Operation("getAPIResources").
 		Produces(mediaTypes...).
 		Consumes(mediaTypes...).
-		Writes(metav1.APIResourceList{}))
+		Writes(metav1.APIResourceList{})) // 这里应该是在告诉go-restful如何进行序列化
 }
 
 // handle returns a handler which will return the api.VersionAndVersion of the group.

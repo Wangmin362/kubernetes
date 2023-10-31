@@ -71,11 +71,14 @@ var (
 )
 
 func init() {
+	// 这里就是ExtensionServer注册的地方
 	install.Install(Scheme)
 
 	// we need to add the options to empty v1
+	// 向Scheme添加GVK到GoStruct的映射，内部会调用
 	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Group: "", Version: "v1"})
 
+	// 向Schema中添加没有版本号的资源
 	Scheme.AddUnversionedTypes(unversionedVersion, unversionedTypes...)
 }
 
@@ -181,8 +184,9 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 用于表示哪些资源被启用/禁用
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 
+	// TODO 1、apiGroupInfo用于表征当前组的信息，其中最重要的就是存储信息
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
-	// TODO 重点肥西这个Storage
+	// TODO 重点分析这个Storage
 	storage := map[string]rest.Storage{}
 	// customresourcedefinitions
 	if resource := "customresourcedefinitions"; apiResourceConfig.ResourceEnabled(v1.SchemeGroupVersion.WithResource(resource)) {

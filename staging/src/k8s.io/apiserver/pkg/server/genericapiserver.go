@@ -65,9 +65,17 @@ import (
 // APIGroupInfo Info about an API group.
 // TODO APIGroupInfo是如何抽象的？
 type APIGroupInfo struct {
-	// TODO 什么叫做优先选择的版本
+	// TODO 什么叫做优先选择的版本  优先选择的版本什么时候用？  为什么是个组数？
+	// 1、每个group随着开发迭代，可能会有不同的版本，譬如v1alpha1, v1beta1, v1, v2beta1, v2beta2, v2等等
+	// 2、为什么是数组？因为当前结构是抽象的一个组下的所有信息，而一个组先将会有许多不同的资源类型，譬如apps组下有Deployment, StatefulSet,
+	// Job, CronJob, DaemonSet等等，那么自然每一个资源都需要一个优先先择的版本，所以是一个数组。
+	// TODO 3、为什么是不设计为Map？ 设计为数组的话，在使用的时候就必须遍历到我们需要的资源，才能知道应该优先选择哪个版本。
+	// 4、从代码以及当前结构可以看出，APIGroupInfo用于存储当前组下的GroupVersion，就是通过PrioritizedVersions字段，只不过先后顺序
+	// 体现了优先级
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
+	// 1、既然是group信息，那么group肯定是固定的，那么这里的第一级key为version， 第二级key为kind
+	// TODO 2、保存每个组员的存储信息，非常重要
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may
@@ -95,6 +103,7 @@ type APIGroupInfo struct {
 
 	// StaticOpenAPISpec is the spec derived from the definitions of all resources installed together.
 	// It is set during InstallAPIGroups, InstallAPIGroup, and InstallLegacyAPIGroup.
+	// TODO 这玩意是用来干嘛的？
 	StaticOpenAPISpec map[string]*spec.Schema
 }
 
@@ -747,7 +756,13 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 }
 
 // installAPIResources is a private method for installing the REST storage backing each api groupversionresource
-func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *APIGroupInfo, openAPIModels map[string]*spec.Schema) error {
+// 1、把当前传入的APIGroupInfo中的资源所对应的路由注册到GenericServer当中
+func (s *GenericAPIServer) installAPIResources(
+	apiPrefix string, // 添加的路由URL前缀，目前只有两种前缀，核心资源使用/api前缀，而其余资源使用/apis前缀
+	apiGroupInfo *APIGroupInfo, // APIGroupInfo对象携带了当前组下所有的资源
+	openAPIModels map[string]*spec.Schema, // TODO 这里看起来和OpenAPI相关的东西
+) error {
+	// TODO 有何作用？
 	var typeConverter managedfields.TypeConverter
 
 	if len(openAPIModels) > 0 {
@@ -759,21 +774,26 @@ func (s *GenericAPIServer) installAPIResources(apiPrefix string, apiGroupInfo *A
 	}
 	var resourceInfos []*storageversion.ResourceInfo
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
+		// 某个组先的某个版本如果没有资源，那么直接跳过
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
 			klog.Warningf("Skipping API %v because it has no resources.", groupVersion)
 			continue
 		}
 
+		// 1、实例化一个APIGroupVersion，并根据APIGroupInfo信息进行初始化
+		// 2、这一步还没有向GenericServer当中注册路由
 		apiGroupVersion, err := s.getAPIGroupVersion(apiGroupInfo, groupVersion, apiPrefix)
 		if err != nil {
 			return err
 		}
 		if apiGroupInfo.OptionsExternalVersion != nil {
+			// TODO OptionsExternalVersion有啥用？
 			apiGroupVersion.OptionsExternalVersion = apiGroupInfo.OptionsExternalVersion
 		}
 		apiGroupVersion.TypeConverter = typeConverter
 		apiGroupVersion.MaxRequestBodyBytes = s.maxRequestBodyBytes
 
+		// 这里才是真正注册路由的地方
 		discoveryAPIResources, r, err := apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
 
 		if err != nil {
@@ -854,7 +874,7 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 // The <apiGroupInfos> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
 func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) error {
-	// 每个组都需要保证PrioritizedVersions不为空
+	// 每个组都需要保证PrioritizedVersions不为空，也就是说每个资源都需要有优先选择的版本
 	for _, apiGroupInfo := range apiGroupInfos {
 		// Do not register empty group or empty version.  Doing so claims /apis/ for the wrong entity to be returned.
 		// Catching these here places the error  much closer to its origin
@@ -872,6 +892,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 	}
 
 	for _, apiGroupInfo := range apiGroupInfos {
+		// 1、遍历每个APIGroupInfo信息，依次添加每个组下每个资源的路由
 		if err := s.installAPIResources(APIGroupPrefix, apiGroupInfo, openAPIModels); err != nil {
 			return fmt.Errorf("unable to install api resources: %v", err)
 		}
@@ -913,9 +934,13 @@ func (s *GenericAPIServer) InstallAPIGroup(apiGroupInfo *APIGroupInfo) error {
 	return s.InstallAPIGroups(apiGroupInfo)
 }
 
+// 实例化一个APIGroupVersion，并根据APIGroupInfo信息进行初始化
 func (s *GenericAPIServer) getAPIGroupVersion(apiGroupInfo *APIGroupInfo, groupVersion schema.GroupVersion, apiPrefix string) (*genericapi.APIGroupVersion, error) {
+	// storage为每个资源的增删改查操作
 	storage := make(map[string]rest.Storage)
 	for k, v := range apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version] {
+		// k就是不同的版本，譬如v1, v1alpha1, v2alpha2, v2, v2beta2
+		// v就是每个资源对应的增删改查实现
 		if strings.ToLower(k) != k {
 			return nil, fmt.Errorf("resource names must be lowercase only, not %q", k)
 		}

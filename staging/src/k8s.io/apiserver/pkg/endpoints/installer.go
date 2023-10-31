@@ -55,9 +55,9 @@ const (
 )
 
 type APIInstaller struct {
-	group             *APIGroupVersion
-	prefix            string // Path prefix where API resources are to be registered.
-	minRequestTimeout time.Duration
+	group             *APIGroupVersion // 当前组的信息，包含这个组下某个具体版本的所有资源的增删改查操作
+	prefix            string           // 前缀为为：/<root>/<group>/<version>，核心资源的root为/api，其余资源的root为/apis
+	minRequestTimeout time.Duration    // TODO 如何理解这个字段
 }
 
 // Struct capturing information about an action ("GET", "POST", "WATCH", "PROXY", etc).

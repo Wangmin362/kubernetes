@@ -107,7 +107,8 @@ func NewScheme() *Scheme {
 		fieldLabelConversionFuncs: map[schema.GroupVersionKind]FieldLabelConversionFunc{},
 		defaulterFuncs:            map[reflect.Type]func(interface{}){},
 		versionPriority:           map[string][]string{},
-		schemeName:                naming.GetNameFromCallsite(internalPackages...),
+		// 为什么Scheme名字的生成这么复杂
+		schemeName: naming.GetNameFromCallsite(internalPackages...),
 	}
 	s.converter = conversion.NewConverter(nil)
 
@@ -191,6 +192,7 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 	s.gvkToType[gvk] = t
 
 	for _, existingGvk := range s.typeToGVK[t] {
+		// 如果已经存在，则直接返回
 		if existingGvk == gvk {
 			return
 		}

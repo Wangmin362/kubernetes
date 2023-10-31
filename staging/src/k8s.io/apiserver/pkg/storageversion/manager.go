@@ -39,6 +39,7 @@ type ResourceInfo struct {
 	EncodingVersion string
 	// Used to calculate decodable versions. Can only be used after all
 	// equivalent versions are registered by InstallREST.
+	// TODO 等效资源映射器似乎好像是用于给一个资源同时在多个组的资源
 	EquivalentResourceMapper runtime.EquivalentResourceRegistry
 
 	// DirectlyDecodableVersions is a list of versions that the converter for REST storage knows how to convert.  This

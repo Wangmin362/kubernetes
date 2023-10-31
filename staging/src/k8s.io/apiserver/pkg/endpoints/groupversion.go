@@ -48,12 +48,19 @@ type ConvertabilityChecker interface {
 // /${storage_key}[/${object_name}]
 // Where 'storage_key' points to a rest.Storage object stored in storage.
 // This object should contain all parameterization necessary for running a particular API version
+// TODO 为什么需要抽象出这个对象？
+// 1、APIGroupVersion包含了/<group>/<version>下所有资源的增删改查操作，group, version都是确定的
 type APIGroupVersion struct {
+	// 这里的Key应该就是资源，而Value则是每个资源对应的增删改查操作
 	Storage map[string]rest.Storage
 
+	// 1、路由前缀，目前K8S中只存在两种前缀，对于核心资源而言，前缀为/api（核心资源也被称之为Legacy资源），而对于其它资源
+	// 前缀为/apis
 	Root string
 
 	// GroupVersion is the external group version
+	// 当前的Group, Version信息
+	// TODO GroupVersion,OptionsExternalVersion,MetaGroupVersion有何不同？
 	GroupVersion schema.GroupVersion
 
 	// OptionsExternalVersion controls the Kubernetes APIVersion used for common objects in the apiserver
@@ -88,8 +95,10 @@ type APIGroupVersion struct {
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
 	// authorization check using the request URI but it may be necessary to make additional checks, such as in
 	// the create-on-update case
+	// TODO 鉴权 意思是每种资源可以单独设置鉴权？
 	Authorizer authorizer.Authorizer
 
+	// TODO 可以对每种资源进行准入控制？
 	Admit admission.Interface
 
 	MinRequestTimeout time.Duration
@@ -103,6 +112,8 @@ type APIGroupVersion struct {
 // It is expected that the provided path root prefix will serve all operations. Root MUST NOT end
 // in a slash.
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]apidiscoveryv2beta1.APIResourceDiscovery, []*storageversion.ResourceInfo, error) {
+	// 路由前缀为：/<root>/<group>/<version>，对于核心资源（也被称之为Legacy资源），Root就是/api，除了核心资源，
+	// 其余资源的Root为/apis
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
 	installer := &APIInstaller{
 		group:             g,
@@ -111,6 +122,7 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]apidiscov
 	}
 
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
+	// 注册/<root>/<group>/<version>路由，此路由用于返回某个组的某个版本下的所有可用资源信息
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
 	versionDiscoveryHandler.AddToWebService(ws)
 	container.Add(ws)

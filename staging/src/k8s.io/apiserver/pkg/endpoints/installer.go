@@ -62,9 +62,10 @@ type APIInstaller struct {
 
 // Struct capturing information about an action ("GET", "POST", "WATCH", "PROXY", etc).
 type action struct {
-	Verb          string               // Verb identifying the action ("GET", "POST", "WATCH", "PROXY", etc).
-	Path          string               // The path of the action
-	Params        []*restful.Parameter // List of parameters associated with the action.
+	Verb   string               // Verb identifying the action ("GET", "POST", "WATCH", "PROXY", etc).
+	Path   string               // The path of the action
+	Params []*restful.Parameter // List of parameters associated with the action.
+	// TODO 这玩意有啥用
 	Namer         handlers.ScopeNamer
 	AllNamespaces bool // true iff the action is namespaced but works on aggregate result for all namespaces
 }
@@ -185,16 +186,21 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 	var apiResources []metav1.APIResource
 	var resourceInfos []*storageversion.ResourceInfo
 	var errors []error
+	// TODO 实例化WebService
 	ws := a.newWebService()
 
 	// Register the paths in a deterministic (sorted) order to get a deterministic swagger spec.
+	// paths中保存就是各个资源名，譬如deployment, daemonSet, job, cronjob, statefulSet
 	paths := make([]string, len(a.group.Storage))
 	var i int = 0
 	for path := range a.group.Storage {
 		paths[i] = path
 		i++
 	}
+	// TODO 这里为啥要排序？
 	sort.Strings(paths)
+	// paths中保存就是各个资源名，譬如deployment, deployment/status, daemonset, daemonset/status, job, cronjob, statefulset,
+	// statefulset/status，也就是说除了资源名，也有可能是子资源名
 	for _, path := range paths {
 		apiResource, resourceInfo, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
 		if err != nil {
@@ -213,7 +219,7 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 // newWebService creates a new restful webservice with the api installer's prefix and version.
 func (a *APIInstaller) newWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(a.prefix)
+	ws.Path(a.prefix) // 前缀为/<prefix>/<group>/<version>，其中对于核心资源prefix=/api，而对于其他资源prefix=/apis
 	// a.prefix contains "prefix/group/version"
 	ws.Doc("API at " + a.prefix)
 	// Backwards compatibility, we accepted objects with empty content-type at V1.
@@ -274,10 +280,13 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 }
 
 func (a *APIInstaller) registerResourceHandlers(
+	// path其实就是资源名，譬如deployment, deployment/status, daemonset, daemonset/status, job, cronjob,
+	// statefulset, statefulset/status，也就是说除了资源名，也有可能是子资源名
 	path string,
-	storage rest.Storage,
-	ws *restful.WebService,
+	storage rest.Storage, // 当前资源的增删改查的实现,http.Handler中肯定就是间接或者直接调用这里实现的逻辑
+	ws *restful.WebService, // /<group>/<version>下面的路由将会注册到这里面
 ) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
+	// TODO 针对与每个组都可以配置准入控制
 	admit := a.group.Admit
 
 	optionsExternalVersion := a.group.GroupVersion
@@ -285,6 +294,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		optionsExternalVersion = *a.group.OptionsExternalVersion
 	}
 
+	// 当前可能是一个资源，譬如deployment, 也有可能是一个子资源，譬如deployment/status
 	resource, subresource, err := splitSubresource(path)
 	if err != nil {
 		return nil, nil, err
@@ -292,17 +302,21 @@ func (a *APIInstaller) registerResourceHandlers(
 
 	group, version := a.group.GroupVersion.Group, a.group.GroupVersion.Version
 
+	// 获取当前资源的GVK
 	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// 实例化资源对象，除了填充了GVK，其余属性啥也没有
 	versionedPtr, err := a.group.Creater.New(fqKindToRegister)
 	if err != nil {
 		return nil, nil, err
 	}
+	// TODO 这玩意干嘛的
 	defaultVersionedObject := indirectArbitraryPointer(versionedPtr)
 	kind := fqKindToRegister.Kind
+	// 长度大于零，说明是子资源
 	isSubresource := len(subresource) > 0
 
 	// If there is a subresource, namespace scoping is defined by the parent resource
@@ -316,6 +330,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		if !ok {
 			return nil, nil, fmt.Errorf("%q must implement scoper", resource)
 		}
+		// 判断当前子资源是否是名称空间级别的资源
 		namespaceScoped = scoper.NamespaceScoped()
 
 	} else {
@@ -323,6 +338,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		if !ok {
 			return nil, nil, fmt.Errorf("%q must implement scoper", resource)
 		}
+		// 判断当前资源是否是名称空间级别的资源
 		namespaceScoped = scoper.NamespaceScoped()
 	}
 

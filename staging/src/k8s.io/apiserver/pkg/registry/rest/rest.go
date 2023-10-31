@@ -66,6 +66,7 @@ type Storage interface {
 
 // Scoper indicates what scope the resource is at. It must be specified.
 // It is usually provided automatically based on your strategy.
+// 用于返回当前资源是否是名称空间级别的资源
 type Scoper interface {
 	// NamespaceScoped returns true if the storage is namespaced
 	NamespaceScoped() bool
@@ -189,6 +190,7 @@ type CollectionDeleter interface {
 }
 
 // Creater is an object that can create an instance of a RESTful object.
+// TODO 如何理解Creater接口和NamedCreater接口的区别？
 type Creater interface {
 	// New returns an empty object that can be used with Create after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)

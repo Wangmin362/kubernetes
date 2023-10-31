@@ -51,7 +51,8 @@ type ConvertabilityChecker interface {
 // TODO 为什么需要抽象出这个对象？
 // 1、APIGroupVersion包含了/<group>/<version>下所有资源的增删改查操作，group, version都是确定的
 type APIGroupVersion struct {
-	// 这里的Key应该就是资源，而Value则是每个资源对应的增删改查操作
+	// 1、这里的Key应该就是资源，而Value则是每个资源对应的增删改查操作
+	// 2、其实就是/<group>/<version>下面的所有资源
 	Storage map[string]rest.Storage
 
 	// 1、路由前缀，目前K8S中只存在两种前缀，对于核心资源而言，前缀为/api（核心资源也被称之为Legacy资源），而对于其它资源
@@ -74,6 +75,7 @@ type APIGroupVersion struct {
 	MetaGroupVersion *schema.GroupVersion
 
 	// RootScopedKinds are the root scoped kinds for the primary GroupVersion
+	// TODO 这玩意干嘛的？
 	RootScopedKinds sets.String
 
 	// Serializer is used to determine how to convert responses from API methods into bytes to send over
@@ -112,7 +114,7 @@ type APIGroupVersion struct {
 // It is expected that the provided path root prefix will serve all operations. Root MUST NOT end
 // in a slash.
 func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]apidiscoveryv2beta1.APIResourceDiscovery, []*storageversion.ResourceInfo, error) {
-	// 路由前缀为：/<root>/<group>/<version>，对于核心资源（也被称之为Legacy资源），Root就是/api，除了核心资源，
+	// 1、路由前缀为：/<root>/<group>/<version>，对于核心资源（也被称之为Legacy资源），Root就是/api，除了核心资源，
 	// 其余资源的Root为/apis
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)
 	installer := &APIInstaller{

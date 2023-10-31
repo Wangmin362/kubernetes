@@ -84,9 +84,11 @@ type Scheme struct {
 
 	// versionPriority is a map of groups to ordered lists of versions for those groups indicating the
 	// default priorities of these versions as registered in the scheme
+	// TODO 这个属性时什么时候注册的？
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
+	// TODO 这又是干嘛的？
 	observedVersions []schema.GroupVersion
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
@@ -609,7 +611,7 @@ func (s *Scheme) SetVersionPriority(versions ...schema.GroupVersion) error {
 
 // PrioritizedVersionsForGroup returns versions for a single group in priority order
 func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion {
-	ret := []schema.GroupVersion{}
+	var ret []schema.GroupVersion
 	for _, version := range s.versionPriority[group] {
 		ret = append(ret, schema.GroupVersion{Group: group, Version: version})
 	}

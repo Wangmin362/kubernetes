@@ -308,6 +308,8 @@ func CreateKubeAPIServer(
 	kubeAPIServerConfig *controlplane.Config,
 	delegateAPIServer genericapiserver.DelegationTarget,
 ) (*controlplane.Instance, error) {
+	// Complete用于补全APIServer的参数，设置一些默认值
+	// New实例化APIServer
 	return kubeAPIServerConfig.Complete().New(delegateAPIServer)
 }
 

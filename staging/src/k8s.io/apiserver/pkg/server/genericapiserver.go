@@ -72,9 +72,11 @@ type APIGroupInfo struct {
 	// TODO 3、为什么是不设计为Map？ 设计为数组的话，在使用的时候就必须遍历到我们需要的资源，才能知道应该优先选择哪个版本。
 	// 4、从代码以及当前结构可以看出，APIGroupInfo用于存储当前组下的GroupVersion，就是通过PrioritizedVersions字段，只不过先后顺序
 	// 体现了优先级
+	// TODO 这里的优先级有啥作用？
 	PrioritizedVersions []schema.GroupVersion
 	// Info about the resources in this group. It's a map from version to resource to the storage.
-	// 1、既然是group信息，那么group肯定是固定的，那么这里的第一级key为version， 第二级key为kind
+	// 1、既然是group信息，那么group肯定是固定的，那么这里的第一级key为version， 第二级key为kind，譬如deployment, deployment/status,
+	// daemonset, daemonset/status, job等等资源
 	// TODO 2、保存每个组员的存储信息，非常重要
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
@@ -773,6 +775,7 @@ func (s *GenericAPIServer) installAPIResources(
 		}
 	}
 	var resourceInfos []*storageversion.ResourceInfo
+	// 依次遍历APIGroupInfo中的组不同版本，分别注册每个版本不同资源的路由
 	for _, groupVersion := range apiGroupInfo.PrioritizedVersions {
 		// 某个组的某个版本如果没有资源，那么直接跳过
 		if len(apiGroupInfo.VersionedResourcesStorageMap[groupVersion.Version]) == 0 {
@@ -793,7 +796,7 @@ func (s *GenericAPIServer) installAPIResources(
 		apiGroupVersion.TypeConverter = typeConverter
 		apiGroupVersion.MaxRequestBodyBytes = s.maxRequestBodyBytes
 
-		// 这里才是真正注册路由的地方
+		// 注册/<group>/<version>下所有资源的路由
 		discoveryAPIResources, r, err := apiGroupVersion.InstallREST(s.Handler.GoRestfulContainer)
 
 		if err != nil {
@@ -873,8 +876,9 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 // InstallAPIGroups exposes given api groups in the API.
 // The <apiGroupInfos> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
+// 向GenericServer当中注册当前组下所有资源的路由
 func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) error {
-	// 每个组都需要保证PrioritizedVersions不为空，也就是说每个资源都需要有优先选择的版本
+	// 每个组都需要保证PrioritizedVersions不为空，因为这个属性中保存这该组下所有的版本
 	for _, apiGroupInfo := range apiGroupInfos {
 		// Do not register empty group or empty version.  Doing so claims /apis/ for the wrong entity to be returned.
 		// Catching these here places the error  much closer to its origin
@@ -891,8 +895,9 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 		return fmt.Errorf("unable to get openapi models: %v", err)
 	}
 
+	// 遍历每个APIGroupInfo信息，依次注册每个组下不同版本资源的路由
 	for _, apiGroupInfo := range apiGroupInfos {
-		// 1、遍历每个APIGroupInfo信息，依次添加每个组下每个资源的路由
+		// 注册某个组下不同版本资源的路由
 		if err := s.installAPIResources(APIGroupPrefix, apiGroupInfo, openAPIModels); err != nil {
 			return fmt.Errorf("unable to install api resources: %v", err)
 		}
@@ -930,6 +935,7 @@ func (s *GenericAPIServer) InstallAPIGroups(apiGroupInfos ...*APIGroupInfo) erro
 // InstallAPIGroup exposes the given api group in the API.
 // The <apiGroupInfo> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
+// 向GenericServer当中注册当前组下所有资源的路由
 func (s *GenericAPIServer) InstallAPIGroup(apiGroupInfo *APIGroupInfo) error {
 	return s.InstallAPIGroups(apiGroupInfo)
 }

@@ -24,7 +24,8 @@ import (
 // +k8s:prerelease-lifecycle-gen:introduced=1.26
 // +k8s:prerelease-lifecycle-gen:deprecated=1.32
 // +k8s:prerelease-lifecycle-gen:removed=1.35
-// The deprecate and remove versions stated above are rough estimates and may be subject to change. We are estimating v2 types will be available in 1.28 and will support 4 versions where both v2beta1 and v2 are supported before deprecation.
+// The deprecate and remove versions stated above are rough estimates and may be subject to change. We are estimating
+// v2 types will be available in 1.28 and will support 4 versions where both v2beta1 and v2 are supported before deprecation.
 
 // APIGroupDiscoveryList is a resource containing a list of APIGroupDiscovery.
 // This is one of the types able to be returned from the /api and /apis endpoint and contains an aggregated

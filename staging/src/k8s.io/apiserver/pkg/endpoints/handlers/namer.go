@@ -26,6 +26,7 @@ import (
 )
 
 // ScopeNamer handles accessing names from requests and objects
+// 用于从请求或者对象当中获取资源所在名称空间
 type ScopeNamer interface {
 	// Namespace returns the appropriate namespace value from the request (may be empty) or an
 	// error.

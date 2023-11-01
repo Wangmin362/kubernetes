@@ -1109,12 +1109,15 @@ type GroupVersionForDiscovery struct {
 // APIResource specifies the name of a resource and whether it is namespaced.
 type APIResource struct {
 	// name is the plural name of the resource.
+	// 资源复数名
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// singularName is the singular name of the resource.  This allows clients to handle plural and singular opaquely.
 	// The singularName is more correct for reporting status on a single item and both singular and plural are allowed
 	// from the kubectl CLI interface.
+	// 资源的单数名
 	SingularName string `json:"singularName" protobuf:"bytes,6,opt,name=singularName"`
 	// namespaced indicates if a resource is namespaced or not.
+	// 当前资源是否是名称空间级别的
 	Namespaced bool `json:"namespaced" protobuf:"varint,2,opt,name=namespaced"`
 	// group is the preferred group of the resource.  Empty implies the group of the containing resource list.
 	// For subresources, this may have a different value, for example: Scale".
@@ -1126,10 +1129,13 @@ type APIResource struct {
 	Kind string `json:"kind" protobuf:"bytes,3,opt,name=kind"`
 	// verbs is a list of supported kube verbs (this includes get, list, watch, create,
 	// update, patch, delete, deletecollection, and proxy)
+	// 当前资源支持的动词
 	Verbs Verbs `json:"verbs" protobuf:"bytes,4,opt,name=verbs"`
 	// shortNames is a list of suggested short names of the resource.
+	// 资源的简写名称，譬如deployment，可以简写为deploy
 	ShortNames []string `json:"shortNames,omitempty" protobuf:"bytes,5,rep,name=shortNames"`
 	// categories is a list of the grouped resources this resource belongs to (e.g. 'all')
+	// TODO K8S当中资源的类别有啥用？
 	Categories []string `json:"categories,omitempty" protobuf:"bytes,7,rep,name=categories"`
 	// The hash value of the storage version, the version this resource is
 	// converted to when written to the data store. Value must be treated

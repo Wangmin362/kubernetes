@@ -62,11 +62,15 @@ type APIInstaller struct {
 
 // Struct capturing information about an action ("GET", "POST", "WATCH", "PROXY", etc).
 type action struct {
-	Verb   string               // Verb identifying the action ("GET", "POST", "WATCH", "PROXY", etc).
-	Path   string               // The path of the action
+	// 当前资源支持的动作，譬如GET, LIST, CREATE, UPDATE, WATCH, DELETE, PROXY, CONNECT等等
+	Verb string // Verb identifying the action ("GET", "POST", "WATCH", "PROXY", etc).
+	// URL路径，不过并不是全路径，一般为<resource>/<name>，后者是<resource>/<name>/<subresource>
+	Path string // The path of the action
+	// 当前动作支持哪些参数
 	Params []*restful.Parameter // List of parameters associated with the action.
 	// TODO 这玩意有啥用
-	Namer         handlers.ScopeNamer
+	Namer handlers.ScopeNamer
+	// TODO 啥作用？
 	AllNamespaces bool // true iff the action is namespaced but works on aggregate result for all namespaces
 }
 
@@ -477,8 +481,10 @@ func (a *APIInstaller) registerResourceHandlers(
 	nameParam := ws.PathParameter("name", "name of the "+kind).DataType("string")
 	pathParam := ws.PathParameter("path", "path to the resource").DataType("string")
 
-	params := []*restful.Parameter{}
-	actions := []action{}
+	// 请求的参数，这个应该是全局参数
+	var params []*restful.Parameter
+	// 请求的不同动作，譬如GET, LIST, DELETE, CREATE等等，动作对应于REST的标注动作
+	var actions []action
 
 	var resourceKind string
 	kindProvider, ok := storage.(rest.KindProvider)
@@ -508,17 +514,18 @@ func (a *APIInstaller) registerResourceHandlers(
 
 	// Get the list of actions for the given scope.
 	switch {
+	// 处理Cluster级别的资源
 	case !namespaceScoped:
 		// Handle non-namespace scoped resources like nodes.
 		resourcePath := resource
 		resourceParams := params
-		itemPath := resourcePath + "/{name}"
-		nameParams := append(params, nameParam)
-		proxyParams := append(nameParams, pathParam)
+		itemPath := resourcePath + "/{name}"         // 拼接参数
+		nameParams := append(params, nameParam)      // TODO 这个参数有何用？
+		proxyParams := append(nameParams, pathParam) // TODO 这个参数有何用？
 		suffix := ""
 		if isSubresource {
 			suffix = "/" + subresource
-			itemPath = itemPath + suffix
+			itemPath = itemPath + suffix // 路径为：/<resource>/<name>/<subresource>
 			resourcePath = itemPath
 			resourceParams = nameParams
 		}
@@ -551,6 +558,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		actions = appendIf(actions, action{"CONNECT", itemPath, nameParams, namer, false}, isConnecter)
 		actions = appendIf(actions, action{"CONNECT", itemPath + "/{path:*}", proxyParams, namer, false}, isConnecter && connectSubpath)
 	default:
+		// 名称空间级别的资源
 		namespaceParamName := "namespaces"
 		// Handler for standard REST verbs (GET, PUT, POST and DELETE).
 		namespaceParam := ws.PathParameter("namespace", "object name and auth scope, such as for teams and projects").DataType("string")
@@ -616,7 +624,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		if err != nil {
 			return nil, nil, err
 		}
-		decodableVersions := []schema.GroupVersion{}
+		var decodableVersions []schema.GroupVersion
 		if a.group.ConvertabilityChecker != nil {
 			decodableVersions = a.group.ConvertabilityChecker.VersionsForGroupKind(fqKindToRegister.GroupKind())
 		}
@@ -800,9 +808,11 @@ func (a *APIInstaller) registerResourceHandlers(
 
 			if needOverride {
 				// need change the reported verb
-				handler = metrics.InstrumentRouteFunc(verbOverrider.OverrideMetricsVerb(action.Verb), group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
+				handler = metrics.InstrumentRouteFunc(verbOverrider.OverrideMetricsVerb(action.Verb), group, version,
+					resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
 			} else {
-				handler = metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
+				handler = metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope,
+					metrics.APIServerComponent, deprecated, removedRelease, handler)
 			}
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 
@@ -829,7 +839,8 @@ func (a *APIInstaller) registerResourceHandlers(
 			if isSubresource {
 				doc = "list " + subresource + " of objects of kind " + kind
 			}
-			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, restfulListResource(lister, watcher, reqScope, false, a.minRequestTimeout))
+			handler := metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope, metrics.APIServerComponent,
+				deprecated, removedRelease, restfulListResource(lister, watcher, reqScope, false, a.minRequestTimeout))
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 			route := ws.GET(action.Path).To(handler).
 				Doc(doc).
@@ -1081,6 +1092,7 @@ func (a *APIInstaller) registerResourceHandlers(
 				Kind:    reqScope.Kind.Kind,
 			})
 			route.Metadata(ROUTE_META_ACTION, strings.ToLower(action.Verb))
+			// 注册路由
 			ws.Route(route)
 		}
 		// Note: update GetAuthorizerAttributes() when adding a custom handler.

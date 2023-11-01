@@ -513,7 +513,20 @@ func RecordLongRunning(req *http.Request, requestInfo *request.RequestInfo, comp
 
 // MonitorRequest handles standard transformations for client and the reported verb and then invokes Monitor to record
 // a request. verb must be uppercase to be backwards compatible with existing monitoring tooling.
-func MonitorRequest(req *http.Request, verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, httpCode, respSize int, elapsed time.Duration) {
+func MonitorRequest(
+	req *http.Request,
+	verb,
+	group,
+	version,
+	resource,
+	subresource,
+	scope,
+	component string,
+	deprecated bool,
+	removedRelease string,
+	httpCode,
+	respSize int,
+	elapsed time.Duration) {
 	requestInfo, ok := request.RequestInfoFrom(req.Context())
 	if !ok || requestInfo == nil {
 		requestInfo = &request.RequestInfo{Verb: req.Method, Path: req.URL.Path}
@@ -575,7 +588,18 @@ func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, com
 }
 
 // InstrumentHandlerFunc works like Prometheus' InstrumentHandlerFunc but adds some Kubernetes endpoint specific information.
-func InstrumentHandlerFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, handler http.HandlerFunc) http.HandlerFunc {
+func InstrumentHandlerFunc(
+	verb,
+	group,
+	version,
+	resource,
+	subresource,
+	scope,
+	component string,
+	deprecated bool,
+	removedRelease string,
+	handler http.HandlerFunc,
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		requestReceivedTimestamp, ok := request.ReceivedTimestampFrom(req.Context())
 		if !ok {
@@ -587,7 +611,8 @@ func InstrumentHandlerFunc(verb, group, version, resource, subresource, scope, c
 
 		handler(w, req)
 
-		MonitorRequest(req, verb, group, version, resource, subresource, scope, component, deprecated, removedRelease, delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
+		MonitorRequest(req, verb, group, version, resource, subresource, scope, component, deprecated, removedRelease,
+			delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
 	}
 }
 

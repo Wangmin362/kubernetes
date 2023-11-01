@@ -113,7 +113,10 @@ type APIGroupVersion struct {
 // InstallREST registers the REST handlers (storage, watch, proxy and redirect) into a restful Container.
 // It is expected that the provided path root prefix will serve all operations. Root MUST NOT end
 // in a slash.
-func (g *APIGroupVersion) InstallREST(container *restful.Container) ([]apidiscoveryv2beta1.APIResourceDiscovery, []*storageversion.ResourceInfo, error) {
+func (g *APIGroupVersion) InstallREST(container *restful.Container) (
+	[]apidiscoveryv2beta1.APIResourceDiscovery,
+	[]*storageversion.ResourceInfo,
+	error) {
 	// 1、路由前缀为：/<root>/<group>/<version>，对于核心资源（也被称之为Legacy资源），Root就是/api，除了核心资源，
 	// 其余资源的Root为/apis
 	prefix := path.Join(g.Root, g.GroupVersion.Group, g.GroupVersion.Version)

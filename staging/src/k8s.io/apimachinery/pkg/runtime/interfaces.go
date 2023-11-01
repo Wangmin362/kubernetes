@@ -284,6 +284,7 @@ type ObjectCreater interface {
 }
 
 // EquivalentResourceMapper provides information about resources that address the same underlying data as a specified resource
+// TODO 什么叫做等效资源？ 它是如何抽象的？
 type EquivalentResourceMapper interface {
 	// EquivalentResourcesFor returns a list of resources that address the same underlying data as resource.
 	// If subresource is specified, only equivalent resources which also have the same subresource are included.
@@ -310,6 +311,7 @@ type ResourceVersioner interface {
 }
 
 // Namer provides methods for retrieving name and namespace of an API object.
+// 用于获取资源对象的名字或者名称空间
 type Namer interface {
 	// Name returns the name of a given object.
 	Name(obj Object) (string, error)

@@ -297,6 +297,7 @@ type EquivalentResourceMapper interface {
 
 // EquivalentResourceRegistry provides an EquivalentResourceMapper interface,
 // and allows registering known resource[/subresource] -> kind
+// 1、用于缓存子资源到Kind的映射  TODO 为什么需要这种映射关系呢？
 type EquivalentResourceRegistry interface {
 	EquivalentResourceMapper
 	// RegisterKindFor registers the existence of the specified resource[/subresource] along with its expected kind.

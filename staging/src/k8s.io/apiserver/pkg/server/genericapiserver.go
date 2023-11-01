@@ -118,6 +118,7 @@ func (a *APIGroupInfo) destroyStorage() {
 }
 
 // GenericAPIServer contains state for a Kubernetes cluster api server.
+// 1、GenericServer本身就是一个Delegator
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
 	// TODO 用于返回给客户端合适的ServerAddress
@@ -221,14 +222,17 @@ type GenericAPIServer struct {
 	// with no guarantee of ordering between them.  The map key is a name used for error reporting.
 	// It may kill the process with a panic if it wishes to by returning an error.
 	postStartHookLock sync.Mutex
-	postStartHooks    map[string]postStartHookEntry
+	// 1、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
+	postStartHooks map[string]postStartHookEntry
 	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
 	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加
 	// PostStartHook
-	postStartHooksCalled   bool
-	disabledPostStartHooks sets.String // 被禁用的PostStartHook的名字
+	postStartHooksCalled bool
+	// 被禁用的PostStartHook的名字
+	disabledPostStartHooks sets.String
 
-	preShutdownHookLock    sync.Mutex
+	preShutdownHookLock sync.Mutex
+	// GenericServer停止前需要执行的Hook
 	preShutdownHooks       map[string]preShutdownHookEntry
 	preShutdownHooksCalled bool
 
@@ -248,39 +252,48 @@ type GenericAPIServer struct {
 	livezClock            clock.Clock
 
 	// auditing. The backend is started before the server starts listening.
+	// 审计配置
 	AuditBackend audit.Backend
 
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
 	// authorization check using the request URI but it may be necessary to make additional checks, such as in
 	// the create-on-update case
+	// 鉴权器
 	Authorizer authorizer.Authorizer
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
 	// and the kind associated with a given resource. As resources are installed, they are registered here.
+	// 1、用于缓存子资源到Kind的映射  TODO 为什么需要这种映射关系呢？
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// delegationTarget is the next delegate in the chain. This is never nil.
+	// 如果当前的GenericServer处理不了，那么需要委派给下一个Delegator
 	delegationTarget DelegationTarget
 
 	// NonLongRunningRequestWaitGroup allows you to wait for all chain
 	// handlers associated with non long-running requests
 	// to complete while the server is shuting down.
+	// TODO 仔细分析
 	NonLongRunningRequestWaitGroup *utilwaitgroup.SafeWaitGroup
 	// WatchRequestWaitGroup allows us to wait for all chain
 	// handlers associated with active watch requests to
 	// complete while the server is shuting down.
+	// TODO 仔细分析
 	WatchRequestWaitGroup *utilwaitgroup.RateLimitedSafeWaitGroup
 
 	// ShutdownDelayDuration allows to block shutdown for some time, e.g. until endpoints pointing to this API server
 	// have converged on all node. During this time, the API server keeps serving, /healthz will return 200,
 	// but /readyz will return failure.
+	// GenericServer关机以前可以继续服务的事件延迟时间
 	ShutdownDelayDuration time.Duration
 
 	// The limit on the request body size that would be accepted and decoded in a write request.
 	// 0 means no limit.
+	// 请求中Body携带的最大字节数
 	maxRequestBodyBytes int64
 
 	// APIServerID is the ID of this API server
+	// TODO APIServerID有啥用？ 日志和审计？
 	APIServerID string
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
@@ -299,7 +312,7 @@ type GenericAPIServer struct {
 	// it exists primarily to avoid returning a 404 response when a resource actually exists but we haven't installed the path to a handler.
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
-	// TODO 仔细分析， 生命周期
+	// TODO 用于标识GenericServer路由是否注册完成 仔细分析， 生命周期
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -334,6 +347,7 @@ type GenericAPIServer struct {
 // TODO 如何理解这玩意的设计  这玩意是不是可以理解为就是一个GenericServer
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
+	// 1、所谓的未保护Handler，其实就是不用经过默认请求链（defaultHandleChain）
 	UnprotectedHandler() http.Handler
 
 	// PostStartHooks returns the post-start hooks that need to be combined
@@ -346,15 +360,18 @@ type DelegationTarget interface {
 	HealthzChecks() []healthz.HealthChecker
 
 	// ListedPaths returns the paths for supporting an index
+	// 1、列出当前Delegator (其实就是GenericServer）的路由
 	ListedPaths() []string
 
 	// NextDelegate returns the next delegationTarget in the chain of delegations
 	NextDelegate() DelegationTarget
 
 	// PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
+	// TODO 从这里可以看出，用户无法实现Delegator,因为这里的返回值时包外不可见的，因此只能使用GenericServer
 	PrepareRun() preparedGenericAPIServer
 
 	// MuxAndDiscoveryCompleteSignals exposes registered signals that indicate if all known HTTP paths have been installed.
+	// 1、用于标识路由已经注册完成
 	MuxAndDiscoveryCompleteSignals() map[string]<-chan struct{}
 
 	// Destroy cleans up its resources on shutdown.

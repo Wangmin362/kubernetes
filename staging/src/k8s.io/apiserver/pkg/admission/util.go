@@ -27,7 +27,12 @@ type RuntimeObjectInterfaces struct {
 }
 
 func NewObjectInterfacesFromScheme(scheme *runtime.Scheme) ObjectInterfaces {
-	return &RuntimeObjectInterfaces{scheme, scheme, scheme, scheme, runtime.NewEquivalentResourceRegistry()}
+	return &RuntimeObjectInterfaces{
+		ObjectCreater:            scheme,
+		ObjectTyper:              scheme,
+		ObjectDefaulter:          scheme,
+		ObjectConvertor:          scheme,
+		EquivalentResourceMapper: runtime.NewEquivalentResourceRegistry()}
 }
 
 func (r *RuntimeObjectInterfaces) GetObjectCreater() runtime.ObjectCreater {

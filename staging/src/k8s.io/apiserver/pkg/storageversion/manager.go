@@ -36,6 +36,7 @@ import (
 type ResourceInfo struct {
 	GroupResource schema.GroupResource
 
+	// TODO 什么叫做EncodingVersion?
 	EncodingVersion string
 	// Used to calculate decodable versions. Can only be used after all
 	// equivalent versions are registered by InstallREST.

@@ -28,10 +28,12 @@ type equivalentResourceRegistry struct {
 	keyFunc func(resource schema.GroupResource) string
 	// resources maps key -> subresource -> equivalent resources (subresource is not included in the returned resources).
 	// main resources are stored with subresource="".
+	// 第一级key为<group>.<version>，第二级key为子资源
 	resources map[string]map[string][]schema.GroupVersionResource
 	// kinds maps resource -> subresource -> kind
 	kinds map[schema.GroupVersionResource]map[string]schema.GroupVersionKind
 	// keys caches the computed key for each GroupResource
+	// 缓存GR资源和Key的映射
 	keys map[schema.GroupResource]string
 
 	mutex sync.RWMutex
@@ -65,9 +67,11 @@ func (r *equivalentResourceRegistry) KindFor(resource schema.GroupVersionResourc
 func (r *equivalentResourceRegistry) RegisterKindFor(resource schema.GroupVersionResource, subresource string, kind schema.GroupVersionKind) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
+	// 属性初始化
 	if r.kinds == nil {
 		r.kinds = map[schema.GroupVersionResource]map[string]schema.GroupVersionKind{}
 	}
+	// 属性初始化
 	if r.kinds[resource] == nil {
 		r.kinds[resource] = map[string]schema.GroupVersionKind{}
 	}

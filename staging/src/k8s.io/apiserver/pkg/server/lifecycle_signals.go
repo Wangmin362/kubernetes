@@ -92,13 +92,16 @@ type lifecycleSignal interface {
 	// Signal signals the event, indicating that the event has occurred.
 	// Signal is idempotent, once signaled the event stays signaled and
 	// it immediately unblocks any goroutine waiting for this event.
+	// 1、所谓的信号，其实就是channel的关闭动作，当一个channel关闭之后，所有监听这个channel的组件都会收到通知
 	Signal()
 
 	// Signaled returns a channel that is closed when the underlying event
 	// has been signaled. Successive calls to Signaled return the same value.
+	// 获取当前这个channel，用于该此信号感兴趣的组件监听
 	Signaled() <-chan struct{}
 
 	// Name returns the name of the signal, useful for logging.
+	// 获取当前信号的名字
 	Name() string
 }
 
@@ -113,6 +116,7 @@ type lifecycleSignals struct {
 	// ShutdownInitiated event is signaled when an apiserver shutdown has been initiated.
 	// It is signaled when the `stopCh` provided by the main goroutine
 	// receives a KILL signal and is closed as a consequence.
+	// 1、当GenericServer被关闭时，这个信号就被会触发
 	ShutdownInitiated lifecycleSignal
 
 	// AfterShutdownDelayDuration event is signaled as soon as ShutdownDelayDuration
@@ -184,6 +188,7 @@ type namedChannelWrapper struct {
 }
 
 func (e *namedChannelWrapper) Signal() {
+	// 关闭之后所有监听这个channel的组件都会接收到
 	e.once.Do(func() {
 		close(e.ch)
 	})

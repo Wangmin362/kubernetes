@@ -24,7 +24,8 @@ import (
 // +genclient:nonNamespaced
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
-// Storage version of a specific resource.
+// StorageVersion Storage version of a specific resource.
+// 用于存储某个资源的存储版本，Status记录资源的存储版本
 type StorageVersion struct {
 	metav1.TypeMeta `json:",inline"`
 	// The name is <group>.<resource>.

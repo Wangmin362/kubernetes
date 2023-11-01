@@ -57,7 +57,8 @@ type APIServerHandler struct {
 	// 1、NonGoRestfulMux其实一个多路复用器，里面包含了很多路由
 	// 2、添加的路由有：/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
 	// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
-	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests
+	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests, /healthz,
+	// /livez, /readyz, /openapi/v2, /openapi/v3
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.

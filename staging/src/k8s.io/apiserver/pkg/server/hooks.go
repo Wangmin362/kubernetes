@@ -178,6 +178,7 @@ func (s *GenericAPIServer) RunPostStartHooks(stopCh <-chan struct{}) {
 }
 
 // RunPreShutdownHooks runs the PreShutdownHooks for the server
+// 运行GenericServer的PreShutdownHook
 func (s *GenericAPIServer) RunPreShutdownHooks() error {
 	var errorList []error
 
@@ -190,6 +191,7 @@ func (s *GenericAPIServer) RunPreShutdownHooks() error {
 			errorList = append(errorList, err)
 		}
 	}
+	// 聚合错误
 	return utilerrors.NewAggregate(errorList)
 }
 

@@ -40,7 +40,7 @@ type ResourceInfo struct {
 	EncodingVersion string
 	// Used to calculate decodable versions. Can only be used after all
 	// equivalent versions are registered by InstallREST.
-	// TODO 等效资源映射器似乎好像是用于给一个资源同时在多个组的资源
+	// 1、用于缓存子资源到Kind的映射  TODO 为什么需要这种映射关系呢？
 	EquivalentResourceMapper runtime.EquivalentResourceRegistry
 
 	// DirectlyDecodableVersions is a list of versions that the converter for REST storage knows how to convert.  This
@@ -49,6 +49,10 @@ type ResourceInfo struct {
 }
 
 // Manager records the resources whose StorageVersions need updates, and provides a method to update those StorageVersions.
+// TODO 4、存储资源版本是什么？ 为什么需要？ GenericServer是怎么使用的？
+// TODO 1、资源的存储版本是ETCD中保存的版本么？资源的存储版本是怎么生成的？
+// TODO 2、什么时候需要更新资源的存储版本？
+// TODO 3、什么时候需要更新所有资源的存储版本？
 type Manager interface {
 	// AddResourceInfo records resources whose StorageVersions need updates
 	AddResourceInfo(resources ...*ResourceInfo)
@@ -66,11 +70,13 @@ var _ Manager = &defaultManager{}
 
 // defaultManager indicates if an apiserver has completed reporting its storage versions.
 type defaultManager struct {
+	// 用于表示所有资源的存储版本已经全部更新
 	completed atomic.Bool
 
 	mu sync.RWMutex
 	// managedResourceInfos records the ResourceInfos whose StorageVersions will get updated in the next
 	// UpdateStorageVersions call
+	// TODO 这个记录干嘛的？
 	managedResourceInfos map[*ResourceInfo]struct{}
 	// managedStatus records the update status of StorageVersion for each GroupResource. Since one
 	// ResourceInfo may expand into multiple GroupResource (e.g. ingresses.networking.k8s.io and ingresses.extensions),
@@ -122,7 +128,7 @@ func (s *defaultManager) UpdateStorageVersions(kubeAPIServerClientConfig *rest.C
 	sc := clientset.InternalV1alpha1().StorageVersions()
 
 	s.mu.RLock()
-	resources := []ResourceInfo{}
+	var resources []ResourceInfo
 	for resource := range s.managedResourceInfos {
 		resources = append(resources, *resource)
 	}

@@ -297,15 +297,20 @@ type GenericAPIServer struct {
 	APIServerID string
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
+	// TODO 分析这玩意的作用
 	StorageVersionManager storageversion.Manager
 
 	// Version will enable the /version endpoint if non-nil
+	// 此信息用于返回 /version路由信息
 	Version *version.Info
 
 	// lifecycleSignals provides access to the various signals that happen during the life cycle of the apiserver.
+	// 1、这里所谓的信号，其实就是一个channel，当channel被关闭时，所有关注这个channel的组件都可以感知到，因此被称之为信号
+	// 2、不同的信号代表着不同的含义，关注信号的组件会在收到信号之后做特定的事情
 	lifecycleSignals lifecycleSignals
 
 	// destroyFns contains a list of functions that should be called on shutdown to clean up resources.
+	// GenericServer关闭时应该执行的函数，可以用于释放某些资源
 	destroyFns []func()
 
 	// muxAndDiscoveryCompleteSignals holds signals that indicate all known HTTP paths have been registered.
@@ -322,6 +327,7 @@ type GenericAPIServer struct {
 	// Server as soon as ShutdownDelayDuration has elapsed.
 	// If enabled, after ShutdownDelayDuration elapses, any incoming request is
 	// rejected with a 429 status code and a 'Retry-After' response.
+	// TODO 分析
 	ShutdownSendRetryAfter bool
 
 	// ShutdownWatchTerminationGracePeriod, if set to a positive value,
@@ -339,12 +345,13 @@ type GenericAPIServer struct {
 	// for them to drain, this maintains backward compatibility.
 	// This grace period is orthogonal to other grace periods, and
 	// it is not overridden by any other grace period.
+	// TODO 分析
 	ShutdownWatchTerminationGracePeriod time.Duration
 }
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
 // as expected.
-// TODO 如何理解这玩意的设计  这玩意是不是可以理解为就是一个GenericServer
+// 1、DelegationTarget的实现只有GenericServer，用户无法实现这个接口
 type DelegationTarget interface {
 	// UnprotectedHandler returns a handler that is NOT protected by a normal chain
 	// 1、所谓的未保护Handler，其实就是不用经过默认请求链（defaultHandleChain）
@@ -368,10 +375,11 @@ type DelegationTarget interface {
 
 	// PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
 	// TODO 从这里可以看出，用户无法实现Delegator,因为这里的返回值时包外不可见的，因此只能使用GenericServer
+	// 注册/openapi/v2, /openapi/v3, /healthz, /livez, /readyz路由
 	PrepareRun() preparedGenericAPIServer
 
 	// MuxAndDiscoveryCompleteSignals exposes registered signals that indicate if all known HTTP paths have been installed.
-	// 1、用于标识路由已经注册完成
+	// 用于标识所有已知路由已经注册完成
 	MuxAndDiscoveryCompleteSignals() map[string]<-chan struct{}
 
 	// Destroy cleans up its resources on shutdown.
@@ -403,6 +411,7 @@ func (s *GenericAPIServer) NextDelegate() DelegationTarget {
 
 // RegisterMuxAndDiscoveryCompleteSignal registers the given signal that will be used to determine if all known
 // HTTP paths have been registered. It is okay to call this method after instantiating the generic server but before running.
+// 注册MuxAndDiscoveryCompleteSignal信号
 func (s *GenericAPIServer) RegisterMuxAndDiscoveryCompleteSignal(signalName string, signal <-chan struct{}) error {
 	if _, exists := s.muxAndDiscoveryCompleteSignals[signalName]; exists {
 		return fmt.Errorf("%s already registered", signalName)
@@ -481,6 +490,7 @@ type preparedGenericAPIServer struct {
 }
 
 // PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
+// 1、注册/openapi/v2, /openapi/v3, /healthz, /livez, /readyz路由
 func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 	s.delegationTarget.PrepareRun()
 
@@ -498,7 +508,9 @@ func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 		}
 	}
 
+	// 注册/healthz路由
 	s.installHealthz()
+	// 注册/livez路由
 	s.installLivez()
 
 	// as soon as shutdown is initiated, readiness should start failing
@@ -507,6 +519,7 @@ func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 	if err != nil {
 		klog.Errorf("Failed to install readyz shutdown check %s", err)
 	}
+	// 注册/readyz路由
 	s.installReadyz()
 
 	return preparedGenericAPIServer{s}
@@ -559,9 +572,11 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	shutdownInitiatedCh := s.lifecycleSignals.ShutdownInitiated
 
 	// Clean up resources on shutdown.
+	// 如果GenericServer被关闭，就需要执行销毁方法，释放某些资源
 	defer s.Destroy()
 
 	// If UDS profiling is enabled, start a local http server listening on that socket
+	// TODO 开启DEBUG
 	if s.UnprotectedDebugSocket != nil {
 		go func() {
 			defer utilruntime.HandleCrash()
@@ -575,6 +590,9 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	go func() {
 		for _, muxAndDiscoveryCompletedSignal := range s.GenericAPIServer.MuxAndDiscoveryCompleteSignals() {
 			select {
+			// 这里不同的muxAndDiscoveryCompletedSignal可能完成的时间点不一样，因此这里在等待的时候，其他的muxAndDiscoveryCompletedSignal
+			// 已经完成，但是我们要的是最终所有信号完成，所以这里这样写并没有什么毛病。因为我们并不关心不同的muxAndDiscoveryCompletedSignal
+			// 完成的快慢，我们只关心最终所有的muxAndDiscoveryCompletedSignal都已经完成
 			case <-muxAndDiscoveryCompletedSignal:
 				continue
 			case <-stopCh:
@@ -582,6 +600,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 				return
 			}
 		}
+		// 只要GenericServer所有的路由已经注册完成
 		s.lifecycleSignals.MuxAndDiscoveryComplete.Signal()
 		klog.V(1).Infof("%s has all endpoints registered and discovery information is complete", s.lifecycleSignals.MuxAndDiscoveryComplete.Name())
 	}()
@@ -595,6 +614,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 		// As soon as shutdown is initiated, /readyz should start returning failure.
 		// This gives the load balancer a window defined by ShutdownDelayDuration to detect that /readyz is red
 		// and stop sending traffic to this server.
+		// 发送关机信号
 		shutdownInitiatedCh.Signal()
 		klog.V(1).InfoS("[graceful-termination] shutdown event", "name", shutdownInitiatedCh.Name())
 
@@ -632,11 +652,13 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	// before http server start serving. Otherwise the Backend.ProcessEvents call might block.
 	// AuditBackend.Run will stop as soon as all in-flight requests are drained.
 	if s.AuditBackend != nil {
+		// 启动审计
 		if err := s.AuditBackend.Run(drainedCh.Signaled()); err != nil {
 			return fmt.Errorf("failed to run the audit backend: %v", err)
 		}
 	}
 
+	// 以非阻塞的方式启动GenericServer，其实就是使用了一个协程启动GenericServer
 	stoppedCh, listenerStoppedCh, err := s.NonBlockingRun(stopHttpServerCh, shutdownTimeout)
 	if err != nil {
 		return err
@@ -750,6 +772,7 @@ func (s preparedGenericAPIServer) Run(stopCh <-chan struct{}) error {
 	// Wait for all requests in flight to drain, bounded by the RequestTimeout variable.
 	<-drainedCh.Signaled()
 
+	// 关闭审计后端
 	if s.AuditBackend != nil {
 		s.AuditBackend.Shutdown()
 		klog.V(1).InfoS("[graceful-termination] audit backend shutdown completed")
@@ -771,6 +794,7 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 	internalStopCh := make(chan struct{})
 	var stoppedCh <-chan struct{}
 	var listenerStoppedCh <-chan struct{}
+	// GenericServer必须以HTTPS的方式提供服务
 	if s.SecureServingInfo != nil && s.Handler != nil {
 		var err error
 		stoppedCh, listenerStoppedCh, err = s.SecureServingInfo.Serve(s.Handler, shutdownTimeout, internalStopCh)
@@ -788,8 +812,10 @@ func (s preparedGenericAPIServer) NonBlockingRun(stopCh <-chan struct{}, shutdow
 		close(internalStopCh)
 	}()
 
+	// 启动PostStartHook
 	s.RunPostStartHooks(stopCh)
 
+	// TODO 这玩意干嘛的？
 	if _, err := systemd.SdNotify(true, "READY=1\n"); err != nil {
 		klog.Errorf("Unable to send systemd daemon successful start message: %v\n", err)
 	}

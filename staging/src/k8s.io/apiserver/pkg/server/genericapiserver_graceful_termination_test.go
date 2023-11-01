@@ -64,6 +64,7 @@ type result struct {
 }
 
 // wrap a lifecycleSignal so the test can inject its own callback
+// 封装的也很简单，就是在发送信号的前后可以注册回调函数
 type wrappedLifecycleSignal struct {
 	lifecycleSignal
 	before func(lifecycleSignal)

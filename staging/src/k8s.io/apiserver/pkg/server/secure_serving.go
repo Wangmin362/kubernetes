@@ -42,6 +42,7 @@ const (
 )
 
 // tlsConfig produces the tls.Config to serve with.
+// TODO 仔细分析
 func (s *SecureServingInfo) tlsConfig(stopCh <-chan struct{}) (*tls.Config, error) {
 	tlsConfig := &tls.Config{
 		// Can't use SSLv3 because of POODLE and BEAST
@@ -237,6 +238,7 @@ func RunServer(
 		cancel()
 	}()
 
+	// 利用了一个协程启动GenericServer
 	go func() {
 		defer utilruntime.HandleCrash()
 		defer close(listenerStoppedCh)

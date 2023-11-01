@@ -1038,6 +1038,7 @@ type List struct {
 //
 // +protobuf.options.(gogoproto.goproto_stringer)=false
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
+// 用于描述版本信息
 type APIVersions struct {
 	TypeMeta `json:",inline"`
 	// versions are the api versions that are available.
@@ -1049,6 +1050,13 @@ type APIVersions struct {
 	// The server returns only those CIDRs that it thinks that the client can match.
 	// For example: the master will return an internal IP CIDR only, if the client reaches the server using an internal IP.
 	// Server looks at X-Forwarded-For header or X-Real-Ip header or request.RemoteAddr (in that order) to get the client IP.
+	// 1、可以理解为一个map, 即某个服务器地址可以允许那些客户端IP连接，ServerAddress就是APIServer的合法访问地址，而ClientCIDR则是
+	// 可以访问ServerAddress的地址范围
+	// 2、客户端应该根据结合自己的IP地址，找到那个包括自己IP地址的ClientCIDR地址范围，与这个ClientCIDR绑定的ServerAddress就是客户端
+	// 应该访问的APIServer地址
+	// 3、如果有多个ClientCIDR可以匹配客户端IP，那么客户端应该选择那个范围更加精确的ClientCIDR所对应的ServerAddress
+	// 4、于此同时，APIServer在实现时也应该根据客户端的IP地址回复何时的ServerAddress
+	// TODO 为什么需要这个？
 	ServerAddressByClientCIDRs []ServerAddressByClientCIDR `json:"serverAddressByClientCIDRs" protobuf:"bytes,2,rep,name=serverAddressByClientCIDRs"`
 }
 
@@ -1066,15 +1074,18 @@ type APIGroupList struct {
 
 // APIGroup contains the name, the supported versions, and the preferred version
 // of a group.
+// 1、用于描述组的进本信息
 type APIGroup struct {
 	TypeMeta `json:",inline"`
 	// name is the name of the group.
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// versions are the versions supported in this group.
+	// 当前组支持哪些版本
 	Versions []GroupVersionForDiscovery `json:"versions" protobuf:"bytes,2,rep,name=versions"`
 	// preferredVersion is the version preferred by the API server, which
 	// probably is the storage version.
 	// +optional
+	// 当前组优先选择的版本 TODO 这玩意有啥用？ 什么时候使用?
 	PreferredVersion GroupVersionForDiscovery `json:"preferredVersion,omitempty" protobuf:"bytes,3,opt,name=preferredVersion"`
 	// a map of client CIDR to server address that is serving this group.
 	// This is to help clients reach servers in the most network-efficient way possible.
@@ -1084,10 +1095,33 @@ type APIGroup struct {
 	// For example: the master will return an internal IP CIDR only, if the client reaches the server using an internal IP.
 	// Server looks at X-Forwarded-For header or X-Real-Ip header or request.RemoteAddr (in that order) to get the client IP.
 	// +optional
+	// 1、可以理解为一个map, 即某个服务器地址可以允许那些客户端IP连接，ServerAddress就是APIServer的合法访问地址，而ClientCIDR则是
+	// 可以访问ServerAddress的地址范围
+	// 2、客户端应该根据结合自己的IP地址，找到那个包括自己IP地址的ClientCIDR地址范围，与这个ClientCIDR绑定的ServerAddress就是客户端
+	// 应该访问的APIServer地址
+	// 3、如果有多个ClientCIDR可以匹配客户端IP，那么客户端应该选择那个范围更加精确的ClientCIDR所对应的ServerAddress
+	// 4、于此同时，APIServer在实现时也应该根据客户端的IP地址回复何时的ServerAddress
+	// TODO 为什么需要这个？
 	ServerAddressByClientCIDRs []ServerAddressByClientCIDR `json:"serverAddressByClientCIDRs,omitempty" protobuf:"bytes,4,rep,name=serverAddressByClientCIDRs"`
 }
 
 // ServerAddressByClientCIDR helps the client to determine the server address that they should use, depending on the clientCIDR that they match.
+/*
+root@172-30-3-222-lvs:~# kubectl get --raw=/api | jq
+{
+  "kind": "APIVersions",
+  "versions": [
+    "v1"
+  ],
+  "serverAddressByClientCIDRs": [
+    {
+      "clientCIDR": "0.0.0.0/0",
+      "serverAddress": "192.168.201.103:6443"
+    }
+  ]
+}
+*/
+// TODO 似乎是用于明确APIServer可以被那些客户端访问
 type ServerAddressByClientCIDR struct {
 	// The CIDR with which clients can match their IP to figure out the server address that they should use.
 	ClientCIDR string `json:"clientCIDR" protobuf:"bytes,1,opt,name=clientCIDR"`
@@ -1096,7 +1130,7 @@ type ServerAddressByClientCIDR struct {
 	ServerAddress string `json:"serverAddress" protobuf:"bytes,2,opt,name=serverAddress"`
 }
 
-// GroupVersion contains the "group/version" and "version" string of a version.
+// GroupVersionForDiscovery GroupVersion contains the "group/version" and "version" string of a version.
 // It is made a struct to keep extensibility.
 type GroupVersionForDiscovery struct {
 	// groupVersion specifies the API group and version in the form "group/version"
@@ -1107,6 +1141,7 @@ type GroupVersionForDiscovery struct {
 }
 
 // APIResource specifies the name of a resource and whether it is namespaced.
+// 1、用于描述资源的基本信息
 type APIResource struct {
 	// name is the plural name of the resource.
 	// 资源复数名

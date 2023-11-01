@@ -120,48 +120,71 @@ func (a *APIGroupInfo) destroyStorage() {
 // GenericAPIServer contains state for a Kubernetes cluster api server.
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
+	// TODO 用于返回给客户端合适的ServerAddress
 	discoveryAddresses discovery.Addresses
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
+	// 用于通过回环网卡访问自己的客户端配置
 	LoopbackClientConfig *restclient.Config
 
-	// minRequestTimeout is how short the request timeout can be.  This is used to build the RESTHandler
+	// minRequestTimeout is how short the request timeout can be.  This is used to build the RESTHandlerf
+	// TODO  最小请求超时时间，默认1800s，仅用于watch
 	minRequestTimeout time.Duration
 
 	// ShutdownTimeout is the timeout used for server shutdown. This specifies the timeout before server
 	// gracefully shutdown returns.
+	// GenericServer必须在指定的时间之内停止服务
 	ShutdownTimeout time.Duration
 
 	// legacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup
+	// 1、我们一般把Legacy资源称之为核心资源
+	// 2、这里虽然是一个数组，但实际上核心资源的前缀只有/api，没有其它
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
+	// 1、GenericServer可以配置准入控制插件  TODO 详细分析准入控制插件的生命周期
+	// TODO 2、插件初始化器的执行流程我猜测和鉴权器以及认证器应该是一样，也是用一个UnionAdmissionControl插件组装所有的准入控制插件
+	// 并且在请求到来时挨个遍历每个准入控制插件
 	admissionControl admission.Interface
 
 	// SecureServingInfo holds configuration of the TLS server.
+	// 所谓的安全服务信息，其实就是GenericServer启动时为了提供HTTPS服务需要的参数，譬如监听IP地址、端口、证书、TLS加密套件配置等等
 	SecureServingInfo *SecureServingInfo
 
 	// ExternalAddress is the address (hostname or IP and port) that should be used in
 	// external (public internet) URLs for this GenericAPIServer.
+	// TODO 什么叫做ExternalAddress? 难道还有一个InternalAddress？
 	ExternalAddress string
 
 	// Serializer controls how common API objects not in a group/version prefix are serialized for this server.
 	// Individual APIGroups may define their own serializers.
+	// 1、序列化器用于对数据进行序列化
+	// 2、反序列的时机：1、请求进来时，需要找一个合适的结构体把请求的Body反序列化到结构体当中 2、从ETCD中获取数据时，也需要把二进制数据反序列化为结构体
+	// 3、序列化的时机：把结构体数据持久化到ETCD时，需要进行序列化。序列化的格式可以支持：yaml, json, protobuf
 	Serializer runtime.NegotiatedSerializer
 
 	// "Outputs"
 	// Handler holds the handlers being used by this API server
+	// 1、APIServerHandler实际上就是一个http.Handler，用于处理HTTP请求。
+	// 2、ExtensionServer, APIServer, Aggregated在初始化的时候会把相关的路由注册到GenericServer当中
 	Handler *APIServerHandler
 
 	// UnprotectedDebugSocket is used to serve pprof information in a unix-domain socket. This socket is
 	// not protected by authentication/authorization.
+	// 1、调试使用的  TODO 具体怎么使用还需要再研究
 	UnprotectedDebugSocket *routes.DebugSocket
 
 	// listedPathProvider is a lister which provides the set of paths to show at /
+	// 用于列出当前GenericServer支持的所有路由，也就是URL
 	listedPathProvider routes.ListedPathProvider
 
 	// DiscoveryGroupManager serves /apis in an unaggregated form.
+	// 1、组管理器可以允许动态的修改已经存在的WebService，支持添加、删除组
+	// 2、组管理器的功能非常简单，就是用于维护当前GenericServer所管理的组。组管理器本质上是一个http.Handler，用户通过组管理器可以知道集群中
+	// 可以使用的组有哪些。  我们可以通过kubectl get --raw=/apis的方式查询非核心资源意外的所有组。
+	// 3、ExtensionServer、AIPServer、AggregatedServer在启动过程当中一定会对组管理器进行初始化，并且把组管理器返回的路由注册到GenericServer
+	// 当中，从而支持HTTP请求的查询
 	DiscoveryGroupManager discovery.GroupManager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.

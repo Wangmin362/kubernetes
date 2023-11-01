@@ -156,6 +156,7 @@ const (
 
 // PluginInitializer is used for initialization of shareable resources between admission plugins.
 // After initialization the resources have to be set separately
+// 1、所谓的插件初始化器，实际上就是为了跟插件注入某些依赖，帮助插件完成初始化，这里取名为Initialization也算是比较合理
 type PluginInitializer interface {
 	Initialize(plugin Interface)
 }

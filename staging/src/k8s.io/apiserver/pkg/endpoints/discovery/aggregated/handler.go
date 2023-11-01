@@ -36,6 +36,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// Source 1、K8S中的资源主要有三类，其一是来源于Source, 其二是来源于内建资源，也就是所谓的核心资源与APIServer中的所有资源
+// 其三是用户添加的CRD资源
 type Source uint
 
 // The GroupVersion from the lowest Source takes precedence
@@ -53,6 +55,7 @@ type ResourceManager interface {
 	// AddGroupVersion Adds knowledge of the given groupversion to the discovery document
 	// If it was already being tracked, updates the stored APIVersionDiscovery
 	// Thread-safe
+	// APIVersionDiscovery本质上就是当前某个版本下的所有资源
 	AddGroupVersion(groupName string, value apidiscoveryv2beta1.APIVersionDiscovery)
 
 	// SetGroupVersionPriority Sets a priority to be used while sorting a specific group and
@@ -82,6 +85,7 @@ type ResourceManager interface {
 	// 不同的源有不同的资源管理器
 	WithSource(source Source) ResourceManager
 
+	// TODO 看到没，这里人家就是用的组合的方式
 	http.Handler
 }
 

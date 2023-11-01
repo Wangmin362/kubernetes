@@ -259,7 +259,17 @@ func (w *deferredResponseWriter) Close() error {
 }
 
 // WriteObjectNegotiated renders an object in the content type negotiated by the client.
-func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiation.EndpointRestrictions, gv schema.GroupVersion, w http.ResponseWriter, req *http.Request, statusCode int, object runtime.Object, listGVKInContentType bool) {
+// 1、用于把Go结构体数据序列化，然后写入到http.ResponseWriter当中
+func WriteObjectNegotiated(
+	s runtime.NegotiatedSerializer, // 序列化器，用于把Go结构体进行序列化 TODO 看这里的命名，说明应该是根据某些参数协商序列化
+	restrictions negotiation.EndpointRestrictions,
+	gv schema.GroupVersion, // 当前请求资源的Group, Version
+	w http.ResponseWriter, // HTTP响应
+	req *http.Request, // HTTP请求
+	statusCode int, // HTTP响应状态码
+	object runtime.Object, // 需要序列化的Go结构体
+	listGVKInContentType bool, // TODO 这个参数有何作用？
+) {
 	stream, ok := object.(rest.ResourceStreamer)
 	if ok {
 		requestInfo, _ := request.RequestInfoFrom(req.Context())
@@ -269,6 +279,7 @@ func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiat
 		return
 	}
 
+	// 协商媒体类型以及与改媒体类型对应的序列化器
 	mediaType, serializer, err := negotiation.NegotiateOutputMediaType(req, s, restrictions)
 	if err != nil {
 		// if original statusCode was not successful we need to return the original error
@@ -282,6 +293,7 @@ func WriteObjectNegotiated(s runtime.NegotiatedSerializer, restrictions negotiat
 		return
 	}
 
+	// TODO 生成审计事件，这里之前学习过的审计阶段中的ResponseStarted
 	audit.LogResponseObject(req.Context(), object, gv, s)
 
 	encoder := s.EncoderForVersion(serializer.Serializer, gv)

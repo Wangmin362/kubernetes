@@ -22,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// Addresses 用于返回给客户端合适的ServerAddress
 type Addresses interface {
 	ServerAddressByClientCIDRs(net.IP) []metav1.ServerAddressByClientCIDR
 }
@@ -60,7 +61,7 @@ func (d DefaultAddresses) ServerAddressByClientCIDRs(clientIP net.IP) []metav1.S
 }
 
 func (d CIDRRule) ServerAddressByClientCIDRs(clientIP net.IP) []metav1.ServerAddressByClientCIDR {
-	addressCIDRMap := []metav1.ServerAddressByClientCIDR{}
+	var addressCIDRMap []metav1.ServerAddressByClientCIDR
 
 	if d.IPRange.Contains(clientIP) {
 		addressCIDRMap = append(addressCIDRMap, metav1.ServerAddressByClientCIDR{

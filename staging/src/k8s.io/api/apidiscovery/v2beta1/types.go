@@ -70,10 +70,12 @@ type APIGroupDiscovery struct {
 // APIVersionDiscovery holds a list of APIResourceDiscovery types that are served for a particular version within an API Group.
 type APIVersionDiscovery struct {
 	// version is the name of the version within a group version.
+	// 当前版本
 	Version string `json:"version" protobuf:"bytes,1,opt,name=version"`
 	// resources is a list of APIResourceDiscovery objects for the corresponding group version.
 	// +listType=map
 	// +listMapKey=resource
+	// 当前版本的所有资源
 	Resources []APIResourceDiscovery `json:"resources,omitempty" protobuf:"bytes,2,rep,name=resources"`
 	// freshness marks whether a group version's discovery document is up to date.
 	// "Current" indicates the discovery document was recently
@@ -82,10 +84,12 @@ type APIVersionDiscovery struct {
 	// significantly out of date. Clients that require the latest
 	// version of the discovery information be retrieved before
 	// performing an operation should not use the aggregated document
+	// TODO 似乎看起来是用于标记资源是否过期
 	Freshness DiscoveryFreshness `json:"freshness,omitempty" protobuf:"bytes,3,opt,name=freshness"`
 }
 
 // APIResourceDiscovery provides information about an API resource for discovery.
+// TODO 1、这看上去不就是APIResource
 type APIResourceDiscovery struct {
 	// resource is the plural name of the resource.  This is used in the URL path and is the unique identifier
 	// for this resource across all versions in the API group.

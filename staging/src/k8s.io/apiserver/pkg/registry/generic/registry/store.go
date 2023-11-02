@@ -94,17 +94,23 @@ type GenericStore interface {
 //
 // TODO: make the default exposed methods exactly match a generic RESTStorage
 // TODO 这个存储是如何抽象的？
+// 1、为什么需要Store这个结构体呢？ Store实现了StandardStorage接口，而一般的资源对象就需要是实现StandardStorage接口。通过Store我们可以
+// 复用代码，不需要每个资源都完完整整的实现StandardStorage接口。同时，由于抽象除了Store,因此我们在底层变更时也需要修改Store，无需关系每个资源
+// 类型的修改。
+// TODO 2、那么有没有什么资源对象没有使用Store呢？
 type Store struct {
 	// NewFunc returns a new instance of the type this registry returns for a
 	// GET of a single object, e.g.:
 	//
 	// curl GET /apis/group/version/namespaces/my-ns/myresource/name-of-object
+	// 用于实例化一个对象，让后我们把二进制数据进行反序列化
 	NewFunc func() runtime.Object
 
 	// NewListFunc returns a new list of the type this registry; it is the
 	// type returned when the resource is listed, e.g.:
 	//
 	// curl GET /apis/group/version/namespaces/my-ns/myresource
+	// 用于实例化一个对象，让后我们把二进制数据进行反序列化
 	NewListFunc func() runtime.Object
 
 	// DefaultQualifiedResource is the pluralized name of the resource.
@@ -143,6 +149,7 @@ type Store struct {
 	// PredicateFunc returns a matcher corresponding to the provided labels
 	// and fields. The SelectionPredicate returned should return true if the
 	// object matches the given field and label selectors.
+	// TODO 这玩意干嘛的
 	PredicateFunc func(label labels.Selector, field fields.Selector) storage.SelectionPredicate
 
 	// EnableGarbageCollection affects the handling of Update and Delete
@@ -164,6 +171,7 @@ type Store struct {
 	// integrations that are above storage and should only be used for
 	// specific cases where storage of the value is not appropriate, since
 	// they cannot be watched.
+	// TODO 这玩意有啥用？
 	Decorator func(runtime.Object)
 
 	// CreateStrategy implements resource-specific behavior during creation.
@@ -206,6 +214,7 @@ type Store struct {
 
 	// TableConvertor is an optional interface for transforming items or lists
 	// of items into tabular output. If unset, the default will be used.
+	// TODO 这玩意有啥用？
 	TableConvertor rest.TableConvertor
 
 	// ResetFieldsStrategy provides the fields reset by the strategy that
@@ -215,6 +224,7 @@ type Store struct {
 	// Storage is the interface for the underlying storage for the
 	// resource. It is wrapped into a "DryRunnableStorage" that will
 	// either pass-through or simply dry-run.
+	// 真正的存储后端，我们操作数据的时候就是通过这里的接口实现的数据操作
 	Storage DryRunnableStorage
 	// StorageVersioner outputs the <group/version/kind> an object will be
 	// converted to before persisted in etcd, given a list of possible

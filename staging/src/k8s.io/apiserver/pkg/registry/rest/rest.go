@@ -152,6 +152,9 @@ type GetterWithOptions interface {
 	NewGetOptions() (runtime.Object, bool, string)
 }
 
+// TableConvertor 此接口用于以表格化的方式展示响应数据，譬如我们使用Kubectl get pods这个命令，实际上Pod的资源清单非常复杂，我们一般
+// 不需要查看所有的字段，而是查看特殊几个字段接可以了。而每一种资源类型需要展示的字段又不相同，因此我们需要一个专门的转换接口，用于抽象这个功能。
+// 当我们需要在控制台打印这个对象时，就应该调用这个接口。
 type TableConvertor interface {
 	ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error)
 }
@@ -179,6 +182,7 @@ type MayReturnFullObjectDeleter interface {
 
 // CollectionDeleter is an object that can delete a collection
 // of RESTful resources.
+// 同时删除同种类型的多个资源（批量删除）
 type CollectionDeleter interface {
 	// DeleteCollection selects all resources in the storage matching given 'listOptions'
 	// and deletes them. The delete attempt is validated by the deleteValidation first.
@@ -292,6 +296,11 @@ type Watcher interface {
 
 // StandardStorage is an interface covering the common verbs. Provided for testing whether a
 // resource satisfies the normal storage methods. Use Storage when passing opaque storage objects.
+// 1、标准存储抽象了一个资源最基本的增删改查接口，在K8S中我们对一个资源的操作无非就是：GET, LIST, CREATE, UPDATE, DELETE, WATCH
+// 2、TODO 那么为什么注释这里说当传递的是不透明的存储对象的时候，我们应该使用Storage接口呢？  首先我们需要知道，StandardStorage本身就是
+// Storage, 所以实现了StandardStorage的资源一定是Storage。 那么我们为什么不直接使用StandardStorage接口呢？ 这是因为并非所有的资源都需要
+// 支持标准的GET, LIST, CREATE, UPDATE, DELETE, WATCH方法，譬如有些资源对象只需要能够查看就可以了，因此没有必要实现修改类型的接口。因此我们
+// 最好使用Storage接口来接受所有资源对象，因为Storage是资源对象最基本的抽象，所以任何资源都一定实现了Storage。
 type StandardStorage interface {
 	Getter
 	Lister

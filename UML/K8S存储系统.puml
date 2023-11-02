@@ -206,7 +206,8 @@ package storage::storagebackend{
 
 package registry::generic{
     interface StorageDecorator {
-        func(config *storagebackend.ConfigForResource,resourcePrefix string,
+        config *storagebackend.ConfigForResource,
+        resourcePrefix string,
         keyFunc func(obj runtime.Object) (string, error),
         newFunc func() runtime.Object,
         newListFunc func() runtime.Object,
@@ -219,7 +220,6 @@ package registry::generic{
     class RESTOptions {
         StorageConfig: *storagebackend.ConfigForResource
         Decorator:     StorageDecorator
-
         EnableGarbageCollection:   bool
         DeleteCollectionWorkers:   int
         ResourcePrefix:            string

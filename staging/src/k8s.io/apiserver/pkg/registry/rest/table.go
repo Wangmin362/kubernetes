@@ -29,6 +29,7 @@ import (
 	genericapirequest "k8s.io/apiserver/pkg/endpoints/request"
 )
 
+// TableConverter接口的默认实现
 type defaultTableConvertor struct {
 	defaultQualifiedResource schema.GroupResource
 }
@@ -44,6 +45,7 @@ var swaggerMetadataDescriptions = metav1.ObjectMeta{}.SwaggerDoc()
 func (c defaultTableConvertor) ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error) {
 	var table metav1.Table
 	fn := func(obj runtime.Object) error {
+		// 获取资源对象的元信息
 		m, err := meta.Accessor(obj)
 		if err != nil {
 			resource := c.defaultQualifiedResource
@@ -60,6 +62,7 @@ func (c defaultTableConvertor) ConvertToTable(ctx context.Context, object runtim
 	}
 	switch {
 	case meta.IsListType(object):
+		// 如果当前资源对象是一个列表资源，那么应该遍历每一个资源对象
 		if err := meta.EachListItem(object, fn); err != nil {
 			return nil, err
 		}

@@ -324,6 +324,8 @@ type Namer interface {
 // expected to be serialized to the wire, the interface an Object must provide to the Scheme allows
 // serializers to set the kind, version, and group the object is represented as. An Object may choose
 // to return a no-op ObjectKindAccessor in cases where it is not expected to be serialized.
+// 1、K8S当中的顶级接口，所有的资源都是runtime.Object
+// 2、K8S专门设计了deepcopy-gen代码生成器为资源对象生成这两个接口，资源对象只需要打上// +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object注释即可
 type Object interface {
 	GetObjectKind() schema.ObjectKind
 	DeepCopyObject() Object

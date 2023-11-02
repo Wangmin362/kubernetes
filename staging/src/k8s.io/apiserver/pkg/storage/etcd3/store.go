@@ -72,17 +72,18 @@ func (d authenticatedDataString) AuthenticatedData() []byte {
 
 var _ value.Context = authenticatedDataString("")
 
+// 1、实现了storage.Interface接口，用于把数据持久化到ETCD当中
 type store struct {
-	client              *clientv3.Client
-	codec               runtime.Codec
-	versioner           storage.Versioner
-	transformer         value.Transformer
-	pathPrefix          string
-	groupResource       schema.GroupResource
-	groupResourceString string
-	watcher             *watcher
-	pagingEnabled       bool
-	leaseManager        *leaseManager
+	client              *clientv3.Client     // ETCD客户端
+	codec               runtime.Codec        // 编解码器，其实就是序列化器、反序列化器
+	versioner           storage.Versioner    // TODO
+	transformer         value.Transformer    // TODO
+	pathPrefix          string               // key的前缀
+	groupResource       schema.GroupResource // 说明一个store只能针对某个组的某个资源进行存储，不同的版本使用相同的store存储
+	groupResourceString string               // TODO
+	watcher             *watcher             // TODO 应该是实现了资源对象的Watch操作
+	pagingEnabled       bool                 // 用于控制是否分页  TODO 应该是对于列表类型的资源对象生效
+	leaseManager        *leaseManager        // 资源对象生命周期管理器
 }
 
 type objState struct {
@@ -94,11 +95,13 @@ type objState struct {
 }
 
 // New returns an etcd3 implementation of storage.Interface.
-func New(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string, groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) storage.Interface {
+func New(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string, groupResource schema.GroupResource,
+	transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) storage.Interface {
 	return newStore(c, codec, newFunc, prefix, groupResource, transformer, pagingEnabled, leaseManagerConfig)
 }
 
-func newStore(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string, groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) *store {
+func newStore(c *clientv3.Client, codec runtime.Codec, newFunc func() runtime.Object, prefix string,
+	groupResource schema.GroupResource, transformer value.Transformer, pagingEnabled bool, leaseManagerConfig LeaseManagerConfig) *store {
 	versioner := storage.APIObjectVersioner{}
 	// for compatibility with etcd2 impl.
 	// no-op for default prefix of '/registry'.

@@ -110,6 +110,7 @@ type RESTMapping struct {
 // unique across groups.
 //
 // TODO: split into sub-interfaces
+// 1、用于GVR到GVK之间的转换，主要用在请求到来时，我们需要把从请求当中获取的GVR信息转换为GVK，在K8S当中我们使用GVK编码
 type RESTMapper interface {
 	// KindFor takes a partial resource and returns the single match.  Returns an error if there are multiple matches
 	KindFor(resource schema.GroupVersionResource) (schema.GroupVersionKind, error)

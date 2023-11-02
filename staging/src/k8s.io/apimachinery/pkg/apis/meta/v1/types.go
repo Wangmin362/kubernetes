@@ -53,11 +53,13 @@ type TypeMeta struct {
 	// may reject unrecognized values.
 	// More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
 	// +optional
+	// APIVersion实际上表示了一个资源的GV信息
 	APIVersion string `json:"apiVersion,omitempty" protobuf:"bytes,2,opt,name=apiVersion"`
 }
 
 // ListMeta describes metadata that synthetic resources must have, including lists and
 // various status objects. A resource may have only one of {ObjectMeta, ListMeta}.
+// ListMeta元信息适合ObjectMeta元信息是一样的概念，只不过ListMeta元信息用在一个资源的列表对象当中，而ObjectMeta则是用在单个资源对象当中
 type ListMeta struct {
 	// Deprecated: selfLink is a legacy read-only field that is no longer populated by the system.
 	// +optional
@@ -109,6 +111,7 @@ const (
 // ObjectMeta is metadata that all persisted resources must have, which includes all objects
 // users must create.
 // 1、用于表针每个对象的对象元信息，譬如名称、所在名称空间、创建时间
+// 2、ObjectMeta同时实现了
 type ObjectMeta struct {
 	// Name must be unique within a namespace. Is required when creating resources, although
 	// some resources may allow a client to request the generation of an appropriate name
@@ -1479,6 +1482,7 @@ const (
 // +k8s:conversion-gen:explicit-from=net/url.Values
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 type TableOptions struct {
+	// 类型元信息
 	TypeMeta `json:",inline"`
 
 	// NoHeaders is only exposed for internal callers. It is not included in our OpenAPI definitions

@@ -22,6 +22,7 @@ import (
 )
 
 // TODO: move this, Object, List, and Type to a different package
+// 元信息数据可以直接实现ObjectMetaAccessor接口，也可以直接实现Object接口获取元信息
 type ObjectMetaAccessor interface {
 	GetObjectMeta() Object
 }
@@ -30,6 +31,7 @@ type ObjectMetaAccessor interface {
 // internal API objects. Attempting to set or retrieve a field on an object that does
 // not support that field (Name, UID, Namespace on lists) will be a no-op and return
 // a default value.
+// 1、Object接口用于抽象一个资源的元信息接口，此接口可以获取资源对象的元信息以及设置资源对象的元信息
 type Object interface {
 	GetNamespace() string
 	SetNamespace(namespace string)
@@ -64,6 +66,7 @@ type Object interface {
 }
 
 // ListMetaAccessor retrieves the list interface from an object
+// 用于获取资源对象的ListMeta信息
 type ListMetaAccessor interface {
 	GetListMeta() ListInterface
 }

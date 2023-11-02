@@ -93,6 +93,7 @@ var errNotObject = fmt.Errorf("object does not implement the Object interfaces")
 // obj must be a pointer to an API type. An error is returned if the minimum
 // required fields are missing. Fields that are not required return the default
 // value and are a no-op if set.
+// 用于获取资源对象得元信息
 func Accessor(obj interface{}) (metav1.Object, error) {
 	switch t := obj.(type) {
 	case metav1.Object:

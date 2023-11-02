@@ -156,6 +156,7 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 
 // Interface offers a common interface for object marshaling/unmarshaling operations and
 // hides all the storage-related operations behind it.
+// 1、K8S真正的底层存储接口，通过此接口，可以把数据进行持久化
 type Interface interface {
 	// Returns Versioner associated with this interface.
 	Versioner() Versioner

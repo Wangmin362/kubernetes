@@ -53,6 +53,8 @@ import (
 // Resources which are exported to the RESTful API of apiserver need to implement this interface. It is expected
 // that objects may implement any of the below interfaces.
 // TODO 如何理解这个抽象
+// 1、Storage接口可以为各种资源增删改查提供支持，这是一个相对顶级的抽象，实际上如果资源对象仅仅实现了这个接口，还是没有办法对接底层存储
+// 因为我们需要对于资源对象进行增删改查、监视这几个动作，所以一般来说资源对象还需要实现后面几个接口
 type Storage interface {
 	// New returns an empty object that can be used with Create and Update after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -76,23 +78,28 @@ type Scoper interface {
 // objects that are not compiled into the api server.  For such objects, there is no in-memory representation for
 // the object, so they must be represented as generic objects (e.g. runtime.Unknown), but when we present the object as part of
 // API discovery we want to present the specific kind, not the generic internal representation.
+// 用于获取当前资源对象的Kind类型
 type KindProvider interface {
 	Kind() string
 }
 
-// ShortNamesProvider is an interface for RESTful storage services. Delivers a list of short names for a resource. The list is used by kubectl to have short names representation of resources.
+// ShortNamesProvider is an interface for RESTful storage services. Delivers a list of short names for a resource.
+// The list is used by kubectl to have short names representation of resources.
+// 用于获取资源对象的简写名称，有些资源对象是有简写名称的，譬如daemonSet，可以简写为ds, Deployment可以简写为deploy
 type ShortNamesProvider interface {
 	ShortNames() []string
 }
 
 // CategoriesProvider allows a resource to specify which groups of resources (categories) it's part of. Categories can
 // be used by API clients to refer to a batch of resources by using a single name (e.g. "all" could translate to "pod,rc,svc,...").
+// TODO 这玩意有啥用？
 type CategoriesProvider interface {
 	Categories() []string
 }
 
 // SingularNameProvider returns singular name of resources. This is used by kubectl discovery to have singular
 // name representation of resources. In case of shortcut conflicts(with CRD shortcuts) singular name should always map to this resource.
+// 获取资源对象的单数名字
 type SingularNameProvider interface {
 	GetSingularName() string
 }
@@ -101,6 +108,7 @@ type SingularNameProvider interface {
 // which generally point to foreign versions.  Scale refers to Scale.v1beta1.extensions for instance.
 // This trumps KindProvider since it is capable of providing the information required.
 // TODO KindProvider (only used by federation) should be removed and replaced with this, but that presents greater risk late in 1.8.
+// TODO 这玩意有啥用？
 type GroupVersionKindProvider interface {
 	GroupVersionKind(containingGV schema.GroupVersion) schema.GroupVersionKind
 }
@@ -108,11 +116,13 @@ type GroupVersionKindProvider interface {
 // GroupVersionAcceptor is used to determine if a particular GroupVersion is acceptable to send to an endpoint.
 // This is used for endpoints which accept multiple versions (which is extremely rare).
 // The only known instance is pods/evictions which accepts policy/v1, but also policy/v1beta1 for backwards compatibility.
+// TODO 有啥用？ 什么时候被使用？
 type GroupVersionAcceptor interface {
 	AcceptsGroupVersion(gv schema.GroupVersion) bool
 }
 
 // Lister is an object that can retrieve resources that match the provided field and label criteria.
+// 用于访问资源的列表形式
 type Lister interface {
 	// NewList returns an empty object that can be used with the List call.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -120,10 +130,12 @@ type Lister interface {
 	// List selects resources in the storage which match to the selector. 'options' can be nil.
 	List(ctx context.Context, options *metainternalversion.ListOptions) (runtime.Object, error)
 	// TableConvertor ensures all list implementers also implement table conversion
+	// 当需要展示列表资源时，需要使用TableConvertor转换资源
 	TableConvertor
 }
 
 // Getter is an object that can retrieve a named RESTful resource.
+// 获取一个资源对象
 type Getter interface {
 	// Get finds a resource in the storage by name and returns it.
 	// Although it can return an arbitrary error value, IsNotFound(err) is true for the
@@ -134,6 +146,7 @@ type Getter interface {
 // GetterWithOptions is an object that retrieve a named RESTful resource and takes
 // additional options on the get request. It allows a caller to also receive the
 // subpath of the GET request.
+// 查询资源对象时可以指定某些参数
 type GetterWithOptions interface {
 	// Get finds a resource in the storage by name and returns it.
 	// Although it can return an arbitrary error value, IsNotFound(err) is true for the
@@ -152,15 +165,39 @@ type GetterWithOptions interface {
 	NewGetOptions() (runtime.Object, bool, string)
 }
 
-// TableConvertor 此接口用于以表格化的方式展示响应数据，譬如我们使用Kubectl get pods这个命令，实际上Pod的资源清单非常复杂，我们一般
+/* 这就是所谓的表格化的显示方式
+root@172-30-3-222-lvs:~# kubectl get pods -n kube-system
+NAME                                       READY   STATUS      RESTARTS       AGE
+cadvisor-2pjd4                             1/1     Running     0              6d18h
+calico-kube-controllers-79c887f588-2wdxb   1/1     Running     0              19d
+calico-node-7sxd9                          1/1     Running     0              19d
+calico-node-bjfjl                          1/1     Running     1 (19d ago)    19d
+coredns-84df55b559-c5kzk                   1/1     Running     1 (20d ago)    20d
+coredns-84df55b559-xt48l                   1/1     Running     0              19d
+etcd-node1                                 1/1     Running     0              90d
+etcd-node2                                 1/1     Running     0              90d
+etcd-node3                                 1/1     Running     1 (20d ago)    90d
+kube-apiserver-node1                       1/1     Running     1              90d
+kube-apiserver-node2                       1/1     Running     3              90d
+kube-apiserver-node3                       1/1     Running     10 (20d ago)   90d
+kube-controller-manager-node1              1/1     Running     5              90d
+kube-controller-manager-node2              1/1     Running     6              90d
+kube-controller-manager-node3              1/1     Running     5 (20d ago)    90d
+kube-proxy-7w62t                           1/1     Running     1 (19d ago)    90d
+kube-proxy-8zz85                           1/1     Running     1 (19d ago)    90d
+*/
+
+// TableConvertor 1、此接口用于以表格化的方式展示响应数据，譬如我们使用Kubectl get pods这个命令，实际上Pod的资源清单非常复杂，我们一般
 // 不需要查看所有的字段，而是查看特殊几个字段接可以了。而每一种资源类型需要展示的字段又不相同，因此我们需要一个专门的转换接口，用于抽象这个功能。
 // 当我们需要在控制台打印这个对象时，就应该调用这个接口。
+// 1、所谓的表格展示的方式，其实就是一行一列的方式，显然，一个资源到底有几列是根据不同的资源自己决定的
 type TableConvertor interface {
 	ConvertToTable(ctx context.Context, object runtime.Object, tableOptions runtime.Object) (*metav1.Table, error)
 }
 
 // GracefulDeleter knows how to pass deletion options to allow delayed deletion of a
 // RESTful object.
+// 删除资源对象
 type GracefulDeleter interface {
 	// Delete finds a resource in the storage and deletes it.
 	// The delete attempt is validated by the deleteValidation first.
@@ -176,6 +213,7 @@ type GracefulDeleter interface {
 }
 
 // MayReturnFullObjectDeleter may return deleted object (instead of a simple status) on deletion.
+// TODO 这个接口啥时候有用
 type MayReturnFullObjectDeleter interface {
 	DeleteReturnsDeletedObject() bool
 }
@@ -194,7 +232,7 @@ type CollectionDeleter interface {
 }
 
 // Creater is an object that can create an instance of a RESTful object.
-// TODO 如何理解Creater接口和NamedCreater接口的区别？
+// 创建资源对象
 type Creater interface {
 	// New returns an empty object that can be used with Create after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -205,6 +243,7 @@ type Creater interface {
 }
 
 // NamedCreater is an object that can create an instance of a RESTful object using a name parameter.
+// 创建资源对象的同时可以指定这个资源对象的名字
 type NamedCreater interface {
 	// New returns an empty object that can be used with Create after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -257,6 +296,7 @@ func ValidateAllObjectUpdateFunc(ctx context.Context, obj, old runtime.Object) e
 }
 
 // Updater is an object that can update an instance of a RESTful object.
+// 更新资源对象
 type Updater interface {
 	// New returns an empty object that can be used with Update after request data has been put into it.
 	// This object must be a pointer type for use with Codec.DecodeInto([]byte, runtime.Object)
@@ -265,14 +305,16 @@ type Updater interface {
 	// Update finds a resource in the storage and updates it. Some implementations
 	// may allow updates creates the object - they should set the created boolean
 	// to true.
-	Update(ctx context.Context, name string, objInfo UpdatedObjectInfo, createValidation ValidateObjectFunc, updateValidation ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error)
+	Update(ctx context.Context, name string, objInfo UpdatedObjectInfo, createValidation ValidateObjectFunc,
+		updateValidation ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error)
 }
 
 // CreaterUpdater is a storage object that must support both create and update.
 // Go prevents embedded interfaces that implement the same method.
 type CreaterUpdater interface {
 	Creater
-	Update(ctx context.Context, name string, objInfo UpdatedObjectInfo, createValidation ValidateObjectFunc, updateValidation ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error)
+	Update(ctx context.Context, name string, objInfo UpdatedObjectInfo, createValidation ValidateObjectFunc,
+		updateValidation ValidateObjectUpdateFunc, forceAllowCreate bool, options *metav1.UpdateOptions) (runtime.Object, bool, error)
 }
 
 // CreaterUpdater must satisfy the Updater interface.
@@ -287,7 +329,7 @@ type Patcher interface {
 // Watcher should be implemented by all Storage objects that
 // want to offer the ability to watch for changes through the watch api.
 type Watcher interface {
-	// 'label' selects on labels; 'field' selects on the object's fields. Not all fields
+	// Watch 'label' selects on labels; 'field' selects on the object's fields. Not all fields
 	// are supported; an error should be returned if 'field' tries to select on a field that
 	// isn't supported. 'resourceVersion' allows for continuing/starting a watch at a
 	// particular version.
@@ -316,6 +358,7 @@ type StandardStorage interface {
 }
 
 // Redirector know how to return a remote resource's location.
+// TODO 这个接口干嘛的？
 type Redirector interface {
 	// ResourceLocation should return the remote location of the given resource, and an optional transport to use to request it, or an error.
 	ResourceLocation(ctx context.Context, id string) (remoteLocation *url.URL, transport http.RoundTripper, err error)
@@ -332,6 +375,7 @@ type Responder interface {
 }
 
 // Connecter is a storage object that responds to a connection request.
+// TODO 干嘛的？
 type Connecter interface {
 	// Connect returns an http.Handler that will handle the request/response for a given API invocation.
 	// The provided responder may be used for common API responses. The responder will write both status

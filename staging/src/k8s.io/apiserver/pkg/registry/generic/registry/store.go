@@ -126,6 +126,7 @@ type Store struct {
 	// entire collection (listing and watching).
 	//
 	// KeyRootFunc and KeyFunc must be supplied together or not at all.
+	// TODO 有啥用
 	KeyRootFunc func(ctx context.Context) string
 
 	// KeyFunc returns the key for a specific object in the collection.
@@ -133,9 +134,11 @@ type Store struct {
 	// can be gotten from ctx.
 	//
 	// KeyFunc and KeyRootFunc must be supplied together or not at all.
+	// TODO 有啥用？
 	KeyFunc func(ctx context.Context, name string) (string, error)
 
 	// ObjectNameFunc returns the name of an object or an error.
+	// TODO 有啥用？
 	ObjectNameFunc func(obj runtime.Object) (string, error)
 
 	// TTLFunc returns the TTL (time to live) that objects should be persisted
@@ -144,6 +147,7 @@ type Store struct {
 	// against an existing object.
 	//
 	// Objects that are persisted with a TTL are evicted once the TTL expires.
+	// 1、用于控制一个资源对象的持久化时间，当资源对象过期之后，该资源对象会自动被移除
 	TTLFunc func(obj runtime.Object, existing uint64, update bool) (uint64, error)
 
 	// PredicateFunc returns a matcher corresponding to the provided labels
@@ -205,6 +209,7 @@ type Store struct {
 	AfterDelete AfterDeleteFunc
 	// ReturnDeletedObject determines whether the Store returns the object
 	// that was deleted. Otherwise, return a generic success status response.
+	// 是否需要返回被删除的资源对象，如果不需要返回，可以减少带宽消耗
 	ReturnDeletedObject bool
 	// ShouldDeleteDuringUpdate is an optional function to determine whether
 	// an update from existing to obj should result in a delete.
@@ -214,11 +219,12 @@ type Store struct {
 
 	// TableConvertor is an optional interface for transforming items or lists
 	// of items into tabular output. If unset, the default will be used.
-	// TODO 这玩意有啥用？
+	// 用于表示如果把一个资源对象转化为表格，用于人们更加方便观察一个资源对象
 	TableConvertor rest.TableConvertor
 
 	// ResetFieldsStrategy provides the fields reset by the strategy that
 	// should not be modified by the user.
+	// TODO 有啥用
 	ResetFieldsStrategy rest.ResetFieldsStrategy
 
 	// Storage is the interface for the underlying storage for the
@@ -231,6 +237,7 @@ type Store struct {
 	// kinds of the object.
 	// If the StorageVersioner is nil, apiserver will leave the
 	// storageVersionHash as empty in the discovery document.
+	// TODO 有啥用？
 	StorageVersioner runtime.GroupVersioner
 
 	// DestroyFunc cleans up clients used by the underlying Storage; optional.

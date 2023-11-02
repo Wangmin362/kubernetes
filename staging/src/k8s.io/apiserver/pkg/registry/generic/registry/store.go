@@ -116,9 +116,11 @@ type Store struct {
 	// DefaultQualifiedResource is the pluralized name of the resource.
 	// This field is used if there is no request info present in the context.
 	// See qualifiedResourceFromContext for details.
+	// 获取资源对象的GR,并且是复数情况，譬如apps/daemonsets, admissionregistration.k8s.io/validatingadmissionpolicies
 	DefaultQualifiedResource schema.GroupResource
 
 	// SingularQualifiedResource is the singular name of the resource.
+	// 获取资源对象的GR，譬如是单数情况 譬如apps/daemonset, admissionregistration.k8s.io/validatingadmissionpolicie
 	SingularQualifiedResource schema.GroupResource
 
 	// KeyRootFunc returns the root etcd key for this resource; should not
@@ -127,6 +129,7 @@ type Store struct {
 	//
 	// KeyRootFunc and KeyFunc must be supplied together or not at all.
 	// TODO 有啥用
+	// 1、用于计算存入ETCD时的key
 	KeyRootFunc func(ctx context.Context) string
 
 	// KeyFunc returns the key for a specific object in the collection.
@@ -134,11 +137,11 @@ type Store struct {
 	// can be gotten from ctx.
 	//
 	// KeyFunc and KeyRootFunc must be supplied together or not at all.
-	// TODO 有啥用？
+	// TODO 有啥用？  看注释说是用于计算资源对象在集合中的key
 	KeyFunc func(ctx context.Context, name string) (string, error)
 
 	// ObjectNameFunc returns the name of an object or an error.
-	// TODO 有啥用？
+	// 用于获取资源对象的名字，一般就是获取ObjectMeta.Name字段
 	ObjectNameFunc func(obj runtime.Object) (string, error)
 
 	// TTLFunc returns the TTL (time to live) that objects should be persisted
@@ -148,6 +151,7 @@ type Store struct {
 	//
 	// Objects that are persisted with a TTL are evicted once the TTL expires.
 	// 1、用于控制一个资源对象的持久化时间，当资源对象过期之后，该资源对象会自动被移除
+	// 2、主要使用用来计算资源对象的TTL
 	TTLFunc func(obj runtime.Object, existing uint64, update bool) (uint64, error)
 
 	// PredicateFunc returns a matcher corresponding to the provided labels
@@ -162,6 +166,7 @@ type Store struct {
 	//
 	// If any store has garbage collection enabled, it must also be enabled in
 	// the kube-controller-manager.
+	// TODO 这玩意干啥的？
 	EnableGarbageCollection bool
 
 	// DeleteCollectionWorkers is the maximum number of workers in a single
@@ -175,7 +180,10 @@ type Store struct {
 	// integrations that are above storage and should only be used for
 	// specific cases where storage of the value is not appropriate, since
 	// they cannot be watched.
-	// TODO 这玩意有啥用？
+	// 1、简单来说，Decorator其实就是一个Hook，Hook执行的时间点为从底层存储拿到数据的时候，或者说Hook的执行对象为底层存储的返回值。譬如对于
+	// CREATE动作而言，当执行了Storage.Create函数之后，就拿到了底层存储（ETCD）的返回值，此时Decorator就会把底层存储（ETCD）的返回值最为
+	// 输入参数，对这个返回值进一步处理。对于LIST, GET, WATCH动作而言也是如此。Decorator的目标就是修改底层存储响应的值。
+	// 2、就目前而言，除了PVC资源会指定Decorator，其余资源并没有指定Decorator
 	Decorator func(runtime.Object)
 
 	// CreateStrategy implements resource-specific behavior during creation.
@@ -230,7 +238,12 @@ type Store struct {
 	// Storage is the interface for the underlying storage for the
 	// resource. It is wrapped into a "DryRunnableStorage" that will
 	// either pass-through or simply dry-run.
-	// 真正的存储后端，我们操作数据的时候就是通过这里的接口实现的数据操作
+	// 1、真正的存储后端，我们操作数据的时候就是通过这里的接口实现的数据操作
+	// 2、所谓的DryRun，其实就是把我们即将要执行的动作检测一下，检测这个动作是否有可能成功。DryRun模式其实是专门针对于修改类型的动作，对于查询
+	// 类型的动作，譬如GET, LIST, WATCH就是真正的执行。而对于修改类型的动作（CREATE, UPDATE, DELETE），DryRun就是为了判断这个动作将来执行
+	// 的时候是否能够执行成功，譬如对于CREATE而言，DryRun只需要检测当前要创建的资源是否存在，如果存在，那么CREATE动作将来执行肯定不成功。而
+	// 对于UPDATE而言，DryRun需要检测将要更新的资源必须存在，否则无法更行。对于DELETE动作而言，也是必须保证资源必须存在。当然，前面所说的仅仅
+	// 是最基本的检测，DryRun实际上还会检测相关的参数是否合理
 	Storage DryRunnableStorage
 	// StorageVersioner outputs the <group/version/kind> an object will be
 	// converted to before persisted in etcd, given a list of possible

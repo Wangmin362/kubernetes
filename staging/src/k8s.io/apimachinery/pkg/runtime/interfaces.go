@@ -250,6 +250,7 @@ type ObjectVersioner interface {
 }
 
 // ObjectConvertor converts an object to a different version.
+// TODO 这玩意干嘛的
 type ObjectConvertor interface {
 	// Convert attempts to convert one object into another, or returns an error. This
 	// method does not mutate the in object, but the in and out object might share data structures,
@@ -267,6 +268,9 @@ type ObjectConvertor interface {
 
 // ObjectTyper contains methods for extracting the APIVersion and Kind
 // of objects.
+// 1、用于获取一个资源对象的GVK
+// 2、用于根据一个资源的GVK判断这个资源是否识别
+// 3、runtime.Scheme实现了这个接口
 type ObjectTyper interface {
 	// ObjectKinds returns the all possible group,version,kind of the provided object, true if
 	// the object is unversioned, or an error if the object is not recognized

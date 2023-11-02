@@ -83,11 +83,11 @@ type APIGroupVersion struct {
 	Serializer     runtime.NegotiatedSerializer
 	ParameterCodec runtime.ParameterCodec
 
-	Typer                 runtime.ObjectTyper
-	Creater               runtime.ObjectCreater
-	Convertor             runtime.ObjectConvertor
-	ConvertabilityChecker ConvertabilityChecker
-	Defaulter             runtime.ObjectDefaulter
+	Typer                 runtime.ObjectTyper     // 用于获取资源的GVK，以及判断资源是否是可识别资源
+	Creater               runtime.ObjectCreater   // 用于创建资源
+	Convertor             runtime.ObjectConvertor // TODO
+	ConvertabilityChecker ConvertabilityChecker   // TODO
+	Defaulter             runtime.ObjectDefaulter // TODO
 	Namer                 runtime.Namer
 	UnsafeConvertor       runtime.ObjectConvertor
 	TypeConverter         managedfields.TypeConverter
@@ -128,10 +128,12 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) (
 
 	// TODO 路由注册，相当复杂
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
+
 	// 注册/<root>/<group>/<version>路由，此路由用于返回某个组的某个版本下的所有可用资源信息
 	versionDiscoveryHandler := discovery.NewAPIVersionHandler(g.Serializer, g.GroupVersion, staticLister{apiResources})
 	versionDiscoveryHandler.AddToWebService(ws)
 	container.Add(ws)
+
 	aggregatedDiscoveryResources, err := ConvertGroupVersionIntoToDiscovery(apiResources)
 	if err != nil {
 		registrationErrors = append(registrationErrors, err)

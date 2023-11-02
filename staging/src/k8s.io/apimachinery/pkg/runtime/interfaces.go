@@ -31,6 +31,7 @@ const (
 )
 
 // GroupVersioner refines a set of possible conversion targets into a single option.
+// TODO 这玩意干嘛的？
 type GroupVersioner interface {
 	// KindForGroupVersionKinds returns a desired target group version kind for the given input, or returns ok false if no
 	// target is known. In general, if the return target is not in the input list, the caller is expected to invoke
@@ -72,6 +73,7 @@ type Encoder interface {
 // MemoryAllocator is responsible for allocating memory.
 // By encapsulating memory allocation into its own interface, we can reuse the memory
 // across many operations in places we know it can significantly improve the performance.
+// 之所以能够提升性能是因为内存的复用
 type MemoryAllocator interface {
 	// Allocate reserves memory for n bytes.
 	// Note that implementations of this method are not required to zero the returned array.
@@ -80,6 +82,7 @@ type MemoryAllocator interface {
 }
 
 // EncoderWithAllocator  serializes objects in a way that allows callers to manage any additional memory allocations.
+// TODO 序列化消耗了什么内存？ 消耗了多大的内存？ 为什么K8S开发者会想着优化内存使用以提升性能？
 type EncoderWithAllocator interface {
 	Encoder
 	// EncodeWithAllocator writes an object to a stream as Encode does.
@@ -96,6 +99,10 @@ type Decoder interface {
 	// guaranteed to be populated. The returned object is not guaranteed to match into. If defaults are
 	// provided, they are applied to the data by default. If no defaults or partial defaults are provided, the
 	// type of the into may be used to guide conversion decisions.
+	// 1、把data反序列化到into对象当中，至于序列化到哪个结构体当中是通过defaults、into、data决定的，如果指定了defaults，那么就是用
+	// defaults所对应的GVK结构体进行序列化。如果defaults为空，但是into不为空，那么根据into对象中提取到的GVK信息进行反序列化。如果
+	// defaults没有指定，并且into也为空，那么只能指望data，如果能从data中提取到GVK，那么也能自己实例化一个资源对象，然后作为返回值传出。
+	// 如果data对象中也不能提取出任何GVK相关的信息，那么这次序列化只能宣告失败
 	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error)
 }
 

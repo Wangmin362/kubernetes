@@ -57,15 +57,20 @@ type TransportConfig struct {
 // Config is configuration for creating a storage backend.
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
+	// 存储后端的类型，如果没有配置，那么默认就是ETCD3类型，实际上目前的K8S只支持ETCD3，并不支持ETCD2
 	Type string
 	// Prefix is the prefix to all keys passed to storage.Interface methods.
+	// 使用的前缀，方便和其它应用区分Key
 	Prefix string
 	// Transport holds all connection related info, i.e. equal TransportConfig means equal servers we talk to.
+	// 用于连接ETCD
 	Transport TransportConfig
 	// Paging indicates whether the server implementation should allow paging (if it is
 	// supported). This is generally configured by feature gating, or by a specific
 	// resource type not wishing to allow paging, and is not intended for end users to
 	// set.
+	// 1、这个应该说的是分页
+	// 2、如果开启了APIListChunking特性，Paging就为true
 	Paging bool
 
 	Codec runtime.Codec

@@ -40,10 +40,12 @@ func Resource(resource string) schema.GroupResource {
 
 var (
 	// SchemeBuilder object to register various known types
+	// 构建SchemeBuilder
 	SchemeBuilder = runtime.NewSchemeBuilder(addKnownTypes)
 
 	// AddToScheme represents a func that can be used to apply all the registered
 	// funcs in a scheme
+	// 执行AddToScheme函数之后，会把addKnownTypes列出的资源全部添加到Scheme当中
 	AddToScheme = SchemeBuilder.AddToScheme
 )
 
@@ -52,7 +54,9 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	if err := scheme.AddIgnoredConversionType(&metav1.TypeMeta{}, &metav1.TypeMeta{}); err != nil {
 		return err
 	}
-	// 这里注册的资源对象全部都是内部资源，K8S在持久化的时候就是使用的内部资源序列化之后再进行持久化
+	// 1、这里注册的资源对象全部都是内部资源，version版本为__internal，K8S在持久化的时候就是使用的内部资源（internal resource）
+	// 序列化之后再进行持久化
+	// 2、
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Pod{},
 		&PodList{},

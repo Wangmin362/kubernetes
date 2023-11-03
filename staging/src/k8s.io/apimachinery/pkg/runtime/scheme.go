@@ -54,6 +54,7 @@ type Scheme struct {
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
 	// 1、用于存储GoStruct到GVK之间的映射，这个映射是一对多的   TODO 为什么这里是一对多的？
+	// 2、之所以是一对多，是因为存储一个资源可能在不同的组当中。还有可能功能不同的资源想用相同的结构体定义
 	// TODO 什么时候需要用到这个字段
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
@@ -88,7 +89,7 @@ type Scheme struct {
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
-	// TODO 这又是干嘛的？
+	// TODO 什么叫做观察到的版本
 	observedVersions []schema.GroupVersion
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
@@ -144,7 +145,8 @@ func (s *Scheme) AddUnversionedTypes(version schema.GroupVersion, types ...Objec
 		gvk := version.WithKind(t.Name())
 		s.unversionedTypes[t] = gvk
 		if old, ok := s.unversionedKinds[gvk.Kind]; ok && t != old {
-			panic(fmt.Sprintf("%v.%v has already been registered as unversioned kind %q - kind name must be unique in scheme %q", old.PkgPath(), old.Name(), gvk, s.schemeName))
+			panic(fmt.Sprintf("%v.%v has already been registered as unversioned kind %q - kind name must be unique in scheme %q",
+				old.PkgPath(), old.Name(), gvk, s.schemeName))
 		}
 		s.unversionedKinds[gvk.Kind] = t
 	}
@@ -157,6 +159,9 @@ func (s *Scheme) AddUnversionedTypes(version schema.GroupVersion, types ...Objec
 // 1、所谓的KnownType，其实指的就是有版本的资源类型。在K8S当中，存在一些没有版本的资源类型，被称之为UnVersionedType，譬如APIGroup,
 // APIGroupList,APIResource, APIResourceList等资源，不过K8S中的无版本资源这个概念现在已经逐渐弱化，更多则是KnownType，也就是有版本的
 // 资源类型
+// 2、所谓的添加已知类型，其实就是K8S已经内置的资源类型
+// 3、调用这个方法的时候，一般是添加一个组先的所有资源，所以只需要指定Group, Version，而无需指定具体的Kind，因为我们可以通过反射从具体的对象
+// 当中读取出来。实际上最后还是通过调用的AddKnownTypeWithName添加的一个具体类型
 func (s *Scheme) AddKnownTypes(gv schema.GroupVersion, types ...Object) {
 	s.addObservedVersion(gv)
 	for _, obj := range types {
@@ -165,6 +170,7 @@ func (s *Scheme) AddKnownTypes(gv schema.GroupVersion, types ...Object) {
 			panic("All types must be pointers to structs.")
 		}
 		t = t.Elem()
+		// 通过反射可以获取到当前资源的名字，也即是我们说的Kind值
 		s.AddKnownTypeWithName(gv.WithKind(t.Name()), obj)
 	}
 }
@@ -173,7 +179,9 @@ func (s *Scheme) AddKnownTypes(gv schema.GroupVersion, types ...Object) {
 // be encoded as. Useful for testing when you don't want to make multiple packages to define
 // your structs. Version may not be empty - use the APIVersionInternal constant if you have a
 // type that does not have a formal version.
+// 注册一个GVK到Go结构体的映射。
 func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
+	// 1、Version为空，或者Version为__internal,都不会执改变scheme的任何属性
 	s.addObservedVersion(gvk.GroupVersion())
 	t := reflect.TypeOf(obj)
 	if len(gvk.Version) == 0 {
@@ -187,10 +195,13 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 		panic("All types must be pointers to structs.")
 	}
 
+	// 相同的类型不能注册多次
 	if oldT, found := s.gvkToType[gvk]; found && oldT != t {
-		panic(fmt.Sprintf("Double registration of different types for %v: old=%v.%v, new=%v.%v in scheme %q", gvk, oldT.PkgPath(), oldT.Name(), t.PkgPath(), t.Name(), s.schemeName))
+		panic(fmt.Sprintf("Double registration of different types for %v: old=%v.%v, new=%v.%v in scheme %q",
+			gvk, oldT.PkgPath(), oldT.Name(), t.PkgPath(), t.Name(), s.schemeName))
 	}
 
+	// 显然，如果一个GVK之前注册了另外一个类型，此时就会覆盖之前的类型
 	s.gvkToType[gvk] = t
 
 	for _, existingGvk := range s.typeToGVK[t] {
@@ -202,7 +213,13 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 	s.typeToGVK[t] = append(s.typeToGVK[t], gvk)
 
 	// if the type implements DeepCopyInto(<obj>), register a self-conversion
-	if m := reflect.ValueOf(obj).MethodByName("DeepCopyInto"); m.IsValid() && m.Type().NumIn() == 1 && m.Type().NumOut() == 0 && m.Type().In(0) == reflect.TypeOf(obj) {
+	// 如果一个资源对象实现了DeepCopyInto(into)方法，并且输入参数只有一个，并且输出参数，并且没有输出参数，并且输出参数的类型就是自身，那么
+	// 就像scheme注册转换函数
+	// TODO 一个资源什么时候应该实现DeepCopyInfo方法？
+	// TODO 转换函数有啥用？
+	if m := reflect.ValueOf(obj).MethodByName("DeepCopyInto"); m.IsValid() && m.Type().NumIn() == 1 &&
+		m.Type().NumOut() == 0 && m.Type().In(0) == reflect.TypeOf(obj) {
+		// TODO 注册一个转换函数
 		if err := s.AddGeneratedConversionFunc(obj, obj, func(a, b interface{}, scope conversion.Scope) error {
 			// copy a to b
 			reflect.ValueOf(a).MethodByName("DeepCopyInto").Call([]reflect.Value{reflect.ValueOf(b)})

@@ -80,6 +80,7 @@ type Config struct {
 	// converted to before persisted in etcd.
 	EncodeVersioner runtime.GroupVersioner
 	// Transformer allows the value to be transformed prior to persisting into etcd.
+	// TODO 允许资源在持久化之前被转换
 	Transformer value.Transformer
 
 	// CompactionInterval is an interval of requesting compaction from apiserver.

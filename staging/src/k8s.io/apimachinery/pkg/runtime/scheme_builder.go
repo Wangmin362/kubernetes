@@ -20,10 +20,13 @@ package runtime
 // code to compile without explicitly referencing generated types. You should
 // declare one in each package that will have generated deep copy or conversion
 // functions.
+// 1、SchemeBuilder的根本目标时为了修改Scheme
+// 2、SchemeBuilder本质上就是一个数组，只不过数组的每个元素都是一个函数，用于修改Scheme
 type SchemeBuilder []func(*Scheme) error
 
 // AddToScheme applies all the stored functions to the scheme. A non-nil error
 // indicates that one function failed and the attempt was abandoned.
+// 1、此方法执行之后，Scheme将会被修改，其实就是执行了SchemeBuilder中的每一个函数
 func (sb *SchemeBuilder) AddToScheme(s *Scheme) error {
 	for _, f := range *sb {
 		if err := f(s); err != nil {
@@ -34,6 +37,9 @@ func (sb *SchemeBuilder) AddToScheme(s *Scheme) error {
 }
 
 // Register adds a scheme setup function to the list.
+// 1、Register用于初始化SchemeBuilder
+// 2、这个设计真TMD有意思，这个对象的初始化是通过自己的一个函数来完成的，在Go语言中，我们实例化一个对象一般是都是使用NewXXX来完成的
+// 而这里确是调用自身的一个函数进行初始化。
 func (sb *SchemeBuilder) Register(funcs ...func(*Scheme) error) {
 	for _, f := range funcs {
 		*sb = append(*sb, f)

@@ -44,6 +44,8 @@ type Converter struct {
 	generatedConversionFuncs ConversionFuncs
 
 	// Set of conversions that should be treated as a no-op
+	// 1、忽略一个类型到另外一个类型的转换
+	// 2、在K8S中，不需要转换的类型有metav1.TypeMeta
 	ignoredUntypedConversions map[typePair]struct{}
 }
 

@@ -637,7 +637,7 @@ func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion
 // PrioritizedVersionsAllGroups returns all known versions in their priority order.  Groups are random, but
 // versions for a single group are prioritized
 func (s *Scheme) PrioritizedVersionsAllGroups() []schema.GroupVersion {
-	ret := []schema.GroupVersion{}
+	var ret []schema.GroupVersion
 	for group, versions := range s.versionPriority {
 		for _, version := range versions {
 			ret = append(ret, schema.GroupVersion{Group: group, Version: version})

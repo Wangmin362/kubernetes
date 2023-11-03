@@ -32,7 +32,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-// Creates a cacher based given storageConfig.
+// StorageWithCacher Creates a cacher based given storageConfig.
 func StorageWithCacher() generic.StorageDecorator {
 	return func(
 		storageConfig *storagebackend.ConfigForResource,

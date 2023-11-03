@@ -34,6 +34,7 @@ import (
 
 // Backend describes the storage servers, the information here should be enough
 // for health validations.
+// 1、K8S存储的后端配置非常简单，就是Server地址配置，加上证书配置
 type Backend struct {
 	// the url of storage backend like: https://etcd.domain:2379
 	Server string
@@ -43,13 +44,14 @@ type Backend struct {
 
 // StorageFactory is the interface to locate the storage for a given GroupResource
 type StorageFactory interface {
-	// New finds the storage destination for the given group and resource. It will
+	// NewConfig New finds the storage destination for the given group and resource. It will
 	// return an error if the group has no storage destination configured.
 	NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error)
 
 	// ResourcePrefix returns the overridden resource prefix for the GroupResource
 	// This allows for cohabitation of resources with different native types and provides
 	// centralized control over the shape of etcd directories
+	// 1、资源前缀
 	ResourcePrefix(groupResource schema.GroupResource) string
 
 	// Backends gets all backends for all registered storage destinations.
@@ -64,16 +66,22 @@ type StorageFactory interface {
 type DefaultStorageFactory struct {
 	// StorageConfig describes how to create a storage backend in general.
 	// Its authentication information will be used for every storage.Interface returned.
+	// 1、描述了如何创建一个存储后端
+	// 2、每个存储资源的持久化都使用相同的认证
 	StorageConfig storagebackend.Config
 
+	// 用于资源覆盖默认配置
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
+	// 默认资源的前缀
 	DefaultResourcePrefixes map[schema.GroupResource]string
 
 	// DefaultMediaType is the media type used to store resources. If it is not set, "application/json" is used.
+	// 默认的媒体类型
 	DefaultMediaType string
 
 	// DefaultSerializer is used to create encoders and decoders for the storage.Interface.
+	// 默认的序列化器
 	DefaultSerializer runtime.StorageSerializer
 
 	// ResourceEncodingConfig describes how to encode a particular GroupVersionResource
@@ -88,25 +96,31 @@ type DefaultStorageFactory struct {
 	newStorageCodecFn func(opts StorageCodecConfig) (codec runtime.Codec, encodeVersioner runtime.GroupVersioner, err error)
 }
 
+// 用于资源覆盖默认配置
 type groupResourceOverrides struct {
 	// etcdLocation contains the list of "special" locations that are used for particular GroupResources
 	// These are merged on top of the StorageConfig when requesting the storage.Interface for a given GroupResource
+	// TODO 如何理解这个配置，值为ETCD Server地址?
 	etcdLocation []string
 	// etcdPrefix is the base location for a GroupResource.
+	// 资源的ETCD前缀
 	etcdPrefix string
 	// etcdResourcePrefix is the location to use to store a particular type under the `etcdPrefix` location
 	// If empty, the default mapping is used.  If the default mapping doesn't contain an entry, it will use
 	// the ToLowered name of the resource, not including the group.
 	etcdResourcePrefix string
 	// mediaType is the desired serializer to choose. If empty, the default is chosen.
+	// 媒体类型决定了当前资源使用的序列化器
 	mediaType string
 	// serializer contains the list of "special" serializers for a GroupResource.  Resource=* means for the entire group
 	serializer runtime.StorageSerializer
 	// cohabitatingResources keeps track of which resources must be stored together.  This happens when we have multiple ways
 	// of exposing one set of concepts.  autoscaling.HPA and extensions.HPA as a for instance
 	// The order of the slice matters!  It is the priority order of lookup for finding a storage location
+	// 所谓的cohabitating资源指的是一个资源在不同的组下，但是他们时相同的资源，只是因为历史原因在不同的组下。
 	cohabitatingResources []schema.GroupResource
 	// encoderDecoratorFn is optional and may wrap the provided encoder prior to being serialized.
+	// 设计的人真TM的牛逼，扩展点时真的多
 	encoderDecoratorFn func(runtime.Encoder) runtime.Encoder
 	// decoderDecoratorFn is optional and may wrap the provided decoders (can add new decoders). The order of
 	// returned decoders will be priority for attempt to decode.
@@ -237,7 +251,7 @@ func (s *DefaultStorageFactory) getStorageGroupResource(groupResource schema.Gro
 	return groupResource
 }
 
-// New finds the storage destination for the given group and resource. It will
+// NewConfig New finds the storage destination for the given group and resource. It will
 // return an error if the group has no storage destination configured.
 func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error) {
 	chosenStorageResource := s.getStorageGroupResource(groupResource)

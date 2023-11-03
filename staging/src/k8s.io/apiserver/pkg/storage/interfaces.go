@@ -158,7 +158,8 @@ func (p *Preconditions) Check(key string, obj runtime.Object) error {
 // hides all the storage-related operations behind it.
 // 1、K8S真正的底层存储接口，通过此接口，可以把数据进行持久化
 type Interface interface {
-	// Returns Versioner associated with this interface.
+	// Versioner Returns Versioner associated with this interface.
+	// 资源版本管理器，用于管理Etcd集群中的数据版本对象
 	Versioner() Versioner
 
 	// Create adds a new object at a key unless it already exists. 'ttl' is time-to-live

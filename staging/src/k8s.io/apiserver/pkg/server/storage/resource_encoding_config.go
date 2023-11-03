@@ -24,7 +24,7 @@ import (
 )
 
 type ResourceEncodingConfig interface {
-	// StorageEncoding returns the serialization format for the resource.
+	// StorageEncodingFor returns the serialization format for the resource.
 	// TODO this should actually return a GroupVersionKind since you can logically have multiple "matching" Kinds
 	// For now, it returns just the GroupVersion for consistency with old behavior
 	StorageEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
@@ -47,7 +47,10 @@ type OverridingResourceEncoding struct {
 var _ ResourceEncodingConfig = &DefaultResourceEncodingConfig{}
 
 func NewDefaultResourceEncodingConfig(scheme *runtime.Scheme) *DefaultResourceEncodingConfig {
-	return &DefaultResourceEncodingConfig{resources: map[schema.GroupResource]*OverridingResourceEncoding{}, scheme: scheme}
+	return &DefaultResourceEncodingConfig{
+		resources: map[schema.GroupResource]*OverridingResourceEncoding{},
+		scheme:    scheme,
+	}
 }
 
 func (o *DefaultResourceEncodingConfig) SetResourceEncoding(resourceBeingStored schema.GroupResource, externalEncodingVersion, internalVersion schema.GroupVersion) {
@@ -58,6 +61,7 @@ func (o *DefaultResourceEncodingConfig) SetResourceEncoding(resourceBeingStored 
 }
 
 func (o *DefaultResourceEncodingConfig) StorageEncodingFor(resource schema.GroupResource) (schema.GroupVersion, error) {
+	// 先判断当前资源所在的是否存在，如果不存在，那肯定找不到与之对应的内部版本
 	if !o.scheme.IsGroupRegistered(resource.Group) {
 		return schema.GroupVersion{}, fmt.Errorf("group %q is not registered in scheme", resource.Group)
 	}

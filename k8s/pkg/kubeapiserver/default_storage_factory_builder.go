@@ -86,7 +86,7 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 // StorageFactoryConfig is a configuration for creating storage factory.
 type StorageFactoryConfig struct {
 	StorageConfig             storagebackend.Config
-	APIResourceConfig         *serverstorage.ResourceConfig
+	APIResourceConfig         *serverstorage.ResourceConfig // 用于表示GV的启用/禁用，或者是GVR的启用/禁用
 	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig
 	DefaultStorageMediaType   string
 	Serializer                runtime.StorageSerializer

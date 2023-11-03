@@ -577,7 +577,7 @@ func buildGenericConfig(
 		s.Etcd.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
 
-	// ETCD的初始化
+	// ETCD的初始化  主要是像GenericServer中添加了一个名为start-encryption-provider-config-automatic-reload的PostStartHook
 	if lastErr = s.Etcd.Complete(genericConfig.StorageObjectCountTracker, genericConfig.DrainedNotify(), genericConfig.AddPostStartHook); lastErr != nil {
 		return
 	}

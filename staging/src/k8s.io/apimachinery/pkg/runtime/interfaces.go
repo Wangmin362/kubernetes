@@ -210,6 +210,7 @@ type ClientNegotiator interface {
 // StorageSerializer is an interface used for obtaining encoders, decoders, and serializers
 // that can read and write data at rest. This would commonly be used by client tools that must
 // read files, or server side storage interfaces that persist restful objects.
+// TODO 如何理解这个存储序列化器抽象
 type StorageSerializer interface {
 	// SupportedMediaTypes are the media types supported for reading and writing objects.
 	SupportedMediaTypes() []SerializerInfo
@@ -221,7 +222,7 @@ type StorageSerializer interface {
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided
 	// serializer are in the provided group version.
 	EncoderForVersion(serializer Encoder, gv GroupVersioner) Encoder
-	// DecoderForVersion returns a decoder that ensures objects being read by the provided
+	// DecoderToVersion returns a decoder that ensures objects being read by the provided
 	// serializer are in the provided group version by default.
 	DecoderToVersion(serializer Decoder, gv GroupVersioner) Decoder
 }

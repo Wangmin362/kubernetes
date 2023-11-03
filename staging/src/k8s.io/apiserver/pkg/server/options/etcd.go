@@ -45,6 +45,7 @@ import (
 type EtcdOptions struct {
 	// The value of Paging on StorageConfig will be overridden by the
 	// calculated feature gate value.
+	// TODO 存储配置，我感觉这玩意就是针对于ETCD的配置，并不是一个通用的存储配置
 	StorageConfig                           storagebackend.Config
 	EncryptionProviderConfigFilepath        string
 	EncryptionProviderConfigAutomaticReload bool
@@ -58,6 +59,7 @@ type EtcdOptions struct {
 	EnableGarbageCollection bool
 
 	// Set EnableWatchCache to false to disable all watch caches
+	// APIServer对于ETCD的缓存，如果开启，那么GET ,LIST, WATCH操作将会直接使用缓存，减轻ETCD的压力
 	EnableWatchCache bool
 	// Set DefaultWatchCacheSize to zero to disable watch caches for those resources that have no explicit cache size set
 	DefaultWatchCacheSize int
@@ -71,6 +73,7 @@ type EtcdOptions struct {
 
 	// SkipHealthEndpoints, when true, causes the Apply methods to not set up health endpoints.
 	// This allows multiple invocations of the Apply methods without duplication of said endpoints.
+	// 默认都是开启健康检测的
 	SkipHealthEndpoints bool
 }
 
@@ -372,6 +375,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 		StorageObjectCountTracker: f.Options.StorageConfig.StorageObjectCountTracker,
 	}
 
+	// 如果启用了缓存，那么APIServer将会缓存ETCD所有资源对象
 	if f.Options.EnableWatchCache {
 		sizes, err := ParseWatchCacheSizes(f.Options.WatchCacheSizes)
 		if err != nil {

@@ -52,9 +52,9 @@ import (
 // DeploymentStorage includes dummy storage for Deployments and for Scale subresource.
 type DeploymentStorage struct {
 	Deployment *REST
-	Status     *StatusREST
-	Scale      *ScaleREST
-	Rollback   *RollbackREST
+	Status     *StatusREST   // 资源状态操作
+	Scale      *ScaleREST    // 缩放操作
+	Rollback   *RollbackREST // 回滚操作
 }
 
 // ReplicasPathMappings returns the mappings between each group version and a replicas path

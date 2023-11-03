@@ -48,9 +48,11 @@ var (
 )
 
 func addKnownTypes(scheme *runtime.Scheme) error {
+	// 忽略TypeMeta到TypeMeta的转换
 	if err := scheme.AddIgnoredConversionType(&metav1.TypeMeta{}, &metav1.TypeMeta{}); err != nil {
 		return err
 	}
+	// 这里注册的资源对象全部都是内部资源，K8S在持久化的时候就是使用的内部资源序列化之后再进行持久化
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&Pod{},
 		&PodList{},

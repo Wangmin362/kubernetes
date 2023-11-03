@@ -366,8 +366,8 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	[]admission.PluginInitializer,
 	error,
 ) {
-	// TODO 理解golang HTTP设计
-	// Transport用于完成HTTP数据解析
+	// TODO 理解golang HTTP设计  ProxyTransport是什么时候使用的？
+	// Transport用于APIServer去连接Node节点，这是一个HTTPS客户端配置
 	proxyTransport := CreateProxyTransport()
 
 	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的
@@ -499,12 +499,12 @@ func buildGenericConfig(
 	s *options.ServerRunOptions, // 此参数为用户启动KubeAPIServer传入的参数
 	proxyTransport *http.Transport, // 此参数用于完成HTTP协议的解析
 ) (
-	genericConfig *genericapiserver.Config,
-	versionedInformers clientgoinformers.SharedInformerFactory,
-	serviceResolver aggregatorapiserver.ServiceResolver,
-	pluginInitializers []admission.PluginInitializer,
-	admissionPostStartHook genericapiserver.PostStartHookFunc,
-	storageFactory *serverstorage.DefaultStorageFactory,
+	genericConfig *genericapiserver.Config, // GenericServer配置
+	versionedInformers clientgoinformers.SharedInformerFactory, // SharedInformerFactory，用于缓存K8S所有资源
+	serviceResolver aggregatorapiserver.ServiceResolver, // 服务解析器，用于把Server解析为URL
+	pluginInitializers []admission.PluginInitializer, // 插件初始化器  用于向webhook插件注入依赖
+	admissionPostStartHook genericapiserver.PostStartHookFunc, // GenericServer的PostStartHook，应该是给准入控制插件使用的
+	storageFactory *serverstorage.DefaultStorageFactory, // 存储工厂，用于构建K8S的后端存储
 	lastErr error,
 ) {
 	// 1、生成GenericServer配置，此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、
@@ -513,7 +513,7 @@ func buildGenericConfig(
 	// 3、TODO 这里比较重要的就是其中配置了请求处理链
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 
-	// 后续开始给初始化GenericServerConfig配置
+	// 后续开始给初始化GenericServer配置
 
 	// 1、MergedResourceConfig用于表示GV的启用/禁用，或者是GVR的启用/禁用
 	// 2、通过MergedResourceConfig，我们可以知道某个资源是否被启用，还是被禁用
@@ -576,6 +576,8 @@ func buildGenericConfig(
 	} else {
 		s.Etcd.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
+
+	// ETCD的初始化
 	if lastErr = s.Etcd.Complete(genericConfig.StorageObjectCountTracker, genericConfig.DrainedNotify(), genericConfig.AddPostStartHook); lastErr != nil {
 		return
 	}

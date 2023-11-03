@@ -128,12 +128,14 @@ type CodecFactory struct {
 	universal runtime.Decoder
 	accepts   []runtime.SerializerInfo
 
+	// Legacy序列化器是啥
 	legacySerializer runtime.Serializer
 }
 
 // CodecFactoryOptions holds the options for configuring CodecFactory behavior
 type CodecFactoryOptions struct {
 	// Strict configures all serializers in strict mode
+	// TODO 严格模式有啥用?
 	Strict bool
 	// Pretty includes a pretty serializer along with the non-pretty one
 	Pretty bool
@@ -141,6 +143,7 @@ type CodecFactoryOptions struct {
 
 // CodecFactoryOptionsMutator takes a pointer to an options struct and then modifies it.
 // Functions implementing this type can be passed to the NewCodecFactory() constructor.
+// CodecFactoryOptionsMutator就是用来修改CodecFactoryOptions参数
 type CodecFactoryOptionsMutator func(*CodecFactoryOptions)
 
 // EnablePretty enables including a pretty serializer along with the non-pretty one
@@ -293,7 +296,12 @@ func (f CodecFactory) UniversalDecoder(versions ...schema.GroupVersion) runtime.
 // CodecForVersions creates a codec with the provided serializer. If an object is decoded and its group is not in the list,
 // it will default to runtime.APIVersionInternal. If encode is not specified for an object's group, the object is not
 // converted. If encode or decode are nil, no conversion is performed.
-func (f CodecFactory) CodecForVersions(encoder runtime.Encoder, decoder runtime.Decoder, encode runtime.GroupVersioner, decode runtime.GroupVersioner) runtime.Codec {
+func (f CodecFactory) CodecForVersions(
+	encoder runtime.Encoder,
+	decoder runtime.Decoder,
+	encode runtime.GroupVersioner,
+	decode runtime.GroupVersioner,
+) runtime.Codec {
 	// TODO: these are for backcompat, remove them in the future
 	if encode == nil {
 		encode = runtime.DisabledGroupVersioner

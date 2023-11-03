@@ -136,6 +136,7 @@ type Framer interface {
 }
 
 // SerializerInfo contains information about a specific serialization format
+// 所谓的序列化信息，就是根据MediaType, MediaTypeType, MediaTypeSubType决定到底使用哪个序列化器
 type SerializerInfo struct {
 	// MediaType is the value that represents this serializer over the wire.
 	MediaType string

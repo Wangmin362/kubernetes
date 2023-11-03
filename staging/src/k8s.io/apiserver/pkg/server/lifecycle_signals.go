@@ -160,6 +160,9 @@ func (s lifecycleSignals) ShuttingDown() <-chan struct{} {
 
 // newLifecycleSignals returns an instance of lifecycleSignals interface to be used
 // to coordinate lifecycle of the apiserver
+// 所谓的生命周期信号，其实就是当GenericServer处于某种状态时需要发出信号，让对该信号感兴趣的组件接收到。然后根据发生的信号，做某些事情。
+// 譬如对于shutdown信号，组件收到之后就应该释放资源，关闭服务。譬如路由注册完成信号，组件收到之后就知道所有的路由已经全部注册，此时可以
+// 正常提供HTTP服务
 func newLifecycleSignals() lifecycleSignals {
 	return lifecycleSignals{
 		ShutdownInitiated:          newNamedChannelWrapper("ShutdownInitiated"),

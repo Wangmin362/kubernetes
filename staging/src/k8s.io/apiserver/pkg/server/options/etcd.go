@@ -246,11 +246,13 @@ func (s *EtcdOptions) Complete(
 			if len(encryptionConfiguration.HealthChecks) != 1 {
 				// in case of error, we want to close partially initialized (if any) transformers
 				closeTransformers()
-				return fmt.Errorf("failed to start kms encryption config hot reload controller. only 1 health check should be available when reload is enabled")
+				return fmt.Errorf("failed to start kms encryption config hot reload controller. " +
+					"only 1 health check should be available when reload is enabled")
 			}
 
 			// Here the dynamic transformers take ownership of the transformers and their cancellation.
-			dynamicTransformers := encryptionconfig.NewDynamicTransformers(encryptionConfiguration.Transformers, encryptionConfiguration.HealthChecks[0], closeTransformers, encryptionConfiguration.KMSCloseGracePeriod)
+			dynamicTransformers := encryptionconfig.NewDynamicTransformers(encryptionConfiguration.Transformers,
+				encryptionConfiguration.HealthChecks[0], closeTransformers, encryptionConfiguration.KMSCloseGracePeriod)
 
 			// add post start hook to start hot reload controller
 			// adding this hook here will ensure that it gets configured exactly once

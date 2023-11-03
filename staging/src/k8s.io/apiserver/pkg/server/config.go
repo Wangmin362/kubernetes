@@ -140,7 +140,7 @@ type Config struct {
 	// kubectl get --raw=/index.html来获取Server支持的路由
 	// 3、默认都是启用Index页面的
 	EnableIndex bool
-	// 1、开启profile之后，会想GenericServer当中添加/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	// 1、开启profile之后，会想GenericServer当中注册/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
 	// /debug/pprof/trace路由
 	// 2、我们可以通过kubectl get --raw=/debug/pprof来测试接口
 	EnableProfiling bool
@@ -244,6 +244,10 @@ type Config struct {
 	// request has to wait.
 	MaxMutatingRequestsInFlight int
 	// Predicate which is true for paths of long-running http requests
+	// 1、用于检测当前的请求是否是一个长时间的请求
+	// 2、在K8S当中对于WATCH, PROXY动作都是长时间的请求
+	// 3、在K8S当中对于Attach, Exec, Proxy, Log, PortForward命令都是长时间请求
+	// TODO K8S对于这些长时间的请求都干了啥？为什么要单独处理？
 	LongRunningFunc apirequest.LongRunningRequestCheck
 
 	// GoawayChance is the probability that send a GOAWAY to HTTP/2 clients. When client received
@@ -266,6 +270,7 @@ type Config struct {
 
 	// StorageObjectCountTracker is used to keep track of the total number of objects
 	// in the storage per resource, so we can estimate width of incoming requests.
+	// TODO 似乎和FlowControl有关
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -315,6 +320,7 @@ type Config struct {
 	// for them to drain, this maintains backward compatibility.
 	// This grace period is orthogonal to other grace periods, and
 	// it is not overridden by any other grace period.
+	// TODO
 	ShutdownWatchTerminationGracePeriod time.Duration
 }
 
@@ -394,7 +400,7 @@ func init() {
 // 1、此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、流控（也就是限速）、审计、链路追踪配置
 // 2、NewConfig在这里主要是为了创建一个默认配置，仅仅会设置一些默认参数，用户配置的参数还没有赋值
 func NewConfig(codecs serializer.CodecFactory) *Config {
-	// TODO 这玩意有啥用？
+	// 健康检测，用于检测GenericServer的某些功能是否正常
 	defaultHealthChecks := []healthz.HealthChecker{healthz.PingHealthz, healthz.LogHealthz}
 	var id string
 	// 生成APIServer的ID
@@ -423,28 +429,31 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		hash := sha256.Sum256(hashData)
 		id = "apiserver-" + strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash[:16]))
 	}
-	// TODO 生命周期信号是啥？
+	// 所谓的生命周期信号，其实就是当GenericServer处于某种状态时需要发出信号，让对该信号感兴趣的组件接收到。然后根据发生的信号，做某些事情。
+	// 譬如对于shutdown信号，组件收到之后就应该释放资源，关闭服务。譬如路由注册完成信号，组件收到之后就知道所有的路由已经全部注册，此时可以
+	// 正常提供HTTP服务
 	lifecycleSignals := newLifecycleSignals()
 
+	// 实例化GenericServer配置
 	return &Config{
 		Serializer:                     codecs,
-		BuildHandlerChainFunc:          DefaultBuildHandlerChain, // APIServer的认证、审计、鉴权
-		NonLongRunningRequestWaitGroup: new(utilwaitgroup.SafeWaitGroup),
-		WatchRequestWaitGroup:          &utilwaitgroup.RateLimitedSafeWaitGroup{},
-		LegacyAPIGroupPrefixes:         sets.NewString(DefaultLegacyAPIPrefix),
-		DisabledPostStartHooks:         sets.NewString(),
+		BuildHandlerChainFunc:          DefaultBuildHandlerChain,                  // 构建请求处理链
+		NonLongRunningRequestWaitGroup: new(utilwaitgroup.SafeWaitGroup),          // TODO
+		WatchRequestWaitGroup:          &utilwaitgroup.RateLimitedSafeWaitGroup{}, // TODO
+		LegacyAPIGroupPrefixes:         sets.NewString(DefaultLegacyAPIPrefix),    // Legacy资源使用的请求前缀
+		DisabledPostStartHooks:         sets.NewString(),                          // 禁用的PostStartHook
 		PostStartHooks:                 map[string]PostStartHookConfigEntry{},
-		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 健康检测
-		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 就绪检测
-		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...), // TODO 存活检测
+		HealthzChecks:                  append([]healthz.HealthChecker{}, defaultHealthChecks...), // 健康检测，当执行/healthyz时会执行这些健康检测回调
+		ReadyzChecks:                   append([]healthz.HealthChecker{}, defaultHealthChecks...), // 就绪检测，当执行/readyz时会执行这些健康检测回调
+		LivezChecks:                    append([]healthz.HealthChecker{}, defaultHealthChecks...), // 存活检测，当执行/livez时会执行这些回调
 		// 1、开启APIServer的/index.html路由，开启之后我们可以直接访问https://172.30.3.130:6443/index.html或者是
 		// https://172.30.3.130:6443/获取当前Server支持的所有路由，当然前提是kubernetes.svc开启了NodePort，否则只能用
 		// kubectl get --raw=/  或者 kubectl get --raw=/index.html来测试
-		EnableIndex:                 true,
-		EnableDiscovery:             true, // TODO
-		EnableProfiling:             true, // TODO
-		DebugSocketPath:             "",
-		EnableMetrics:               true,
+		EnableIndex:                 true,                            // 是否允许注册 /, 以及 /index.html路由
+		EnableDiscovery:             true,                            // TODO
+		EnableProfiling:             true,                            // 开启后会向GenericServer中注册注册/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol, /debug/pprof/trace路由
+		DebugSocketPath:             "",                              // TODO
+		EnableMetrics:               true,                            // TODO
 		MaxRequestsInFlight:         400,                             // 默认APIServer每秒钟最多只能同时处理400个请求
 		MaxMutatingRequestsInFlight: 200,                             // 默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
 		RequestTimeout:              time.Duration(60) * time.Second, // 默认请求超时时间为60秒

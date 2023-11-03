@@ -36,6 +36,8 @@ import (
 )
 
 // HealthChecker is a named healthz checker.
+// 1、健康检测，用于检测GenericServer的某些功能是否正常
+// 2、当用户调用/healthyz时被执行，譬如kubectl get raw=/healthyz
 type HealthChecker interface {
 	Name() string
 	Check(req *http.Request) error

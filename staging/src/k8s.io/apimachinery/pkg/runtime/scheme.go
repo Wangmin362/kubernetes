@@ -65,7 +65,7 @@ type Scheme struct {
 	// unversionedKinds are the names of kinds that can be created in the context of any group
 	// or version
 	// TODO: resolve the status of unversioned types.
-	// 1、用于存储GVK到GoStruct的映射
+	// 1、用于存储GVK到GoStruct的映射, key为Kind，Value为GoStruct
 	unversionedKinds map[string]reflect.Type
 
 	// Map from version and resource to the corresponding func to convert
@@ -89,7 +89,8 @@ type Scheme struct {
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
-	// TODO 什么叫做观察到的版本
+	// 1、所谓的观察到的版本，其实就是当前K8S中所有资源的GV，scheme通过这个字段记录
+	// 2、此字段不会记录__internal版本的资源
 	observedVersions []schema.GroupVersion
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
@@ -134,10 +135,11 @@ func (s *Scheme) Converter() *conversion.Converter {
 //
 // TODO: there is discussion about removing unversioned and replacing it with objects that are manifest into
 // every version with particular schemas. Resolve this method at that point.
-// 1、所谓的KnownType，其实指的就是有版本的资源类型。在K8S当中，存在一些没有版本的资源类型，被称之为UnVersionedType，譬如APIGroup,
-// APIGroupList,APIResource, APIResourceList等资源，不过K8S中的无版本资源这个概念现在已经逐渐弱化，更多则是KnownType，也就是有版本的
-// 资源类型
+// 1、向scheme中注册没有版本概念的资源，譬如Status, WatchEvent, APIVersions, APIGroupList, APIGroup, APIResourceList
+// 2、scheme.observedVersion中添加GV， scheme.gvkToType注册每个GVK到GoStruct的映射， scheme.typeToGVK注册GoStruct到GVK的映射
+// scheme.unversionedTypes记录GoStruct到GVK的映射，scheme.unversionedKinds记录资源Kind类型到GoStruct的映射
 func (s *Scheme) AddUnversionedTypes(version schema.GroupVersion, types ...Object) {
+	// 如果当前GV不是__internal，那么把GV记录下来
 	s.addObservedVersion(version)
 	s.AddKnownTypes(version, types...)
 	for _, obj := range types {

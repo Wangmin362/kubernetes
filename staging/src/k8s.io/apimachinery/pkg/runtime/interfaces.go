@@ -248,6 +248,7 @@ type NestedObjectDecoder interface {
 ///////////////////////////////////////////////////////////////////////////////
 // Non-codec interfaces
 
+// ObjectDefaulter 通过默认的方法为资源对象设置默认值
 type ObjectDefaulter interface {
 	// Default takes an object (must be a pointer) and applies any default values.
 	// Defaulters may not error.
@@ -265,6 +266,7 @@ type ObjectConvertor interface {
 	// method does not mutate the in object, but the in and out object might share data structures,
 	// i.e. the out object cannot be mutated without mutating the in object as well.
 	// The context argument will be passed to all nested conversions.
+	// 把in对象转换为out对象
 	Convert(in, out, context interface{}) error
 	// ConvertToVersion takes the provided object and converts it the provided version. This
 	// method does not mutate the in object, but the in and out object might share data structures,
@@ -284,14 +286,17 @@ type ObjectTyper interface {
 	// ObjectKinds returns the all possible group,version,kind of the provided object, true if
 	// the object is unversioned, or an error if the object is not recognized
 	// (IsNotRegisteredError will return true).
+	// 通过反射获取当前对象的GVK，并返回当前资源是否是UnversionedType
 	ObjectKinds(Object) ([]schema.GroupVersionKind, bool, error)
 	// Recognizes returns true if the scheme is able to handle the provided version and kind,
 	// or more precisely that the provided version is a possible conversion or decoding
 	// target.
+	// 判断当前GVK是否是已经注册过的GVK
 	Recognizes(gvk schema.GroupVersionKind) bool
 }
 
 // ObjectCreater contains methods for instantiating an object by kind and version.
+// 根据GVK实例化一个资源对象，该资源对象可能是有版本的，也可能是没有版本的。如果此资源没有注册过，那么返回错误
 type ObjectCreater interface {
 	New(kind schema.GroupVersionKind) (out Object, err error)
 }

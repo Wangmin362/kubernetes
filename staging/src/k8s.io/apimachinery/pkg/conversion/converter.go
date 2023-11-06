@@ -115,6 +115,7 @@ type ConversionFuncs struct {
 // AddUntyped adds the provided conversion function to the lookup table for the types that are
 // supplied as a and b. a and b must be pointers or an error is returned. This method overwrites
 // previously defined functions.
+// 用于注册a -> b的转换函数
 func (c ConversionFuncs) AddUntyped(a, b interface{}, fn ConversionFunc) error {
 	tA, tB := reflect.TypeOf(a), reflect.TypeOf(b)
 	if tA.Kind() != reflect.Pointer {
@@ -165,6 +166,8 @@ func (s *scope) Meta() *Meta {
 // RegisterUntypedConversionFunc registers a function that converts between a and b by passing objects of those
 // types to the provided function. The function *must* accept objects of a and b - this machinery will not enforce
 // any other guarantee.
+// 用于注册a -> b的转换函数
+// TODO 什么时候会执行？
 func (c *Converter) RegisterUntypedConversionFunc(a, b interface{}, fn ConversionFunc) error {
 	return c.conversionFuncs.AddUntyped(a, b, fn)
 }
@@ -172,6 +175,8 @@ func (c *Converter) RegisterUntypedConversionFunc(a, b interface{}, fn Conversio
 // RegisterGeneratedUntypedConversionFunc registers a function that converts between a and b by passing objects of those
 // types to the provided function. The function *must* accept objects of a and b - this machinery will not enforce
 // any other guarantee.
+// 用于注册a -> b的转换函数
+// TODO 什么时候会执行？
 func (c *Converter) RegisterGeneratedUntypedConversionFunc(a, b interface{}, fn ConversionFunc) error {
 	return c.generatedConversionFuncs.AddUntyped(a, b, fn)
 }

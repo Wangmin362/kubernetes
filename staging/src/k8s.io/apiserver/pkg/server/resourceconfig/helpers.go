@@ -31,8 +31,10 @@ import (
 // GroupVersionRegistry provides access to registered group versions.
 type GroupVersionRegistry interface {
 	// IsGroupRegistered returns true if given group is registered.
+	// 返回当前的组是否已经注册
 	IsGroupRegistered(group string) bool
 	// IsVersionRegistered returns true if given version is registered.
+	// 返回当前的GV是否已经注册
 	IsVersionRegistered(v schema.GroupVersion) bool
 	// PrioritizedVersionsAllGroups returns all registered group versions.
 	PrioritizedVersionsAllGroups() []schema.GroupVersion

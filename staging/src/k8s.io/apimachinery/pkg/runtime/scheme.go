@@ -54,12 +54,14 @@ type Scheme struct {
 	// typeToGVK allows one to find metadata for a given go object.
 	// The reflect.Type we index by should *not* be a pointer.
 	// 1、用于存储GoStruct到GVK之间的映射，这个映射是一对多的   TODO 为什么这里是一对多的？
-	// 2、之所以是一对多，是因为存储一个资源可能在不同的组当中。还有可能功能不同的资源想用相同的结构体定义
+	// 2、之所以是一对多，是因为存储一个资源可能在不同的组当中。还有可能功能不同的资源想用相同的结构体定义 TODO 举个例子嘞
 	// TODO 什么时候需要用到这个字段
 	typeToGVK map[reflect.Type][]schema.GroupVersionKind
 
 	// unversionedTypes are transformed without conversion in ConvertToVersion.
 	// 1、用于存在GoStruct到GVK的映射，由于无版本的资源类型是没有版本的，因此是一对一
+	// 2、所谓的UnversionType其实就是指的没有版本概念的资源，譬如Status, WatchEvent, APIVersions, APIGroupList, APIGroup, APIResourceList
+	// 在K8S当中还是有许多没有版本概念的资源存在
 	unversionedTypes map[reflect.Type]schema.GroupVersionKind
 
 	// unversionedKinds are the names of kinds that can be created in the context of any group
@@ -70,12 +72,18 @@ type Scheme struct {
 
 	// Map from version and resource to the corresponding func to convert
 	// resource field labels in that version to internal version.
-	// TODO 这个字段似乎也是为不同版本之间字段转换实现的
+	// 1、用于设置资源的字段标签函数，此函数用于判断某个字段是否可以作为字段标签
+	// 2、所谓的字段标签其实就是FieldSelector，也就是我们说的字段选择器；在K8S当中，字段选择器可以用来作为查询条件来查询该资源。譬如
+	// kubectl get pods --field-selector status.phase=Running。在K8S当中，所有资源都支持设置metadata.name, metadata.namespace
+	// 作为标签选择器。
+	// 3、对于有些资源对象，有可能支持除了metadata.name, metadata.namespace字段以外的其它资源，因此我们需要有一个函数可以判断一个资源
+	// 对象的哪些字段可以作为字段选择器。FieldLabelConversionFunc就是用于干这个事情的。
 	fieldLabelConversionFuncs map[schema.GroupVersionKind]FieldLabelConversionFunc
 
 	// defaulterFuncs is a map to funcs to be called with an object to provide defaulting
 	// the provided object must be a pointer.
-	// 1、猜测defaultFuncs用于设置对象的某些属性，用于设置默认值。
+	// 1、用于设置对象的某些属性，用于设置默认值。 譬如某些资源对象空指针的初始化
+	// TODO 2、分析每个资源对象的默认值函数是如何注册的  每个资源是如何绑定默认函数的
 	defaulterFuncs map[reflect.Type]func(interface{})
 
 	// converter stores all registered conversion functions. It also has
@@ -85,20 +93,29 @@ type Scheme struct {
 
 	// versionPriority is a map of groups to ordered lists of versions for those groups indicating the
 	// default priorities of these versions as registered in the scheme
-	// TODO 这个属性时什么时候注册的？
+	// 1、每种资源会自己调用scheme.SetVersionPriority注册不同的版本，Key为Group，Value为不同的组，排在前面的版本优先级越高
+	// 2、主要是记录每个组的不同版本优先级
 	versionPriority map[string][]string
 
 	// observedVersions keeps track of the order we've seen versions during type registration
 	// 1、所谓的观察到的版本，其实就是当前K8S中所有资源的GV，scheme通过这个字段记录
 	// 2、此字段不会记录__internal版本的资源
+	// 3、各个资源再注册scheme的时候会自动注册到这里面
 	observedVersions []schema.GroupVersion
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
 	// This is useful for error reporting to indicate the origin of the scheme.
+	// TODO scheme的名字
 	schemeName string
 }
 
 // FieldLabelConversionFunc converts a field selector to internal representation.
+// 1、所谓的字段标签转换函数，其实就是用于判断一个资源的哪些字段可以作为字段选择器。
+// 2、所谓的字段标签其实就是FieldSelector，也就是我们说的字段选择器；在K8S当中，字段选择器可以用来作为查询条件来查询该资源。譬如
+// kubectl get pods --field-selector status.phase=Running。在K8S当中，所有资源都支持设置metadata.name, metadata.namespace
+// 作为标签选择器。
+// 3、对于有些资源对象，有可能支持除了metadata.name, metadata.namespace字段以外的其它资源，因此我们需要有一个函数可以判断一个资源
+// 对象的哪些字段可以作为字段选择器。FieldLabelConversionFunc就是用于干这个事情的。
 type FieldLabelConversionFunc func(label, value string) (internalLabel, internalValue string, err error)
 
 // NewScheme creates a new Scheme. This scheme is pluggable by default.
@@ -235,6 +252,7 @@ func (s *Scheme) AddKnownTypeWithName(gvk schema.GroupVersionKind, obj Object) {
 }
 
 // KnownTypes returns the types known for the given version.
+// 1、获取指定GV下的所有GKV
 func (s *Scheme) KnownTypes(gv schema.GroupVersion) map[string]reflect.Type {
 	types := make(map[string]reflect.Type)
 	for gvk, t := range s.gvkToType {
@@ -249,8 +267,10 @@ func (s *Scheme) KnownTypes(gv schema.GroupVersion) map[string]reflect.Type {
 
 // VersionsForGroupKind returns the versions that a particular GroupKind can be converted to within the given group.
 // A GroupKind might be converted to a different group. That information is available in EquivalentResourceMapper.
+// 找到一个GK的所有版本，并且按照优先级排序
 func (s *Scheme) VersionsForGroupKind(gk schema.GroupKind) []schema.GroupVersion {
-	availableVersions := []schema.GroupVersion{}
+	// 获取指定GK的所有GV，其实就是取出一个资源的所有版本
+	var availableVersions []schema.GroupVersion
 	for gvk := range s.gvkToType {
 		if gk != gvk.GroupKind() {
 			continue
@@ -260,7 +280,8 @@ func (s *Scheme) VersionsForGroupKind(gk schema.GroupKind) []schema.GroupVersion
 	}
 
 	// order the return for stability
-	ret := []schema.GroupVersion{}
+	var ret []schema.GroupVersion
+	// 获取一个组的不同版本优先级
 	for _, version := range s.PrioritizedVersionsForGroup(gk.Group) {
 		for _, availableVersion := range availableVersions {
 			if version != availableVersion {
@@ -280,6 +301,7 @@ func (s *Scheme) AllKnownTypes() map[schema.GroupVersionKind]reflect.Type {
 
 // ObjectKinds returns all possible group,version,kind of the go object, true if the
 // object is considered unversioned, or an error if it's not a pointer or is unregistered.
+// 通过反射获取当前对象的GVK，并返回当前资源是否是UnversionedType
 func (s *Scheme) ObjectKinds(obj Object) ([]schema.GroupVersionKind, bool, error) {
 	// Unstructured objects are always considered to have their declared GVK
 	if _, ok := obj.(Unstructured); ok {
@@ -311,11 +333,13 @@ func (s *Scheme) ObjectKinds(obj Object) ([]schema.GroupVersionKind, bool, error
 
 // Recognizes returns true if the scheme is able to handle the provided group,version,kind
 // of an object.
+// 判断当前GVK是否是已经注册过的GVK
 func (s *Scheme) Recognizes(gvk schema.GroupVersionKind) bool {
 	_, exists := s.gvkToType[gvk]
 	return exists
 }
 
+// TODO 第二个返回值代表什么含义？
 func (s *Scheme) IsUnversioned(obj Object) (bool, bool) {
 	v, err := conversion.EnforcePtr(obj)
 	if err != nil {
@@ -332,6 +356,7 @@ func (s *Scheme) IsUnversioned(obj Object) (bool, bool) {
 
 // New returns a new API object of the given version and name, or an error if it hasn't
 // been registered. The version and kind fields must be specified.
+// 1、根据GVK实例化一个资源对象，该资源对象可能是有版本的，也可能是没有版本的。如果此资源没有注册过，那么返回错误
 func (s *Scheme) New(kind schema.GroupVersionKind) (Object, error) {
 	if t, exists := s.gvkToType[kind]; exists {
 		return reflect.New(t).Interface().(Object), nil
@@ -353,6 +378,7 @@ func (s *Scheme) AddIgnoredConversionType(from, to interface{}) error {
 // AddConversionFunc registers a function that converts between a and b by passing objects of those
 // types to the provided function. The function *must* accept objects of a and b - this machinery will not enforce
 // any other guarantee.
+// 用于注册a -> b的转换函数
 func (s *Scheme) AddConversionFunc(a, b interface{}, fn conversion.ConversionFunc) error {
 	return s.converter.RegisterUntypedConversionFunc(a, b, fn)
 }
@@ -366,6 +392,7 @@ func (s *Scheme) AddGeneratedConversionFunc(a, b interface{}, fn conversion.Conv
 
 // AddFieldLabelConversionFunc adds a conversion function to convert field selectors
 // of the given kind from the given version to internal version representation.
+// 添加资源的字段选择器函数，用于判断一个资源的哪些字段可以作为选择器
 func (s *Scheme) AddFieldLabelConversionFunc(gvk schema.GroupVersionKind, conversionFunc FieldLabelConversionFunc) error {
 	s.fieldLabelConversionFuncs[gvk] = conversionFunc
 	return nil
@@ -381,6 +408,7 @@ func (s *Scheme) AddTypeDefaultingFunc(srcType Object, fn func(interface{})) {
 }
 
 // Default sets defaults on the provided Object.
+// 通过默认的方法为资源对象设置默认值
 func (s *Scheme) Default(src Object) {
 	if fn, ok := s.defaulterFuncs[reflect.TypeOf(src)]; ok {
 		fn(src)
@@ -398,12 +426,13 @@ func (s *Scheme) Convert(in, out interface{}, context interface{}) error {
 	unstructuredOut, okOut := out.(Unstructured)
 	switch {
 	case okIn && okOut:
+		// 如果两个都是非结构化类型，那么直接设置就是，无需转换
 		// converting unstructured input to an unstructured output is a straight copy - unstructured
 		// is a "smart holder" and the contents are passed by reference between the two objects
 		unstructuredOut.SetUnstructuredContent(unstructuredIn.UnstructuredContent())
 		return nil
 
-	case okOut:
+	case okOut: // 如果输出对象为非结构体对象。in对象肯定不是非结构体对象，肯定是一个结构体对象。
 		// if the output is an unstructured object, use the standard Go type to unstructured
 		// conversion. The object must not be internal.
 		obj, ok := in.(Object)
@@ -414,14 +443,17 @@ func (s *Scheme) Convert(in, out interface{}, context interface{}) error {
 		if err != nil {
 			return err
 		}
+		// TODO 为什么这里可以直接取第一个元素
 		gvk := gvks[0]
 
 		// if no conversion is necessary, convert immediately
 		if unversioned || gvk.Version != APIVersionInternal {
+			// 把in结构体对象转为非结构体对象
 			content, err := DefaultUnstructuredConverter.ToUnstructured(in)
 			if err != nil {
 				return err
 			}
+			// 直接设置其内容即可
 			unstructuredOut.SetUnstructuredContent(content)
 			unstructuredOut.GetObjectKind().SetGroupVersionKind(gvk)
 			return nil
@@ -461,9 +493,11 @@ func (s *Scheme) Convert(in, out interface{}, context interface{}) error {
 
 // ConvertFieldLabel alters the given field label and value for an kind field selector from
 // versioned representation to an unversioned one or returns an error.
+// 判断当前GVK资源是否支持label作为字段选择器
 func (s *Scheme) ConvertFieldLabel(gvk schema.GroupVersionKind, label, value string) (string, string, error) {
 	conversionFunc, ok := s.fieldLabelConversionFuncs[gvk]
 	if !ok {
+		// 默认只有metadata.name, metadata.namespace作为字段标签
 		return DefaultMetaV1FieldSelectorConversion(label, value)
 	}
 	return conversionFunc(label, value)
@@ -609,9 +643,12 @@ func setTargetKind(obj Object, kind schema.GroupVersionKind) {
 
 // SetVersionPriority allows specifying a precise order of priority. All specified versions must be in the same group,
 // and the specified order overwrites any previously specified order for this group
+// 1、不允许注册内部支援
+// 2、每次设置版本优先级，只能设置一个组下的版本优先级，不能同时设置多个组
+// 3、此函数的功能为设置组的不同版本的优先级，传参越前面的版本优先级越高
 func (s *Scheme) SetVersionPriority(versions ...schema.GroupVersion) error {
 	groups := sets.String{}
-	order := []string{}
+	var order []string
 	for _, version := range versions {
 		if len(version.Version) == 0 || version.Version == APIVersionInternal {
 			return fmt.Errorf("internal versions cannot be prioritized: %v", version)
@@ -629,6 +666,7 @@ func (s *Scheme) SetVersionPriority(versions ...schema.GroupVersion) error {
 }
 
 // PrioritizedVersionsForGroup returns versions for a single group in priority order
+// 1、获取一个组的不同版本的优先级
 func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion {
 	var ret []schema.GroupVersion
 	for _, version := range s.versionPriority[group] {
@@ -645,6 +683,7 @@ func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion
 				break
 			}
 		}
+		// TODO 可能存在有些资源的某些版本没有指定优先级
 		if !found {
 			ret = append(ret, observedVersion)
 		}
@@ -655,8 +694,11 @@ func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion
 
 // PrioritizedVersionsAllGroups returns all known versions in their priority order.  Groups are random, but
 // versions for a single group are prioritized
+// 1、返回当前注册的所有资源的GV，并且对于一个组先的GV，其优先级顺序就是数组中的顺序
+// TODO 2、PreferredVersionAllGroups和PrioritizedVersionsAllGroups有何不同？
 func (s *Scheme) PrioritizedVersionsAllGroups() []schema.GroupVersion {
 	var ret []schema.GroupVersion
+	// 获取所有的GV
 	for group, versions := range s.versionPriority {
 		for _, version := range versions {
 			ret = append(ret, schema.GroupVersion{Group: group, Version: version})
@@ -680,7 +722,7 @@ func (s *Scheme) PrioritizedVersionsAllGroups() []schema.GroupVersion {
 // PreferredVersionAllGroups returns the most preferred version for every group.
 // group ordering is random.
 func (s *Scheme) PreferredVersionAllGroups() []schema.GroupVersion {
-	ret := []schema.GroupVersion{}
+	var ret []schema.GroupVersion
 	for group, versions := range s.versionPriority {
 		for _, version := range versions {
 			ret = append(ret, schema.GroupVersion{Group: group, Version: version})
@@ -704,6 +746,7 @@ func (s *Scheme) PreferredVersionAllGroups() []schema.GroupVersion {
 }
 
 // IsGroupRegistered returns true if types for the group have been registered with the scheme
+// 返回当前的组是否已经注册
 func (s *Scheme) IsGroupRegistered(group string) bool {
 	for _, observedVersion := range s.observedVersions {
 		if observedVersion.Group == group {
@@ -714,6 +757,7 @@ func (s *Scheme) IsGroupRegistered(group string) bool {
 }
 
 // IsVersionRegistered returns true if types for the version have been registered with the scheme
+// 返回当前的GV是否已经注册
 func (s *Scheme) IsVersionRegistered(version schema.GroupVersion) bool {
 	for _, observedVersion := range s.observedVersions {
 		if observedVersion == version {
@@ -724,6 +768,7 @@ func (s *Scheme) IsVersionRegistered(version schema.GroupVersion) bool {
 	return false
 }
 
+// 注册观察到的GV，如果Version为空，或者为__internal，将会被忽略
 func (s *Scheme) addObservedVersion(version schema.GroupVersion) {
 	if len(version.Version) == 0 || version.Version == APIVersionInternal {
 		return

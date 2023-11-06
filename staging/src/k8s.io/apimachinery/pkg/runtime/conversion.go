@@ -30,6 +30,7 @@ import (
 // DefaultMetaV1FieldSelectorConversion auto-accepts metav1 values for name and namespace.
 // A cluster scoped resource specifying namespace empty works fine and specifying a particular
 // namespace will return no results, as expected.
+// 在K8S当中，所有资源都支持metadata.name, metadata.namespace作为标签选择器。
 func DefaultMetaV1FieldSelectorConversion(label, value string) (string, string, error) {
 	switch label {
 	case "metadata.name":

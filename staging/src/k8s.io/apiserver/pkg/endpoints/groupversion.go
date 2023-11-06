@@ -37,6 +37,7 @@ import (
 )
 
 // ConvertabilityChecker indicates what versions a GroupKind is available in.
+// 找到一个GK的所有版本，并且按照优先级排序
 type ConvertabilityChecker interface {
 	// VersionsForGroupKind indicates what versions are available to convert a group kind. This determines
 	// what our decoding abilities are.

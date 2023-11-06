@@ -115,6 +115,7 @@ func unknownGroups(groups []string, registry GroupRegistry) []string {
 }
 
 // GroupRegistry provides a method to check whether given group is registered.
+// 返回当前的组是否已经注册
 type GroupRegistry interface {
 	// IsRegistered returns true if given group is registered.
 	IsGroupRegistered(group string) bool

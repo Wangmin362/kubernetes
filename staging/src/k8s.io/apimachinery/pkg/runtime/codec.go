@@ -84,10 +84,12 @@ func EncodeOrDie(e Encoder, obj Object) string {
 // invokes the ObjectCreator to instantiate a new gvk. Returns an error if the typer cannot find the object.
 func UseOrCreateObject(t ObjectTyper, c ObjectCreater, gvk schema.GroupVersionKind, obj Object) (Object, error) {
 	if obj != nil {
+		// 获取资源对象的GVK
 		kinds, _, err := t.ObjectKinds(obj)
 		if err != nil {
 			return nil, err
 		}
+		// 如果当前资源对象的GVK就是我们需要的gvk，那么直接使用obj资源对象，否则实例化一个
 		for _, kind := range kinds {
 			if gvk == kind {
 				return obj, nil

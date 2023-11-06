@@ -103,7 +103,12 @@ type Decoder interface {
 	// defaults所对应的GVK结构体进行序列化。如果defaults为空，但是into不为空，那么根据into对象中提取到的GVK信息进行反序列化。如果
 	// defaults没有指定，并且into也为空，那么只能指望data，如果能从data中提取到GVK，那么也能自己实例化一个资源对象，然后作为返回值传出。
 	// 如果data对象中也不能提取出任何GVK相关的信息，那么这次序列化只能宣告失败
-	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error)
+	// 2、反序列化最终的Go结构体主要受到三个因素的影响，正好就是输入的三个参数。data为K8S的资源对象序列化的二进制信息，这个信息一般是从
+	// ETCD当中查询出来的。其二就是指定的默认的GVK defaults参数。其三就是希望反序列化的Go类型。在序列化时，首先会从data数据当中获取
+	// 到GVK信息，如果指定了默认的GVK，那么根据默认的GVK补全GVK信息。如果into指定的类型为非结构化对象，那么进行非结构化的反序列化。
+	// 如果指定的into对象是结构化的，并且如果通过data计算出来的GVK信息就是into的GKV，那么就直接反序列化到Into对象当中，否则，就自己实例化
+	// 一个新的资源对象，然后进行反序列化。
+	Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (out Object, gvk *schema.GroupVersionKind, err error)
 }
 
 // Serializer is the core interface for transforming objects into a serialized format and back.

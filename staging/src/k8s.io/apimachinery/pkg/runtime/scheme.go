@@ -44,6 +44,10 @@ import (
 // Schemes are not expected to change at runtime and are only threadsafe after
 // registration is complete.
 // TODO 仔细分析
+// 1、Scheme用于记录有版本、无版本资源类型GVK到Go结构体之间的转换，以及Go结构体到GVK之间的映射
+// 2、Scheme缓存了每个GKV资源的默认初始化函数
+// 3、Scheme缓存了每个GVK资源的转换函数
+// 4、Scheme缓存了每个组下的资源不同版本的优先级
 type Scheme struct {
 	// gvkToType allows one to figure out the go type of an object with
 	// the given version and name.
@@ -524,6 +528,7 @@ func (s *Scheme) convertToVersion(copy bool, in Object, target GroupVersioner) (
 	var t reflect.Type
 
 	if u, ok := in.(Unstructured); ok {
+		// 把非结构体对象转为结构体对象
 		typed, err := s.unstructuredToTyped(u)
 		if err != nil {
 			return nil, err
@@ -545,6 +550,7 @@ func (s *Scheme) convertToVersion(copy bool, in Object, target GroupVersioner) (
 		}
 	}
 
+	// 获取资源对象的GVK
 	kinds, ok := s.typeToGVK[t]
 	if !ok || len(kinds) == 0 {
 		return nil, NewNotRegisteredErrForType(s.schemeName, t)
@@ -600,6 +606,8 @@ func (s *Scheme) convertToVersion(copy bool, in Object, target GroupVersioner) (
 // unstructuredToTyped attempts to transform an unstructured object to a typed
 // object if possible. It will return an error if conversion is not possible, or the versioned
 // Go form of the object. Note that this conversion will lose fields.
+// 1、获取非结构化对象的对应类型的Go结构体，其原理就是先根据非结构体获取GVK，然后通过GVK获取Go结构体，然后进行实例化，最后进行属性赋值
+// 2、其实就是把非结构体对象转为结构体对象
 func (s *Scheme) unstructuredToTyped(in Unstructured) (Object, error) {
 	// the type must be something we recognize
 	gvks, _, err := s.ObjectKinds(in)

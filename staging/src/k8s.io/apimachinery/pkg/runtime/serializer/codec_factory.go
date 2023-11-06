@@ -49,7 +49,11 @@ type serializerType struct {
 	StreamSerializer runtime.Serializer
 }
 
-func newSerializersForScheme(scheme *runtime.Scheme, mf json.MetaFactory, options CodecFactoryOptions) []serializerType {
+func newSerializersForScheme(
+	scheme *runtime.Scheme, // 主要是换粗了GVK到Go结构体之间的映射关系
+	mf json.MetaFactory, // 用于从二进制信息当中解析出该资源对象的GVK信息
+	options CodecFactoryOptions, // 是否启用Strict, 以及Pretty
+) []serializerType {
 	jsonSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: false, Pretty: false, Strict: options.Strict},
@@ -138,6 +142,7 @@ type CodecFactoryOptions struct {
 	// TODO 严格模式有啥用?
 	Strict bool
 	// Pretty includes a pretty serializer along with the non-pretty one
+	// TODO 因该是针对于json序列化，Pretty模式下，可以以人类可读的方式获取JSON，默认为true
 	Pretty bool
 }
 

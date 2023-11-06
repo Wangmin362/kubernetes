@@ -25,6 +25,9 @@ import (
 
 // MetaFactory is used to store and retrieve the version and kind
 // information for JSON objects in a serializer.
+// 1、用于从二进制信息当中获取GVK，显然这个二进制信息必须是资源对象序列化之后的二进制，否则转换肯定是失败的。
+// 2、实现原理还是比较简单的，就是定义一个结构体，这个结构体只含有APIVersion以及Kind字段，然后根据这个结构体进行反序列换，如果能够反序列化
+// 成功，就可以获取到这个资源对象的GVK
 type MetaFactory interface {
 	// Interpret should return the version and kind of the wire-format of
 	// the object.
@@ -45,6 +48,7 @@ type SimpleMetaFactory struct {
 
 // Interpret will return the APIVersion and Kind of the JSON wire-format
 // encoding of an object, or an error.
+// 解析二进制对象的GVK信息
 func (SimpleMetaFactory) Interpret(data []byte) (*schema.GroupVersionKind, error) {
 	findKind := struct {
 		// +optional
@@ -55,6 +59,7 @@ func (SimpleMetaFactory) Interpret(data []byte) (*schema.GroupVersionKind, error
 	if err := json.Unmarshal(data, &findKind); err != nil {
 		return nil, fmt.Errorf("couldn't get version/kind; json parse error: %v", err)
 	}
+	// 解析APIVersion字段为GV
 	gv, err := schema.ParseGroupVersion(findKind.APIVersion)
 	if err != nil {
 		return nil, err

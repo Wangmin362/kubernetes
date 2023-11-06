@@ -45,21 +45,24 @@ type serializerType struct {
 	AcceptStreamContentTypes []string
 	StreamContentType        string
 
+	// TODO 详细分析Framer的作用
 	Framer           runtime.Framer
 	StreamSerializer runtime.Serializer
 }
 
+// 初始化序列化器，包括JSON、YAML、ProtoBuf序列化器
 func newSerializersForScheme(
 	scheme *runtime.Scheme, // 主要是换粗了GVK到Go结构体之间的映射关系
 	mf json.MetaFactory, // 用于从二进制信息当中解析出该资源对象的GVK信息
 	options CodecFactoryOptions, // 是否启用Strict, 以及Pretty
 ) []serializerType {
+	// json序列化器，用于把Go结构体序列化为JSON，或者把二进制信息反序列化
 	jsonSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: false, Pretty: false, Strict: options.Strict},
 	)
 	jsonSerializerType := serializerType{
-		AcceptContentTypes: []string{runtime.ContentTypeJSON},
+		AcceptContentTypes: []string{runtime.ContentTypeJSON}, // 只接受把Content-Type:application/json的数据进行序列化、反序列化
 		ContentType:        runtime.ContentTypeJSON,
 		FileExtensions:     []string{"json"},
 		EncodesAsText:      true,
@@ -69,12 +72,14 @@ func newSerializersForScheme(
 		StreamSerializer: jsonSerializer,
 	}
 	if options.Pretty {
+		// Pretty序列化
 		jsonSerializerType.PrettySerializer = json.NewSerializerWithOptions(
 			mf, scheme, scheme,
 			json.SerializerOptions{Yaml: false, Pretty: true, Strict: options.Strict},
 		)
 	}
 
+	// 严格序列化器
 	strictJSONSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: false, Pretty: false, Strict: true},
@@ -93,7 +98,9 @@ func newSerializersForScheme(
 	protoRawSerializer := protobuf.NewRawSerializer(scheme, scheme)
 
 	serializers := []serializerType{
+		// json序列化器
 		jsonSerializerType,
+		// YAML序列化器
 		{
 			AcceptContentTypes: []string{runtime.ContentTypeYAML},
 			ContentType:        runtime.ContentTypeYAML,
@@ -102,6 +109,7 @@ func newSerializersForScheme(
 			Serializer:         yamlSerializer,
 			StrictSerializer:   strictYAMLSerializer,
 		},
+		// protobuf序列化器
 		{
 			AcceptContentTypes: []string{runtime.ContentTypeProtobuf},
 			ContentType:        runtime.ContentTypeProtobuf,
@@ -129,10 +137,10 @@ func newSerializersForScheme(
 // TODO 如何理解CodecFactory的设计，完成了什么功能？
 type CodecFactory struct {
 	scheme    *runtime.Scheme
-	universal runtime.Decoder
-	accepts   []runtime.SerializerInfo
+	universal runtime.Decoder          // 解码器
+	accepts   []runtime.SerializerInfo // 每个不同的媒体类型所对应的序列化器，目前主要是针对JSON, YAML, ProtoBuf这三种媒体类型
 
-	// Legacy序列化器是啥
+	// 所谓的legacy序列化器，其实就是JSON序列化器
 	legacySerializer runtime.Serializer
 }
 
@@ -188,7 +196,9 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 		fn(&options)
 	}
 
+	// 初始化序列化器，包括JSON、YAML、ProtoBuf序列化器
 	serializers := newSerializersForScheme(scheme, json.DefaultMetaFactory, options)
+	// 实例化编解码器工程
 	return newCodecFactory(scheme, serializers)
 }
 
@@ -196,10 +206,12 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 func newCodecFactory(scheme *runtime.Scheme, serializers []serializerType) CodecFactory {
 	decoders := make([]runtime.Decoder, 0, len(serializers))
 	var accepts []runtime.SerializerInfo
+	// 表示已经处理过的媒体类型
 	alreadyAccepted := make(map[string]struct{})
 
 	var legacySerializer runtime.Serializer
 	for _, d := range serializers {
+		// Serializer本身既是一个Decoder，也是一个Encoder
 		decoders = append(decoders, d.Serializer)
 		for _, mediaType := range d.AcceptContentTypes {
 			if _, ok := alreadyAccepted[mediaType]; ok {
@@ -214,6 +226,7 @@ func newCodecFactory(scheme *runtime.Scheme, serializers []serializerType) Codec
 				StrictSerializer: d.StrictSerializer,
 			}
 
+			// 解析MediaType
 			mediaType, _, err := mime.ParseMediaType(info.MediaType)
 			if err != nil {
 				panic(err)
@@ -256,6 +269,7 @@ func (f CodecFactory) WithoutConversion() runtime.NegotiatedSerializer {
 }
 
 // SupportedMediaTypes returns the RFC2046 media types that this factory has serializers for.
+// 返回支持的媒体类型
 func (f CodecFactory) SupportedMediaTypes() []runtime.SerializerInfo {
 	return f.accepts
 }
@@ -302,8 +316,8 @@ func (f CodecFactory) UniversalDecoder(versions ...schema.GroupVersion) runtime.
 // it will default to runtime.APIVersionInternal. If encode is not specified for an object's group, the object is not
 // converted. If encode or decode are nil, no conversion is performed.
 func (f CodecFactory) CodecForVersions(
-	encoder runtime.Encoder,
-	decoder runtime.Decoder,
+	encoder runtime.Encoder, // 编码器
+	decoder runtime.Decoder, // 解码器
 	encode runtime.GroupVersioner,
 	decode runtime.GroupVersioner,
 ) runtime.Codec {

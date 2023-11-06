@@ -28,7 +28,7 @@ var (
 	// the api group, unless you really know what you're doing.
 	// TODO(lavalamp): make the above error impossible.
 	// 这里说的Legacy资源其实就是核心资源，这里注册的都是内部资源，也就是__internal资源
-	// 2、有哪些资源对象注册进来了？
+	// 2、有哪些资源对象注册进来了？ K8S所有已知的资源都会注册到这里
 	Scheme = runtime.NewScheme()
 
 	// Codecs provides access to encoding and decoding for the scheme

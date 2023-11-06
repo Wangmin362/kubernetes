@@ -99,6 +99,7 @@ type SerializerOptions struct {
 
 	// Strict: configures the Serializer to return strictDecodingError's when duplicate fields are present decoding JSON or YAML.
 	// Note that enabling this option is not as performant as the non-strict variant, and should not be used in fast paths.
+	// TODO 这里的严格指的是什么
 	Strict bool
 }
 
@@ -236,6 +237,7 @@ func (s *Serializer) Decode(
 }
 
 // Encode serializes the provided object to the given writer.
+// 1、把当前对象序列化到w当中
 func (s *Serializer) Encode(obj runtime.Object, w io.Writer) error {
 	if co, ok := obj.(runtime.CacheableObject); ok {
 		return co.CacheEncode(s.Identifier(), s.doEncode, w)
@@ -325,6 +327,7 @@ func (s *Serializer) Identifier() runtime.Identifier {
 }
 
 // RecognizesData implements the RecognizingDecoder interface.
+// 用于判断二进制数据data,是否是通过JSON的方式序列化得到的
 func (s *Serializer) RecognizesData(data []byte) (ok, unknown bool, err error) {
 	if s.options.Yaml {
 		// we could potentially look for '---'

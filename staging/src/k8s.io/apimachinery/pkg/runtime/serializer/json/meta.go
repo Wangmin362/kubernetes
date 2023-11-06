@@ -37,6 +37,7 @@ type MetaFactory interface {
 // DefaultMetaFactory is a default factory for versioning objects in JSON. The object
 // in memory and in the default JSON serialization will use the "kind" and "apiVersion"
 // fields.
+// 用于从二级制信息当中提取GVK信息
 var DefaultMetaFactory = SimpleMetaFactory{}
 
 // SimpleMetaFactory provides default methods for retrieving the type and version of objects

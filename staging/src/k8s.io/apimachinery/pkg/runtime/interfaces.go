@@ -53,6 +53,7 @@ type Identifier string
 type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
+	// 把资源对象序列化到w当中
 	Encode(obj Object, w io.Writer) error
 	// Identifier returns an identifier of the encoder.
 	// Identifiers of two different encoders should be equal if and only if for every input
@@ -180,6 +181,7 @@ type StreamSerializerInfo struct {
 // TODO 如何理解这玩意的抽象？
 type NegotiatedSerializer interface {
 	// SupportedMediaTypes is the media types supported for reading and writing single objects.
+	// 当前序列化工厂支持哪些媒体类型的序列化、反序列化
 	SupportedMediaTypes() []SerializerInfo
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided

@@ -54,6 +54,7 @@ type decoder struct {
 
 var _ RecognizingDecoder = &decoder{}
 
+// RecognizesData 是否可以识别这个二进制数据，如果能够识别，意味着可以正确进行反序列化
 func (d *decoder) RecognizesData(data []byte) (bool, bool, error) {
 	var (
 		lastErr    error

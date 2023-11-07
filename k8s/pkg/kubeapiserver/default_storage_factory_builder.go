@@ -85,10 +85,10 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 
 // StorageFactoryConfig is a configuration for creating storage factory.
 type StorageFactoryConfig struct {
-	StorageConfig             storagebackend.Config
+	StorageConfig             storagebackend.Config         // 后端存储配置
 	APIResourceConfig         *serverstorage.ResourceConfig // 用于表示GV的启用/禁用，或者是GVR的启用/禁用
 	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig
-	DefaultStorageMediaType   string
+	DefaultStorageMediaType   string // 默认的存储媒体类型，TODO 猜测就是根据这个媒体类型协商的序列化器
 	Serializer                runtime.StorageSerializer
 	ResourceEncodingOverrides []schema.GroupVersionResource
 	EtcdServersOverrides      []string
@@ -131,6 +131,7 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 	storageFactory.AddCohabitatingResources(policy.Resource("podsecuritypolicies"), extensions.Resource("podsecuritypolicies"))
 	storageFactory.AddCohabitatingResources(networking.Resource("ingresses"), extensions.Resource("ingresses"))
 
+	// EtcdServersOverrides格式为：<group>/<resource>#ip:host;ip:host;ip:host
 	for _, override := range c.EtcdServersOverrides {
 		tokens := strings.Split(override, "#")
 		apiresource := strings.Split(tokens[0], "/")

@@ -50,6 +50,7 @@ type EtcdOptions struct {
 	EncryptionProviderConfigFilepath        string
 	EncryptionProviderConfigAutomaticReload bool
 
+	// 用于覆盖某些资源的存储位置，格式为：group/resource#servers
 	EtcdServersOverrides []string
 
 	// To enable protobuf as storage format, it is enough

@@ -70,7 +70,7 @@ type DefaultStorageFactory struct {
 	// 2、每个存储资源的持久化都使用相同的认证
 	StorageConfig storagebackend.Config
 
-	// 用于资源覆盖默认配置
+	// 用于资源覆盖默认配置，我们是可以覆盖某个资源的存储配置的
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
 	// 默认资源的前缀

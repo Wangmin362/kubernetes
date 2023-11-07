@@ -73,11 +73,13 @@ type Config struct {
 	// 2、如果开启了APIListChunking特性，Paging就为true
 	Paging bool
 
+	// 编解码器
 	Codec runtime.Codec
 	// EncodeVersioner is the same groupVersioner used to build the
 	// storage encoder. Given a list of kinds the input object might belong
 	// to, the EncodeVersioner outputs the gvk the object will be
 	// converted to before persisted in etcd.
+	// TODO 这里应该说的是当前的配置是为哪个资源的哪个版本
 	EncodeVersioner runtime.GroupVersioner
 	// Transformer allows the value to be transformed prior to persisting into etcd.
 	// TODO 允许资源在持久化之前被转换
@@ -112,6 +114,7 @@ type ConfigForResource struct {
 }
 
 // ForResource specializes to the given resource
+// 默认就用config配置存储
 func (config *Config) ForResource(resource schema.GroupResource) *ConfigForResource {
 	return &ConfigForResource{
 		Config:        *config,

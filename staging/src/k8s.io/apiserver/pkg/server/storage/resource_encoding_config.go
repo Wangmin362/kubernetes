@@ -27,9 +27,11 @@ type ResourceEncodingConfig interface {
 	// StorageEncodingFor returns the serialization format for the resource.
 	// TODO this should actually return a GroupVersionKind since you can logically have multiple "matching" Kinds
 	// For now, it returns just the GroupVersion for consistency with old behavior
+	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是常规资源
 	StorageEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
 
 	// InMemoryEncodingFor returns the groupVersion for the in memory representation the storage should convert to.
+	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是__internal资源
 	InMemoryEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
 }
 
@@ -53,7 +55,11 @@ func NewDefaultResourceEncodingConfig(scheme *runtime.Scheme) *DefaultResourceEn
 	}
 }
 
-func (o *DefaultResourceEncodingConfig) SetResourceEncoding(resourceBeingStored schema.GroupResource, externalEncodingVersion, internalVersion schema.GroupVersion) {
+func (o *DefaultResourceEncodingConfig) SetResourceEncoding(
+	resourceBeingStored schema.GroupResource,
+	externalEncodingVersion,
+	internalVersion schema.GroupVersion,
+) {
 	o.resources[resourceBeingStored] = &OverridingResourceEncoding{
 		ExternalResourceEncoding: externalEncodingVersion,
 		InternalResourceEncoding: internalVersion,
@@ -72,6 +78,7 @@ func (o *DefaultResourceEncodingConfig) StorageEncodingFor(resource schema.Group
 	}
 
 	// return the most preferred external version for the group
+	// 如果不存在，那么直接从scheme中获取组的所有GV，并取出第一个
 	return o.scheme.PrioritizedVersionsForGroup(resource.Group)[0], nil
 }
 

@@ -21,6 +21,7 @@ import (
 )
 
 // APIResourceConfigSource is the interface to determine which groups and versions are enabled
+// 用于判断某个GVR，或者是某个组是否被启用
 type APIResourceConfigSource interface {
 	ResourceEnabled(resource schema.GroupVersionResource) bool
 	AnyResourceForGroupEnabled(group string) bool

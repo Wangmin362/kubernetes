@@ -89,28 +89,45 @@ type SerializerOptions struct {
 	// Yaml: configures the Serializer to work with JSON(false) or YAML(true).
 	// When `Yaml` is enabled, this serializer only supports the subset of YAML that
 	// matches JSON, and will error if constructs are used that do not serialize to JSON.
-	// 1、如果是需要进行YAML序列化，那么应该设置为true
-	// 2、如果需要进行JSON序列化，那么设置为fasel
+	// JSON解码器既可以对JSON数据进行编码解码，也可以对YAML数据进行解码，所以如果需要一个JSON编解码器，这里应该设置为false。如果需要一个
+	// YAML类型的编解码器，这里应该设置为true
 	Yaml bool
 
 	// Pretty: configures a JSON enabled Serializer(`Yaml: false`) to produce human-readable output.
 	// This option is silently ignored when `Yaml` is `true`.
+	// 这个设置仅仅针对于JSON序列化器有用，因为YAML格式的格式本身就是易读的。对于JSON数据来说，如果Pretty为false，那么序列化的数据可能就是这样：
+	// {"name":"zhangsan", "age":27}, 而如果设置为true，那么这个数据就会是这样：
+	/*
+		{
+			"name": "zhangsan",
+			"age": 27
+
+		}
+	*/
 	Pretty bool
 
 	// Strict: configures the Serializer to return strictDecodingError's when duplicate fields are present decoding JSON or YAML.
 	// Note that enabling this option is not as performant as the non-strict variant, and should not be used in fast paths.
-	// TODO 这里的严格指的是什么
+	// Strict应用于Decode接口，表示严谨的。那什么是严谨的？笔者很难用语言表达，但是以下几种情况是不严谨的：
+	// 1. 存在重复字段，比如{"value":1,"value":1};
+	// 2. 不存在的字段，比如{"unknown": 1}，而目标API对象中不存在Unknown属性;
+	// 3. 未打标签字段，比如{"Other":"test"}，虽然目标API对象中有Other字段，但是没有打`json:"Other"`标签
+	// Strict选项可以理解为增加了很多校验，请注意，启用此选项的性能下降非常严重，因此不应在性能敏感的场景中使用。
+	// 那什么场景需要用到Strict选项？比如Kubernetes各个服务的配置API，对性能要求不高，但需要严格的校验。
 	Strict bool
 }
 
 // Serializer handles encoding versioned objects into the proper JSON form
+// JSON序列化器，实现了加密、编码的功能
 type Serializer struct {
 	meta    MetaFactory           // 用于从二进制信息中获取GVK信息
-	options SerializerOptions     // 序列化参数
+	options SerializerOptions     // 配置参数
 	creater runtime.ObjectCreater // 用于根据GVK信息实例化对应的Go结构体。这个映射关系保存在scheme当中
 	typer   runtime.ObjectTyper   // 用于根据Go结构体信息获取GVK，以及判断一个GKV是否合法
 
-	identifier runtime.Identifier // 序列化器的标识，主要是通过序列化参数进行序列化  TODO 这玩意有啥用？
+	// 序列化器的标识，K8S中可以缓存一个对象的序列化结果，但是K8S中支持YAML, JSON, Protobuf多种格式的序列化，因此需要能够区分当前缓存的
+	// 结果是哪个序列化器的结果。
+	identifier runtime.Identifier
 }
 
 // Serializer implements Serializer
@@ -118,7 +135,7 @@ var _ runtime.Serializer = &Serializer{}
 var _ recognizer.RecognizingDecoder = &Serializer{}
 
 // gvkWithDefaults returns group kind and version defaulting from provided default
-// 用于根据默认的GVK初始化实际的GVK
+// 根据默认的GVK初始化实际的GVK，主要还是以实际的GVK为主，默认的GVK只是辅助作用，只要实际的GVK是残缺的，默认GVK才有用，否则默认GVK没啥用
 func gvkWithDefaults(actual, defaultGVK schema.GroupVersionKind) schema.GroupVersionKind {
 	if len(actual.Kind) == 0 {
 		actual.Kind = defaultGVK.Kind
@@ -168,8 +185,10 @@ func (s *Serializer) Decode(
 		*actual = gvkWithDefaults(*actual, *gvk)
 	}
 
-	// 如果指定了想要
+	// 如果调用方想要一个Unknown对象，那么直接返回即可，无需解码
 	if unk, ok := into.(*runtime.Unknown); ok && unk != nil {
+		// 如果当前数据为YAML数据，这里是不是应该使用data数据，而不是originData数据。
+		// 这里这么使用没有出问题的原因是因为再K8S当中，Unknown对象都是内部使用的，而K8S默认都是用JSON数据，所以没有毛病
 		unk.Raw = originalData
 		unk.ContentType = runtime.ContentTypeJSON
 		unk.GetObjectKind().SetGroupVersionKind(*actual)
@@ -182,7 +201,8 @@ func (s *Serializer) Decode(
 		types, _, err := s.typer.ObjectKinds(into)
 		switch {
 		case runtime.IsNotRegisteredError(err), isUnstructured:
-			// 把data数据反序列化到into对象中
+			// 1、如果当前指定的into类型没有注册过，直接尝试硬解码
+			// 2、如果当前指定的into类型就是非结构化对象，也即是map[string]interface{}类型，直接尝试反序列化即可
 			strictErrs, err := s.unmarshal(into, data, originalData)
 			if err != nil {
 				return nil, actual, err
@@ -191,6 +211,7 @@ func (s *Serializer) Decode(
 			// when decoding directly into a provided unstructured object,
 			// extract the actual gvk decoded from the provided data,
 			// and ensure it is non-empty.
+			// 如果是非结构化数据，还需要设置GVK
 			if isUnstructured {
 				*actual = into.GetObjectKind().GroupVersionKind()
 				if len(actual.Kind) == 0 {
@@ -291,6 +312,7 @@ func (s *Serializer) unmarshal(
 		return nil, nil
 	}
 
+	// 如果是需要反序列化YAML格式的数据
 	if s.options.Yaml {
 		// In strict mode pass the original data through the YAMLToJSONStrict converter.
 		// This is done to catch duplicate fields in YAML that would have been dropped in the original YAMLToJSON conversion.
@@ -327,7 +349,8 @@ func (s *Serializer) Identifier() runtime.Identifier {
 }
 
 // RecognizesData implements the RecognizingDecoder interface.
-// 用于判断二进制数据data,是否是通过JSON的方式序列化得到的
+// 1、用于判断二进制数据data,是否是通过JSON的方式序列化得到的
+// 2、判断当前data数据是否是
 func (s *Serializer) RecognizesData(data []byte) (ok, unknown bool, err error) {
 	if s.options.Yaml {
 		// we could potentially look for '---'

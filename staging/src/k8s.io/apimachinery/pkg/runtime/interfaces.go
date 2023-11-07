@@ -50,6 +50,15 @@ type GroupVersioner interface {
 type Identifier string
 
 // Encoder writes objects to a serialized form
+// 1、K8S中的编码器用于把结构体资源对象序列化
+// 2、与之不同的，K8S还设计了一个Identifier接口，此接口用于标识不同的编码器。需要注意的是，相同的编码器，其返回的标识一定是相同的。它们
+// 对于一个对象进行序列化的结果也一定是一样的。在K8S当中，编码器的标识其实就是一个字符串，并没有特别稀奇。
+// 3、之所以设计Identifier接口，主要是想缓存一个对象的序列化结果，而在K8S当汇总，由于支持YAML, JSON, Protobuf类型的数据，因此就有不同
+// 的编码器，而且由于YAML, JSON的pretty, strict设置，还可以衍生出更多的编码器，因此要缓存对象的编码结果，就必须知道当前缓存的数据是哪个
+// 编码器的结果，因此如何区分编码器就显得非常关键了，K8S就是通过Identifier接口来区分不同的编码器，只要名称相同，对同一个对象进行编码其结果
+// 一定是相同的
+// 4、在K8S当中，编码相比于解码简单许多，譬如对于JSON编码器，只需要执行json.Marshal类似的动作即可，对于YAML, Protobuf也是类似的，不需要
+// 做额外的判断
 type Encoder interface {
 	// Encode writes an object to a stream. Implementations may return errors if the versions are
 	// incompatible, or if no conversion is defined.
@@ -92,6 +101,8 @@ type EncoderWithAllocator interface {
 }
 
 // Decoder attempts to load an object from data.
+// 1、在K8S当中解码是一个非常复杂的过程，因为K8S的资源非常多，而一个二进制数据一般只对应于一种结构。因此在解码复杂的原因就是需要根据二进制数据
+// 找到此数据对应的结构体，此外，我们还需要根据数据的特征判断应当使用JSON、YAML、Protobuf解码器的哪一种。这也是解码的复杂所在。
 type Decoder interface {
 	// Decode attempts to deserialize the provided data using either the innate typing of the scheme or the
 	// default kind, group, and version provided. It returns a decoded object as well as the kind, group, and
@@ -114,6 +125,12 @@ type Decoder interface {
 
 // Serializer is the core interface for transforming objects into a serialized format and back.
 // Implementations may choose to perform conversion of the object, but no assumptions should be made.
+// 1、所谓的序列化器，其实就是结合了编码、解码两个动作。
+// 2、在K8S当中，主要有两个地方需要用到解码器，一个是在解析用户请求,k8s需要把收到的YAML数据解码为合适的结构体对象，另外一个地方则是从ETCD当中
+// 获取到了查询的数据，由于ETCD中保存的是序列化之后的数据，因此我们也需要把这个序列化之后的数据进行反序列化，我们把这个过程称之为反序列化，
+// 也可以叫做解码
+// 3、在K8S当中，主要有两个两个地方需要用的编码器，一个实在响应用户请求，K8S需要把结构体序列化之后交给请求。另外一个则是在需要把数据存储在ETCD
+// 中时，也需要使用编码器把结构体对象编码为字节数据。我们把这个过程称之为序列化，也可以称之为编码。
 type Serializer interface {
 	Encoder
 	Decoder

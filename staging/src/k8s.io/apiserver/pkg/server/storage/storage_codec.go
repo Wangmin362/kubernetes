@@ -28,14 +28,14 @@ import (
 
 // StorageCodecConfig are the arguments passed to newStorageCodecFn
 type StorageCodecConfig struct {
-	StorageMediaType  string
-	StorageSerializer runtime.StorageSerializer
-	StorageVersion    schema.GroupVersion
-	MemoryVersion     schema.GroupVersion
-	Config            storagebackend.Config
+	StorageMediaType  string                    // 存储资源时，资源序列化的格式，目前K8S支持JSON, YAML, Protobuf三种格式
+	StorageSerializer runtime.StorageSerializer // TODO
+	StorageVersion    schema.GroupVersion       // TODO 什么叫做存储版本？
+	MemoryVersion     schema.GroupVersion       // TODO 什么叫做内存版本？
+	Config            storagebackend.Config     // 存储后端配置
 
-	EncoderDecoratorFn func(runtime.Encoder) runtime.Encoder
-	DecoderDecoratorFn func([]runtime.Decoder) []runtime.Decoder
+	EncoderDecoratorFn func(runtime.Encoder) runtime.Encoder     // 编码装饰器
+	DecoderDecoratorFn func([]runtime.Decoder) []runtime.Decoder // 解码装饰器
 }
 
 // NewStorageCodec assembles a storage codec for the provided storage media type, the provided serializer, and the requested

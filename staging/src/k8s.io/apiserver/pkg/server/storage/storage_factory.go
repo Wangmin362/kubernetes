@@ -46,6 +46,7 @@ type Backend struct {
 type StorageFactory interface {
 	// NewConfig New finds the storage destination for the given group and resource. It will
 	// return an error if the group has no storage destination configured.
+	// 返回某个GR资源的具体存储配置
 	NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error)
 
 	// ResourcePrefix returns the overridden resource prefix for the GroupResource

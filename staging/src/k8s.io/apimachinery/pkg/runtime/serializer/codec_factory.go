@@ -140,7 +140,7 @@ func newSerializersForScheme(
 // CodecFactory provides methods for retrieving codecs and serializers for specific
 // versions and content types.
 // TODO 如何理解CodecFactory的设计，完成了什么功能？
-// 1、编解码器工厂，其实就是对于scheme中所有注册类资源，都可以支持编码、解码操作
+// 1、编解码器工厂，其实就是对于scheme中所有注册资源，都可以支持编码、解码操作
 type CodecFactory struct {
 	scheme    *runtime.Scheme
 	universal runtime.Decoder          // 所谓的通用编解码器，实际上就是万能编解码器，可能解码所有类型的数据
@@ -218,7 +218,7 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 
 	// 初始化编解码器，包括JSON、YAML、ProtoBuf序列化器
 	serializers := newSerializersForScheme(scheme, json.DefaultMetaFactory, options)
-	// 实例化编解码器工厂
+	// 实例化编解码器工厂，编解码工厂可以支持所有注册到scheme中资源的编码、解码
 	return newCodecFactory(scheme, serializers)
 }
 

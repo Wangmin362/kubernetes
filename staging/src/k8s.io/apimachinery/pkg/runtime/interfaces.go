@@ -37,6 +37,7 @@ type GroupVersioner interface {
 	// target is known. In general, if the return target is not in the input list, the caller is expected to invoke
 	// Scheme.New(target) and then perform a conversion between the current Go type and the destination Go type.
 	// Sophisticated implementations may use additional information about the input kinds to pick a destination kind.
+	// TODO 看起来是为了从一堆GVK中找到最符合的一个GVK
 	KindForGroupVersionKinds(kinds []schema.GroupVersionKind) (target schema.GroupVersionKind, ok bool)
 	// Identifier returns string representation of the object.
 	// Identifiers of two different encoders should be equal only if for every input
@@ -234,13 +235,18 @@ type ClientNegotiator interface {
 // StorageSerializer is an interface used for obtaining encoders, decoders, and serializers
 // that can read and write data at rest. This would commonly be used by client tools that must
 // read files, or server side storage interfaces that persist restful objects.
-// TODO 如何理解这个存储序列化器抽象
+// TODO 如何理解这个存储序列化器抽象  如何理解这个名字所谓的存储序列化器
+// TODO 1、为什么这个接口不直接组合NegotiatedSerializer接口？
 type StorageSerializer interface {
 	// SupportedMediaTypes are the media types supported for reading and writing objects.
+	// 返回当前支持的所有媒体类型
 	SupportedMediaTypes() []SerializerInfo
 
 	// UniversalDeserializer returns a Serializer that can read objects in multiple supported formats
 	// by introspecting the data at rest.
+	// 1、所谓的通用解码器，实际上就是望能解码器，可以对于K8S中的任意资源的任意格式（JSON, YAML, Protobuf）资源进行解码
+	// 2、其原理非常简单，通用解码器内部其实是一个数组，这个数组当中会保存JSON解码器、YAML解码器、Protobuf解码器。当需要解码时，挨个遍历
+	// 每个解码器，看看能否解码，只要能保证正确解码就可以了
 	UniversalDeserializer() Decoder
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided
@@ -265,6 +271,7 @@ type NestedObjectEncoder interface {
 // an error is a runtime.StrictDecodingError before short circuiting.
 // Similarly, implementations of DecodeNestedObjects should ensure that a runtime.StrictDecodingError
 // is only returned when the rest of decoding has succeeded.
+// TODO 什么时候需要实现这个嵌套对象解码器？
 type NestedObjectDecoder interface {
 	DecodeNestedObjects(d Decoder) error
 }
@@ -396,6 +403,7 @@ type CacheableObject interface {
 
 // Unstructured objects store values as map[string]interface{}, with only values that can be serialized
 // to JSON allowed.
+// TODO K8S 为什么要支持非结构化
 type Unstructured interface {
 	Object
 	// NewEmptyInstance returns a new instance of the concrete type containing only kind/apiVersion and no other data.

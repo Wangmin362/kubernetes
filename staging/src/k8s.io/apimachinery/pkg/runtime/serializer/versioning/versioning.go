@@ -91,6 +91,7 @@ type codec struct {
 
 var _ runtime.EncoderWithAllocator = &codec{}
 
+// 全局变量
 var identifiersMap sync.Map
 
 type codecIdentifier struct {
@@ -100,6 +101,7 @@ type codecIdentifier struct {
 }
 
 // identifier computes Identifier of Encoder based on codec parameters.
+// 返回当前解码器的标识
 func identifier(encodeGV runtime.GroupVersioner, encoder runtime.Encoder) runtime.Identifier {
 	result := codecIdentifier{
 		Name: "versioning",

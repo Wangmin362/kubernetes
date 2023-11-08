@@ -29,18 +29,21 @@ import (
 )
 
 // serializerExtensions are for serializers that are conditionally compiled in
+// 这玩意似乎没有地方在初始化
 var serializerExtensions = []func(*runtime.Scheme) (serializerType, bool){}
 
+// 用于
 type serializerType struct {
 	AcceptContentTypes []string
-	ContentType        string
-	FileExtensions     []string
+	ContentType        string   // DA
+	FileExtensions     []string // 这里说的是文件扩展名，譬如.json, .yaml, .pb扩展民
 	// EncodesAsText should be true if this content type can be represented safely in UTF-8
+	// 用于缓存当前的媒体类型是否能够以UTF-8的方式进行编码。譬如JSON就可以支持UTF-8编码，但是Protobuf不支持UTF-8便阿门
 	EncodesAsText bool
 
-	Serializer       runtime.Serializer
-	PrettySerializer runtime.Serializer
-	StrictSerializer runtime.Serializer
+	Serializer       runtime.Serializer // 普通序列化器，即Pretty=false, Strict=false
+	PrettySerializer runtime.Serializer // 在普通序列化器的基础上配置了Pretty=true，将会影响编码器的行为
+	StrictSerializer runtime.Serializer // 在普通序列化器的基础上配置了Strict=true，将会影响解码器的行为
 
 	AcceptStreamContentTypes []string
 	StreamContentType        string
@@ -56,16 +59,16 @@ func newSerializersForScheme(
 	mf json.MetaFactory, // 用于从二进制信息当中解析出该资源对象的GVK信息
 	options CodecFactoryOptions, // 是否启用Strict, 以及Pretty
 ) []serializerType {
-	// json序列化器，用于把Go结构体序列化为JSON，或者把二进制信息反序列化
+	// 实例化JSON序列化器，用于把结构体序列化为二进制数据，或者反序列化二进制数据为结构体
 	jsonSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: false, Pretty: false, Strict: options.Strict},
 	)
 	jsonSerializerType := serializerType{
-		AcceptContentTypes: []string{runtime.ContentTypeJSON}, // 只接受把Content-Type:application/json的数据进行序列化、反序列化
-		ContentType:        runtime.ContentTypeJSON,
-		FileExtensions:     []string{"json"},
-		EncodesAsText:      true,
+		AcceptContentTypes: []string{runtime.ContentTypeJSON},
+		ContentType:        runtime.ContentTypeJSON, // 只接受把Content-Type:application/json的数据进行序列化、反序列化
+		FileExtensions:     []string{"json"},        // 文件扩展名为json
+		EncodesAsText:      true,                    // JSON支持以UTF-8的方式进行编码
 		Serializer:         jsonSerializer,
 
 		Framer:           json.Framer,
@@ -86,10 +89,12 @@ func newSerializersForScheme(
 	)
 	jsonSerializerType.StrictSerializer = strictJSONSerializer
 
+	// 实例化YAML序列化器，支持把结构体对象以YAML的格式序列化为二进制数据，也支持把二进制数据以YAML的方式发序列化为结构体
 	yamlSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: true, Pretty: false, Strict: options.Strict},
 	)
+	// 由于YAML本身就是易读的，因此不需要初始化PrettySerializer
 	strictYAMLSerializer := json.NewSerializerWithOptions(
 		mf, scheme, scheme,
 		json.SerializerOptions{Yaml: true, Pretty: false, Strict: true},
@@ -135,10 +140,11 @@ func newSerializersForScheme(
 // CodecFactory provides methods for retrieving codecs and serializers for specific
 // versions and content types.
 // TODO 如何理解CodecFactory的设计，完成了什么功能？
+// 1、编解码器工厂，其实就是对于scheme中所有注册类资源，都可以支持编码、解码操作
 type CodecFactory struct {
 	scheme    *runtime.Scheme
-	universal runtime.Decoder          // 解码器
-	accepts   []runtime.SerializerInfo // 每个不同的媒体类型所对应的序列化器，目前主要是针对JSON, YAML, ProtoBuf这三种媒体类型
+	universal runtime.Decoder          // 所谓的通用编解码器，实际上就是万能编解码器，可能解码所有类型的数据
+	accepts   []runtime.SerializerInfo // 不同的媒体类型所对应的序列化器，目前主要是针对JSON, YAML, ProtoBuf这三种媒体类型
 
 	// 所谓的legacy序列化器，其实就是JSON序列化器
 	legacySerializer runtime.Serializer
@@ -147,10 +153,24 @@ type CodecFactory struct {
 // CodecFactoryOptions holds the options for configuring CodecFactory behavior
 type CodecFactoryOptions struct {
 	// Strict configures all serializers in strict mode
-	// TODO 严格模式有啥用?
+	// Strict应用于Decode接口，表示严谨的。那什么是严谨的？笔者很难用语言表达，但是以下几种情况是不严谨的：
+	// 1. 存在重复字段，比如{"value":1,"value":1};
+	// 2. 不存在的字段，比如{"unknown": 1}，而目标API对象中不存在Unknown属性;
+	// 3. 未打标签字段，比如{"Other":"test"}，虽然目标API对象中有Other字段，但是没有打`json:"Other"`标签
+	// Strict选项可以理解为增加了很多校验，请注意，启用此选项的性能下降非常严重，因此不应在性能敏感的场景中使用。
+	// 那什么场景需要用到Strict选项？比如Kubernetes各个服务的配置API，对性能要求不高，但需要严格的校验。
 	Strict bool
 	// Pretty includes a pretty serializer along with the non-pretty one
-	// TODO 因该是针对于json序列化，Pretty模式下，可以以人类可读的方式获取JSON，默认为true
+	// 此配置仅仅针对于编码，即序列化的时候
+	// 这个设置仅仅针对于JSON序列化器有用，因为YAML格式的格式本身就是易读的。对于JSON数据来说，如果Pretty为false，那么序列化的数据可能就是这样：
+	// {"name":"zhangsan", "age":27}, 而如果设置为true，那么这个数据就会是这样：
+	/*
+		{
+			"name": "zhangsan",
+			"age": 27
+
+		}
+	*/
 	Pretty bool
 }
 
@@ -196,9 +216,9 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 		fn(&options)
 	}
 
-	// 初始化序列化器，包括JSON、YAML、ProtoBuf序列化器
+	// 初始化编解码器，包括JSON、YAML、ProtoBuf序列化器
 	serializers := newSerializersForScheme(scheme, json.DefaultMetaFactory, options)
-	// 实例化编解码器工程
+	// 实例化编解码器工厂
 	return newCodecFactory(scheme, serializers)
 }
 
@@ -206,7 +226,7 @@ func NewCodecFactory(scheme *runtime.Scheme, mutators ...CodecFactoryOptionsMuta
 func newCodecFactory(scheme *runtime.Scheme, serializers []serializerType) CodecFactory {
 	decoders := make([]runtime.Decoder, 0, len(serializers))
 	var accepts []runtime.SerializerInfo
-	// 表示已经处理过的媒体类型
+	// 表示已经接受的媒体类型，所谓已经接受，其实就是这个媒体类型已经注册了对应的编解码器
 	alreadyAccepted := make(map[string]struct{})
 
 	var legacySerializer runtime.Serializer
@@ -215,6 +235,7 @@ func newCodecFactory(scheme *runtime.Scheme, serializers []serializerType) Codec
 		decoders = append(decoders, d.Serializer)
 		for _, mediaType := range d.AcceptContentTypes {
 			if _, ok := alreadyAccepted[mediaType]; ok {
+				// 当前媒体类型已经注册编解码器，无需重新注册
 				continue
 			}
 			alreadyAccepted[mediaType] = struct{}{}

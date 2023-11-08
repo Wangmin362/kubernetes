@@ -162,21 +162,21 @@ type Framer interface {
 // 所谓的序列化信息，就是根据MediaType, MediaTypeType, MediaTypeSubType决定到底使用哪个序列化器
 type SerializerInfo struct {
 	// MediaType is the value that represents this serializer over the wire.
-	MediaType string
+	MediaType string // 支持的媒体
 	// MediaTypeType is the first part of the MediaType ("application" in "application/json").
 	MediaTypeType string
 	// MediaTypeSubType is the second part of the MediaType ("json" in "application/json").
 	MediaTypeSubType string
 	// EncodesAsText indicates this serializer can be encoded to UTF-8 safely.
-	EncodesAsText bool
+	EncodesAsText bool // 是否支持以UTF-8的方式编码
 	// Serializer is the individual object serializer for this media type.
-	Serializer Serializer
+	Serializer Serializer // 普通编解码器 Pretty=false, Strict=false
 	// PrettySerializer, if set, can serialize this object in a form biased towards
 	// readability.
-	PrettySerializer Serializer
+	PrettySerializer Serializer // 普通编解码器 Pretty=true, Strict=false
 	// StrictSerializer, if set, deserializes this object strictly,
 	// erring on unknown fields.
-	StrictSerializer Serializer
+	StrictSerializer Serializer // 普通编解码器 Pretty=false, Strict=true
 	// StreamSerializer, if set, describes the streaming serialization format
 	// for this media type.
 	StreamSerializer *StreamSerializerInfo

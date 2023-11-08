@@ -95,6 +95,7 @@ type SerializerOptions struct {
 
 	// Pretty: configures a JSON enabled Serializer(`Yaml: false`) to produce human-readable output.
 	// This option is silently ignored when `Yaml` is `true`.
+	// 此配置仅仅针对于编码，即序列化的时候
 	// 这个设置仅仅针对于JSON序列化器有用，因为YAML格式的格式本身就是易读的。对于JSON数据来说，如果Pretty为false，那么序列化的数据可能就是这样：
 	// {"name":"zhangsan", "age":27}, 而如果设置为true，那么这个数据就会是这样：
 	/*

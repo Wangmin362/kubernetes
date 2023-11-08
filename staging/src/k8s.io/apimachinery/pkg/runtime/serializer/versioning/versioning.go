@@ -73,8 +73,8 @@ func NewCodec(
 }
 
 type codec struct {
-	encoder   runtime.Encoder
-	decoder   runtime.Decoder
+	encoder   runtime.Encoder // 编码器
+	decoder   runtime.Decoder // 解码器
 	convertor runtime.ObjectConvertor
 	creater   runtime.ObjectCreater
 	typer     runtime.ObjectTyper
@@ -83,7 +83,7 @@ type codec struct {
 	encodeVersion runtime.GroupVersioner
 	decodeVersion runtime.GroupVersioner
 
-	identifier runtime.Identifier
+	identifier runtime.Identifier // 当前编解码器的标识
 
 	// originalSchemeName is optional, but when filled in it holds the name of the scheme from which this codec originates
 	originalSchemeName string
@@ -130,6 +130,7 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 	// create a new instance of the type so we always exercise the conversion path (skips short-circuiting on `into == obj`)
 	decodeInto := into
 	if into != nil {
+		// 如果into非空，并且是非结构化的，就重新实例化一个对象
 		if _, ok := into.(runtime.Unstructured); ok && !into.GetObjectKind().GroupVersionKind().GroupVersion().Empty() {
 			decodeInto = reflect.New(reflect.TypeOf(into).Elem()).Interface().(runtime.Object)
 		}

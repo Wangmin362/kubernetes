@@ -43,11 +43,13 @@ const (
 // TransportConfig holds all connection related info,  i.e. equal TransportConfig means equal servers we talk to.
 type TransportConfig struct {
 	// ServerList is the list of storage servers to connect with.
+	// ETCD集群地址
 	ServerList []string
 	// TLS credentials
+	// 访问ETCD使用的客户端证书，在K8S当中，所有的HTTPS协议都是双向认证
 	KeyFile       string
 	CertFile      string
-	TrustedCAFile string
+	TrustedCAFile string // ETCD的CA根证书，用于校验ETCD证书，一般ETCD的证书都是自己签的
 	// function to determine the egress dialer. (i.e. konnectivity server dialer)
 	EgressLookup egressselector.Lookup
 	// The TracerProvider can add tracing the connection
@@ -55,7 +57,8 @@ type TransportConfig struct {
 }
 
 // Config is configuration for creating a storage backend.
-// 1、用于抽象一个存储后端的存储配置
+// 1、用于抽象资源的存储后端的存储配置
+// 2、此配置是所有资源通用配置
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
 	// 存储后端的类型，如果没有配置，那么默认就是ETCD3类型，实际上目前的K8S只支持ETCD3，并不支持ETCD2
@@ -80,7 +83,8 @@ type Config struct {
 	// storage encoder. Given a list of kinds the input object might belong
 	// to, the EncodeVersioner outputs the gvk the object will be
 	// converted to before persisted in etcd.
-	// TODO 这里应该说的是当前的配置是为哪个资源的哪个版本
+	// TODO 如何理解这个属性？
+	// TODO 为啥没有DecodeVersion?
 	EncodeVersioner runtime.GroupVersioner
 	// Transformer allows the value to be transformed prior to persisting into etcd.
 	// TODO 允许资源在持久化之前被转换

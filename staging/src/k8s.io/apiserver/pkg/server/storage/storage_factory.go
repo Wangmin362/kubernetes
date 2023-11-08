@@ -43,6 +43,7 @@ type Backend struct {
 }
 
 // StorageFactory is the interface to locate the storage for a given GroupResource
+// 所谓存储工厂，其实就是能够根据不同的GR返回其对应的存储配置，其中包含非常重要的编解码器
 type StorageFactory interface {
 	// NewConfig New finds the storage destination for the given group and resource. It will
 	// return an error if the group has no storage destination configured.
@@ -53,10 +54,13 @@ type StorageFactory interface {
 	// This allows for cohabitation of resources with different native types and provides
 	// centralized control over the shape of etcd directories
 	// 1、资源前缀
+	// TODO 这个资源前缀用在哪里？
 	ResourcePrefix(groupResource schema.GroupResource) string
 
 	// Backends gets all backends for all registered storage destinations.
 	// Used for getting all instances for health validations.
+	// 存储工厂的后端存储
+	// 为什么是多个后端存储？ 具体在存储资源的时候，如何确定使用哪个存储？
 	Backends() []Backend
 }
 
@@ -64,6 +68,7 @@ type StorageFactory interface {
 // 1. Merged etcd config, including: auth, server locations, prefixes
 // 2. Resource encodings for storage: group,version,kind to store as
 // 3. Cohabitating default: some resources like hpa are exposed through multiple APIs.  They must agree on 1 and 2
+// TODO 如何理解存储工厂？
 type DefaultStorageFactory struct {
 	// StorageConfig describes how to create a storage backend in general.
 	// Its authentication information will be used for every storage.Interface returned.
@@ -71,7 +76,8 @@ type DefaultStorageFactory struct {
 	// 2、每个存储资源的持久化都使用相同的认证
 	StorageConfig storagebackend.Config
 
-	// 用于资源覆盖默认配置，我们是可以覆盖某个资源的存储配置的
+	// 1、用于资源覆盖默认配置，我们是可以覆盖某个资源的存储配置的
+	// 2、可以理解为针对某个GR专门的配置  TODO 这个配置将来会覆盖 storagebackend.Config 配置
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
 	// 默认资源的前缀
@@ -86,11 +92,13 @@ type DefaultStorageFactory struct {
 	DefaultSerializer runtime.StorageSerializer
 
 	// ResourceEncodingConfig describes how to encode a particular GroupVersionResource
+	// 外部资源、内部资源的映射
 	ResourceEncodingConfig ResourceEncodingConfig
 
 	// APIResourceConfigSource indicates whether the *storage* is enabled, NOT the API
 	// This is discrete from resource enablement because those are separate concerns.  How this source is configured
 	// is left to the caller.
+	// 用于判断某个GVR，或者是某个组是否被启用
 	APIResourceConfigSource APIResourceConfigSource
 
 	// newStorageCodecFn exists to be overwritten for unit testing.
@@ -111,17 +119,17 @@ type groupResourceOverrides struct {
 	// the ToLowered name of the resource, not including the group.
 	etcdResourcePrefix string
 	// mediaType is the desired serializer to choose. If empty, the default is chosen.
-	// 媒体类型决定了当前资源使用的序列化器
+	// 媒体类型决定了当前资源使用哪一种序列化器进行编解码，当前K8S支持JSON, YAML, Protobuf三种格式的编解码
 	mediaType string
 	// serializer contains the list of "special" serializers for a GroupResource.  Resource=* means for the entire group
 	serializer runtime.StorageSerializer
 	// cohabitatingResources keeps track of which resources must be stored together.  This happens when we have multiple ways
 	// of exposing one set of concepts.  autoscaling.HPA and extensions.HPA as a for instance
 	// The order of the slice matters!  It is the priority order of lookup for finding a storage location
-	// 所谓的cohabitating资源指的是一个资源在不同的组下，但是他们时相同的资源，只是因为历史原因在不同的组下。
+	// 所谓的cohabitating资源指的是一个资源在不同的组下，但是他们是相同的资源，只是因为历史原因在不同的组下。
 	cohabitatingResources []schema.GroupResource
 	// encoderDecoratorFn is optional and may wrap the provided encoder prior to being serialized.
-	// 设计的人真TM的牛逼，扩展点时真的多
+	// 设计的人真TM的牛逼，扩展点是真的多
 	encoderDecoratorFn func(runtime.Encoder) runtime.Encoder
 	// decoderDecoratorFn is optional and may wrap the provided decoders (can add new decoders). The order of
 	// returned decoders will be priority for attempt to decode.
@@ -169,6 +177,7 @@ func NewDefaultStorageFactory(
 	specialDefaultResourcePrefixes map[schema.GroupResource]string,
 ) *DefaultStorageFactory {
 	config.Paging = utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
+	// 如果没有指定默认的媒体类型，那么默认就是使用JSON格式存储
 	if len(defaultMediaType) == 0 {
 		defaultMediaType = runtime.ContentTypeJSON
 	}

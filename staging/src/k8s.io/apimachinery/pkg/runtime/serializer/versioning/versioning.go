@@ -72,9 +72,12 @@ func NewCodec(
 	return internal
 }
 
+// 1、codec实在编码器、解码器的基础之上增加了convertor、default功能，实际使用的肯定就是codec。普通的编解码器仅仅完成了编码、解码最最基础的
+// 需要，codec是在此基础之上封装了更加丰富的功能。
 type codec struct {
-	encoder   runtime.Encoder // 编码器
-	decoder   runtime.Decoder // 解码器
+	encoder runtime.Encoder // 编码器，真正完成下苦力完成编码动作
+	decoder runtime.Decoder // 解码器，真正下苦力完成完成解码动作
+
 	convertor runtime.ObjectConvertor
 	creater   runtime.ObjectCreater
 	typer     runtime.ObjectTyper
@@ -169,15 +172,18 @@ func (c *codec) Decode(data []byte, defaultGVK *schema.GroupVersionKind, into ru
 	// if we specify a target, use generic conversion.
 	if into != nil {
 		// perform defaulting if requested
+		// 设置默认值
 		if c.defaulter != nil {
 			c.defaulter.Default(obj)
 		}
 
 		// Short-circuit conversion if the into object is same object
+		// 如果into和obj相等，那么就无需转换
 		if into == obj {
 			return into, gvk, strictDecodingErr
 		}
 
+		// 否则把obj对象转为into对象
 		if err := c.convertor.Convert(obj, into, c.decodeVersion); err != nil {
 			return nil, gvk, err
 		}

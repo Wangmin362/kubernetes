@@ -41,6 +41,7 @@ type GroupVersionRegistry interface {
 }
 
 // MergeResourceEncodingConfigs merges the given defaultResourceConfig with specific GroupVersionResource overrides.
+// 用于设置设置某些GVR的内部版本与外部版本的映射关系
 func MergeResourceEncodingConfigs(
 	defaultResourceEncoding *serverstore.DefaultResourceEncodingConfig,
 	resourceEncodingOverrides []schema.GroupVersionResource,

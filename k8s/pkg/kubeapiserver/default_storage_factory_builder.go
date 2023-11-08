@@ -85,13 +85,13 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 
 // StorageFactoryConfig is a configuration for creating storage factory.
 type StorageFactoryConfig struct {
-	StorageConfig             storagebackend.Config         // 后端存储配置
-	APIResourceConfig         *serverstorage.ResourceConfig // 用于表示GV的启用/禁用，或者是GVR的启用/禁用
-	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig
-	DefaultStorageMediaType   string // 默认的存储媒体类型，TODO 猜测就是根据这个媒体类型协商的序列化器
-	Serializer                runtime.StorageSerializer
-	ResourceEncodingOverrides []schema.GroupVersionResource
-	EtcdServersOverrides      []string
+	StorageConfig             storagebackend.Config                        // 后端存储配置
+	APIResourceConfig         *serverstorage.ResourceConfig                // 用于表示GV的启用/禁用，或者是GVR的启用/禁用
+	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig // 外部版本和内部版本的映射关系
+	DefaultStorageMediaType   string                                       // 默认的存储媒体类型，K8S默认以JSON的方式存储，当然可以设置为其他格式
+	Serializer                runtime.StorageSerializer                    // 序列化器，可以对所有资源进行编解码
+	ResourceEncodingOverrides []schema.GroupVersionResource                // TODO
+	EtcdServersOverrides      []string                                     // 针对某个GR资源的存储配置，可以单独配置某个GR存储在某个ETCD当中
 }
 
 // Complete completes the StorageFactoryConfig with provided etcdOptions returning completedStorageFactoryConfig.
@@ -113,6 +113,7 @@ type completedStorageFactoryConfig struct {
 
 // New returns a new storage factory created from the completed storage factory configuration.
 func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFactory, error) {
+	// 用于设置设置某些GVR的内部版本与外部版本的映射关系
 	resourceEncodingConfig := resourceconfig.MergeResourceEncodingConfigs(c.DefaultResourceEncoding, c.ResourceEncodingOverrides)
 	storageFactory := serverstorage.NewDefaultStorageFactory(
 		c.StorageConfig,
@@ -122,6 +123,7 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 		c.APIResourceConfig,
 		SpecialDefaultResourcePrefixes)
 
+	// 注册等价资源，等价资源是相同的资源在不同的组下
 	storageFactory.AddCohabitatingResources(networking.Resource("networkpolicies"), extensions.Resource("networkpolicies"))
 	storageFactory.AddCohabitatingResources(apps.Resource("deployments"), extensions.Resource("deployments"))
 	storageFactory.AddCohabitatingResources(apps.Resource("daemonsets"), extensions.Resource("daemonsets"))

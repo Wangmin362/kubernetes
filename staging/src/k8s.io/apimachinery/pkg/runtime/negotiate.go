@@ -44,7 +44,9 @@ type clientNegotiator struct {
 func (n *clientNegotiator) Encoder(contentType string, params map[string]string) (Encoder, error) {
 	// TODO: `pretty=1` is handled in NegotiateOutputMediaType, consider moving it to this method
 	// if client negotiators truly need to use it
+	// 获取当前编解码器支持的媒体类型
 	mediaTypes := n.serializer.SupportedMediaTypes()
+	// 根据当前请求获取对应媒体类型的序列化信息，其实主要就是为了获取对应媒体类型的编解码器
 	info, ok := SerializerInfoForMediaType(mediaTypes, contentType)
 	if !ok {
 		if len(contentType) != 0 || len(mediaTypes) == 0 {
@@ -52,6 +54,7 @@ func (n *clientNegotiator) Encoder(contentType string, params map[string]string)
 		}
 		info = mediaTypes[0]
 	}
+	// 构造contentType类型的编解码器
 	return n.serializer.EncoderForVersion(info.Serializer, n.encode), nil
 }
 

@@ -55,6 +55,7 @@ type EtcdOptions struct {
 
 	// To enable protobuf as storage format, it is enough
 	// to set it to "application/vnd.kubernetes.protobuf".
+	// 默认资源个序列化格式，K8S支持JSON, YAML, Protobuf三种格式，默认为JSON格式
 	DefaultStorageMediaType string
 	DeleteCollectionWorkers int
 	EnableGarbageCollection bool

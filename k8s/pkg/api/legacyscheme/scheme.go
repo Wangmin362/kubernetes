@@ -32,8 +32,10 @@ var (
 	Scheme = runtime.NewScheme()
 
 	// Codecs provides access to encoding and decoding for the scheme
+	// 所谓的编解码器，其实就是CodecFactory，可以用于获取每个GV的编解码器
 	Codecs = serializer.NewCodecFactory(Scheme)
 
 	// ParameterCodec handles versioning of objects that are converted to query parameters.
+	// TODO 参数编解码器
 	ParameterCodec = runtime.NewParameterCodec(Scheme)
 )

@@ -55,6 +55,7 @@ func NewDefaultResourceEncodingConfig(scheme *runtime.Scheme) *DefaultResourceEn
 	}
 }
 
+// SetResourceEncoding 注册外部资源和内部资源的映射关系，普通用户使用的都是外部资源，在K8S中使用内部资源(__internal)
 func (o *DefaultResourceEncodingConfig) SetResourceEncoding(
 	resourceBeingStored schema.GroupResource,
 	externalEncodingVersion,

@@ -196,39 +196,47 @@ type StreamSerializerInfo struct {
 // NegotiatedSerializer is an interface used for obtaining encoders, decoders, and serializers
 // for multiple supported media types. This would commonly be accepted by a server component
 // that performs HTTP content negotiation to accept multiple formats.
-// TODO 如何理解这玩意的抽象？
+// 1、所谓的协商序列化器，实际上就是调用方先执行SupportedMediaTypes函数，获取当前序列化器支持的媒体类型，然后根据自己的需要媒体类型调用
+// EncoderForVersion完成编码，调用DecoderToVersion解码
 type NegotiatedSerializer interface {
 	// SupportedMediaTypes is the media types supported for reading and writing single objects.
-	// 当前序列化工厂支持哪些媒体类型的序列化、反序列化
+	// 当前序列化工厂支持哪些媒体类型的序列化、反序列化，需要注意的是SerializerInfo中包含了当前媒体类型的解码器、编码器
 	SupportedMediaTypes() []SerializerInfo
 
 	// EncoderForVersion returns an encoder that ensures objects being written to the provided
 	// serializer are in the provided group version.
+	// 获取gv的编码器，实际上真正完成编码功能的还是serializer,只不过EncoderForVersion做了一些包装，增加了defaulter, converter功能
 	EncoderForVersion(serializer Encoder, gv GroupVersioner) Encoder
 	// DecoderToVersion returns a decoder that ensures objects being read by the provided
 	// serializer are in the provided group version by default.
+	// 获取gv的解码器，实际上真正完成解码功能的还是serializer,只不过DecoderToVersion做了一些包装，增加了defaulter, converter功能
 	DecoderToVersion(serializer Decoder, gv GroupVersioner) Decoder
 }
 
 // ClientNegotiator handles turning an HTTP content type into the appropriate encoder.
 // Use NewClientNegotiator or NewVersionedClientNegotiator to create this interface from
 // a NegotiatedSerializer.
+// 1、所谓的客户端协商器，其实就是根据客户端传递的媒体类型，获取对应类型的编解码器
 type ClientNegotiator interface {
 	// Encoder returns the appropriate encoder for the provided contentType (e.g. application/json)
 	// and any optional mediaType parameters (e.g. pretty=1), or an error. If no serializer is found
 	// a NegotiateError will be returned. The current client implementations consider params to be
 	// optional modifiers to the contentType and will ignore unrecognized parameters.
+	// 根据请求的媒体类型，以及参数获取此媒体类型的编码器
 	Encoder(contentType string, params map[string]string) (Encoder, error)
 	// Decoder returns the appropriate decoder for the provided contentType (e.g. application/json)
 	// and any optional mediaType parameters (e.g. pretty=1), or an error. If no serializer is found
 	// a NegotiateError will be returned. The current client implementations consider params to be
 	// optional modifiers to the contentType and will ignore unrecognized parameters.
+	// 根据请求的媒体类型，以及参数获取此媒体类型的解码器
 	Decoder(contentType string, params map[string]string) (Decoder, error)
 	// StreamDecoder returns the appropriate stream decoder for the provided contentType (e.g.
 	// application/json) and any optional mediaType parameters (e.g. pretty=1), or an error. If no
 	// serializer is found a NegotiateError will be returned. The Serializer and Framer will always
 	// be returned if a Decoder is returned. The current client implementations consider params to be
 	// optional modifiers to the contentType and will ignore unrecognized parameters.
+	// 根据请求的媒体类型，以及参数获取此媒体类型的解码器、序列化器、流解码器
+	// TODO 为什么还需要Decoder, 直接返回(Serializer, Framer, error)不就好了，猜测估计是历史因素
 	StreamDecoder(contentType string, params map[string]string) (Decoder, Serializer, Framer, error)
 }
 
@@ -279,7 +287,9 @@ type NestedObjectDecoder interface {
 ///////////////////////////////////////////////////////////////////////////////
 // Non-codec interfaces
 
-// ObjectDefaulter 通过默认的方法为资源对象设置默认值
+// ObjectDefaulter
+// 1、通过默认的方法为资源对象设置默认值
+// 2、默认值的设置一般发生在解码阶段（Decoder），编码一般不需要
 type ObjectDefaulter interface {
 	// Default takes an object (must be a pointer) and applies any default values.
 	// Defaulters may not error.

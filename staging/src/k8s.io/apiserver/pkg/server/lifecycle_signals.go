@@ -135,6 +135,10 @@ type lifecycleSignals struct {
 
 	// InFlightRequestsDrained event is signaled when the existing requests
 	// in flight have completed. This is used as signal to shut down the audit backends
+	// 1、此信号标识APIServer已经处理完成所有的请求了
+	// 2、为什么需要这个信号呢？ 因为这个信号是用在APIServer关机的时候，我们需要等待APIServer正常响应当前所有已经进来的请求，当要求关机之后，
+	// APIServer将不再接受新的请求，同时需要把当前已经进来的请求处理完成。当所有的请求处理完成之后，InFlightRequestsDrained信号将会被
+	// 发出，表示所有的请求已经处理完毕。关心这个信号的处理器可以进行后续APIServer关机的后续操作
 	InFlightRequestsDrained lifecycleSignal
 
 	// HTTPServerStoppedListening termination event is signaled when the

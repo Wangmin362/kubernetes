@@ -202,6 +202,9 @@ type Config struct {
 	RequestInfoResolver apirequest.RequestInfoResolver
 	// Serializer is required and provides the interface for serializing and converting objects to and from the wire
 	// The default (api.Codecs) usually works fine.
+	// 1、所谓的协商序列化器，实际上就是调用方先执行SupportedMediaTypes函数，获取当前序列化器支持的媒体类型，然后根据自己的需要媒体类型调用
+	// EncoderForVersion完成编码，调用DecoderToVersion解码
+	// 2、简单来说，这玩意支持对于任何资源的JSON, YAML, Protobuf解码
 	Serializer runtime.NegotiatedSerializer
 	// OpenAPIConfig will be used in generating OpenAPI spec. This is nil by default. Use DefaultOpenAPIConfig for "working" defaults.
 	OpenAPIConfig *openapicommon.Config
@@ -604,6 +607,7 @@ func (c *Config) AddPostStartHook(name string, hook PostStartHookFunc) error {
 }
 
 // AddPostStartHookOrDie allows you to add a PostStartHook, but dies on failure.
+// 如果注册不了后置处理器，就直接认为Fatal, 那么Kube-APIServer启动将会失败
 func (c *Config) AddPostStartHookOrDie(name string, hook PostStartHookFunc) {
 	if err := c.AddPostStartHook(name, hook); err != nil {
 		klog.Fatalf("Error registering PostStartHook %q: %v", name, err)
@@ -650,12 +654,17 @@ func completeOpenAPI(config *openapicommon.Config, version *version.Info) {
 }
 
 // DrainedNotify returns a lifecycle signal of genericapiserver already drained while shutting down.
+// 1、此信号标识APIServer已经处理完成所有的请求了
+// 2、为什么需要这个信号呢？ 因为这个信号是用在APIServer关机的时候，我们需要等待APIServer正常响应当前所有已经进来的请求，当要求关机之后，
+// APIServer将不再接受新的请求，同时需要把当前已经进来的请求处理完成。当所有的请求处理完成之后，InFlightRequestsDrained信号将会被
+// 发出，表示所有的请求已经处理完毕。关心这个信号的处理器可以进行后续APIServer关机的后续操作
 func (c *Config) DrainedNotify() <-chan struct{} {
 	return c.lifecycleSignals.InFlightRequestsDrained.Signaled()
 }
 
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
+// 1、用于根据目前的配置，填充一些配置，或者给某些配置设置默认值
 func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedConfig {
 	if len(c.ExternalAddress) == 0 && c.PublicAddress != nil {
 		c.ExternalAddress = c.PublicAddress.String()

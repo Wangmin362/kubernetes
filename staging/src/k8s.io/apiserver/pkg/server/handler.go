@@ -40,7 +40,7 @@ import (
 // and the nonGoRestful handler (which can contain a fallthrough of its own)
 // FullHandlerChain -> Director -> {GoRestfulContainer,NonGoRestfulMux} based on inspection of registered web services
 // TODO 如何理解APIServerHandler的抽象
-// 1、APIServerHandler本质上就是要一个http.Handler
+// 1、APIServerHandler本质上就是要一个http.Handler，用于处理HTTP请求
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
@@ -74,6 +74,9 @@ type APIServerHandler struct {
 	// order to handle "normal" paths and delegation. Hopefully no API consumers will ever have to deal with this level of detail.  I think
 	// we should consider completely removing gorestful.
 	// Other servers should only use this opaquely to delegate to an API server.
+	// 1、直接处理请求，无需再经过认证、鉴权、审计、限流等处理器
+	// 2、为什么需要这么一个Director呢？是因为当有多个GenericServer级联时，只需要第一个GenericServer完成认证、鉴权、审计、限流等操作即可。
+	// 后续的GenericServer收到请求的时候直接处理请求即可，不需要再次执行相同的动作，完全没有必要。
 	Director http.Handler
 }
 

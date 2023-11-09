@@ -77,7 +77,7 @@ type APIGroupInfo struct {
 	// Info about the resources in this group. It's a map from version to resource to the storage.
 	// 1、既然是group信息，那么group肯定是固定的，那么这里的第一级key为version， 第二级key为kind，譬如deployment, deployment/status,
 	// daemonset, daemonset/status, job等等资源
-	// TODO 2、保存每个组员的存储信息，非常重要
+	// 2、这里主要就是每个资源的增删改查操作
 	VersionedResourcesStorageMap map[string]map[string]rest.Storage
 	// OptionsExternalVersion controls the APIVersion used for common objects in the
 	// schema like api.Status, api.DeleteOptions, and metav1.ListOptions. Other implementors may
@@ -125,7 +125,7 @@ type GenericAPIServer struct {
 	discoveryAddresses discovery.Addresses
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
-	// 用于通过回环网卡访问自己的客户端配置
+	// 用于通过回环网卡访问APIServer的客户端配置
 	LoopbackClientConfig *restclient.Config
 
 	// minRequestTimeout is how short the request timeout can be.  This is used to build the RESTHandlerf
@@ -140,7 +140,7 @@ type GenericAPIServer struct {
 	// legacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup
 	// 1、我们一般把Legacy资源称之为核心资源
-	// 2、这里虽然是一个数组，但实际上核心资源的前缀只有/api，没有其它
+	// 2、这里虽然是一个数组，但实际上核心资源的前缀只有/api，没有其它的前缀
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
@@ -183,7 +183,7 @@ type GenericAPIServer struct {
 	// DiscoveryGroupManager serves /apis in an unaggregated form.
 	// 1、组管理器可以允许动态的修改已经存在的WebService，支持添加、删除组
 	// 2、组管理器的功能非常简单，就是用于维护当前GenericServer所管理的组。组管理器本质上是一个http.Handler，用户通过组管理器可以知道集群中
-	// 可以使用的组有哪些。  我们可以通过kubectl get --raw=/apis的方式查询非核心资源意外的所有组。
+	// 可以使用的组有哪些。  我们可以通过kubectl get --raw=/apis的方式查询非核心资源以外的所有组。
 	// 3、ExtensionServer、AIPServer、AggregatedServer在启动过程当中一定会对组管理器进行初始化，并且把组管理器返回的路由注册到GenericServer
 	// 当中，从而支持HTTP请求的查询
 	DiscoveryGroupManager discovery.GroupManager
@@ -237,14 +237,17 @@ type GenericAPIServer struct {
 	preShutdownHooksCalled bool
 
 	// healthz checks
+	// 可以通过kubectl get --raw=/healthz查询GenericServer健康状况
 	healthzLock            sync.Mutex
 	healthzChecks          []healthz.HealthChecker
 	healthzChecksInstalled bool
 	// livez checks
+	// 可以通过kubectl get --raw=/livez查询GenericServer存活状况
 	livezLock            sync.Mutex
 	livezChecks          []healthz.HealthChecker
 	livezChecksInstalled bool
 	// readyz checks
+	// 可以通过kubectl get --raw=/readyz查询GenericServer就绪状况
 	readyzLock            sync.Mutex
 	readyzChecks          []healthz.HealthChecker
 	readyzChecksInstalled bool
@@ -252,7 +255,7 @@ type GenericAPIServer struct {
 	livezClock            clock.Clock
 
 	// auditing. The backend is started before the server starts listening.
-	// 审计配置
+	// TODO 如何理解审计后端
 	AuditBackend audit.Backend
 
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary

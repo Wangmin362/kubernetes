@@ -168,7 +168,7 @@ type GenericAPIServer struct {
 	// "Outputs"
 	// Handler holds the handlers being used by this API server
 	// 1、APIServerHandler实际上就是一个http.Handler，用于处理HTTP请求。
-	// 2、ExtensionServer, APIServer, Aggregated在初始化的时候会把相关的路由注册到GenericServer当中
+	// 2、ExtensionServer, APIServer, Aggregated在初始化的时候会把相关的路由注册到GenericServer当中 TODO 路由都是在这里
 	Handler *APIServerHandler
 
 	// UnprotectedDebugSocket is used to serve pprof information in a unix-domain socket. This socket is

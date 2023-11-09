@@ -27,8 +27,8 @@ import (
 // StorageDecorator is a function signature for producing a storage.Interface
 // and an associated DestroyFunc from given parameters.
 type StorageDecorator func(
-	config *storagebackend.ConfigForResource,
-	resourcePrefix string,
+	config *storagebackend.ConfigForResource, // 资源的存储配置，其中包含了每个资源最为重要的编解码器
+	resourcePrefix string, // 资源前缀
 	keyFunc func(obj runtime.Object) (string, error),
 	newFunc func() runtime.Object,
 	newListFunc func() runtime.Object,

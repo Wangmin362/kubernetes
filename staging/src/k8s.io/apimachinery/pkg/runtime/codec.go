@@ -255,6 +255,7 @@ func (s base64Serializer) Identifier() Identifier {
 
 func (s base64Serializer) Decode(data []byte, defaults *schema.GroupVersionKind, into Object) (Object, *schema.GroupVersionKind, error) {
 	out := make([]byte, base64.StdEncoding.DecodedLen(len(data)))
+	// 使用bas64的方式解码
 	n, err := base64.StdEncoding.Decode(out, data)
 	if err != nil {
 		return nil, nil, err

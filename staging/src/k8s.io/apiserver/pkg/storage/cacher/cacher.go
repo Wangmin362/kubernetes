@@ -252,6 +252,7 @@ type indexedTriggerFunc struct {
 // based on the underlying storage contents.
 // Cacher implements storage.Interface (although most of the calls are just
 // delegated to the underlying storage).
+// 用于缓存Watch以及List操作
 type Cacher struct {
 	// HighWaterMarks for performance debugging.
 	// Important: Since HighWaterMark is using sync/atomic, it has to be at the top of the struct due to a bug on 32-bit platforms

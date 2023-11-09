@@ -151,7 +151,7 @@ type Config struct {
 	EnableContentionProfiling bool
 	EnableMetrics             bool
 
-	// TODO PostStartHook在什么时候点被调用？一般如何使用？最佳实践是什么？
+	// TODO PostStartHook在什么时候被调用？一般如何使用？最佳实践是什么？
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
 	// TODO GenericServer配置在初始化的时候一般会添加哪些PostStartHook，APIServer, AggregatorServer, ExtensionServer都添加了哪些PostStartHook?
@@ -211,6 +211,7 @@ type Config struct {
 	SkipOpenAPIInstallation bool
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
+	// 非常重要的属性，可以用来获取每个资源的存储配置，譬如编解码器，存储后端
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// If specified, all requests except those which match the LongRunningFunc predicate will timeout

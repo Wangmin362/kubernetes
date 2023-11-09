@@ -917,6 +917,7 @@ func (r *resourceTransformer) transformer() value.Transformer {
 	return transformerFromOverrides(r.transformTracker.Load().(*transformTracker).transformerOverrides, r.resource)
 }
 
+// ResourceTransformers TODO 什么叫做资源转换？ 似乎是和加密有关
 type ResourceTransformers interface {
 	TransformerForResource(resource schema.GroupResource) value.Transformer
 }

@@ -28,9 +28,9 @@ import (
 
 // RESTOptions is set of resource-specific configuration options to generic registries.
 type RESTOptions struct {
-	// 存储配置
+	// 存储配置，其中包含非常重要的编解码器
 	StorageConfig *storagebackend.ConfigForResource
-	// 存储后端
+	// 存储后端，实际上可以理解为ETCD的客户端
 	Decorator StorageDecorator
 
 	EnableGarbageCollection   bool
@@ -40,11 +40,12 @@ type RESTOptions struct {
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
 
-// Implement RESTOptionsGetter so that RESTOptions can directly be used when available (i.e. tests)
+// GetRESTOptions Implement RESTOptionsGetter so that RESTOptions can directly be used when available (i.e. tests)
 func (opts RESTOptions) GetRESTOptions(schema.GroupResource) (RESTOptions, error) {
 	return opts, nil
 }
 
+// RESTOptionsGetter 可以获取每个资源的存储配置
 type RESTOptionsGetter interface {
 	GetRESTOptions(resource schema.GroupResource) (RESTOptions, error)
 }

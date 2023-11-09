@@ -585,11 +585,12 @@ func buildGenericConfig(
 	// TODO APIServer的存储系统这一节必须得好好分析分析
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
-	// TODO StorageFactoryConfig
+	// 实例化存储工厂，通过存储工厂，我们可以知道如何编解码每个资源
 	storageFactory, lastErr = storageFactoryConfig.Complete(s.Etcd).New()
 	if lastErr != nil {
 		return
 	}
+	// 最最重要的是实例化了GenericServer的RESTOptionsGetter
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}

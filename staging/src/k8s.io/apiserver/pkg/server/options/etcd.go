@@ -362,6 +362,7 @@ type StorageFactoryRestOptionsFactory struct {
 }
 
 func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupResource) (generic.RESTOptions, error) {
+	// 获取指定资源的存储配置，其中包含了最为重要的编解码器
 	storageConfig, err := f.StorageFactory.NewConfig(resource)
 	if err != nil {
 		return generic.RESTOptions{}, fmt.Errorf("unable to find storage destination for %v, due to %v", resource, err.Error())
@@ -379,6 +380,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 
 	// 如果启用了缓存，那么APIServer将会缓存ETCD所有资源对象
 	if f.Options.EnableWatchCache {
+		// 如果针对于某些资源单独进行了配置
 		sizes, err := ParseWatchCacheSizes(f.Options.WatchCacheSizes)
 		if err != nil {
 			return generic.RESTOptions{}, err

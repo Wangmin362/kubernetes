@@ -153,6 +153,7 @@ var (
 type ExtraConfig struct {
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 
+	// 用于判断某个GVR，或者是某个组是否被启用
 	APIResourceConfigSource  serverstorage.APIResourceConfigSource
 	StorageFactory           serverstorage.StorageFactory
 	EndpointReconcilerConfig EndpointReconcilerConfig

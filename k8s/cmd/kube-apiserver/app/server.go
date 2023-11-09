@@ -367,17 +367,18 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	error,
 ) {
 	// TODO 理解golang HTTP设计  ProxyTransport是什么时候使用的？
-	// Transport用于APIServer去连接Node节点，这是一个HTTPS客户端配置
+	// Transport用于APIServer去连接Node节点，这是一个HTTPS客户端配置，虽然是客户端，但是必须要配置证书，因为K8S的HTTPS通信都是双向通信
 	proxyTransport := CreateProxyTransport()
 
-	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的
-	// 2、在KubeAPIServer当中，APIServer, ExtensionServer, AggregatedServer都是GenericServer
+	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的配置，通过这个配置
+	// 可以实例化一个GenericServer
+	// 2、在KubeAPIServer当中，APIServer, ExtensionServer, AggregatedServer本质上都是GenericServer
 	// 3、versionedInformers：本质上就是SharedInformerFactory，用于缓存K8S各种资源
 	// 4、serviceResolver：用于把Service转为一个可用的URL，其实就是用于把Service转为一个可用的URL
 	// 5、pluginInitializers：这里所说的插件其实指的是准入插件，K8S中有许多内置的准入插件，用户也可以定制Webhook准入插件。这里的插件
 	// 初始化器是为了向插件注入需要的依赖。 TODO 好好再分析下
-	// 6、admissionPostStartHook：准入插件后置启动回调 TODO 什么时候被调用？生命周期？
-	// 7、storageFactory：TODO APIServer的存储是如何设计的？
+	// 6、admissionPostStartHook：GenericServer的后置处理器，GenericServer启动之后将会调用后置处理器 TODO 什么时候被调用？生命周期？
+	// 7、storageFactory：K8S资源存储系统这一套设计的还是相当的复杂 TODO APIServer的存储是如何设计的？
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
 		admissionPostStartHook, storageFactory, err := buildGenericConfig(s.ServerRunOptions, proxyTransport)
 	if err != nil {
@@ -499,18 +500,18 @@ func buildGenericConfig(
 	s *options.ServerRunOptions, // 此参数为用户启动KubeAPIServer传入的参数
 	proxyTransport *http.Transport, // 此参数用于完成HTTP协议的解析
 ) (
-	genericConfig *genericapiserver.Config, // GenericServer配置
+	genericConfig *genericapiserver.Config, // GenericServer配置，可以用来实例化一个GenericServer
 	versionedInformers clientgoinformers.SharedInformerFactory, // SharedInformerFactory，用于缓存K8S所有资源
-	serviceResolver aggregatorapiserver.ServiceResolver, // 服务解析器，用于把Server解析为URL
-	pluginInitializers []admission.PluginInitializer, // 插件初始化器  用于向webhook插件注入依赖
-	admissionPostStartHook genericapiserver.PostStartHookFunc, // GenericServer的PostStartHook，应该是给准入控制插件使用的
-	storageFactory *serverstorage.DefaultStorageFactory, // 存储工厂，用于构建K8S的后端存储
+	serviceResolver aggregatorapiserver.ServiceResolver, // 服务解析器，用于把Service解析为URL
+	pluginInitializers []admission.PluginInitializer, // 插件初始化器  用于向准入插件注入某些依赖
+	admissionPostStartHook genericapiserver.PostStartHookFunc, // GenericServer的后置处理器，
+	storageFactory *serverstorage.DefaultStorageFactory, // 存储工厂用于构建K8S的后端存储，通过存储工厂可以获取任意资源的存储配置以及最为重要的编解码器
 	lastErr error,
 ) {
 	// 1、生成GenericServer配置，此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、
 	// 流控（也就是限速）、审计、链路追踪配置
 	// 2、这里生成的配置仅仅是初始化配置，仅仅会设置一些默认参数，用户配置的参数还没有赋值
-	// 3、TODO 这里比较重要的就是其中配置了请求处理链
+	// 3、这里比较重要的就是其中配置了请求处理链
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 
 	// 后续开始给初始化GenericServer配置
@@ -526,6 +527,7 @@ func buildGenericConfig(
 	}
 
 	// 利用用户设置的SecureServing参数初始化GenericServerConfig配置的HTTPS服务启动参数、回环客户端参数
+	// TODO 分析动态证书原理
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}

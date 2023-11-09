@@ -255,7 +255,8 @@ type GenericAPIServer struct {
 	livezClock            clock.Clock
 
 	// auditing. The backend is started before the server starts listening.
-	// TODO 如何理解审计后端
+	// 1、所谓的审计后端，其实就是保存审计日志的地方
+	// 2、K8S支持的审计后端最典型的就是日志以及webhook审计后端
 	AuditBackend audit.Backend
 
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary

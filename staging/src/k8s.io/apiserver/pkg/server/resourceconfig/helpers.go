@@ -114,8 +114,8 @@ func MergeAPIResourceConfigs(
 		enabled              bool
 		groupVersionResource schema.GroupVersionResource
 	}
-	versionPreferences := []versionEnablementPreference{}
-	resourcePreferences := []resourceEnablementPreference{}
+	var versionPreferences []versionEnablementPreference
+	var resourcePreferences []resourceEnablementPreference
 
 	// "<resourceSpecifier>={true|false} allows users to enable/disable API.
 	// This takes preference over api/all, if specified.

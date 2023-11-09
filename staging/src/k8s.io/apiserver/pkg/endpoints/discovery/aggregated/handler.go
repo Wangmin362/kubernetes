@@ -50,7 +50,7 @@ const (
 // ResourceManager This handler serves the /apis endpoint for an aggregated list of
 // api resources indexed by their group version.
 // TODO 资源管理器是如何管理资源的？它提供了什么功能？
-// 1、资源管理器本章上也是一个http.Handler
+// 1、资源管理器本质上也是一个http.Handler
 type ResourceManager interface {
 	// AddGroupVersion Adds knowledge of the given groupversion to the discovery document
 	// If it was already being tracked, updates the stored APIVersionDiscovery

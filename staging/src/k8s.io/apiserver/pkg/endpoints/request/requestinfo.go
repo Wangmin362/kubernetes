@@ -41,11 +41,19 @@ type RequestInfoResolver interface {
 // RequestInfo holds information parsed from the http.Request
 type RequestInfo struct {
 	// IsResourceRequest indicates whether or not the request is for an API resource or subresource
+	// 1、是否是资源请求，所谓的资源请求就是需要增删改查K8S资源的请求，譬如/versions, /apis, /apis/<group>, /apis/<group>/<version>,
+	// /apis/<group>/<version>/<resource>
+	// 2、所谓的非资源请求，其实指的是类似这样的请求：/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
+	//	// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
+	//	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests, /healthz,
+	//	// /livez, /readyz, /openapi/v2, /openapi/v3
 	IsResourceRequest bool
 	// Path is the URL path of the request
+	// 请求的URL路径
 	Path string
 	// Verb is the kube verb associated with the request for API requests, not the http verb.  This includes things like list and watch.
 	// for non-resource requests, this is the lowercase http verb
+	// 请求的动作
 	Verb string
 
 	APIPrefix  string
@@ -57,6 +65,7 @@ type RequestInfo struct {
 	// Subresource is the name of the subresource being requested.  This is a different resource, scoped to the parent resource, but it may have a different kind.
 	// For instance, /pods has the resource "pods" and the kind "Pod", while /pods/foo/status has the resource "pods", the sub resource "status", and the kind "Pod"
 	// (because status operates on pods). The binding resource for a pod though may be /pods/foo/binding, which has resource "pods", subresource "binding", and kind "Binding".
+	// 有可能操作的是子资源
 	Subresource string
 	// Name is empty for some verbs, but if the request directly indicates a name (not in body content) then this field is filled in.
 	Name string

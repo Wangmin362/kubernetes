@@ -101,7 +101,7 @@ const (
 // 2、此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、流控（也就是限速）、审计、链路追踪配置
 type Config struct {
 	// SecureServing is required to serve https
-	// 提供HTTPS服务配置，主要有监听地址，监听端口、证书
+	// 提供HTTPS服务配置，主要有监听地址，监听端口、证书，在K8S当中，由于所有的HTTPS都是双向认证，因此客户端、服务端都需要配置证书
 	SecureServing *SecureServingInfo
 
 	// Authentication is the configuration for authentication
@@ -122,17 +122,24 @@ type Config struct {
 
 	// EgressSelector provides a lookup mechanism for dialing outbound connections.
 	// It does so based on a EgressSelectorConfiguration which was read at startup.
+	// TODO 和Konnectivity相关的特性
 	EgressSelector *egressselector.EgressSelector
 
 	// RuleResolver is required to get the list of rules that apply to a given user
 	// in a given namespace
+	// TODO 鉴权相关
 	RuleResolver authorizer.RuleResolver
 	// AdmissionControl performs deep inspection of a given request (including content)
 	// to set values and determine whether its allowed
-	AdmissionControl      admission.Interface
+	// TODO 准入控制相关 学习准入控制插件的设计思想
+	AdmissionControl admission.Interface
+	// 1、跨域设置，即允许那些Origin，默认为空。
+	// 2、如果为空，表示不启用跨域，因此当浏览器跨域时将会被阻止
 	CorsAllowedOriginList []string
-	HSTSDirectives        []string
+	// TODO 这玩意时HTTP的安全设置，后续有空再研究
+	HSTSDirectives []string
 	// FlowControl, if not nil, gives priority and fairness to request handling
+	// TODO APIServer的流控，也就是所谓的限速，通过此配置，可以实现细粒度的流控限制
 	FlowControl utilflowcontrol.Interface
 
 	// 1、这里的Index，并所值开启索引，而是是否开启网站的/index.html路由以及/路由
@@ -143,31 +150,49 @@ type Config struct {
 	// 1、开启profile之后，会想GenericServer当中注册/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
 	// /debug/pprof/trace路由
 	// 2、我们可以通过kubectl get --raw=/debug/pprof来测试接口
+	// 3、默认是开启的
 	EnableProfiling bool
 	DebugSocketPath string // TODO 分析DebugSocket的作用
-	EnableDiscovery bool   // TODO 这玩意干嘛的？
+	// 1、是否允许发现资源组的发现，如果允许发现，那么将会GenericServer由添加/apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+	// /apis/<group>/<version>/<resource>路由，并遍历安装所有除了核心资源外的其余资源的路由
+	// 2、如果开启资源组的发现，我们可以通过 kubectl get --raw=/apis 可以获取到除了核心组意外的所有资源
+	// 3、默认就是开启的
+	EnableDiscovery bool // TODO 这玩意干嘛的？
 
 	// Requires generic profiling enabled
+	// TODO 什么叫做BlockProfiling
 	EnableContentionProfiling bool
-	EnableMetrics             bool
+	// 1、如果启用了Metric，添加/metrics, /metrics/slis路由
+	// 2、默认是启用的
+	EnableMetrics bool
 
 	// TODO PostStartHook在什么时候被调用？一般如何使用？最佳实践是什么？
+	// 1、顾名思义，就是就是被禁用的后置回调，在GenericServer中，一但某个后置回调被禁用，那么这个后置回调通过GenericServerConfig.AddPostStartHook
+	// 函数时就无法被添加
+	// 2、显然禁用的后置回调应该在后置回调调用GenericServerConfig.AddPostStartHook之前被写入，否则肯定无法起到被禁用的效果。
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
 	// TODO GenericServer配置在初始化的时候一般会添加哪些PostStartHook，APIServer, AggregatorServer, ExtensionServer都添加了哪些PostStartHook?
+	// 1、所谓后置回调，其实就是GenericServer启动之后，需要执行的回调函数
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
+	// 当前的版本信息，当用户调用kubectl get --raw=/version接口时，此信息将会被返回
 	Version *version.Info
 	// AuditBackend is where audit events are sent to.
+	// 1、所谓的审计后端，其实就是保存审计日志的地方
+	// 2、K8S支持的审计后端最典型的就是日志以及webhook审计后端
 	AuditBackend audit.Backend
 	// AuditPolicyRuleEvaluator makes the decision of whether and how to audit log a request.
+	// 审计策略规则评估器，所谓的审计策略，其实就是用于配置哪些审计日志需要保存，哪些不需要保存。
 	AuditPolicyRuleEvaluator audit.PolicyRuleEvaluator
 	// ExternalAddress is the host name to use for external (public internet) facing URLs (e.g. Swagger)
 	// Will default to a value based on secure serving info and available ipv4 IPs.
+	// TODO 暂时不清楚这玩意有啥用
 	ExternalAddress string
 
 	// TracerProvider can provide a tracer, which records spans for distributed tracing.
+	// TODO 链路跟踪有关
 	TracerProvider tracing.TracerProvider
 
 	//===========================================================================
@@ -175,30 +200,39 @@ type Config struct {
 	//===========================================================================
 
 	// BuildHandlerChainFunc allows you to build custom handler chains by decorating the apiHandler.
-	// 用于构建请求处理链，默认的请求处理链所在位置为：staging/src/k8s.io/apiserver/pkg/server/config.go
+	// 1、用于构建请求处理链，默认的请求处理链所在位置为：staging/src/k8s.io/apiserver/pkg/server/config.go
+	// 2、请求调用链的模式有点像是委派模式，一个handler处理之后会把请求委派给下一个handler
 	BuildHandlerChainFunc func(apiHandler http.Handler, c *Config) (secure http.Handler)
 	// NonLongRunningRequestWaitGroup allows you to wait for all chain
 	// handlers associated with non long-running requests
 	// to complete while the server is shuting down.
+	// TODO 分析作用
 	NonLongRunningRequestWaitGroup *utilwaitgroup.SafeWaitGroup
 	// WatchRequestWaitGroup allows us to wait for all chain
 	// handlers associated with active watch requests to
 	// complete while the server is shuting down.
+	// TODO 分析作用
 	WatchRequestWaitGroup *utilwaitgroup.RateLimitedSafeWaitGroup
 	// DiscoveryAddresses is used to build the IPs pass to discovery. If nil, the ExternalAddress is
 	// always reported
+	// 用于返回给客户端合适的ServerAddress TODO 还需要分析的再详细一些
 	DiscoveryAddresses discovery.Addresses
 	// The default set of healthz checks. There might be more added via AddHealthChecks dynamically.
+	// 健康检测回调
 	HealthzChecks []healthz.HealthChecker
 	// The default set of livez checks. There might be more added via AddHealthChecks dynamically.
+	// 存活回调
 	LivezChecks []healthz.HealthChecker
 	// The default set of readyz-only checks. There might be more added via AddReadyzChecks dynamically.
+	// 就绪回调
 	ReadyzChecks []healthz.HealthChecker
 	// LegacyAPIGroupPrefixes is used to set up URL parsing for authorization and for validating requests
 	// to InstallLegacyAPIGroup. New API servers don't generally have legacy groups at all.
+	// Legacy资源的路由前缀，虽然是个数组，实际上Legacy的路有前缀就是/api
 	LegacyAPIGroupPrefixes sets.String
 	// RequestInfoResolver is used to assign attributes (used by admission and authorization) based on a request URL.
 	// Use-cases that are like kubelets may need to customize this.
+	// 用于从HTTP请求中解析出认证、鉴权需要的信息，譬如GVR、名称空间、动作、用户信息、路径
 	RequestInfoResolver apirequest.RequestInfoResolver
 	// Serializer is required and provides the interface for serializing and converting objects to and from the wire
 	// The default (api.Codecs) usually works fine.
@@ -214,38 +248,48 @@ type Config struct {
 	SkipOpenAPIInstallation bool
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
-	// 非常重要的属性，可以用来获取每个资源的存储配置，譬如编解码器，存储后端
+	// 非常重要的属性，可以用来获取每个资源的存储配置，譬如编解码器，存储后端  TODO 相当重要
 	RESTOptionsGetter genericregistry.RESTOptionsGetter
 
 	// If specified, all requests except those which match the LongRunningFunc predicate will timeout
 	// after this duration.
+	// 默认设置为60秒
 	RequestTimeout time.Duration
 	// If specified, long running requests such as watch will be allocated a random timeout between this value, and
 	// twice this value.  Note that it is up to the request handlers to ignore or honor this timeout. In seconds.
+	// 默认设置为1800秒
 	MinRequestTimeout int
 
 	// This represents the maximum amount of time it should take for apiserver to complete its startup
 	// sequence and become healthy. From apiserver's start time to when this amount of time has
 	// elapsed, /livez will assume that unfinished post-start hooks will complete successfully and
 	// therefore return true.
+	// TODO 默认为0
 	LivezGracePeriod time.Duration
 	// ShutdownDelayDuration allows to block shutdown for some time, e.g. until endpoints pointing to this API server
 	// have converged on all node. During this time, the API server keeps serving, /healthz will return 200,
 	// but /readyz will return failure.
+	// TODO 默认为0
 	ShutdownDelayDuration time.Duration
 
 	// The limit on the total size increase all "copy" operations in a json
 	// patch may cause.
 	// This affects all places that applies json patch in the binary.
+	// GenericServer接收到的Patch请求，Body大小限制，默认最多支持3MB的大小
 	JSONPatchMaxCopyBytes int64
 	// The limit on the request size that would be accepted and decoded in a write request
 	// 0 means no limit.
+	// GenericServer接收到的请求，Body大小限制，默认最多支持3MB的大小
 	MaxRequestBodyBytes int64
 	// MaxRequestsInFlight is the maximum number of parallel non-long-running requests. Every further
 	// request has to wait. Applies only to non-mutating requests.
+	// 1、设置GenericServer的并发数
+	// 2、默认APIServer每秒钟最多只能同时处理400个请求
 	MaxRequestsInFlight int
 	// MaxMutatingRequestsInFlight is the maximum number of parallel mutating requests. Every further
 	// request has to wait.
+	// 1、设置GenericServer的修改类型的请求的并发数
+	// 2、默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
 	MaxMutatingRequestsInFlight int
 	// Predicate which is true for paths of long-running http requests
 	// 1、用于检测当前的请求是否是一个长时间的请求
@@ -258,6 +302,7 @@ type Config struct {
 	// GOAWAY, the in-flight requests will not be affected and new requests will use
 	// a new TCP connection to triggering re-balancing to another server behind the load balance.
 	// Default to 0, means never send GOAWAY. Max is 0.02 to prevent break the apiserver.
+	// TODO 仔细分析
 	GoawayChance float64
 
 	// MergedResourceConfig indicates which groupVersion enabled and its resources enabled/disabled.
@@ -270,6 +315,7 @@ type Config struct {
 	// lifecycleSignals provides access to the various signals
 	// that happen during lifecycle of the apiserver.
 	// it's intentionally marked private as it should never be overridden.
+	// 生命周期信号，关注生命周期信号的组件在收到信号之后会执行某些动作
 	lifecycleSignals lifecycleSignals
 
 	// StorageObjectCountTracker is used to keep track of the total number of objects
@@ -284,6 +330,7 @@ type Config struct {
 	// Server as soon as ShutdownDelayDuration has elapsed.
 	// If enabled, after ShutdownDelayDuration elapses, any incoming request is
 	// rejected with a 429 status code and a 'Retry-After' response.
+	// TODO 仔细分析
 	ShutdownSendRetryAfter bool
 
 	//===========================================================================
@@ -293,6 +340,7 @@ type Config struct {
 	// PublicAddress is the IP address where members of the cluster (kubelet,
 	// kube-proxy, services, etc.) can reach the GenericAPIServer.
 	// If nil or 0.0.0.0, the host's default interface will be used.
+	// APIServer的IP地址，通过这个地址，可以用来访问APIServer
 	PublicAddress net.IP
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
@@ -304,6 +352,7 @@ type Config struct {
 	APIServerID string
 
 	// StorageVersionManager holds the storage versions of the API resources installed by this server.
+	// TODO 仔细分析
 	StorageVersionManager storageversion.Manager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
@@ -440,7 +489,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 
 	// 实例化GenericServer配置
 	return &Config{
-		Serializer:                     codecs,
+		Serializer:                     codecs,                                    // 编解码工厂可以完成所有资源的编解码
 		BuildHandlerChainFunc:          DefaultBuildHandlerChain,                  // 构建请求处理链
 		NonLongRunningRequestWaitGroup: new(utilwaitgroup.SafeWaitGroup),          // TODO
 		WatchRequestWaitGroup:          &utilwaitgroup.RateLimitedSafeWaitGroup{}, // TODO
@@ -470,6 +519,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		// A request body might be encoded in json, and is converted to
 		// proto when persisted in etcd, so we allow 2x as the largest size
 		// increase the "copy" operations in a json patch may cause.
+		// GenericServer接收到的Patch请求，Body大小限制，默认最多支持3MB的大小
 		JSONPatchMaxCopyBytes: int64(3 * 1024 * 1024),
 		// 1.5MB is the recommended client request size in byte
 		// the etcd server should accept. See
@@ -480,6 +530,7 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		// If this constant is changed, DefaultMaxRequestSizeBytes in k8s.io/apiserver/pkg/cel/limits.go
 		// should be changed to reflect the new value, if the two haven't
 		// been wired together already somehow.
+		// GenericServer接收到的请求，Body大小限制，默认最多支持3MB的大小
 		MaxRequestBodyBytes: int64(3 * 1024 * 1024),
 
 		// Default to treating watch as a long-running operation
@@ -666,6 +717,7 @@ func (c *Config) DrainedNotify() <-chan struct{} {
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
 // 1、用于根据目前的配置，填充一些配置，或者给某些配置设置默认值
 func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedConfig {
+	// 实际上这玩意就是APIServer的地址
 	if len(c.ExternalAddress) == 0 && c.PublicAddress != nil {
 		c.ExternalAddress = c.PublicAddress.String()
 	}
@@ -695,7 +747,9 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 		c.RequestInfoResolver = NewRequestInfoResolver(c)
 	}
 
+	// 初始化EquivalentResourceRegistry
 	if c.EquivalentResourceRegistry == nil {
+		// 到了这一步，一般RESTOptionsGetter不为空了
 		if c.RESTOptionsGetter == nil {
 			c.EquivalentResourceRegistry = runtime.NewEquivalentResourceRegistry()
 		} else {

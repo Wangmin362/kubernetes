@@ -180,7 +180,7 @@ func (s *ClientCertAuthenticationOptions) GetClientCAContentProvider() (dynamicc
 		return nil, nil
 	}
 
-	// TODO 仔细分析
+	// 监听client-ca文件的变化
 	return dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", s.ClientCA)
 }
 
@@ -400,12 +400,70 @@ func (s *DelegatingAuthenticationOptions) ApplyTo(authenticationInfo *server.Aut
 	return nil
 }
 
+/*
+	extension-apiserver-authentication举例如下
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+
+	name: extension-apiserver-authentication
+	namespace: kube-system
+
+data:
+
+	client-ca-file: |
+	  -----BEGIN CERTIFICATE-----
+	  MIIDBTCCAe2gAwIBAgIIElEi2wpcXo8wDQYJKoZIhvcNAQELBQAwFTETMBEGA1UE
+	  AxMKa3ViZXJuZXRlczAeFw0yMzA4MjUwOTI5MThaFw0zMzA4MjIwOTI5MThaMBUx
+	  EzARBgNVBAMTCmt1YmVybmV0ZXMwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+	  AoIBAQCaaq0vBj5Bex9KR7wtMhxFSJkgk3QOBS4b8RfZxEgyOCtvy8vJvYuph1uX
+	  9lpqvkk+2Xl9/61VOwQO6L7+wG7OCt/8W1cvXaRuggGPMRescWh9OFGd5sprpOo+
+	  4R8ozAfMFOYm5DX+5ZYeL4S/ly7N/QxnbT2pGt1UyApuR4pFBZQcXETOY7Mj4UZo
+	  03W3ImX+IPnwj6vRcjIIxlFrN3bAfgVWnVq3l/ecfkVfP8proNHkIEStuqh4nsjN
+	  yCOfMkxxxbvmAUjO1eHDZfZnFqhcoVusuX1PTEmPctpPsxS6pP9SH1nLJEfWGfUn
+	  ofU/4XjgwkjZ8MuYqUB6d8cA27y1AgMBAAGjWTBXMA4GA1UdDwEB/wQEAwICpDAP
+	  BgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBTiCmKJCLYwjaia4CS2pRoIdTX4EjAV
+	  BgNVHREEDjAMggprdWJlcm5ldGVzMA0GCSqGSIb3DQEBCwUAA4IBAQALuhb14Urp
+	  akdtGybb//cg95nvCuNjRWIYMZxTRDbHk+rX8kEcqz8yUEpySKNk8yPYw1u0x6rs
+	  +pQVRFNGlAeQ8tmR2cEV/zx79ycMRGTHhSxUjlCfPR0lNIeoZVWJGG6xk6t8fG92
+	  UUsItj5EMF95TeyL/22QMHtfabazdL+9Poaj/tsUkSAbpfEggBqp/0s0RYZ/2B4y
+	  N4BzZrk0f3iMG16yy6VXgxXp/7Oh+38hFAS8S50xb2gPnD6qyd+XY1whvoGJj6J1
+	  RoZqpSbjsMLb7SwEizsiBVVjaB8ZcLZIvKU9vxJ7TY1aNNAH3tOWR51FxP5lqP+k
+	  2h92OSiUN2y3
+	  -----END CERTIFICATE-----
+	requestheader-allowed-names: '["front-proxy-client"]'
+	requestheader-client-ca-file: |
+	  -----BEGIN CERTIFICATE-----
+	  MIIDETCCAfmgAwIBAgIIfFrMomj/o5IwDQYJKoZIhvcNAQELBQAwGTEXMBUGA1UE
+	  AxMOZnJvbnQtcHJveHktY2EwHhcNMjMwODI1MDkyOTE4WhcNMzMwODIyMDkyOTE4
+	  WjAZMRcwFQYDVQQDEw5mcm9udC1wcm94eS1jYTCCASIwDQYJKoZIhvcNAQEBBQAD
+	  ggEPADCCAQoCggEBAMuSozjmyTkhSLsZqmEXgUrqfJ/W1lYvmibEamqCerxfkVKF
+	  0LhQNRWA/GmHN6DJvstnlZrPuNKJI6/uwWBudlS5foyaFtrLPTltnAL1pV+4ykOs
+	  rKLiqBU90Ael3CIpWXpfEuqf1R22zyRhAq9MFFwKsCx2VaDlF8vawOA9yc6hTUzi
+	  jk8mdM6Rl6a5xTQ1lSNEXMMMqZk1PviXjB/0J6yAfvjOhoAcA87camUlMpH9l83l
+	  E5aLQrmmkXmPnXHowJAGpGc/qpicMcf9/4YppsQd6HvNhQ50tLTLHsnlnqJY6NAC
+	  wdaLA4rHvaaaUlClCaOLCswPxK7+5H3Xm25HlTUCAwEAAaNdMFswDgYDVR0PAQH/
+	  BAQDAgKkMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFKqCsu0Kf+y/eD/ptdaC
+	  CgrAhtbMMBkGA1UdEQQSMBCCDmZyb250LXByb3h5LWNhMA0GCSqGSIb3DQEBCwUA
+	  A4IBAQBmh0z7P9L0XASmW+hL5Mx7VF4HtwUTOiLngEeahKXdhH5EDLWVO6hYEHa2
+	  ccZWBZJGRLWhHFZrc5UO+gaGqTjKlsyGrLeYLnLHaQSH7CJFnLOiWOE4sPJeT2LB
+	  2zAV1z4LYdEzYawsSOzRVeLHG56+asH0kDY+XuZSZwFwhoxa8mtFZJhMo1mxVz6U
+	  lHtaBaODFwXg5eX1uEVcsS7ctdVAZwuvdfpioYS7S0Gc/m98VJwhV9iGnWTMJ4Tc
+	  A1ogHZa/sW7oV+XvF55oZcMxhOrmrg28jwp4KEkez4HxLm6t2sfiZw/HnJCLi/FH
+	  Wb+qXAw0P6znLTih7C9QbguQfgkv
+	  -----END CERTIFICATE-----
+	requestheader-extra-headers-prefix: '["X-Remote-Extra-"]'
+	requestheader-group-headers: '["X-Remote-Group"]'
+	requestheader-username-headers: '["X-Remote-User"]'
+*/
 const (
 	authenticationConfigMapNamespace = metav1.NamespaceSystem
 	// authenticationConfigMapName is the name of ConfigMap in the kube-system namespace holding the root certificate
 	// bundle to use to verify client certificates on incoming requests before trusting usernames in headers specified
 	// by --requestheader-username-headers. This is created in the cluster by the kube-apiserver.
 	// "WARNING: generally do not depend on authorization being already done for incoming requests.")
+	// TODO 谁创建的 namespace=kube-system,name=extension-apiserver-authentication的configmap
 	authenticationConfigMapName = "extension-apiserver-authentication"
 )
 

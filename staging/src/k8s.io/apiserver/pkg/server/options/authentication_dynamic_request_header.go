@@ -33,7 +33,14 @@ var _ headerrequest.RequestHeaderAuthRequestProvider = &DynamicRequestHeaderCont
 
 // DynamicRequestHeaderController combines DynamicCAFromConfigMapController and RequestHeaderAuthRequestController
 // into one controller for dynamically filling RequestHeaderConfig struct
+// 1、用于获取代理代理认证的五个配置信息，分别如下
+// --requestheader-client-ca-file=xxx # 防止有人绕过认证代理服务
+// --requestheader-allowed-names=xxx
+// --requestheader-username-headers=X-Remote-User
+// --requestheader-group-headers=X-Remote-Group
+// --requestheader-extra-headers-prefix=X-Remote-Extra-
 type DynamicRequestHeaderController struct {
+	// 用于监听某个ConfigMap，获取证书的内容
 	*dynamiccertificates.ConfigMapCAController
 	*headerrequest.RequestHeaderAuthRequestController
 }
@@ -66,7 +73,7 @@ func newDynamicRequestHeaderController(client kubernetes.Interface) (*DynamicReq
 }
 
 func (c *DynamicRequestHeaderController) RunOnce(ctx context.Context) error {
-	errs := []error{}
+	var errs []error
 	errs = append(errs, c.ConfigMapCAController.RunOnce(ctx))
 	errs = append(errs, c.RequestHeaderAuthRequestController.RunOnce(ctx))
 	return errors.NewAggregate(errs)

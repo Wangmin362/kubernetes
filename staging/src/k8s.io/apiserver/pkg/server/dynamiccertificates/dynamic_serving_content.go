@@ -33,15 +33,17 @@ import (
 )
 
 // DynamicCertKeyPairContent provides a CertKeyContentProvider that can dynamically react to new file content
+// 1、用于监听证书、私钥文件的变化
 type DynamicCertKeyPairContent struct {
 	name string
 
 	// certFile is the name of the certificate file to read.
-	certFile string
+	certFile string // 证书文件所在路径
 	// keyFile is the name of the key file to read.
-	keyFile string
+	keyFile string // 私钥文件所在路径
 
 	// certKeyPair is a certKeyContent that contains the last read, non-zero length content of the key and cert
+	// 证书私钥对
 	certKeyPair atomic.Value
 
 	listeners []Listener
@@ -66,6 +68,7 @@ func NewDynamicServingContentFromFiles(purpose, certFile, keyFile string) (*Dyna
 		keyFile:  keyFile,
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("DynamicCABundle-%s", purpose)),
 	}
+	// 加载证书以及私钥
 	if err := ret.loadCertKeyPair(); err != nil {
 		return nil, err
 	}
@@ -145,6 +148,7 @@ func (c *DynamicCertKeyPairContent) Run(ctx context.Context, workers int) {
 	<-ctx.Done()
 }
 
+// 监听证书以及私钥的变化
 func (c *DynamicCertKeyPairContent) watchCertKeyFile(stopCh <-chan struct{}) error {
 	// Trigger a check here to ensure the content will be checked periodically even if the following watch fails.
 	c.queue.Add(workItemKey)

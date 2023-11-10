@@ -388,7 +388,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// TODO 通过Linux的Capability设置是否允许创建特权容器，以及每个连接每秒钟传输的最大字节数
 	capabilities.Setup(s.AllowPrivileged, s.MaxConnectionBytesPerSec)
 
-	// TODO 这里在干嘛
+	// TODO 设置普罗米修斯相关的参数
 	s.Metrics.Apply()
 	// 注册serviceAccount相关指标
 	serviceaccount.RegisterMetrics()
@@ -553,9 +553,11 @@ func buildGenericConfig(
 	// wrap the definitions to revert any changes from disabled features
 	// TODO Swagger是不是和这里相关
 	getOpenAPIDefinitions := openapi.GetOpenAPIDefinitionsWithoutDisabledFeatures(generatedopenapi.GetOpenAPIDefinitions)
-	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(getOpenAPIDefinitions, openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
+	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(getOpenAPIDefinitions,
+		openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIConfig.Info.Title = "Kubernetes"
-	genericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(getOpenAPIDefinitions, openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
+	genericConfig.OpenAPIV3Config = genericapiserver.DefaultOpenAPIV3Config(getOpenAPIDefinitions,
+		openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIV3Config.Info.Title = "Kubernetes"
 
 	// TODO 这里的长时间运行的请求为什么要单独处理，K8S又是怎样处理的？
@@ -579,12 +581,13 @@ func buildGenericConfig(
 		s.Etcd.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
 
-	// ETCD的初始化  主要是像GenericServer中添加了一个名为start-encryption-provider-config-automatic-reload的PostStartHook
+	// ETCD配置补全  主要是像GenericServer中添加了一个名为start-encryption-provider-config-automatic-reload的PostStartHook
+	// TODO 这个后置处理器似乎和ETCD的加密有关，后续有空在分析
 	if lastErr = s.Etcd.Complete(genericConfig.StorageObjectCountTracker, genericConfig.DrainedNotify(), genericConfig.AddPostStartHook); lastErr != nil {
 		return
 	}
 
-	// TODO APIServer的存储系统这一节必须得好好分析分析
+	// 实例化存储工厂配置
 	storageFactoryConfig := kubeapiserver.NewStorageFactoryConfig()
 	storageFactoryConfig.APIResourceConfig = genericConfig.MergedResourceConfig
 	// 实例化存储工厂，通过存储工厂，我们可以知道如何编解码每个资源
@@ -592,7 +595,7 @@ func buildGenericConfig(
 	if lastErr != nil {
 		return
 	}
-	// 最最重要的是实例化了GenericServer的RESTOptionsGetter
+	// 最最重要的是实例化了GenericServer的RESTOptionsGetter  TODO 非常重要
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}

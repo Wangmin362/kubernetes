@@ -40,6 +40,7 @@ var FileRefreshDuration = 1 * time.Minute
 // ControllerRunner is a generic interface for starting a controller
 type ControllerRunner interface {
 	// RunOnce runs the sync loop a single time.  This useful for synchronous priming
+	// TODO 只需要运行一次的场景是什么场景？
 	RunOnce(ctx context.Context) error
 
 	// Run should be called a go .Run
@@ -73,7 +74,7 @@ type caBundleAndVerifier struct {
 }
 
 // NewDynamicCAContentFromFile returns a CAContentProvider based on a filename that automatically reloads content
-// TODO 仔细分析
+// 1、NewDynamicCAContentFromFile用于从一个文件中动态获取证书，这个证书可能是动态变化的
 func NewDynamicCAContentFromFile(purpose, filename string) (*DynamicFileCAContent, error) {
 	if len(filename) == 0 {
 		return nil, fmt.Errorf("missing filename for ca bundle")
@@ -85,6 +86,7 @@ func NewDynamicCAContentFromFile(purpose, filename string) (*DynamicFileCAConten
 		filename: filename,
 		queue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), fmt.Sprintf("DynamicCABundle-%s", purpose)),
 	}
+	// 加载证书，其实就是读取文件，获取证书内容
 	if err := ret.loadCABundle(); err != nil {
 		return nil, err
 	}
@@ -99,6 +101,7 @@ func (c *DynamicFileCAContent) AddListener(listener Listener) {
 
 // loadCABundle determines the next set of content for the file.
 func (c *DynamicFileCAContent) loadCABundle() error {
+	// 读取文件
 	caBundle, err := ioutil.ReadFile(c.filename)
 	if err != nil {
 		return err
@@ -108,6 +111,7 @@ func (c *DynamicFileCAContent) loadCABundle() error {
 	}
 
 	// check to see if we have a change. If the values are the same, do nothing.
+	// 对比证书是否发生变化，如果没有发生变化，直接退出
 	if !c.hasCAChanged(caBundle) {
 		return nil
 	}
@@ -119,6 +123,7 @@ func (c *DynamicFileCAContent) loadCABundle() error {
 	c.caBundle.Store(caBundleAndVerifier)
 	klog.V(2).InfoS("Loaded a new CA Bundle and Verifier", "name", c.Name())
 
+	// 证书发生变化，那么通知所有的Listener
 	for _, listener := range c.listeners {
 		listener.Enqueue()
 	}
@@ -163,6 +168,7 @@ func (c *DynamicFileCAContent) Run(ctx context.Context, workers int) {
 
 	// start the loop that watches the CA file until stopCh is closed.
 	go wait.Until(func() {
+		// 监听文件的变化
 		if err := c.watchCAFile(ctx.Done()); err != nil {
 			klog.ErrorS(err, "Failed to watch CA file, will retry later")
 		}
@@ -271,6 +277,7 @@ func newCABundleAndVerifier(name string, caBundle []byte) (*caBundleAndVerifier,
 	// Wrap with an x509 verifier
 	var err error
 	verifyOptions := defaultVerifyOptions()
+	// 这里应该是在初始化根证书
 	verifyOptions.Roots, err = cert.NewPoolFromBytes(caBundle)
 	if err != nil {
 		return nil, fmt.Errorf("error loading CA bundle for %q: %v", name, err)

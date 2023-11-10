@@ -31,13 +31,15 @@ var _ CAContentProvider = &unionCAContent{}
 var _ ControllerRunner = &unionCAContent{}
 
 // NewUnionCAContentProvider returns a CAContentProvider that is a union of other CAContentProviders
+// 1、联合CAContentProvider，用于同时监听多个CA变化，但凡其中一个CA变化，组件都会得到通知。
+// 2、联合CA内容提供器用于一个组件需要同时监听多个CA变化，只要其中的一个CA发生变化，组件都需要完成某件事情
 func NewUnionCAContentProvider(caContentProviders ...CAContentProvider) CAContentProvider {
 	return unionCAContent(caContentProviders)
 }
 
 // Name is just an identifier
 func (c unionCAContent) Name() string {
-	names := []string{}
+	var names []string
 	for _, curr := range c {
 		names = append(names, curr.Name())
 	}
@@ -46,7 +48,7 @@ func (c unionCAContent) Name() string {
 
 // CurrentCABundleContent provides ca bundle byte content
 func (c unionCAContent) CurrentCABundleContent() []byte {
-	caBundles := [][]byte{}
+	var caBundles [][]byte
 	for _, curr := range c {
 		if currCABytes := curr.CurrentCABundleContent(); len(currCABytes) > 0 {
 			caBundles = append(caBundles, []byte(strings.TrimSpace(string(currCABytes))))

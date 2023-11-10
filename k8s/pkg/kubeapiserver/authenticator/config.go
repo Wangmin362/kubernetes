@@ -99,7 +99,7 @@ type Config struct {
 	// ClientCAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this value is nil, then mutual TLS is disabled.
-	// TODO 分析这玩意的工作原理
+	// CAContentProvider很简单，就是监听某些CABundle的变化，并可以让关心此变化的组件都知晓变化
 	ClientCAContentProvider dynamiccertificates.CAContentProvider
 
 	// Optional field, custom dial function used to connect to webhook

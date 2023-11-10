@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 )
 
+// 所谓静态CA内容提供，其实说就是一个静态值，CA内容永远不会发生变化
 type staticCAContent struct {
 	name     string
 	caBundle *caBundleAndVerifier
@@ -57,6 +58,7 @@ func (c *staticCAContent) VerifyOptions() (x509.VerifyOptions, bool) {
 	return c.caBundle.verifyOptions, true
 }
 
+// 静态证书、私钥提供器
 type staticCertKeyContent struct {
 	name string
 	cert []byte

@@ -55,7 +55,13 @@ func NewConfigMapInformer(client kubernetes.Interface, namespace string, resyncP
 // NewFilteredConfigMapInformer constructs a new informer for ConfigMap type.
 // Always prefer using an informer factory to get a shared informer instead of getting an independent
 // one. This reduces memory footprint and number of connections to the server.
-func NewFilteredConfigMapInformer(client kubernetes.Interface, namespace string, resyncPeriod time.Duration, indexers cache.Indexers, tweakListOptions internalinterfaces.TweakListOptionsFunc) cache.SharedIndexInformer {
+func NewFilteredConfigMapInformer(
+	client kubernetes.Interface, // 访问APIServer的客户端工具
+	namespace string, // 关心哪个名称空间所在的configmap的变化
+	resyncPeriod time.Duration, // 重新同步的周期（重新同步是一个增量同步），Informer本身就实现了增量同步
+	indexers cache.Indexers, // TODO 这玩意因该是缓存
+	tweakListOptions internalinterfaces.TweakListOptionsFunc, // 似乎可以理解为一个过滤器
+) cache.SharedIndexInformer {
 	return cache.NewSharedIndexInformer(
 		&cache.ListWatch{
 			ListFunc: func(options metav1.ListOptions) (runtime.Object, error) {

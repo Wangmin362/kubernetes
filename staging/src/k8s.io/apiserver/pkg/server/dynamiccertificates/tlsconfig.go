@@ -37,20 +37,25 @@ import (
 const workItemKey = "key"
 
 // DynamicServingCertificateController dynamically loads certificates and provides a golang tls compatible dynamic GetCertificate func.
+// 1、DynamicServingCertificateController实际上就是关心CA变化的组件，实现了Listener接口
 type DynamicServingCertificateController struct {
 	// baseTLSConfig is the static portion of the tlsConfig for serving to clients.  It is copied and the copy is mutated
 	// based on the dynamic cert state.
 	baseTLSConfig *tls.Config
 
 	// clientCA provides the very latest content of the ca bundle
+	// 监听CABundle的变化
 	clientCA CAContentProvider
 	// servingCert provides the very latest content of the default serving certificate
+	// 监听证书、私钥的变化
 	servingCert CertKeyContentProvider
 	// sniCerts are a list of CertKeyContentProvider with associated names used for SNI
+	// 监听证书、私钥的变化，同时可以获取SNI
 	sniCerts []SNICertKeyContentProvider
 
 	// currentlyServedContent holds the original bytes that we are serving. This is used to decide if we need to set a
 	// new atomic value. The types used for efficient TLSConfig preclude using the processed value.
+	// 目标
 	currentlyServedContent *dynamicCertificateContent
 	// currentServingTLSConfig holds a *tls.Config that will be used to serve requests
 	currentServingTLSConfig atomic.Value
@@ -84,6 +89,7 @@ func NewDynamicServingCertificateController(
 }
 
 // GetConfigForClient is an implementation of tls.Config.GetConfigForClient
+// 获取TLS配置
 func (c *DynamicServingCertificateController) GetConfigForClient(clientHello *tls.ClientHelloInfo) (*tls.Config, error) {
 	uncastObj := c.currentServingTLSConfig.Load()
 	if uncastObj == nil {
@@ -119,6 +125,7 @@ func (c *DynamicServingCertificateController) GetConfigForClient(clientHello *tl
 }
 
 // newTLSContent determines the next set of content for overriding the baseTLSConfig.
+// 读取CABundle、证书、密钥
 func (c *DynamicServingCertificateController) newTLSContent() (*dynamicCertificateContent, error) {
 	newContent := &dynamicCertificateContent{}
 
@@ -154,6 +161,7 @@ func (c *DynamicServingCertificateController) newTLSContent() (*dynamicCertifica
 // syncCerts gets newTLSContent, if it has changed from the existing, the content is parsed and stored for usage in
 // GetConfigForClient.
 func (c *DynamicServingCertificateController) syncCerts() error {
+	// 读取CABundle、证书、密钥
 	newContent, err := c.newTLSContent()
 	if err != nil {
 		return err

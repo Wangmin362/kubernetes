@@ -34,7 +34,7 @@ var (
 	disabledMetricsLock sync.RWMutex
 	// TODO 这玩意干嘛的？
 	showHidden atomic.Bool
-	// TODO kubeRegistry是啥？
+	// TODO kubeRegistry是啥？  看起来因该是和普罗米修斯有关
 	registries      []*kubeRegistry // stores all registries created by NewKubeRegistry()
 	registriesLock  sync.RWMutex
 	disabledMetrics = map[string]struct{}{}

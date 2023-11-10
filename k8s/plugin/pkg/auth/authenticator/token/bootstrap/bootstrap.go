@@ -87,6 +87,8 @@ func tokenErrorf(s *corev1.Secret, format string, i ...interface{}) {
 // Tokens are expected to be of the form:
 //
 //	( token-id ).( token-secret )
+//
+// BootstrapToken认证倒是一点不复杂，就是需要从token中获取Secret，然后对比其中的数据
 func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
 	// 解析tokenId以及tokenSecret
 	tokenID, tokenSecret, err := bootstraptokenutil.ParseToken(token)
@@ -112,11 +114,13 @@ func (t *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string
 		return nil, false, nil
 	}
 
+	// secret类型必须是：bootstrap.kubernetes.io/token
 	if string(secret.Type) != string(bootstrapapi.SecretTypeBootstrapToken) || secret.Data == nil {
 		tokenErrorf(secret, "has invalid type, expected %s.", bootstrapapi.SecretTypeBootstrapToken)
 		return nil, false, nil
 	}
 
+	// 获取Secret资源中的secret字段
 	ts := bootstrapsecretutil.GetData(secret, bootstrapapi.BootstrapTokenSecretKey)
 	// 比较tokenSecret是否相等
 	if subtle.ConstantTimeCompare([]byte(ts), []byte(tokenSecret)) != 1 {

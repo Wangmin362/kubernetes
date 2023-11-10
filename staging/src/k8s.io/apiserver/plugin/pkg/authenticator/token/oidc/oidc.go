@@ -191,6 +191,7 @@ func (a *asyncIDTokenVerifier) verifier() *oidc.IDTokenVerifier {
 	return a.v
 }
 
+// Authenticator OIDC认证器，用于从OIDC Token中获取认证信息
 type Authenticator struct {
 	issuerURL string
 

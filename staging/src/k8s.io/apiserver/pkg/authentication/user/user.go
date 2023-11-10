@@ -17,6 +17,7 @@ limitations under the License.
 package user
 
 // Info describes a user that has been authenticated to the system.
+// 所有的认证器都需要根据请求携带的认证信息解析出这些用户信息
 type Info interface {
 	// GetName returns the name that uniquely identifies this user among all
 	// other active users.

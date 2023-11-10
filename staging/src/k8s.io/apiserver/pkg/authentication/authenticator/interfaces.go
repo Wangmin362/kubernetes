@@ -25,6 +25,8 @@ import (
 
 // Token checks a string value against a backing authentication store and
 // returns a Response or an error if the token could not be checked.
+// 1、从请求的Token中获取用户信息。
+// 2、K8S支持BearerToken认证，其中BearerToken认证又分为StaticBearerToken认证、BootstrapToken认证、ServiceAccountToken认证、WebhookToken认证
 type Token interface {
 	AuthenticateToken(ctx context.Context, token string) (*Response, bool, error)
 }
@@ -32,11 +34,14 @@ type Token interface {
 // Request attempts to extract authentication information from a request and
 // returns a Response or an error if the request could not be checked.
 // 1、认证器的核心目标是从请求当中抽取出认证信息，不同的认证方式会有不同的认证器从请求当中获取用户信息
+// 2、根据认证信息来源的不同，K8S支持BearerToken认证、X509证书认证、Webhook认证、代理认证。其中BearerToken认证又分为StaticBearerToken认证、
+// BootstrapToken认证、ServiceAccountToken认证、WebhookToken认证
 type Request interface {
 	AuthenticateRequest(req *http.Request) (*Response, bool, error)
 }
 
 // TokenFunc is a function that implements the Token interface.
+// TokenFunc本质上就是Token接口的适配器
 type TokenFunc func(ctx context.Context, token string) (*Response, bool, error)
 
 // AuthenticateToken implements authenticator.Token.
@@ -45,6 +50,7 @@ func (f TokenFunc) AuthenticateToken(ctx context.Context, token string) (*Respon
 }
 
 // RequestFunc is a function that implements the Request interface.
+// RequestFunc本质上就是Request接口的适配器
 type RequestFunc func(req *http.Request) (*Response, bool, error)
 
 // AuthenticateRequest implements authenticator.Request.

@@ -24,6 +24,7 @@ import (
 )
 
 // TokenGroupAdder adds groups to an authenticated user.Info
+// 1、TokenGroupAdder 用于向请求中添加组，当然前提是请求得认证通过
 type TokenGroupAdder struct {
 	// Authenticator is delegated to make the authentication decision
 	Authenticator authenticator.Token

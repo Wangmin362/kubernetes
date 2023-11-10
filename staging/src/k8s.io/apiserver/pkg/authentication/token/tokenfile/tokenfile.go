@@ -29,7 +29,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// TokenAuthenticator
+// 1、静态Token认证实现，用于完成静态Token的认证。
+// 2、map信息是从配置文件中获取的，每一行的格式为：token,user,uid,"group1,group2,group3"，譬如：d13a7184-6df5-11ee-bdac-4f1000e576bf,tom01,1001,"dev,cloud"
+// 3、APIServer启动时候就会加载--token-auth-file=SOMEFILE配置指向的文件，所以只要请求中的Token在此配置文件中，就认为认证通过。只要
+// 不再这个配置文件中，就认为认证不通过。
 type TokenAuthenticator struct {
+	// 1、key为token, Value为用户信息
 	tokens map[string]*user.DefaultInfo
 }
 
@@ -42,7 +48,9 @@ func New(tokens map[string]*user.DefaultInfo) *TokenAuthenticator {
 
 // NewCSV returns a TokenAuthenticator, populated from a CSV file.
 // The CSV file must contain records in the format "token,username,useruid"
+// 这里的path其实就静态Token配置文件
 func NewCSV(path string) (*TokenAuthenticator, error) {
+	// 读取配置文件
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -54,6 +62,7 @@ func NewCSV(path string) (*TokenAuthenticator, error) {
 	reader := csv.NewReader(file)
 	reader.FieldsPerRecord = -1
 	for {
+		// 一行一行的读取
 		record, err := reader.Read()
 		if err == io.EOF {
 			break
@@ -90,9 +99,11 @@ func NewCSV(path string) (*TokenAuthenticator, error) {
 	}, nil
 }
 
-func (a *TokenAuthenticator) AuthenticateToken(ctx context.Context, value string) (*authenticator.Response, bool, error) {
-	user, ok := a.tokens[value]
+func (a *TokenAuthenticator) AuthenticateToken(ctx context.Context, token string) (*authenticator.Response, bool, error) {
+	// 只要在配置文件中，就认为认证通过
+	user, ok := a.tokens[token]
 	if !ok {
+		// 否则认为、认证失败
 		return nil, false, nil
 	}
 	return &authenticator.Response{User: user}, true, nil

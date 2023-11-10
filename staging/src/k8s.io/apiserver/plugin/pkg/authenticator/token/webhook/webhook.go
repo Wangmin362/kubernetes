@@ -64,7 +64,13 @@ type WebhookTokenAuthenticator struct {
 // client. It is recommend to wrap this authenticator with the token cache
 // authenticator implemented in
 // k8s.io/apiserver/pkg/authentication/token/cache.
-func NewFromInterface(tokenReview authenticationv1client.AuthenticationV1Interface, implicitAuds authenticator.Audiences, retryBackoff wait.Backoff, requestTimeout time.Duration, metrics AuthenticatorMetrics) (*WebhookTokenAuthenticator, error) {
+func NewFromInterface(
+	tokenReview authenticationv1client.AuthenticationV1Interface,
+	implicitAuds authenticator.Audiences,
+	retryBackoff wait.Backoff,
+	requestTimeout time.Duration,
+	metrics AuthenticatorMetrics,
+) (*WebhookTokenAuthenticator, error) {
 	tokenReviewClient := &tokenReviewV1Client{tokenReview.RESTClient()}
 	return newWithBackoff(tokenReviewClient, retryBackoff, implicitAuds, requestTimeout, metrics)
 }
@@ -73,7 +79,12 @@ func NewFromInterface(tokenReview authenticationv1client.AuthenticationV1Interfa
 // config. It is recommend to wrap this authenticator with the token cache
 // authenticator implemented in
 // k8s.io/apiserver/pkg/authentication/token/cache.
-func New(config *rest.Config, version string, implicitAuds authenticator.Audiences, retryBackoff wait.Backoff) (*WebhookTokenAuthenticator, error) {
+func New(
+	config *rest.Config, // 请求APIServer客户端配置
+	version string, // TokenReview的版本
+	implicitAuds authenticator.Audiences,
+	retryBackoff wait.Backoff,
+) (*WebhookTokenAuthenticator, error) {
 	tokenReview, err := tokenReviewInterfaceFromConfig(config, version, retryBackoff)
 	if err != nil {
 		return nil, err
@@ -108,6 +119,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 	//     the ctx audiences intersect with the implicit audiences, and set the
 	//     intersection in the response.
 	//   * otherwise return unauthenticated.
+	// 从请求中获取TokenReview信息
 	wantAuds, checkAuds := authenticator.AudiencesFrom(ctx)
 	r := &authenticationv1.TokenReview{
 		Spec: authenticationv1.TokenReviewSpec{

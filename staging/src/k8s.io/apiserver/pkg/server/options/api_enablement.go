@@ -90,7 +90,7 @@ func (s *APIEnablementOptions) Validate(registries ...GroupRegistry) []error {
 func (s *APIEnablementOptions) ApplyTo(
 	c *server.Config, // GenericServer配置
 	defaultResourceConfig *serverstore.ResourceConfig, // 默认启用/禁用的资源
-	registry resourceconfig.GroupVersionRegistry, // TODO 资源注册中心
+	registry resourceconfig.GroupVersionRegistry, // TODO 资源注册中心  实际上就是scheme
 ) error {
 
 	if s == nil {

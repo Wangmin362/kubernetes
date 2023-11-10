@@ -29,6 +29,7 @@ import (
 )
 
 // GroupVersionRegistry provides access to registered group versions.
+// TODO 如何理解GV注册中心？  实际上就是scheme
 type GroupVersionRegistry interface {
 	// IsGroupRegistered returns true if given group is registered.
 	// 返回当前的组是否已经注册
@@ -87,7 +88,7 @@ var (
 func MergeAPIResourceConfigs(
 	defaultAPIResourceConfig *serverstore.ResourceConfig,
 	resourceConfigOverrides cliflag.ConfigurationMap,
-	registry GroupVersionRegistry,
+	registry GroupVersionRegistry, // 实际上就是scheme
 ) (*serverstore.ResourceConfig, error) {
 	resourceConfig := defaultAPIResourceConfig
 	overrides := resourceConfigOverrides

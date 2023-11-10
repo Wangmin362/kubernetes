@@ -93,7 +93,7 @@ func init() {
 
 // NewAPIServerCommand creates a *cobra.Command object with default parameters
 func NewAPIServerCommand() *cobra.Command {
-	// TODO 实例化APIServer需要的参数,
+	// TODO 实例化APIServer参数配置,
 	s := options.NewServerRunOptions()
 	cmd := &cobra.Command{
 		Use: "kube-apiserver",
@@ -118,7 +118,7 @@ cluster's shared state through which all other components interact.`,
 
 			// Activate logging as soon as possible, after that
 			// show flags with the final logging configuration.
-			// TODO
+			// TODO 根据启用、禁用的特性校验参数
 			if err := logsapi.ValidateAndApply(s.Logs, utilfeature.DefaultFeatureGate); err != nil {
 				return err
 			}
@@ -527,7 +527,6 @@ func buildGenericConfig(
 	}
 
 	// 利用用户设置的SecureServing参数初始化GenericServerConfig配置的HTTPS服务启动参数、回环客户端参数
-	// TODO 分析动态证书原理
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
@@ -560,9 +559,9 @@ func buildGenericConfig(
 		openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
 	genericConfig.OpenAPIV3Config.Info.Title = "Kubernetes"
 
-	// TODO 这里的长时间运行的请求为什么要单独处理，K8S又是怎样处理的？
+	// 用于判断是否是长时间运行的请求
 	genericConfig.LongRunningFunc = filters.BasicLongRunningRequestCheck(
-		sets.NewString("watch", "proxy"),
+		sets.NewString("watch", "proxy"), // watch, proxy肯定是长事件运行的
 		sets.NewString("attach", "exec", "proxy", "log", "portforward"),
 	)
 
@@ -617,7 +616,8 @@ func buildGenericConfig(
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
 		return
 	}
-	// TODO 分析ShardInformer
+
+	// 实例化SharedInformerFactory
 	versionedInformers = clientgoinformers.NewSharedInformerFactory(clientgoExternalClient, 10*time.Minute)
 
 	// Authentication.ApplyTo requires already applied OpenAPIConfig and EgressSelector if present
@@ -655,7 +655,8 @@ func buildGenericConfig(
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
 	// TODO 这玩意是干嘛的
 	schemaResolver := resolver.NewDefinitionsSchemaResolver(k8sscheme.Scheme, genericConfig.OpenAPIConfig.GetDefinitions)
-	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector, serviceResolver, genericConfig.TracerProvider, schemaResolver)
+	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
+		serviceResolver, genericConfig.TracerProvider, schemaResolver)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create admission plugin initializer: %v", err)
 		return
@@ -673,7 +674,7 @@ func buildGenericConfig(
 		return
 	}
 
-	// TODO 留空初始化
+	// TODO 流控初始化
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) && s.GenericServerRunOptions.EnablePriorityAndFairness {
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}
@@ -749,7 +750,9 @@ func Complete(s *options.ServerRunOptions) (completedServerRunOptions, error) {
 	s.SecondaryServiceClusterIPRange = secondaryServiceIPRange
 	s.APIServerServiceIP = apiServerServiceIP
 
-	if err := s.SecureServing.MaybeDefaultWithSelfSignedCerts(s.GenericServerRunOptions.AdvertiseAddress.String(), []string{"kubernetes.default.svc", "kubernetes.default", "kubernetes"}, []net.IP{apiServerServiceIP}); err != nil {
+	// 自签证书相关，通常都是这定了证书，一般不会走这里
+	if err := s.SecureServing.MaybeDefaultWithSelfSignedCerts(s.GenericServerRunOptions.AdvertiseAddress.String(),
+		[]string{"kubernetes.default.svc", "kubernetes.default", "kubernetes"}, []net.IP{apiServerServiceIP}); err != nil {
 		return options, fmt.Errorf("error creating self-signed certificates: %v", err)
 	}
 

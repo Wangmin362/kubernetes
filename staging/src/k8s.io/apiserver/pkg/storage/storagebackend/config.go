@@ -127,6 +127,7 @@ func (config *Config) ForResource(resource schema.GroupResource) *ConfigForResou
 	}
 }
 
+// NewDefaultConfig 实例化存储后端配置
 func NewDefaultConfig(prefix string, codec runtime.Codec) *Config {
 	return &Config{
 		Paging:               true,

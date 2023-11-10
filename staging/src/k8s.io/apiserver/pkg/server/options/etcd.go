@@ -46,7 +46,8 @@ type EtcdOptions struct {
 	// The value of Paging on StorageConfig will be overridden by the
 	// calculated feature gate value.
 	// TODO 存储配置，我感觉这玩意就是针对于ETCD的配置，并不是一个通用的存储配置
-	StorageConfig                           storagebackend.Config
+	StorageConfig storagebackend.Config
+	// TODO 这玩意应该是加密有关
 	EncryptionProviderConfigFilepath        string
 	EncryptionProviderConfigAutomaticReload bool
 
@@ -86,7 +87,7 @@ var storageTypes = sets.NewString(
 func NewEtcdOptions(backendConfig *storagebackend.Config) *EtcdOptions {
 	options := &EtcdOptions{
 		StorageConfig:           *backendConfig,
-		DefaultStorageMediaType: "application/json",
+		DefaultStorageMediaType: "application/json", // 默认存入ETCD的格式为JSON格式
 		DeleteCollectionWorkers: 1,
 		EnableGarbageCollection: true,
 		EnableWatchCache:        true,

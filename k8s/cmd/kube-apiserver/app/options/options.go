@@ -99,7 +99,8 @@ func NewServerRunOptions() *ServerRunOptions {
 	s := ServerRunOptions{
 		// 通用配置，其中的值是通过实例化了一个默认的GenericAPIServer配置，然后拷贝其默认值到此配置当中
 		GenericServerRunOptions: genericoptions.NewServerRunOptions(),
-		// ETCD相关配置，譬如APIServer访问ETCD使用的证书，以及ETCD的服务器根证书
+		// 1、ETCD相关配置，譬如APIServer访问ETCD使用的证书，以及ETCD的服务器根证书
+		// 2、默认K8S存入ETCD的所有资源的前缀都是/registry
 		// TODO 猜测这里的存储后端是一个抽象接口，让我们可以选择把数据存入其它数据库当中
 		Etcd: genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
 		// 安全服务配置，用于设置APIServer监听的地址、端口以及提供HTTPS所使用的证书

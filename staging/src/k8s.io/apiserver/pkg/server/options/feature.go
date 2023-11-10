@@ -30,6 +30,7 @@ type FeatureOptions struct {
 }
 
 func NewFeatureOptions() *FeatureOptions {
+	// 这里实例化的GenericServer配置也是为了获取去一些默认的配置参数
 	defaults := server.NewConfig(serializer.CodecFactory{})
 
 	return &FeatureOptions{

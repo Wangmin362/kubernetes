@@ -271,6 +271,7 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 	// APIServer需要提供HTTPS服务，因此需要配置证书以及私钥
 	if len(serverCertFile) != 0 || len(serverKeyFile) != 0 {
 		var err error
+		// 监听APIServer证书、密钥的变化
 		c.Cert, err = dynamiccertificates.NewDynamicServingContentFromFiles("serving-cert", serverCertFile, serverKeyFile)
 		if err != nil {
 			return err
@@ -293,7 +294,7 @@ func (s *SecureServingOptions) ApplyTo(config **server.SecureServingInfo) error 
 		return err
 	}
 
-	// load SNI certs
+	// load SNI certs  监听SNI的变化
 	namedTLSCerts := make([]dynamiccertificates.SNICertKeyContentProvider, 0, len(s.SNICertKeys))
 	for _, nck := range s.SNICertKeys {
 		tlsCert, err := dynamiccertificates.NewDynamicSNIContentFromFiles("sni-serving-cert", nck.CertFile, nck.KeyFile, nck.Names...)

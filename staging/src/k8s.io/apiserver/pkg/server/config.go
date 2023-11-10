@@ -398,20 +398,25 @@ type SecureServingInfo struct {
 
 	// Cert is the main server cert which is used if SNI does not match. Cert must be non-nil and is
 	// allowed to be in SNICerts.
+	// 监听证书、密钥的变化
 	Cert dynamiccertificates.CertKeyContentProvider
 
 	// SNICerts are the TLS certificates used for SNI.
+	// 监听SNI的变化
 	SNICerts []dynamiccertificates.SNICertKeyContentProvider
 
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
+	// 监听CABundle的变化
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// MinTLSVersion optionally overrides the minimum TLS version supported.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// 支持TLS最低版本
 	MinTLSVersion uint16
 
 	// CipherSuites optionally overrides the list of allowed cipher suites for the server.
 	// Values are from tls package constants (https://golang.org/pkg/crypto/tls/#pkg-constants).
+	// TLS加密套件
 	CipherSuites []uint16
 
 	// HTTP2MaxStreamsPerConnection is the limit that the api server imposes on each client.

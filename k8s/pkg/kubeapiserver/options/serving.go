@@ -26,7 +26,7 @@ import (
 // "normal" API servers running on the platform
 func NewSecureServingOptions() *genericoptions.SecureServingOptionsWithLoopback {
 	o := genericoptions.SecureServingOptions{
-		// TODO 默认APIServer监听0.0.0.0地址，这样所有的IP地址都可以和APIServer建立TCP连接
+		// 默认APIServer监听0.0.0.0地址，这样所有的IP地址都可以和APIServer建立TCP连接
 		BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
 		BindPort:    6443,
 		Required:    true,

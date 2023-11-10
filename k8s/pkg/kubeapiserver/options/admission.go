@@ -56,7 +56,7 @@ func NewAdmissionOptions() *AdmissionOptions {
 	RegisterAllAdmissionPlugins(options.Plugins)
 	// set RecommendedPluginOrder
 	options.RecommendedPluginOrder = AllOrderedPlugins
-	// set DefaultOffPlugins
+	// set DefaultOffPlugins  默认关闭的准入控制插件
 	options.DefaultOffPlugins = DefaultOffAdmissionPlugins()
 
 	return &AdmissionOptions{

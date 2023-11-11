@@ -82,12 +82,16 @@ type Scheme struct {
 	// 作为标签选择器。
 	// 3、对于有些资源对象，有可能支持除了metadata.name, metadata.namespace字段以外的其它资源，因此我们需要有一个函数可以判断一个资源
 	// 对象的哪些字段可以作为字段选择器。FieldLabelConversionFunc就是用于干这个事情的。
+	// 4、一个组下的资源都是通过init()初始化函数进行初始化的，譬如：localSchemeBuilder.Register(addDefaultingFuncs, addConversionFuncs)
 	fieldLabelConversionFuncs map[schema.GroupVersionKind]FieldLabelConversionFunc
 
 	// defaulterFuncs is a map to funcs to be called with an object to provide defaulting
 	// the provided object must be a pointer.
 	// 1、用于设置对象的某些属性，用于设置默认值。 譬如某些资源对象空指针的初始化
-	// TODO 2、分析每个资源对象的默认值函数是如何注册的  每个资源是如何绑定默认函数的
+	// 2、注册资源的默认赋值函数，当实例化某个资源时，会应用这些默认函数到刚实例化出来的资源上，为这些资源设置默认值
+	// 3、每个组的资源都是通过init方法注册默认函数，譬如：localSchemeBuilder.Register(addDefaultingFuncs)
+	// 4、为什么这里不设计为一个数组？ 一个资源为什么不能设置多个默认函数？ 一个资源实例化的时候，此时我们就能确定这个资源需要给哪些资源设置默认值，
+	// 一个初始化函数和多个初始化函数没有区别，多个初始化函数也能合并为一个初始化函数，而且这玩意仅仅在实例化资源对象的时候被调用。
 	defaulterFuncs map[reflect.Type]func(interface{})
 
 	// converter stores all registered conversion functions. It also has
@@ -109,7 +113,7 @@ type Scheme struct {
 
 	// schemeName is the name of this scheme.  If you don't specify a name, the stack of the NewScheme caller will be used.
 	// This is useful for error reporting to indicate the origin of the scheme.
-	// TODO scheme的名字
+	// scheme的名字  TODO K8S会实例化几个Scheme?
 	schemeName string
 }
 
@@ -132,13 +136,14 @@ func NewScheme() *Scheme {
 		fieldLabelConversionFuncs: map[schema.GroupVersionKind]FieldLabelConversionFunc{},
 		defaulterFuncs:            map[reflect.Type]func(interface{}){},
 		versionPriority:           map[string][]string{},
-		// 为什么Scheme名字的生成这么复杂
+		// TODO 为什么Scheme名字的生成这么复杂
 		schemeName: naming.GetNameFromCallsite(internalPackages...),
 	}
+	// 实例化Converter
 	s.converter = conversion.NewConverter(nil)
 
 	// Enable couple default conversions by default.
-	// TODO 这里在干嘛？
+	// 注册一些通用的转换函数
 	utilruntime.Must(RegisterEmbeddedConversions(s))
 	utilruntime.Must(RegisterStringConversions(s))
 	return s
@@ -362,7 +367,9 @@ func (s *Scheme) IsUnversioned(obj Object) (bool, bool) {
 // been registered. The version and kind fields must be specified.
 // 1、根据GVK实例化一个资源对象，该资源对象可能是有版本的，也可能是没有版本的。如果此资源没有注册过，那么返回错误
 func (s *Scheme) New(kind schema.GroupVersionKind) (Object, error) {
+	// 根据GVK获取这个资源的结构体类型
 	if t, exists := s.gvkToType[kind]; exists {
+		// 如果存在的化，直接通过反射实例化资源对象
 		return reflect.New(t).Interface().(Object), nil
 	}
 
@@ -375,6 +382,8 @@ func (s *Scheme) New(kind schema.GroupVersionKind) (Object, error) {
 // AddIgnoredConversionType identifies a pair of types that should be skipped by
 // conversion (because the data inside them is explicitly dropped during
 // conversion).
+// 1、用于添加忽略类型转换函数，也就是说从from转为to类型时会被忽略
+// 2、在K8S当中，被忽略的类型就一个：从TypeMeta转为TypeMeta
 func (s *Scheme) AddIgnoredConversionType(from, to interface{}) error {
 	return s.converter.RegisterIgnoredConversion(from, to)
 }
@@ -407,6 +416,7 @@ func (s *Scheme) AddFieldLabelConversionFunc(gvk schema.GroupVersionKind, conver
 // when Default() is called. The function will never be called unless the
 // defaulted object matches srcType. If this function is invoked twice with the
 // same srcType, the fn passed to the later call will be used instead.
+// 1、注册资源的默认赋值函数，当实例化某个资源时，会应用这些默认函数到刚实例化出来的资源上，为这些资源设置默认值
 func (s *Scheme) AddTypeDefaultingFunc(srcType Object, fn func(interface{})) {
 	s.defaulterFuncs[reflect.TypeOf(srcType)] = fn
 }
@@ -691,7 +701,7 @@ func (s *Scheme) PrioritizedVersionsForGroup(group string) []schema.GroupVersion
 				break
 			}
 		}
-		// TODO 可能存在有些资源的某些版本没有指定优先级
+		// 可能存在有些资源的某些版本没有指定优先级
 		if !found {
 			ret = append(ret, observedVersion)
 		}

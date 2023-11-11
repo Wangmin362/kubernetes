@@ -31,6 +31,7 @@ import (
 
 // TypeConverter allows you to convert from runtime.Object to
 // typed.TypedValue and the other way around.
+// TODO 如何理解类型转换器？
 type TypeConverter interface {
 	ObjectToTyped(runtime.Object) (*typed.TypedValue, error)
 	TypedToObject(*typed.TypedValue) (runtime.Object, error)

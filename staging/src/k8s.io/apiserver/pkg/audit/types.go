@@ -26,6 +26,7 @@ type Sink interface {
 	// error, ProcessEvents is supposed to panic. The event must not be mutated and is reused by the caller
 	// after the call returns, i.e. the sink has to make a deepcopy to keep a copy around if necessary.
 	// Returns true on success, may return false on error.
+	// 用于处理事件、一般用于持久化事件
 	ProcessEvents(events ...*auditinternal.Event) bool
 }
 

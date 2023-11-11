@@ -108,7 +108,7 @@ type SingularNameProvider interface {
 // which generally point to foreign versions.  Scale refers to Scale.v1beta1.extensions for instance.
 // This trumps KindProvider since it is capable of providing the information required.
 // TODO KindProvider (only used by federation) should be removed and replaced with this, but that presents greater risk late in 1.8.
-// TODO 这玩意有啥用？
+// TODO 这玩意有啥用？ 这玩意似乎是用来通过GV获取Scale资源的GVK
 type GroupVersionKindProvider interface {
 	GroupVersionKind(containingGV schema.GroupVersion) schema.GroupVersionKind
 }
@@ -239,6 +239,7 @@ type Creater interface {
 	New() runtime.Object
 
 	// Create creates a new version of a resource.
+	// 其中的obj就是我们要创建的资源对象，后返回值则是修改后的资源对象，因为在创建资源对象的时候，会填充一些字段，所以需要返回被修改之后的对象
 	Create(ctx context.Context, obj runtime.Object, createValidation ValidateObjectFunc, options *metav1.CreateOptions) (runtime.Object, error)
 }
 
@@ -265,7 +266,7 @@ type SubresourceObjectMetaPreserver interface {
 // UpdatedObjectInfo provides information about an updated object to an Updater.
 // It requires access to the old object in order to return the newly updated object.
 type UpdatedObjectInfo interface {
-	// Returns preconditions built from the updated object, if applicable.
+	// Preconditions Returns preconditions built from the updated object, if applicable.
 	// May return nil, or a preconditions object containing nil fields,
 	// if no preconditions can be determined from the updated object.
 	Preconditions() *metav1.Preconditions
@@ -411,6 +412,7 @@ type ResourceStreamer interface {
 type StorageMetadata interface {
 	// ProducesMIMETypes returns a list of the MIME types the specified HTTP verb (GET, POST, DELETE,
 	// PATCH) can respond with.
+	// 获取某个多做的MIMEType
 	ProducesMIMETypes(verb string) []string
 
 	// ProducesObject returns an object the specified HTTP verb respond with. It will overwrite storage object if

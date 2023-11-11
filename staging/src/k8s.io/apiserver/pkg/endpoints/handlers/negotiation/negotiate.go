@@ -29,7 +29,9 @@ import (
 )
 
 // MediaTypesForSerializer returns a list of media and stream media types for the server.
+// 获取当前序列化器支持哪些媒体类型以及流媒体类型
 func MediaTypesForSerializer(ns runtime.NegotiatedSerializer) (mediaTypes, streamMediaTypes []string) {
+	// 遍历当前序列化器支持的媒体类型
 	for _, info := range ns.SupportedMediaTypes() {
 		mediaTypes = append(mediaTypes, info.MediaType)
 		if info.StreamSerializer != nil {

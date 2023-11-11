@@ -526,7 +526,8 @@ func MonitorRequest(
 	removedRelease string,
 	httpCode,
 	respSize int,
-	elapsed time.Duration) {
+	elapsed time.Duration, // 执行当前请求消耗的时间
+) {
 	requestInfo, ok := request.RequestInfoFrom(req.Context())
 	if !ok || requestInfo == nil {
 		requestInfo = &request.RequestInfo{Verb: req.Method, Path: req.URL.Path}
@@ -569,8 +570,19 @@ func MonitorRequest(
 
 // InstrumentRouteFunc works like Prometheus' InstrumentHandlerFunc but wraps
 // the go-restful RouteFunction instead of a HandlerFunc plus some Kubernetes endpoint specific information.
-func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, component string, deprecated bool, removedRelease string, routeFunc restful.RouteFunction) restful.RouteFunction {
-	return restful.RouteFunction(func(req *restful.Request, response *restful.Response) {
+func InstrumentRouteFunc(
+	verb,
+	group,
+	version,
+	resource,
+	subresource,
+	scope,
+	component string,
+	deprecated bool,
+	removedRelease string,
+	routeFunc restful.RouteFunction,
+) restful.RouteFunction {
+	return func(req *restful.Request, response *restful.Response) {
 		requestReceivedTimestamp, ok := request.ReceivedTimestampFrom(req.Request.Context())
 		if !ok {
 			requestReceivedTimestamp = time.Now()
@@ -581,10 +593,13 @@ func InstrumentRouteFunc(verb, group, version, resource, subresource, scope, com
 		rw := responsewriter.WrapForHTTP1Or2(delegate)
 		response.ResponseWriter = rw
 
+		// 执行请求
 		routeFunc(req, response)
 
-		MonitorRequest(req.Request, verb, group, version, resource, subresource, scope, component, deprecated, removedRelease, delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
-	})
+		// Metric指标
+		MonitorRequest(req.Request, verb, group, version, resource, subresource, scope, component, deprecated, removedRelease,
+			delegate.Status(), delegate.ContentLength(), time.Since(requestReceivedTimestamp))
+	}
 }
 
 // InstrumentHandlerFunc works like Prometheus' InstrumentHandlerFunc but adds some Kubernetes endpoint specific information.

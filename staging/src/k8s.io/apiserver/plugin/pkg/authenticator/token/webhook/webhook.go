@@ -49,6 +49,7 @@ func DefaultRetryBackoff() *wait.Backoff {
 var _ authenticator.Token = (*WebhookTokenAuthenticator)(nil)
 
 type tokenReviewer interface {
+	// Create 实际上就是在向用户自定义的Webhook发送请求
 	Create(ctx context.Context, review *authenticationv1.TokenReview, _ metav1.CreateOptions) (*authenticationv1.TokenReview, int, error)
 }
 
@@ -142,6 +143,7 @@ func (w *WebhookTokenAuthenticator) AuthenticateToken(ctx context.Context, token
 	}
 
 	// WithExponentialBackoff will return tokenreview create error (tokenReviewErr) if any.
+	// 尝试多次请求Webhook
 	if err := webhook.WithExponentialBackoff(ctx, w.retryBackoff, func() error {
 		var tokenReviewErr error
 		var statusCode int

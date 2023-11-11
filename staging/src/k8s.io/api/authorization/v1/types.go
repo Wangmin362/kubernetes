@@ -182,9 +182,11 @@ type SubjectAccessReviewStatus struct {
 	// authorizer has no opinion on whether to authorize the action. Denied
 	// may not be true if Allowed is true.
 	// +optional
+	// 是否拒绝，如果为true,表明当前用户没有权限访问当前资源；如果为false，表明当前用户有权限访问当前资源
 	Denied bool `json:"denied,omitempty" protobuf:"varint,4,opt,name=denied"`
 	// Reason is optional.  It indicates why a request was allowed or denied.
 	// +optional
+	// 被运行/拒绝的原因
 	Reason string `json:"reason,omitempty" protobuf:"bytes,2,opt,name=reason"`
 	// EvaluationError is an indication that some error occurred during the authorization check.
 	// It is entirely possible to get an error and be able to continue determine authorization status in spite of it.

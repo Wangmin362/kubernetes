@@ -45,6 +45,7 @@ type ResourceInfo struct {
 
 	// DirectlyDecodableVersions is a list of versions that the converter for REST storage knows how to convert.  This
 	// contains items like apiextensions.k8s.io/v1beta1 even if we don't serve that version.
+	// TODO 什么叫做直接解码版本？
 	DirectlyDecodableVersions []schema.GroupVersion
 }
 

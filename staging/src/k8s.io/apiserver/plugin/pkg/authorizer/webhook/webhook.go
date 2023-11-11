@@ -55,6 +55,7 @@ func DefaultRetryBackoff() *wait.Backoff {
 var _ authorizer.Authorizer = (*WebhookAuthorizer)(nil)
 
 type subjectAccessReviewer interface {
+	// Create 向Webhook发送鉴权请求
 	Create(context.Context, *authorizationv1.SubjectAccessReview, metav1.CreateOptions) (*authorizationv1.SubjectAccessReview, int, error)
 }
 

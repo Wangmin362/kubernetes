@@ -24,6 +24,9 @@ import (
 	"k8s.io/apiserver/pkg/storage"
 )
 
+// DryRunnableStorage
+// 1、所谓的DryRun其实就是一个空运行，与正常的请求相比，DryRun请求也会经历所有的阶段，除了最后的持久化。也就是说，通过DryRun，我们可以判断
+// 一个请求将来真正执行的时候将来是否可以执行成功，同时这个请求又不会对于K8S系统产生任何影响。
 type DryRunnableStorage struct {
 	Storage storage.Interface
 	Codec   runtime.Codec

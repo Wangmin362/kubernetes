@@ -54,9 +54,11 @@ const (
 	ROUTE_META_ACTION = "x-kubernetes-action"
 )
 
+// APIInstaller
+// 1、用于注册一个组下所有资源的路由
 type APIInstaller struct {
 	group             *APIGroupVersion // 当前组的信息，包含这个组下某个具体版本的所有资源的增删改查操作
-	prefix            string           // 前缀为为：/<root>/<group>/<version>，核心资源的root为/api，其余资源的root为/apis
+	prefix            string           // 前缀为：/<root>/<group>/<version>，核心资源的root为/api，其余资源的root为/apis
 	minRequestTimeout time.Duration    // TODO 如何理解这个字段
 }
 
@@ -68,7 +70,8 @@ type action struct {
 	Path string // The path of the action
 	// 当前动作支持哪些参数
 	Params []*restful.Parameter // List of parameters associated with the action.
-	// TODO 这玩意有啥用
+	// 1、用于从请求当中获取资源名、名称空间（当前前提是这个请求时资源请求，因为K8S中存在非资源请求）
+	// 2、用于从任意的资源对象当中获取资源名、名称空间
 	Namer handlers.ScopeNamer
 	// TODO 啥作用？
 	AllNamespaces bool // true iff the action is namespaced but works on aggregate result for all namespaces
@@ -186,26 +189,35 @@ var toDiscoveryKubeVerb = map[string]string{
 }
 
 // Install handlers for API resources.
-func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.ResourceInfo, *restful.WebService, []error) {
+// 1、用于向restful.WebService注册某个资源组下的所有资源路由，在K8S当中，每一个资源组都是一个webservice
+func (a *APIInstaller) Install() (
+	[]metav1.APIResource, // 当前资源组下的所有资源
+	[]*storageversion.ResourceInfo,
+	*restful.WebService, // 包含了所有资源组下所有资源的路由信息，也就是URL -> Handler的映射关系
+	[]error,
+) {
 	var apiResources []metav1.APIResource
 	var resourceInfos []*storageversion.ResourceInfo
 	var errors []error
-	// TODO 实例化WebService
+	// 实例化WebService
 	ws := a.newWebService()
 
 	// Register the paths in a deterministic (sorted) order to get a deterministic swagger spec.
-	// paths中保存就是各个资源名，譬如deployment, daemonSet, job, cronjob, statefulSet
+	// paths中保存就是各个资源名，譬如deployment, deployment/status, daemonset, daemonset/status, job, cronjob, statefulset,
+	// statefulset/status，也就是说除了资源名，也有可能是子资源名
 	paths := make([]string, len(a.group.Storage))
 	var i int = 0
+	// 遍历当前组下的所有资源，获取资源名。注意：这里的资源名可能是资源（譬如deployment），也可能是子资源（譬如deployment/scale）
 	for path := range a.group.Storage {
 		paths[i] = path
 		i++
 	}
-	// TODO 这里为啥要排序？
+	// TODO 这里为啥要排序？ 不排序应该也没啥，可能是为了Swagger文档
 	sort.Strings(paths)
 	// paths中保存就是各个资源名，譬如deployment, deployment/status, daemonset, daemonset/status, job, cronjob, statefulset,
 	// statefulset/status，也就是说除了资源名，也有可能是子资源名
 	for _, path := range paths {
+		// 注册资源路由，也就是为每个URL绑定一个Handler
 		apiResource, resourceInfo, err := a.registerResourceHandlers(path, a.group.Storage[path], ws)
 		if err != nil {
 			errors = append(errors, fmt.Errorf("error in registering resource: %s, %v", path, err))
@@ -223,15 +235,21 @@ func (a *APIInstaller) Install() ([]metav1.APIResource, []*storageversion.Resour
 // newWebService creates a new restful webservice with the api installer's prefix and version.
 func (a *APIInstaller) newWebService() *restful.WebService {
 	ws := new(restful.WebService)
-	ws.Path(a.prefix) // 前缀为/<prefix>/<group>/<version>，其中对于核心资源prefix=/api，而对于其他资源prefix=/apis
+	// 前缀为/<prefix>/<group>/<version>，其中对于核心资源prefix=/api，而对于其他资源prefix=/apis
+	ws.Path(a.prefix)
 	// a.prefix contains "prefix/group/version"
 	ws.Doc("API at " + a.prefix)
 	// Backwards compatibility, we accepted objects with empty content-type at V1.
 	// If we stop using go-restful, we can default empty content-type to application/json on an
 	// endpoint by endpoint basis
+	// 用于指定当前webservice可以处理哪些媒体类型
 	ws.Consumes("*/*")
+
+	// 获取当前序列化器支持哪些媒体类型以及流媒体类型
 	mediaTypes, streamMediaTypes := negotiation.MediaTypesForSerializer(a.group.Serializer)
+	// 设置当前webservice支持以哪些媒体类型的格式输出Body
 	ws.Produces(append(mediaTypes, streamMediaTypes...)...)
+	// 应该是为了Swagger文档
 	ws.ApiVersion(a.group.GroupVersion.String())
 
 	return ws
@@ -254,13 +272,19 @@ func getStorageVersionKind(storageVersioner runtime.GroupVersioner, storage rest
 // GetResourceKind returns the external group version kind registered for the given storage
 // object. If the storage object is a subresource and has an override supplied for it, it returns
 // the group version kind supplied in the override.
-func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typer runtime.ObjectTyper) (schema.GroupVersionKind, error) {
+func GetResourceKind(
+	groupVersion schema.GroupVersion, // 给定的GV
+	storage rest.Storage, // 某个具体资源的增删改查接口
+	typer runtime.ObjectTyper, // 用于获取某个资源所有可能的GVK
+) (schema.GroupVersionKind, error) {
 	// Let the storage tell us exactly what GVK it has
 	if gvkProvider, ok := storage.(rest.GroupVersionKindProvider); ok {
 		return gvkProvider.GroupVersionKind(groupVersion), nil
 	}
 
+	// 实例化一个资源对象
 	object := storage.New()
+	// 获取该资源对象所有可能的GVK
 	fqKinds, _, err := typer.ObjectKinds(object)
 	if err != nil {
 		return schema.GroupVersionKind{}, err
@@ -270,13 +294,15 @@ func GetResourceKind(groupVersion schema.GroupVersion, storage rest.Storage, typ
 	// we're trying to register here
 	fqKindToRegister := schema.GroupVersionKind{}
 	for _, fqKind := range fqKinds {
+		// 说明GVK是有优先级的，约在前面的资源越先被匹配
 		if fqKind.Group == groupVersion.Group {
 			fqKindToRegister = groupVersion.WithKind(fqKind.Kind)
 			break
 		}
 	}
 	if fqKindToRegister.Empty() {
-		return schema.GroupVersionKind{}, fmt.Errorf("unable to locate fully qualified kind for %v: found %v when registering for %v", reflect.TypeOf(object), fqKinds, groupVersion)
+		return schema.GroupVersionKind{}, fmt.Errorf("unable to locate fully qualified kind for %v: found %v when registering for %v",
+			reflect.TypeOf(object), fqKinds, groupVersion)
 	}
 
 	// group is guaranteed to match based on the check above
@@ -288,9 +314,8 @@ func (a *APIInstaller) registerResourceHandlers(
 	// statefulset, statefulset/status，也就是说除了资源名，也有可能是子资源名
 	path string,
 	storage rest.Storage, // 当前资源的增删改查的实现,http.Handler中肯定就是间接或者直接调用这里实现的逻辑
-	ws *restful.WebService, // /<group>/<version>下面的路由将会注册到这里面
+	ws *restful.WebService, // /<group>/<version>下面所有资源的路由将会注册到这里面
 ) (*metav1.APIResource, *storageversion.ResourceInfo, error) {
-	// TODO 针对与每个组都可以配置准入控制
 	admit := a.group.Admit
 
 	optionsExternalVersion := a.group.GroupVersion
@@ -306,13 +331,13 @@ func (a *APIInstaller) registerResourceHandlers(
 
 	group, version := a.group.GroupVersion.Group, a.group.GroupVersion.Version
 
-	// 获取当前资源的GVK
+	// 根据资源的GV以及资源的StandardStorage接口获取当前资源的GVK
 	fqKindToRegister, err := GetResourceKind(a.group.GroupVersion, storage, a.group.Typer)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	// 实例化资源对象，除了填充了GVK，其余属性啥也没有
+	// 根据GVK类型实例化资源对象，除了填充了GVK，其余属性啥也没有
 	versionedPtr, err := a.group.Creater.New(fqKindToRegister)
 	if err != nil {
 		return nil, nil, err
@@ -324,8 +349,10 @@ func (a *APIInstaller) registerResourceHandlers(
 	isSubresource := len(subresource) > 0
 
 	// If there is a subresource, namespace scoping is defined by the parent resource
+	// 用于判断当前资源对象是否是名称空间级别的资源对象。子资源是否是名称空间级别的对象，由父资源对象来决定
 	var namespaceScoped bool
 	if isSubresource {
+		// 如果当前是子资源，那么我们获取这个子资源的夫资源的增删改查Handler
 		parentStorage, ok := a.group.Storage[resource]
 		if !ok {
 			return nil, nil, fmt.Errorf("missing parent storage: %q", resource)
@@ -334,7 +361,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		if !ok {
 			return nil, nil, fmt.Errorf("%q must implement scoper", resource)
 		}
-		// 判断当前子资源是否是名称空间级别的资源
+		// 判断当前子资源是否是名称空间级别的资源,子资源是否是名称空间级别的对象，由父资源对象来决定
 		namespaceScoped = scoper.NamespaceScoped()
 
 	} else {
@@ -357,25 +384,33 @@ func (a *APIInstaller) registerResourceHandlers(
 	updater, isUpdater := storage.(rest.Updater)
 	patcher, isPatcher := storage.(rest.Patcher)
 	watcher, isWatcher := storage.(rest.Watcher)
+	// TODO 干嘛的？
 	connecter, isConnecter := storage.(rest.Connecter)
+	// TODO 干嘛的？
 	storageMeta, isMetadata := storage.(rest.StorageMetadata)
+	// TODO 干嘛的？
 	storageVersionProvider, isStorageVersionProvider := storage.(rest.StorageVersionProvider)
+	// TODO 干嘛的？
 	gvAcceptor, _ := storage.(rest.GroupVersionAcceptor)
 	if !isMetadata {
 		storageMeta = defaultStorageMetadata{}
 	}
 
+	// 是NamedCreater当然就是Creater
 	if isNamedCreater {
 		isCreater = true
 	}
 
 	var versionedList interface{}
 	if isLister {
+		// 实例化List资源
 		list := lister.NewList()
+		// 获取所有可能的GVK
 		listGVKs, _, err := a.group.Typer.ObjectKinds(list)
 		if err != nil {
 			return nil, nil, err
 		}
+		// 实例化资源，TODO 这里和list := lister.NewList()有何区别？
 		versionedListPtr, err := a.group.Creater.New(a.group.GroupVersion.WithKind(listGVKs[0].Kind))
 		if err != nil {
 			return nil, nil, err
@@ -404,6 +439,7 @@ func (a *APIInstaller) registerResourceHandlers(
 	var versionedDeleterObject interface{}
 	deleteReturnsDeletedObject := false
 	if isGracefulDeleter {
+		// 删除选项
 		versionedDeleteOptions, err = a.group.Creater.New(optionsExternalVersion.WithKind("DeleteOptions"))
 		if err != nil {
 			return nil, nil, err
@@ -494,6 +530,7 @@ func (a *APIInstaller) registerResourceHandlers(
 		resourceKind = kind
 	}
 
+	// TableConvertor用于把列表数据转换为可视化的表格数据
 	tableProvider, isTableProvider := storage.(rest.TableConvertor)
 	if isLister && !isTableProvider {
 		// All listers must implement TableProvider
@@ -659,7 +696,7 @@ func (a *APIInstaller) registerResourceHandlers(
 	// http.StatusOK, http.StatusCreated, http.StatusAccepted, http.StatusNoContent
 	//
 	// test/integration/auth_test.go is currently the most comprehensive status code test
-
+	// 如果当前组的序列化什么媒体都不支持，那就退出
 	for _, s := range a.group.Serializer.SupportedMediaTypes() {
 		if len(s.MediaTypeSubType) == 0 || len(s.MediaTypeType) == 0 {
 			return nil, nil, fmt.Errorf("all serializers in the group Serializer must have MediaTypeType and MediaTypeSubType set: %s", s.MediaType)
@@ -761,7 +798,7 @@ func (a *APIInstaller) registerResourceHandlers(
 			return nil, nil, fmt.Errorf("unknown action verb for discovery: %s", action.Verb)
 		}
 
-		routes := []*restful.RouteBuilder{}
+		var routes []*restful.RouteBuilder
 
 		// If there is a subresource, kind should be the parent's kind.
 		if isSubresource {
@@ -800,19 +837,21 @@ func (a *APIInstaller) registerResourceHandlers(
 		switch action.Verb {
 		case "GET": // Get a resource.
 			var handler restful.RouteFunction
+			// 请求的Handler
 			if isGetterWithOptions {
 				handler = restfulGetResourceWithOptions(getterWithOptions, reqScope, isSubresource)
 			} else {
 				handler = restfulGetResource(getter, reqScope)
 			}
 
+			// 增加Metric指标
 			if needOverride {
 				// need change the reported verb
 				handler = metrics.InstrumentRouteFunc(verbOverrider.OverrideMetricsVerb(action.Verb), group, version,
 					resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
 			} else {
-				handler = metrics.InstrumentRouteFunc(action.Verb, group, version, resource, subresource, requestScope,
-					metrics.APIServerComponent, deprecated, removedRelease, handler)
+				handler = metrics.InstrumentRouteFunc(action.Verb, group, version,
+					resource, subresource, requestScope, metrics.APIServerComponent, deprecated, removedRelease, handler)
 			}
 			handler = utilwarning.AddWarningsHandler(handler, warnings)
 
@@ -1132,6 +1171,7 @@ func (a *APIInstaller) registerResourceHandlers(
 }
 
 // indirectArbitraryPointer returns *ptrToObject for an arbitrary pointer
+// TODO 如何理解这玩意？什么叫做间接任意指针？
 func indirectArbitraryPointer(ptrToObject interface{}) interface{} {
 	return reflect.Indirect(reflect.ValueOf(ptrToObject)).Interface()
 }

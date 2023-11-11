@@ -315,6 +315,7 @@ type ObjectConvertor interface {
 	// This method is similar to Convert() but handles specific details of choosing the correct
 	// output version.
 	ConvertToVersion(in Object, gv GroupVersioner) (out Object, err error)
+	// ConvertFieldLabel 用于判断当前资源是否可以通过label作为标签选择器
 	ConvertFieldLabel(gvk schema.GroupVersionKind, label, value string) (string, string, error)
 }
 

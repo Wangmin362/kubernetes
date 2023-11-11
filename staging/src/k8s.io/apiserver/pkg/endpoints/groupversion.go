@@ -37,7 +37,7 @@ import (
 )
 
 // ConvertabilityChecker indicates what versions a GroupKind is available in.
-// 找到一个GK的所有版本，并且按照优先级排序
+// 找到一个GK的所有版本，并且按照优先级排序，显然，这玩意一定是从Scheme当中获取的，因为只有在Scheme中保存了一个资源不同版本的优先级
 type ConvertabilityChecker interface {
 	// VersionsForGroupKind indicates what versions are available to convert a group kind. This determines
 	// what our decoding abilities are.
@@ -52,7 +52,7 @@ type ConvertabilityChecker interface {
 // TODO 为什么需要抽象出这个对象？
 // 1、APIGroupVersion包含了/<group>/<version>下所有资源的增删改查操作，group, version都是确定的
 type APIGroupVersion struct {
-	// 1、这里的Key应该就是资源，而Value则是每个资源对应的增删改查操作
+	// 1、这里的Key应该就是资源，而Value则是每个资源对应的增删改查操作。这里的key可能是资源（譬如deployment），也有可能是子资源，譬如（deployment/scale）
 	// 2、其实就是/<group>/<version>下面的所有资源
 	Storage map[string]rest.Storage
 
@@ -86,13 +86,14 @@ type APIGroupVersion struct {
 
 	Typer                 runtime.ObjectTyper     // 用于获取资源的GVK，以及判断资源是否是可识别资源
 	Creater               runtime.ObjectCreater   // 用于创建资源
-	Convertor             runtime.ObjectConvertor // TODO
-	ConvertabilityChecker ConvertabilityChecker   // TODO
-	Defaulter             runtime.ObjectDefaulter // TODO
-	Namer                 runtime.Namer
-	UnsafeConvertor       runtime.ObjectConvertor
+	Convertor             runtime.ObjectConvertor // 用于资源的转换、以及判断资源的某个标签是否可以作为标签选择器
+	ConvertabilityChecker ConvertabilityChecker   // 用于获取一个资源的的所有版本，并且按照优先级排序。最前面的版本优先级最高
+	Defaulter             runtime.ObjectDefaulter // 用于为资源设置默认值
+	Namer                 runtime.Namer           // 用于获取资源名
+	UnsafeConvertor       runtime.ObjectConvertor // TODO Converter和UnsafeConverter有何不同？
 	TypeConverter         managedfields.TypeConverter
 
+	// TODO 等效资源注册中心
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// Authorizer determines whether a user is allowed to make a certain request. The Handler does a preliminary
@@ -108,6 +109,7 @@ type APIGroupVersion struct {
 
 	// The limit on the request body size that would be accepted and decoded in a write request.
 	// 0 means no limit.
+	// 请求提最多可以接受的字节数，默认一般设置为3MB
 	MaxRequestBodyBytes int64
 }
 
@@ -127,7 +129,7 @@ func (g *APIGroupVersion) InstallREST(container *restful.Container) (
 		minRequestTimeout: g.MinRequestTimeout,
 	}
 
-	// TODO 路由注册，相当复杂
+	// 路由当前资源组下所有资源的路由
 	apiResources, resourceInfos, ws, registrationErrors := installer.Install()
 
 	// 注册/<root>/<group>/<version>路由，此路由用于返回某个组的某个版本下的所有可用资源信息

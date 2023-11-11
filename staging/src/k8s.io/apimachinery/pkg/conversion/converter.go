@@ -53,12 +53,13 @@ type Converter struct {
 // Arg NameFunc is just for backward compatibility.
 func NewConverter(NameFunc) *Converter {
 	c := &Converter{
-		conversionFuncs:           NewConversionFuncs(),
-		generatedConversionFuncs:  NewConversionFuncs(),
+		conversionFuncs:           NewConversionFuncs(), // 实例化map
+		generatedConversionFuncs:  NewConversionFuncs(), // 实例化map
 		ignoredUntypedConversions: make(map[typePair]struct{}),
 	}
+	// 注册字节数组到字节数组的转换函数
 	c.RegisterUntypedConversionFunc(
-		(*[]byte)(nil), (*[]byte)(nil),
+		(*[]byte)(nil), (*[]byte)(nil), // TODO 如何理解这里的写法？
 		func(a, b interface{}, s Scope) error {
 			return Convert_Slice_byte_To_Slice_byte(a.(*[]byte), b.(*[]byte), s)
 		},

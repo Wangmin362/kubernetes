@@ -47,7 +47,7 @@ const (
 	PluginName = "LimitRanger"
 )
 
-// Register registers a plugin
+// Register 注册准入控制插件
 func Register(plugins *admission.Plugins) {
 	plugins.Register(PluginName, func(config io.Reader) (admission.Interface, error) {
 		return NewLimitRanger(&DefaultLimitRangerActions{})
@@ -56,10 +56,10 @@ func Register(plugins *admission.Plugins) {
 
 // LimitRanger enforces usage limits on a per resource basis in the namespace
 type LimitRanger struct {
-	*admission.Handler
-	client  kubernetes.Interface
-	actions LimitRangerActions
-	lister  corev1listers.LimitRangeLister
+	*admission.Handler                      // 准入控制插件的基础实现
+	client             kubernetes.Interface // APIServer的客户端
+	actions            LimitRangerActions   //
+	lister             corev1listers.LimitRangeLister
 
 	// liveLookups holds the last few live lookups we've done to help ammortize cost on repeated lookup failures.
 	// This let's us handle the case of latent caches, by looking up actual results for a namespace on cache miss/no results.

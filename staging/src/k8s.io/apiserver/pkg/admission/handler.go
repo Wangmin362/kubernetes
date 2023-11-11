@@ -33,18 +33,22 @@ type ReadyFunc func() bool
 
 // Handler is a base for admission control handlers that
 // support a predefined set of operations
+// 1、Handler是准入控制插件的基础实现，一般直接基于Handler实现自己的准入控制插件
+// 2、此Handler实现的比较抽象，并没有什么业务相关的含义，同时实现了一般的准入控制插件需要的功能，譬如是否支持某个操作，以及判断插件是否就绪的标准
 type Handler struct {
-	operations sets.String
-	readyFunc  ReadyFunc
+	operations sets.String // 支持的操作
+	readyFunc  ReadyFunc   // 准入控制插件是否就绪
 }
 
 // Handles returns true for methods that this handler supports
+// 判断当前的准入控制插件是否支持某种操作
 func (h *Handler) Handles(operation Operation) bool {
 	return h.operations.Has(string(operation))
 }
 
 // NewHandler creates a new base handler that handles the passed
 // in operations
+// 实例化准入控制插件
 func NewHandler(ops ...Operation) *Handler {
 	operations := sets.NewString()
 	for _, op := range ops {
@@ -56,11 +60,13 @@ func NewHandler(ops ...Operation) *Handler {
 }
 
 // SetReadyFunc allows late registration of a ReadyFunc to know if the handler is ready to process requests.
+// 设置准入控制插件的就绪函数
 func (h *Handler) SetReadyFunc(readyFunc ReadyFunc) {
 	h.readyFunc = readyFunc
 }
 
 // WaitForReady will wait for the readyFunc (if registered) to return ready, and in case of timeout, will return false.
+// 1、从这里可以看出，K8S假设准入控制插件必须在10秒钟之内继续，否则不再等待插件就绪
 func (h *Handler) WaitForReady() bool {
 	// there is no ready func configured, so we return immediately
 	if h.readyFunc == nil {
@@ -70,8 +76,8 @@ func (h *Handler) WaitForReady() bool {
 	timeout := time.After(timeToWaitForReady)
 	for !h.readyFunc() {
 		select {
-		case <-time.After(100 * time.Millisecond):
-		case <-timeout:
+		case <-time.After(100 * time.Millisecond): // 每100毫秒判断一次插件是否就绪
+		case <-timeout: // 插件必须在10秒钟之内就绪
 			return h.readyFunc()
 		}
 	}

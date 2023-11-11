@@ -79,6 +79,7 @@ type Attributes interface {
 // ObjectInterfaces is an interface used by AdmissionController to get object interfaces
 // such as Converter or Defaulter. These interfaces are normally coming from Request Scope
 // to handle special cases like CRDs.
+// TODO 这玩意估计是通过Scheme实现的
 type ObjectInterfaces interface {
 	// GetObjectCreater is the ObjectCreator appropriate for the requested object.
 	GetObjectCreater() runtime.ObjectCreater
@@ -104,22 +105,29 @@ type AnnotationsGetter interface {
 }
 
 // ReinvocationContext provides access to the admission related state required to implement the re-invocation policy.
+// 1、插件再次被调用的的上下文
 type ReinvocationContext interface {
 	// IsReinvoke returns true if the current admission check is a re-invocation.
+	// 返回准入控制器当前的执行是否是再次调用
 	IsReinvoke() bool
 	// SetIsReinvoke sets the current admission check as a re-invocation.
+	// 用于设置当前准入控制插件的执行是再次执行
 	SetIsReinvoke()
 	// ShouldReinvoke returns true if any plugin has requested a re-invocation.
+	// 返回当前准入控制插件是否应该被再次调用？
 	ShouldReinvoke() bool
 	// SetShouldReinvoke signals that a re-invocation is desired.
+	// 设置当前准入控制插件是否能够被再次调用
 	SetShouldReinvoke()
-	// AddValue set a value for a plugin name, possibly overriding a previous value.
+	// SetValue set a value for a plugin name, possibly overriding a previous value.
+	// 设置准入插件的民资
 	SetValue(plugin string, v interface{})
 	// Value reads a value for a webhook.
 	Value(plugin string) interface{}
 }
 
 // Interface is an abstract, pluggable interface for Admission Control decisions.
+// 1、准入控制插件顶级抽象
 type Interface interface {
 	// Handles returns true if this admission controller can handle the given operation
 	// where operation can be one of CREATE, UPDATE, DELETE, or CONNECT
@@ -144,6 +152,7 @@ type ValidationInterface interface {
 }
 
 // Operation is the type of resource operation being checked for admission control
+// TODO 如何理解操作？
 type Operation string
 
 // Operation constants
@@ -163,11 +172,13 @@ type PluginInitializer interface {
 
 // InitializationValidator holds ValidateInitialization functions, which are responsible for validation of initialized
 // shared resources and should be implemented on admission plugins
+// 用于判断插件是否初始化完成
 type InitializationValidator interface {
 	ValidateInitialization() error
 }
 
 // ConfigProvider provides a way to get configuration for an admission plugin based on its name
+// 用于向插件提供配置
 type ConfigProvider interface {
 	ConfigFor(pluginName string) (io.Reader, error)
 }

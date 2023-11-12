@@ -60,27 +60,36 @@ func Register(plugins *admission.Plugins) {
 
 // Lifecycle is an implementation of admission.Interface.
 // It enforces life-cycle constraints around a Namespace depending on its Phase
+// TODO 功能是啥？ 什么时候生效? 如何正确使用？ 默认是否开启？
+// 1、不允许删除default, kube-system, kube-public名称空间
+// 2、阻止向不存在的名称空间中创建资源
+// 3、组织向正在删除的名称空间中创建资源
+// 3、此插件默认启用。
 type Lifecycle struct {
 	*admission.Handler
-	client             kubernetes.Interface
-	immortalNamespaces sets.String
-	namespaceLister    corelisters.NamespaceLister
+	client             kubernetes.Interface        // APIServer客户端
+	immortalNamespaces sets.String                 // 所谓永存的名称空间，其实就是default, kube-system, kube-public名称空间
+	namespaceLister    corelisters.NamespaceLister // 查询名称空间
 	// forceLiveLookupCache holds a list of entries for namespaces that we have a strong reason to believe are stale in our local cache.
 	// if a namespace is in this cache, then we will ignore our local state and always fetch latest from api server.
-	forceLiveLookupCache *utilcache.LRUExpireCache
+	forceLiveLookupCache *utilcache.LRUExpireCache // LRU缓存
 }
 
+// 准入控制插件初始化器
 var _ = initializer.WantsExternalKubeInformerFactory(&Lifecycle{})
 var _ = initializer.WantsExternalKubeClientSet(&Lifecycle{})
 
 // Admit makes an admission decision based on the request attributes
 func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admission.ObjectInterfaces) error {
 	// prevent deletion of immortal namespaces
-	if a.GetOperation() == admission.Delete && a.GetKind().GroupKind() == v1.SchemeGroupVersion.WithKind("Namespace").GroupKind() && l.immortalNamespaces.Has(a.GetName()) {
+	// 不允许删除default, kube-system, kube-public名称空间
+	if a.GetOperation() == admission.Delete && a.GetKind().GroupKind() == v1.SchemeGroupVersion.WithKind("Namespace").GroupKind() &&
+		l.immortalNamespaces.Has(a.GetName()) {
 		return errors.NewForbidden(a.GetResource().GroupResource(), a.GetName(), fmt.Errorf("this namespace may not be deleted"))
 	}
 
 	// always allow non-namespaced resources
+	// 当前Lifecycle仅针对名称空间资源起作用，对于其它任意资源都不起作用，直接放过
 	if len(a.GetNamespace()) == 0 && a.GetKind().GroupKind() != v1.SchemeGroupVersion.WithKind("Namespace").GroupKind() {
 		return nil
 	}
@@ -90,6 +99,7 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 		// while it is undergoing termination.  to reduce incidences where the cache
 		// is slow to update, we add the namespace into a force live lookup list to ensure
 		// we are not looking at stale state.
+		// 记录删除的名称空间，如果一个名称空间已经被删除，此时用户在名称空间被删除的过程当当中创建新的资源，此时需要直接通过缓存阻止这个操作
 		if a.GetOperation() == admission.Delete {
 			l.forceLiveLookupCache.Add(a.GetName(), true, forceLiveLookupTTL)
 		}
@@ -98,6 +108,7 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 	}
 
 	// always allow deletion of other resources
+	// 对于其它资源默认
 	if a.GetOperation() == admission.Delete {
 		return nil
 	}
@@ -108,6 +119,7 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 	}
 
 	// we need to wait for our caches to warm
+	// 等待准入控制插件就绪
 	if !l.WaitForReady() {
 		return admission.NewForbidden(a, fmt.Errorf("not yet ready to handle request"))
 	}
@@ -117,6 +129,7 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 		err    error
 	)
 
+	// 获取当前资源所在名称空间
 	namespace, err := l.namespaceLister.Get(a.GetNamespace())
 	if err != nil {
 		if !errors.IsNotFound(err) {
@@ -126,9 +139,11 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 		exists = true
 	}
 
+	// 当前资源的名称空间不存在，并且是一个创建资源的操作
 	if !exists && a.GetOperation() == admission.Create {
 		// give the cache time to observe the namespace before rejecting a create.
 		// this helps when creating a namespace and immediately creating objects within it.
+		// 重新检测名称空间是否存在
 		time.Sleep(missingNamespaceWait)
 		namespace, err = l.namespaceLister.Get(a.GetNamespace())
 		switch {
@@ -154,6 +169,7 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 	// refuse to operate on non-existent namespaces
 	if !exists || forceLiveLookup {
 		// as a last resort, make a call directly to storage
+		// 当前请求的名称空间不存在，直接拒绝这个请求
 		namespace, err = l.client.CoreV1().Namespaces().Get(context.TODO(), a.GetNamespace(), metav1.GetOptions{})
 		switch {
 		case errors.IsNotFound(err):
@@ -167,10 +183,12 @@ func (l *Lifecycle) Admit(ctx context.Context, a admission.Attributes, o admissi
 
 	// ensure that we're not trying to create objects in terminating namespaces
 	if a.GetOperation() == admission.Create {
+		// 如果当前请求准备创建资源，并且资源所在名称空间没有处于删除状态，那么允许此操作
 		if namespace.Status.Phase != v1.NamespaceTerminating {
 			return nil
 		}
 
+		// 否则，禁止向正在删除的名称空间中创建任意资源
 		err := admission.NewForbidden(a, fmt.Errorf("unable to create new content in namespace %s because it is being terminated", a.GetNamespace()))
 		if apierr, ok := err.(*errors.StatusError); ok {
 			apierr.ErrStatus.Details.Causes = append(apierr.ErrStatus.Details.Causes, metav1.StatusCause{
@@ -193,6 +211,7 @@ func NewLifecycle(immortalNamespaces sets.String) (*Lifecycle, error) {
 func newLifecycleWithClock(immortalNamespaces sets.String, clock utilcache.Clock) (*Lifecycle, error) {
 	forceLiveLookupCache := utilcache.NewLRUExpireCacheWithClock(100, clock)
 	return &Lifecycle{
+		// 支持CREATE, UPDATE, DELETE操作
 		Handler:              admission.NewHandler(admission.Create, admission.Update, admission.Delete),
 		immortalNamespaces:   immortalNamespaces,
 		forceLiveLookupCache: forceLiveLookupCache,
@@ -203,6 +222,7 @@ func newLifecycleWithClock(immortalNamespaces sets.String, clock utilcache.Clock
 func (l *Lifecycle) SetExternalKubeInformerFactory(f informers.SharedInformerFactory) {
 	namespaceInformer := f.Core().V1().Namespaces()
 	l.namespaceLister = namespaceInformer.Lister()
+	// Informer同步完成就认为Livecycle准入控制插件就绪
 	l.SetReadyFunc(namespaceInformer.Informer().HasSynced)
 }
 

@@ -33,18 +33,21 @@ type ContainerVisitorWithPath func(container *api.Container, path *field.Path) b
 // If visitor returns false, visiting is short-circuited. VisitContainersWithPath returns true if visiting completes,
 // false if visiting was short-circuited.
 func VisitContainersWithPath(podSpec *api.PodSpec, specPath *field.Path, visitor ContainerVisitorWithPath) bool {
+	// 处理Init容器
 	fldPath := specPath.Child("initContainers")
 	for i := range podSpec.InitContainers {
 		if !visitor(&podSpec.InitContainers[i], fldPath.Index(i)) {
 			return false
 		}
 	}
+	// 处理普通容器
 	fldPath = specPath.Child("containers")
 	for i := range podSpec.Containers {
 		if !visitor(&podSpec.Containers[i], fldPath.Index(i)) {
 			return false
 		}
 	}
+	// 处理临时容器
 	fldPath = specPath.Child("ephemeralContainers")
 	for i := range podSpec.EphemeralContainers {
 		if !visitor((*api.Container)(&podSpec.EphemeralContainers[i].EphemeralContainerCommon), fldPath.Index(i)) {

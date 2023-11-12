@@ -55,6 +55,8 @@ func Register(plugins *admission.Plugins) {
 }
 
 // LimitRanger enforces usage limits on a per resource basis in the namespace
+// 1、用于限制一个名称空间中所有Pod所使用的资源总和，譬如CPU，内存
+// 2、TODO 显然LimitRange资源就是通过这个准入控制器实现的，因此这个准入控制器默认是启用的
 type LimitRanger struct {
 	*admission.Handler                      // 准入控制插件的基础实现
 	client             kubernetes.Interface // APIServer的客户端

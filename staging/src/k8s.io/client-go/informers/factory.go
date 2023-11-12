@@ -261,6 +261,7 @@ type SharedInformerFactory interface {
 	// client.
 	InformerFor(obj runtime.Object, newFunc internalinterfaces.NewInformerFunc) cache.SharedIndexInformer
 
+	// 所谓准入注册中心，其实就是MutatingWebhook， ValidatingWebhook的配置文件，用于告诉K8S如何访问政协准入控制器
 	Admissionregistration() admissionregistration.Interface
 	Internal() apiserverinternal.Interface
 	Apps() apps.Interface

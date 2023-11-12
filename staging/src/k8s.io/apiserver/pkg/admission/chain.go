@@ -30,6 +30,7 @@ func NewChainHandler(handlers ...Interface) chainAdmissionHandler {
 // Admit performs an admission control check using a chain of handlers, and returns immediately on first error
 func (admissionHandler chainAdmissionHandler) Admit(ctx context.Context, a Attributes, o ObjectInterfaces) error {
 	for _, handler := range admissionHandler {
+		// 如果当前准入控制器不支持执行此操作，就直接跳过
 		if !handler.Handles(a.GetOperation()) {
 			continue
 		}
@@ -62,6 +63,7 @@ func (admissionHandler chainAdmissionHandler) Validate(ctx context.Context, a At
 // Handles will return true if any of the handlers handles the given operation
 func (admissionHandler chainAdmissionHandler) Handles(operation Operation) bool {
 	for _, handler := range admissionHandler {
+		// 但凡有一个准入控制器支持，就认为支持此操作
 		if handler.Handles(operation) {
 			return true
 		}

@@ -60,7 +60,7 @@ type WantsDrainedNotification interface {
 	admission.InitializationValidator
 }
 
-// WantsFeatureGate defines a function which passes the featureGates for inspection by an admission plugin.
+// WantsFeatures defines a function which passes the featureGates for inspection by an admission plugin.
 // Admission plugins should not hold a reference to the featureGates.  Instead, they should query a particular one
 // and assign it to a simple bool in the admission plugin struct.
 //

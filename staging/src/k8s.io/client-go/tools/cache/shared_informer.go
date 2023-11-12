@@ -214,7 +214,7 @@ type SharedInformer interface {
 	IsStopped() bool
 }
 
-// Opaque interface representing the registration of ResourceEventHandler for
+// ResourceEventHandlerRegistration Opaque interface representing the registration of ResourceEventHandler for
 // a SharedInformer. Must be supplied back to the same SharedInformer's
 // `RemoveEventHandler` to unregister the handlers.
 //

@@ -33,8 +33,8 @@ import (
 
 // mutatingWebhookConfigurationManager collects the mutating webhook objects so that they can be called.
 type mutatingWebhookConfigurationManager struct {
-	lister    admissionregistrationlisters.MutatingWebhookConfigurationLister
-	hasSynced func() bool
+	lister    admissionregistrationlisters.MutatingWebhookConfigurationLister // 用于获取MutatingWebhook配置
+	hasSynced func() bool                                                     // Informer是否同步完成
 	lazy      synctrack.Lazy[[]webhook.WebhookAccessor]
 }
 
@@ -83,7 +83,7 @@ func mergeMutatingWebhookConfigurations(configurations []*v1.MutatingWebhookConf
 	// but configurations themselves can be in any order. As we are going to run these
 	// webhooks in serial, they are sorted here to have a deterministic order.
 	sort.SliceStable(configurations, MutatingWebhookConfigurationSorter(configurations).ByName)
-	accessors := []webhook.WebhookAccessor{}
+	var accessors []webhook.WebhookAccessor
 	for _, c := range configurations {
 		// webhook names are not validated for uniqueness, so we check for duplicates and
 		// add a int suffix to distinguish between them

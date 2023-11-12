@@ -59,7 +59,7 @@ type PluginEnabledFunc func(name string, config io.Reader) bool
 func (ps *Plugins) Registered() []string {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
-	keys := []string{}
+	var keys []string
 	for k := range ps.registry {
 		keys = append(keys, k)
 	}
@@ -126,9 +126,9 @@ func splitStream(config io.Reader) (io.Reader, io.Reader, error) {
 // NewFromPlugins returns an admission.Interface that will enforce admission control decisions of all
 // the given plugins.
 func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigProvider, pluginInitializer PluginInitializer, decorator Decorator) (Interface, error) {
-	handlers := []Interface{}
-	mutationPlugins := []string{}
-	validationPlugins := []string{}
+	var handlers []Interface
+	var mutationPlugins []string
+	var validationPlugins []string
 	for _, pluginName := range pluginNames {
 		pluginConfig, err := configProvider.ConfigFor(pluginName)
 		if err != nil {

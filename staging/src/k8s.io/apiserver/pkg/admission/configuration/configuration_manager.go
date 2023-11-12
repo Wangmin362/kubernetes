@@ -45,6 +45,7 @@ type getFunc func() (runtime.Object, error)
 // `Ready()` returns not ready and `configuration()` returns nil configuration.
 // In an HA setup, the poller is consistent only if the `get` is
 // doing consistent read.
+// 感觉这玩意是不是被废弃了，没有一个地方使用。或者是准入控制插件的配置可以通过其他方式管理
 type poller struct {
 	// a function to consistently read the latest configuration
 	get getFunc

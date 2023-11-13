@@ -30,6 +30,8 @@ import (
 
 // APIGroupHandler creates a webservice serving the supported versions, preferred version, and name
 // of a group. E.g., such a web service will be registered at /apis/extensions.
+// 1、注册除了核心资资源以外的所有组的路由，譬如/apis/rbac.authorization.k8s.io, /apis/policy, /apis/networking.k8s.io。
+// 2、通过此路由，用户可以获取当前组有哪些版本，优先选择哪个版本
 type APIGroupHandler struct {
 	serializer runtime.NegotiatedSerializer
 	group      metav1.APIGroup
@@ -50,6 +52,7 @@ func NewAPIGroupHandler(serializer runtime.NegotiatedSerializer, group metav1.AP
 }
 
 func (s *APIGroupHandler) WebService() *restful.WebService {
+	// 获取支持的媒体类型
 	mediaTypes, _ := negotiation.MediaTypesForSerializer(s.serializer)
 	ws := new(restful.WebService)
 	ws.Path(APIGroupPrefix + "/" + s.group.Name)
@@ -57,9 +60,9 @@ func (s *APIGroupHandler) WebService() *restful.WebService {
 	ws.Route(ws.GET("/").To(s.handle).
 		Doc("get information of a group").
 		Operation("getAPIGroup").
-		Produces(mediaTypes...).
-		Consumes(mediaTypes...).
-		Writes(metav1.APIGroup{}))
+		Produces(mediaTypes...).   // 设置支持的响应媒体类型
+		Consumes(mediaTypes...).   // 设置支持的请求媒体类型
+		Writes(metav1.APIGroup{})) // 响应体结构
 	return ws
 }
 
@@ -69,5 +72,6 @@ func (s *APIGroupHandler) handle(req *restful.Request, resp *restful.Response) {
 }
 
 func (s *APIGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, w, req, http.StatusOK, &s.group, false)
+	responsewriters.WriteObjectNegotiated(s.serializer, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		w, req, http.StatusOK, &s.group, false)
 }

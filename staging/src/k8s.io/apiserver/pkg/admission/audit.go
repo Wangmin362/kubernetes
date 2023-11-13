@@ -36,6 +36,7 @@ var _ ValidationInterface = &auditHandler{}
 // of attribute into the audit event. Attributes passed to the Admit and
 // Validate function must be instance of privateAnnotationsGetter or
 // AnnotationsGetter, otherwise an error is returned.
+// 审计装饰器
 func WithAudit(i Interface) Interface {
 	if i == nil {
 		return i
@@ -47,6 +48,7 @@ func (handler *auditHandler) Admit(ctx context.Context, a Attributes, o ObjectIn
 	if !handler.Interface.Handles(a.GetOperation()) {
 		return nil
 	}
+	// 当前请求必须实现privateAnnotationsGetter或者AnnotationsGetter接口
 	if err := ensureAnnotationGetter(a); err != nil {
 		return err
 	}
@@ -73,6 +75,7 @@ func (handler *auditHandler) Validate(ctx context.Context, a Attributes, o Objec
 	return err
 }
 
+// 当前请求必须实现privateAnnotationsGetter或者AnnotationsGetter接口
 func ensureAnnotationGetter(a Attributes) error {
 	_, okPrivate := a.(privateAnnotationsGetter)
 	_, okPublic := a.(AnnotationsGetter)
@@ -98,5 +101,6 @@ func (handler *auditHandler) logAnnotations(ctx context.Context, a Attributes) {
 		// this will never happen, because we have already checked it in ensureAnnotationGetter
 	}
 
+	// TODO 生成审计事件
 	audit.AddAuditAnnotationsMap(ctx, annotations)
 }

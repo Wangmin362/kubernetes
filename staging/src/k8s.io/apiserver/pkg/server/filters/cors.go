@@ -37,6 +37,7 @@ func WithCORS(handler http.Handler, allowedOriginPatterns []string, allowedMetho
 	if len(allowedOriginPatterns) == 0 {
 		return handler
 	}
+	// 编译CORS表达式规则，后续将用来匹配当前请求携带的Origin是否在这个范围之内
 	allowedOriginPatternsREs := allowedOriginRegexps(allowedOriginPatterns)
 
 	// Set defaults for methods and headers if nothing was passed
@@ -62,10 +63,12 @@ func WithCORS(handler http.Handler, allowedOriginPatterns []string, allowedMetho
 			return
 		}
 		if !isOriginAllowed(origin, allowedOriginPatternsREs) {
+			// 如果不允许跨Origin所指向的域，还是直接放过这个请求，只是不过后续浏览器会拦截这个请求
 			handler.ServeHTTP(w, req)
 			return
 		}
 
+		// Server端通过Header设置请求头，实现CORS跨域解决方案
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", allowMethodsResponseHeader)
 		w.Header().Set("Access-Control-Allow-Headers", allowHeadersResponseHeader)
@@ -118,7 +121,7 @@ func allowedOriginRegexps(allowedOrigins []string) []*regexp.Regexp {
 
 // Takes a list of strings and compiles them into a list of regular expressions
 func compileRegexps(regexpStrings []string) ([]*regexp.Regexp, error) {
-	regexps := []*regexp.Regexp{}
+	var regexps []*regexp.Regexp
 	for _, regexpStr := range regexpStrings {
 		r, err := regexp.Compile(regexpStr)
 		if err != nil {

@@ -54,6 +54,7 @@ const (
 // Controller is the controller manager for the core bootstrap Kubernetes
 // controller loops, which manage creating the "kubernetes" service and
 // provide the IP repair check on service IPs
+// 1、似乎是用来管理kubernetes这个Service的
 type Controller struct {
 	client    kubernetes.Interface
 	informers informers.SharedInformerFactory
@@ -148,14 +149,17 @@ func (c *Controller) Start() {
 	}
 
 	// Reconcile during first run removing itself until server is ready.
+	// 实例化endpoint，其实就是：https://kubernetes.default.svc:443
 	endpointPorts := createEndpointPortSpec(c.PublicServicePort, "https")
+	// 先移除kubernetes.default.svc
 	if err := c.EndpointReconciler.RemoveEndpoints(kubernetesServiceName, c.PublicIP, endpointPorts); err == nil {
 		klog.Error("Found stale data, removed previous endpoints on kubernetes service, apiserver didn't exit successfully previously")
 	} else if !storage.IsNotFound(err) {
 		klog.Errorf("Error removing old endpoints from kubernetes service: %v", err)
 	}
 
-	repairNodePorts := portallocatorcontroller.NewRepair(c.ServiceNodePortInterval, c.client.CoreV1(), c.client.EventsV1(), c.ServiceNodePortRange, c.ServiceNodePortRegistry)
+	repairNodePorts := portallocatorcontroller.NewRepair(c.ServiceNodePortInterval, c.client.CoreV1(), c.client.EventsV1(),
+		c.ServiceNodePortRange, c.ServiceNodePortRegistry)
 
 	// We start both repairClusterIPs and repairNodePorts to ensure repair
 	// loops of ClusterIPs and NodePorts.

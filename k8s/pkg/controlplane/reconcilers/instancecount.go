@@ -32,7 +32,7 @@ import (
 // masterCountEndpointReconciler reconciles endpoints based on a specified expected number of
 // masters. masterCountEndpointReconciler implements EndpointReconciler.
 type masterCountEndpointReconciler struct {
-	masterCount           int
+	masterCount           int // APIServer节点的数量
 	epAdapter             EndpointsAdapter
 	stopReconcilingCalled bool
 	reconcilingLock       sync.Mutex
@@ -67,6 +67,7 @@ func (r *masterCountEndpointReconciler) ReconcileEndpoints(serviceName string, i
 		return nil
 	}
 
+	// 获取default名称空间的kubernetes endpoint
 	e, err := r.epAdapter.Get(metav1.NamespaceDefault, serviceName, metav1.GetOptions{})
 	if err != nil {
 		e = &corev1.Endpoints{
@@ -79,6 +80,7 @@ func (r *masterCountEndpointReconciler) ReconcileEndpoints(serviceName string, i
 
 	// Don't use the EndpointSliceMirroring controller to mirror this to
 	// EndpointSlices. This may change in the future.
+	// TODO 为什么要设置标签endpointslice.kubernetes.io/skip-mirror=true
 	skipMirrorChanged := setSkipMirrorTrue(e)
 
 	if errors.IsNotFound(err) {
@@ -87,6 +89,7 @@ func (r *masterCountEndpointReconciler) ReconcileEndpoints(serviceName string, i
 			Addresses: []corev1.EndpointAddress{{IP: ip.String()}},
 			Ports:     endpointPorts,
 		}}
+		// 创建kubernetes.default.svc
 		_, err = r.epAdapter.Create(metav1.NamespaceDefault, e)
 		return err
 	}
@@ -160,7 +163,7 @@ func (r *masterCountEndpointReconciler) RemoveEndpoints(serviceName string, ip n
 		return nil
 	}
 	// Remove our IP from the list of addresses
-	new := []corev1.EndpointAddress{}
+	var new []corev1.EndpointAddress
 	for _, addr := range e.Subsets[0].Addresses {
 		if addr.IP != ip.String() {
 			new = append(new, addr)

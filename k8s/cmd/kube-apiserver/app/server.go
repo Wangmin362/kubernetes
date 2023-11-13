@@ -376,7 +376,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 	// 3、versionedInformers：本质上就是SharedInformerFactory，用于缓存K8S各种资源
 	// 4、serviceResolver：用于把Service转为一个可用的URL，其实就是用于把Service转为一个可用的URL
 	// 5、pluginInitializers：这里所说的插件其实指的是准入插件，K8S中有许多内置的准入插件，用户也可以定制Webhook准入插件。这里的插件
-	// 初始化器是为了向插件注入需要的依赖。 TODO 好好再分析下
+	// 初始化器是为了向插件注入需要的依赖。
 	// 6、admissionPostStartHook：GenericServer的后置处理器，GenericServer启动之后将会调用后置处理器 TODO 什么时候被调用？生命周期？
 	// 7、storageFactory：K8S资源存储系统这一套设计的还是相当的复杂 TODO APIServer的存储是如何设计的？
 	genericConfig, versionedInformers, serviceResolver, pluginInitializers,
@@ -436,7 +436,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		},
 	}
 
-	// TODO 用于获取CA实际内容
+	// 用于获取CA实际内容，并且当CA发生变化时也能感知到CA的变化
 	clientCAProvider, err := s.Authentication.ClientCert.GetClientCAContentProvider()
 	if err != nil {
 		return nil, nil, nil, err

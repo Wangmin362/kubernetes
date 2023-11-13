@@ -28,5 +28,6 @@ const (
 	// LabelSkipMirror can be set to true on an Endpoints resource to indicate
 	// that the EndpointSliceMirroring controller should not mirror this
 	// resource with EndpointSlices.
+	// TODO 这玩意干嘛的？
 	LabelSkipMirror = "endpointslice.kubernetes.io/skip-mirror"
 )

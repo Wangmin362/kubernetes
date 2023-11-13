@@ -36,8 +36,8 @@ func keepUnversioned(group string) bool {
 // used to keep the responses at the discovery endpoints backward compatible
 // with release-1.1, when the responses have empty APIVersion.
 type stripVersionEncoder struct {
-	encoder    runtime.Encoder
-	serializer runtime.Serializer
+	encoder    runtime.Encoder    // 编码器
+	serializer runtime.Serializer // 序列化器
 	identifier runtime.Identifier
 }
 

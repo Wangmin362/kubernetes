@@ -151,10 +151,12 @@ var (
 
 // ExtraConfig defines extra configuration for the master
 type ExtraConfig struct {
+	// APIServer集群认证信息，主要是包含证书认证以及代理认证
 	ClusterAuthenticationInfo clusterauthenticationtrust.ClusterAuthenticationInfo
 
 	// 用于判断某个GVR，或者是某个组是否被启用
-	APIResourceConfigSource  serverstorage.APIResourceConfigSource
+	APIResourceConfigSource serverstorage.APIResourceConfigSource
+	// 存储工厂，用于获取每个资源的存储配有，尤其是编解码器
 	StorageFactory           serverstorage.StorageFactory
 	EndpointReconcilerConfig EndpointReconcilerConfig
 	EventTTL                 time.Duration
@@ -315,7 +317,10 @@ func (c *Config) Complete() CompletedConfig {
 
 	discoveryAddresses := discovery.DefaultAddresses{DefaultAddress: cfg.GenericConfig.ExternalAddress}
 	discoveryAddresses.CIDRRules = append(discoveryAddresses.CIDRRules,
-		discovery.CIDRRule{IPRange: cfg.ExtraConfig.ServiceIPRange, Address: net.JoinHostPort(cfg.ExtraConfig.APIServerServiceIP.String(), strconv.Itoa(cfg.ExtraConfig.APIServerServicePort))})
+		discovery.CIDRRule{
+			IPRange: cfg.ExtraConfig.ServiceIPRange,
+			Address: net.JoinHostPort(cfg.ExtraConfig.APIServerServiceIP.String(), strconv.Itoa(cfg.ExtraConfig.APIServerServicePort)),
+		})
 	cfg.GenericConfig.DiscoveryAddresses = discoveryAddresses
 
 	if cfg.ExtraConfig.ServiceNodePortRange.Size == 0 {

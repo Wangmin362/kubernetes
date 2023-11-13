@@ -30,10 +30,11 @@ import (
 )
 
 // legacyRootAPIHandler creates a webservice serving api group discovery.
+// 注册/api路由，注册之后，用户可以通过kubectl get --rab=/api访问此路由
 type legacyRootAPIHandler struct {
 	// addresses is used to build cluster IPs for discovery.
 	addresses  Addresses
-	apiPrefix  string
+	apiPrefix  string // 前缀为/api
 	serializer runtime.NegotiatedSerializer
 }
 

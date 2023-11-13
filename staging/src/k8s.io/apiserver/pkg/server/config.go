@@ -189,6 +189,8 @@ type Config struct {
 	// ExternalAddress is the host name to use for external (public internet) facing URLs (e.g. Swagger)
 	// Will default to a value based on secure serving info and available ipv4 IPs.
 	// TODO 暂时不清楚这玩意有啥用
+	// 1、为此主机生成外部化 `URL`时要使用的主机名（例如 `Swagger API` 文档或 `OpenID` 发现）
+	// 2、如果没有设置ExternalAddress，并且--advertise-address配置的地址不为空，那么将会设置ExternalAddress的值为--advertise-address
 	ExternalAddress string
 
 	// TracerProvider can provide a tracer, which records spans for distributed tracing.
@@ -215,7 +217,24 @@ type Config struct {
 	WatchRequestWaitGroup *utilwaitgroup.RateLimitedSafeWaitGroup
 	// DiscoveryAddresses is used to build the IPs pass to discovery. If nil, the ExternalAddress is
 	// always reported
-	// 用于返回给客户端合适的ServerAddress TODO 还需要分析的再详细一些
+	// 1、用于返回给客户端合适的ServerAddress TODO 还需要分析的再详细一些
+	// 2、可以通过kubectl get --raw=/api获取此数据
+	/*
+		root@k8s-master1:~# kubectl get --raw=/api | jq
+		{
+		  "kind": "APIVersions",
+		  "versions": [
+		    "v1"
+		  ],
+		  "serverAddressByClientCIDRs": [
+		    {
+		      "clientCIDR": "0.0.0.0/0",
+		      "serverAddress": "192.168.11.71:6443"
+		    }
+		  ]
+		}
+		root@k8s-master1:~#
+	*/
 	DiscoveryAddresses discovery.Addresses
 	// The default set of healthz checks. There might be more added via AddHealthChecks dynamically.
 	// 健康检测回调
@@ -264,7 +283,9 @@ type Config struct {
 	// sequence and become healthy. From apiserver's start time to when this amount of time has
 	// elapsed, /livez will assume that unfinished post-start hooks will complete successfully and
 	// therefore return true.
-	// TODO 默认为0
+	// 1、默认为0
+	// 2、此参数用于控制/livez接口的行为，当设置此参数，说明需要等待APIServer启动一段事件，并且在这段事件之内，/livez接口返回为true。
+	// 3、说白了就是等待APIServer启动一段时间，在这个时间之内，/livez接口永远返回true，过了这个时间就真正执行/livez接口的逻辑
 	LivezGracePeriod time.Duration
 	// ShutdownDelayDuration allows to block shutdown for some time, e.g. until endpoints pointing to this API server
 	// have converged on all node. During this time, the API server keeps serving, /healthz will return 200,
@@ -340,7 +361,7 @@ type Config struct {
 	// PublicAddress is the IP address where members of the cluster (kubelet,
 	// kube-proxy, services, etc.) can reach the GenericAPIServer.
 	// If nil or 0.0.0.0, the host's default interface will be used.
-	// APIServer的IP地址，通过这个地址，可以用来访问APIServer
+	// APIServer的IP地址，通过这个地址，可以用来访问APIServer，所谓的PublicAddress其实就是AdvertiseAddress
 	PublicAddress net.IP
 
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,

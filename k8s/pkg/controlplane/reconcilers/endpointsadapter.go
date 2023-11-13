@@ -60,6 +60,7 @@ func (adapter *EndpointsAdapter) Get(namespace, name string, getOpts metav1.GetO
 // object and matching EndpointSlice. The created Endpoints object or an error will be
 // returned.
 func (adapter *EndpointsAdapter) Create(namespace string, endpoints *corev1.Endpoints) (*corev1.Endpoints, error) {
+	// 创建endpoint
 	endpoints, err := adapter.endpointClient.Endpoints(namespace).Create(context.TODO(), endpoints, metav1.CreateOptions{})
 	if err == nil {
 		err = adapter.EnsureEndpointSliceFromEndpoints(namespace, endpoints)
@@ -149,7 +150,7 @@ func endpointSliceFromEndpoints(endpoints *corev1.Endpoints) *discovery.Endpoint
 // getEndpointsFromAddresses returns a list of Endpoints from addresses that
 // match the provided address type.
 func getEndpointsFromAddresses(addresses []corev1.EndpointAddress, addressType discovery.AddressType, ready bool) []discovery.Endpoint {
-	endpoints := []discovery.Endpoint{}
+	var endpoints []discovery.Endpoint
 	isIPv6AddressType := addressType == discovery.AddressTypeIPv6
 
 	for _, address := range addresses {

@@ -32,6 +32,7 @@ type APIResourceLister interface {
 	ListAPIResources() []metav1.APIResource
 }
 
+// APIResourceListerFunc APIResourceLister接口的适配器
 type APIResourceListerFunc func() []metav1.APIResource
 
 func (f APIResourceListerFunc) ListAPIResources() []metav1.APIResource {
@@ -42,6 +43,7 @@ func (f APIResourceListerFunc) ListAPIResources() []metav1.APIResource {
 // E.g., such a web service will be registered at /apis/extensions/v1beta1.
 // 1、APIVersionHandler本质上就是一个http.Handler，用于返回/apis/<group>/<version>下面的所有资源
 // 2、可以通过类似的命令进行测试，譬如：kubectl get --raw=/apis/apps/v1
+// 3、核心资源、非核心资源都可以通过APIVersionHandler注册GV路由
 type APIVersionHandler struct {
 	serializer runtime.NegotiatedSerializer
 
@@ -49,7 +51,12 @@ type APIVersionHandler struct {
 	apiResourceLister APIResourceLister
 }
 
-func NewAPIVersionHandler(serializer runtime.NegotiatedSerializer, groupVersion schema.GroupVersion, apiResourceLister APIResourceLister) *APIVersionHandler {
+func NewAPIVersionHandler(
+	serializer runtime.NegotiatedSerializer, // 序列化器
+	groupVersion schema.GroupVersion, // group/verson
+	apiResourceLister APIResourceLister, // 当前GV底下有哪些资源
+) *APIVersionHandler {
+	// 前向兼容
 	if keepUnversioned(groupVersion.Group) {
 		// Because in release 1.1, /apis/extensions returns response with empty
 		// APIVersion, we use stripVersionNegotiatedSerializer to keep the

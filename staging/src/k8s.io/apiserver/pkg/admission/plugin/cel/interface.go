@@ -55,6 +55,7 @@ type OptionalVariableDeclarations struct {
 }
 
 // FilterCompiler contains a function to assist with converting types and values to/from CEL-typed values.
+// TODO CEL表达式匹配
 type FilterCompiler interface {
 	// Compile is used for the cel expression compilation
 	// perCallLimit was added for testing purpose only. Callers should always use const PerCallLimit from k8s.io/apiserver/pkg/apis/cel/config.go as input.

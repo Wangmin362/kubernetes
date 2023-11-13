@@ -60,7 +60,6 @@ func Register(plugins *admission.Plugins) {
 
 // Lifecycle is an implementation of admission.Interface.
 // It enforces life-cycle constraints around a Namespace depending on its Phase
-// TODO 功能是啥？ 什么时候生效? 如何正确使用？ 默认是否开启？
 // 1、不允许删除default, kube-system, kube-public名称空间
 // 2、阻止向不存在的名称空间中创建资源
 // 3、组织向正在删除的名称空间中创建资源

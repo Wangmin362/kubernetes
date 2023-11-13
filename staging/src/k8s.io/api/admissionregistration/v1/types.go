@@ -497,6 +497,7 @@ type MutatingWebhook struct {
 	// +listMapKey=name
 	// +featureGate=AdmissionWebhookMatchConditions
 	// +optional
+	// 这玩意就是CEL表达式匹配
 	MatchConditions []MatchCondition `json:"matchConditions,omitempty" patchStrategy:"merge" patchMergeKey:"name" protobuf:"bytes,12,opt,name=matchConditions"`
 }
 
@@ -534,7 +535,7 @@ type OperationType string
 
 // The constants should be kept in sync with those defined in k8s.io/kubernetes/pkg/admission/interface.go.
 const (
-	OperationAll OperationType = "*"
+	OperationAll OperationType = "*" // 即所有操作都支持
 	Create       OperationType = "CREATE"
 	Update       OperationType = "UPDATE"
 	Delete       OperationType = "DELETE"

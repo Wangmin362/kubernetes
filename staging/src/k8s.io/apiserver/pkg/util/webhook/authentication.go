@@ -111,6 +111,7 @@ func NewDefaultAuthenticationInfoResolverWrapper(
 // AuthenticationInfoResolver builds rest.Config base on the server or service
 // name and service namespace.
 // TODO AuthenticationInfoResolver是干嘛的？ 为什么需要？完成了什么功能？
+// 1、从接口返回值来看，就是用于根据Server信息或者是Service信息声称要给HTTP客户端配置，用于访问HTTP服务
 type AuthenticationInfoResolver interface {
 	// ClientConfigFor builds rest.Config based on the hostPort.
 	ClientConfigFor(hostPort string) (*rest.Config, error)
@@ -136,6 +137,7 @@ func (a *AuthenticationInfoResolverDelegator) ClientConfigForService(serviceName
 	return a.ClientConfigForServiceFunc(serviceName, serviceNamespace, servicePort)
 }
 
+// 通过Kubeconfig文件生成客户端配置
 type defaultAuthenticationInfoResolver struct {
 	kubeconfig clientcmdapi.Config
 }

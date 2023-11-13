@@ -25,8 +25,10 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// ObjectSelectorProvider 获取对象选择器，通过WebhookConfiguration.objectSelector指定
 type ObjectSelectorProvider interface {
-	// GetObjectSelector gets the webhook ObjectSelector field.
+	// GetParsedObjectSelector gets the webhook ObjectSelector field.
+	// 1、用于获取对象的选择器
 	GetParsedObjectSelector() (labels.Selector, error)
 }
 
@@ -34,6 +36,7 @@ type ObjectSelectorProvider interface {
 type Matcher struct {
 }
 
+// 通过标签，判断当前对象是否满足选择器
 func matchObject(obj runtime.Object, selector labels.Selector) bool {
 	if obj == nil {
 		return false
@@ -43,6 +46,7 @@ func matchObject(obj runtime.Object, selector labels.Selector) bool {
 		klog.V(5).InfoS("Accessing metadata failed", "object", obj, "err", err)
 		return false
 	}
+	// 判断两个标签选择器是否匹配
 	return selector.Matches(labels.Set(accessor.GetLabels()))
 
 }
@@ -50,10 +54,12 @@ func matchObject(obj runtime.Object, selector labels.Selector) bool {
 // MatchObjectSelector decideds whether the request matches the ObjectSelector
 // of the webhook. Only when they match, the webhook is called.
 func (m *Matcher) MatchObjectSelector(p ObjectSelectorProvider, attr admission.Attributes) (bool, *apierrors.StatusError) {
+	// 获取对象的选择器
 	selector, err := p.GetParsedObjectSelector()
 	if err != nil {
 		return false, apierrors.NewInternalError(err)
 	}
+	// 如果指定的选择器为空，那么认为匹配
 	if selector.Empty() {
 		return true, nil
 	}

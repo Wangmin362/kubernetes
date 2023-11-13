@@ -25,6 +25,7 @@ import (
 	"k8s.io/component-base/featuregate"
 )
 
+// 插件初始化器，为插件注入需要的依赖
 type pluginInitializer struct {
 	externalClient    kubernetes.Interface
 	dynamicClient     dynamic.Interface
@@ -38,12 +39,12 @@ type pluginInitializer struct {
 // This constructor is public with a long param list so that callers immediately know that new information can be expected
 // during compilation when they update a level.
 func New(
-	extClientset kubernetes.Interface,
-	dynamicClient dynamic.Interface,
-	extInformers informers.SharedInformerFactory,
-	authz authorizer.Authorizer,
-	featureGates featuregate.FeatureGate,
-	stopCh <-chan struct{},
+	extClientset kubernetes.Interface, // APIServer客户端(ClientSet)
+	dynamicClient dynamic.Interface, // DynamicInterface
+	extInformers informers.SharedInformerFactory, // SharedInformer
+	authz authorizer.Authorizer, // 鉴权器
+	featureGates featuregate.FeatureGate, // 特性开关
+	stopCh <-chan struct{}, // DrainedNotification
 ) pluginInitializer {
 	return pluginInitializer{
 		externalClient:    extClientset,
@@ -56,6 +57,7 @@ func New(
 }
 
 // Initialize checks the initialization interfaces implemented by a plugin
+// 为插件注入依赖
 // and provide the appropriate initialization data
 func (i pluginInitializer) Initialize(plugin admission.Interface) {
 	// First tell the plugin about drained notification, so it can pass it to further initializations.

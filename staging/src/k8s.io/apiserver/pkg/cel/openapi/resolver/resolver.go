@@ -25,6 +25,7 @@ import (
 
 // SchemaResolver finds the OpenAPI schema for the given GroupVersionKind.
 // This interface uses the type defined by k8s.io/kube-openapi
+// TODO 这玩玩意干嘛的？  似乎和OpenAPI有关
 type SchemaResolver interface {
 	// ResolveSchema takes a GroupVersionKind (GVK) and returns the OpenAPI schema
 	// identified by the GVK.

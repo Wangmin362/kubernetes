@@ -43,6 +43,7 @@ func init() {
 }
 
 // LoadConfig extract the KubeConfigFile from configFile
+// 获取Kubeconfig配置文件绝对路径
 func LoadConfig(configFile io.Reader) (string, error) {
 	var kubeconfigFile string
 	if configFile != nil {
@@ -51,6 +52,7 @@ func LoadConfig(configFile io.Reader) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		// 获取通用编解码器
 		decoder := codecs.UniversalDecoder()
 		decodedObj, err := runtime.Decode(decoder, data)
 		if err != nil {

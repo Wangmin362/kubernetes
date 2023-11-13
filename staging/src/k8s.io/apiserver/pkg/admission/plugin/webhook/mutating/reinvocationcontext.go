@@ -22,6 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 )
 
+// 1、重新调用上下文
+// 2、所谓重新调用，指的是一个Webhook调用失败之后需要再次调用，而再次调用的上下文就是这里。
+// 3、一个Webhook是否能够被重新调用，取决于WebhookConfiguration配置的reinvocationPolicy是否设置了允许调用
 type webhookReinvokeContext struct {
 	// lastWebhookOutput holds the result of the last webhook admission plugin call
 	lastWebhookOutput runtime.Object
@@ -36,6 +39,7 @@ func (rc *webhookReinvokeContext) ShouldReinvokeWebhook(webhook string) bool {
 	return rc.reinvokeWebhooks.Has(webhook)
 }
 
+// IsOutputChangedSinceLastWebhookInvocation 判断当前对象相比于上次一次调用是否已经发生改变
 func (rc *webhookReinvokeContext) IsOutputChangedSinceLastWebhookInvocation(object runtime.Object) bool {
 	return !apiequality.Semantic.DeepEqual(rc.lastWebhookOutput, object)
 }

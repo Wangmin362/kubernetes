@@ -29,6 +29,7 @@ type VersionedAttributeAccessor interface {
 }
 
 // Source can list dynamic webhook plugins.
+// 此接口用于动态获取webhook准入控制插件
 type Source interface {
 	Webhooks() []webhook.WebhookAccessor
 	HasSynced() bool
@@ -36,6 +37,7 @@ type Source interface {
 
 // WebhookInvocation describes how to call a webhook, including the resource and subresource the webhook registered for,
 // and the kind that should be sent to the webhook.
+// webhook调用的上下文
 type WebhookInvocation struct {
 	Webhook     webhook.WebhookAccessor
 	Resource    schema.GroupVersionResource

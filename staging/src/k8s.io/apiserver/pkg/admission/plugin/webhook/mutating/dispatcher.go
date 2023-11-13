@@ -58,7 +58,7 @@ const (
 	PatchAuditAnnotationPrefix = "patch.webhook.admission.k8s.io/"
 	// MutationAuditAnnotationPrefix is a prefix for presisting webhook mutation existence in audit annotation.
 	MutationAuditAnnotationPrefix = "mutation.webhook.admission.k8s.io/"
-	// MutationAnnotationFailedOpenKeyPrefix in an annotation indicates
+	// MutationAuditAnnotationFailedOpenKeyPrefix in an annotation indicates
 	// the mutating webhook failed open when the webhook backend connection
 	// failed or returned an internal server error.
 	MutationAuditAnnotationFailedOpenKeyPrefix string = "failed-open." + MutationAuditAnnotationPrefix
@@ -66,7 +66,7 @@ const (
 
 type mutatingDispatcher struct {
 	cm     *webhookutil.ClientManager
-	plugin *Plugin
+	plugin *Plugin // 通用Webhook配置实现
 }
 
 func newMutatingDispatcher(p *Plugin) func(cm *webhookutil.ClientManager) generic.Dispatcher {
@@ -102,6 +102,7 @@ func (v *versionedAttributeAccessor) VersionedAttribute(gvk schema.GroupVersionK
 var _ generic.Dispatcher = &mutatingDispatcher{}
 
 func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attributes, o admission.ObjectInterfaces, hooks []webhook.WebhookAccessor) error {
+	// 获取重新调用上下文
 	reinvokeCtx := attr.GetReinvocationContext()
 	var webhookReinvokeCtx *webhookReinvokeContext
 	if v := reinvokeCtx.Value(PluginName); v != nil {
@@ -111,9 +112,11 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 		reinvokeCtx.SetValue(PluginName, webhookReinvokeCtx)
 	}
 
+	// 判断当前调用是否是再次调用，如果是再次调用，判断当前对象相比于上次是否已经发生了改变
 	if reinvokeCtx.IsReinvoke() && webhookReinvokeCtx.IsOutputChangedSinceLastWebhookInvocation(attr.GetObject()) {
 		// If the object has changed, we know the in-tree plugin re-invocations have mutated the object,
 		// and we need to reinvoke all eligible webhooks.
+		// TODO
 		webhookReinvokeCtx.RequireReinvokingPreviouslyInvokedPlugins()
 	}
 	defer func() {
@@ -129,14 +132,17 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 			attrForCheck = v.versionedAttr
 		}
 
+		// 判断当前Webhook是否应该调用
 		invocation, statusErr := a.plugin.ShouldCallHook(ctx, hook, attrForCheck, o, v)
 		if statusErr != nil {
 			return statusErr
 		}
+		// invocation为空，肯定不能调用，直接跳过当前Webhook
 		if invocation == nil {
 			continue
 		}
 
+		// 获取当前webhook配置
 		hook, ok := invocation.Webhook.GetMutatingWebhook()
 		if !ok {
 			return fmt.Errorf("mutating webhook dispatch requires v1.MutatingWebhook, but got %T", hook)
@@ -146,7 +152,9 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 		// skipped in the first round because of mismatching labels,
 		// even if the labels become matching, the webhook does not
 		// get called during reinvocation.
+		// 如果当前调用是再次调用，那么判断当前准控制器是否设置了允许再次调用
 		if reinvokeCtx.IsReinvoke() && !webhookReinvokeCtx.ShouldReinvokeWebhook(invocation.Webhook.GetUID()) {
+			// 如果不允许再次调用，直接退出
 			continue
 		}
 
@@ -157,11 +165,13 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 
 		t := time.Now()
 		round := 0
+		// 设置再次调用为1
 		if reinvokeCtx.IsReinvoke() {
 			round = 1
 		}
 
 		annotator := newWebhookAnnotator(versionedAttr, round, i, hook.Name, invocation.Webhook.GetConfigurationName())
+		// 调用webhook
 		changed, err := a.callAttrMutatingHook(ctx, hook, invocation, versionedAttr, annotator, o, round, i)
 		ignoreClientCallFailures := hook.FailurePolicy != nil && *hook.FailurePolicy == admissionregistrationv1.Ignore
 		rejected := false
@@ -233,10 +243,21 @@ func (a *mutatingDispatcher) Dispatch(ctx context.Context, attr admission.Attrib
 
 // note that callAttrMutatingHook updates attr
 
-func (a *mutatingDispatcher) callAttrMutatingHook(ctx context.Context, h *admissionregistrationv1.MutatingWebhook, invocation *generic.WebhookInvocation, attr *admission.VersionedAttributes, annotator *webhookAnnotator, o admission.ObjectInterfaces, round, idx int) (bool, error) {
+func (a *mutatingDispatcher) callAttrMutatingHook(
+	ctx context.Context,
+	h *admissionregistrationv1.MutatingWebhook,
+	invocation *generic.WebhookInvocation,
+	attr *admission.VersionedAttributes,
+	annotator *webhookAnnotator,
+	o admission.ObjectInterfaces,
+	round,
+	idx int,
+) (bool, error) {
+	// 获取WebhookConfiguration的配置名
 	configurationName := invocation.Webhook.GetConfigurationName()
 	changed := false
 	defer func() { annotator.addMutationAnnotation(changed) }()
+	// TODO 如果当前请求处于DryRun模式
 	if attr.Attributes.IsDryRun() {
 		if h.SideEffects == nil {
 			return false, &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: fmt.Errorf("Webhook SideEffects is nil"), Status: apierrors.NewBadRequest("Webhook SideEffects is nil")}
@@ -251,6 +272,7 @@ func (a *mutatingDispatcher) callAttrMutatingHook(ctx context.Context, h *admiss
 		return false, &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: fmt.Errorf("could not create admission objects: %w", err), Status: apierrors.NewBadRequest("error creating admission objects")}
 	}
 	// Make the webhook request
+	// 获取RestClient
 	client, err := invocation.Webhook.GetRESTClient(a.cm)
 	if err != nil {
 		return false, &webhookutil.ErrCallingWebhook{WebhookName: h.Name, Reason: fmt.Errorf("could not get REST client: %w", err), Status: apierrors.NewBadRequest("error getting REST client")}
@@ -271,6 +293,7 @@ func (a *mutatingDispatcher) callAttrMutatingHook(ctx context.Context, h *admiss
 		defer cancel()
 	}
 
+	// 准备Post请求
 	r := client.Post().Body(request)
 
 	// if the context has a deadline, set it as a parameter to inform the backend
@@ -286,6 +309,7 @@ func (a *mutatingDispatcher) callAttrMutatingHook(ctx context.Context, h *admiss
 		}
 	}
 
+	// 调用Webhook
 	do := func() { err = r.Do(ctx).Into(response) }
 	if wd, ok := endpointsrequest.LatencyTrackersFrom(ctx); ok {
 		tmp := do
@@ -394,7 +418,7 @@ type webhookAnnotator struct {
 
 func newWebhookAnnotator(attr *admission.VersionedAttributes, round, idx int, webhook, configuration string) *webhookAnnotator {
 	return &webhookAnnotator{
-		attr:                    attr,
+		attr:                    attr, // 可以理解为当前请求的所有信息
 		failedOpenAnnotationKey: fmt.Sprintf("%sround_%d_index_%d", MutationAuditAnnotationFailedOpenKeyPrefix, round, idx),
 		patchAnnotationKey:      fmt.Sprintf("%sround_%d_index_%d", PatchAuditAnnotationPrefix, round, idx),
 		mutationAnnotationKey:   fmt.Sprintf("%sround_%d_index_%d", MutationAuditAnnotationPrefix, round, idx),

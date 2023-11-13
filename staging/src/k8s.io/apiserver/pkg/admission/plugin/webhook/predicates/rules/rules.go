@@ -26,8 +26,9 @@ import (
 )
 
 // Matcher determines if the Attr matches the Rule.
+// Rule匹配器，通过WebhookConfiguration.rules指定规则
 type Matcher struct {
-	Rule v1.RuleWithOperations
+	Rule v1.RuleWithOperations // 通过WebhookConfiguration.rules指定规则
 	Attr admission.Attributes
 }
 
@@ -56,10 +57,12 @@ func exactOrWildcard(items []string, requested string) bool {
 var namespaceResource = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
 
 func (r *Matcher) scope() bool {
+	// 如果当前没有指定资源作用域，认为匹配成功
 	if r.Rule.Scope == nil || *r.Rule.Scope == v1.AllScopes {
 		return true
 	}
 	// attr.GetNamespace() is set to the name of the namespace for requests of the namespace object itself.
+	// 如果指定了资源作用域，那么当前请求的作用域必须匹配
 	switch *r.Rule.Scope {
 	case v1.NamespacedScope:
 		// first make sure that we are not requesting a namespace object (namespace objects are cluster-scoped)
@@ -72,14 +75,17 @@ func (r *Matcher) scope() bool {
 	}
 }
 
+// 匹配组
 func (r *Matcher) group() bool {
 	return exactOrWildcard(r.Rule.APIGroups, r.Attr.GetResource().Group)
 }
 
+// 匹配版本
 func (r *Matcher) version() bool {
 	return exactOrWildcard(r.Rule.APIVersions, r.Attr.GetResource().Version)
 }
 
+// 匹配Operation
 func (r *Matcher) operation() bool {
 	attrOp := r.Attr.GetOperation()
 	for _, op := range r.Rule.Operations {
@@ -103,6 +109,7 @@ func splitResource(resSub string) (res, sub string) {
 	return parts[0], ""
 }
 
+// 匹配资源
 func (r *Matcher) resource() bool {
 	opRes, opSub := r.Attr.GetResource().Resource, r.Attr.GetSubresource()
 	for _, res := range r.Rule.Resources {
@@ -121,7 +128,8 @@ func (r *Matcher) resource() bool {
 func IsExemptAdmissionConfigurationResource(attr admission.Attributes) bool {
 	gvk := attr.GetKind()
 	if gvk.Group == "admissionregistration.k8s.io" {
-		if gvk.Kind == "ValidatingWebhookConfiguration" || gvk.Kind == "MutatingWebhookConfiguration" || gvk.Kind == "ValidatingAdmissionPolicy" || gvk.Kind == "ValidatingAdmissionPolicyBinding" {
+		if gvk.Kind == "ValidatingWebhookConfiguration" || gvk.Kind == "MutatingWebhookConfiguration" ||
+			gvk.Kind == "ValidatingAdmissionPolicy" || gvk.Kind == "ValidatingAdmissionPolicyBinding" {
 			return true
 		}
 	}

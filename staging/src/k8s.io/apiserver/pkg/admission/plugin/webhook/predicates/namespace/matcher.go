@@ -30,14 +30,17 @@ import (
 	corelisters "k8s.io/client-go/listers/core/v1"
 )
 
+// NamespaceSelectorProvider 获取当前请求资源的名称空间，通过WebhookConfiguration.namespaceSelector指定
 type NamespaceSelectorProvider interface {
-	// GetNamespaceSelector gets the webhook NamespaceSelector field.
+	// GetParsedNamespaceSelector GetNamespaceSelector gets the webhook NamespaceSelector field.
 	GetParsedNamespaceSelector() (labels.Selector, error)
 }
 
 // Matcher decides if a request is exempted by the NamespaceSelector of a
 // webhook configuration.
+// 名称空间匹配器
 type Matcher struct {
+	// 获取名称空间
 	NamespaceLister corelisters.NamespaceLister
 	Client          clientset.Interface
 }
@@ -64,6 +67,8 @@ func (m *Matcher) GetNamespaceLabels(attr admission.Attributes) (map[string]stri
 	// the namespace in the namespaceLister, because a delete request is not
 	// going to change the object, and attr.Object will be a DeleteOptions
 	// rather than a namespace object.
+	// 1、如果当前请求资源即使Namespace,并且不是Namespace的子资源，并且当前操作为创建或者更新，那么就直接返回当前资源的标签。因为当前资源就是
+	// 名称空间资源，它的标签当然是名称空间的标签
 	if attr.GetResource().Resource == "namespaces" &&
 		len(attr.GetSubresource()) == 0 &&
 		(attr.GetOperation() == admission.Create || attr.GetOperation() == admission.Update) {
@@ -74,13 +79,16 @@ func (m *Matcher) GetNamespaceLabels(attr admission.Attributes) (map[string]stri
 		return accessor.GetLabels(), nil
 	}
 
+	// 获取资源说在名称空间
 	namespaceName := attr.GetNamespace()
+	// 根据名字获取名称空间资源
 	namespace, err := m.NamespaceLister.Get(namespaceName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
 	}
 	if apierrors.IsNotFound(err) {
 		// in case of latency in our caches, make a call direct to storage to verify that it truly exists or not
+		// 如果没有找到，有可能是Informer没有，但是APIServer中确实存在，此时尝试向APIServer请求获取名称空间资源
 		namespace, err = m.Client.CoreV1().Namespaces().Get(context.TODO(), namespaceName, metav1.GetOptions{})
 		if err != nil {
 			return nil, err
@@ -91,8 +99,15 @@ func (m *Matcher) GetNamespaceLabels(attr admission.Attributes) (map[string]stri
 
 // MatchNamespaceSelector decideds whether the request matches the
 // namespaceSelctor of the webhook. Only when they match, the webhook is called.
-func (m *Matcher) MatchNamespaceSelector(p NamespaceSelectorProvider, attr admission.Attributes) (bool, *apierrors.StatusError) {
+func (m *Matcher) MatchNamespaceSelector(
+	p NamespaceSelectorProvider, // 为用户在WebhookConfiguration中配置的选择器
+	attr admission.Attributes, // 当前请求的资源，通过Attributes可以获取各种属性
+) (bool, *apierrors.StatusError) {
+	// 获取请求资源所在名称空间
 	namespaceName := attr.GetNamespace()
+	// 1、如果当前资源没有指定名称空间，并且当前资源不是Namespace资源，说明当前资源是一个Cluster级别的资源，名称空间选择器肯定没啥卵用，直接认为是匹配
+	// 2、之所以认为是匹配的，是因为用户很有可能设置WebhookConfiguration的Scope为*，也就是无论资源是Cluster级别的还是名称空间级别的，都需要
+	// 进行一次准入控制。此时，如果当前请求是Cluster级别的，那么用户指定的名称空间选择器只能认为匹配上
 	if len(namespaceName) == 0 && attr.GetResource().Resource != "namespaces" {
 		// If the request is about a cluster scoped resource, and it is not a
 		// namespace, it is never exempted.
@@ -100,14 +115,17 @@ func (m *Matcher) MatchNamespaceSelector(p NamespaceSelectorProvider, attr admis
 		// Also update the comment in types.go
 		return true, nil
 	}
+	// 获取用户指定的名称空间选择器
 	selector, err := p.GetParsedNamespaceSelector()
 	if err != nil {
 		return false, apierrors.NewInternalError(err)
 	}
+	// 如果用户没有指定，认为匹配成功
 	if selector.Empty() {
 		return true, nil
 	}
 
+	// 获取当前请求资源的名称空间标签
 	namespaceLabels, err := m.GetNamespaceLabels(attr)
 	// this means the namespace is not found, for backwards compatibility,
 	// return a 404
@@ -121,5 +139,6 @@ func (m *Matcher) MatchNamespaceSelector(p NamespaceSelectorProvider, attr admis
 	if err != nil {
 		return false, apierrors.NewInternalError(err)
 	}
+	// 比较两个名称空间选择器是否匹配
 	return selector.Matches(labels.Set(namespaceLabels)), nil
 }

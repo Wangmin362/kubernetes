@@ -43,14 +43,17 @@ func Register(plugins *admission.Plugins) {
 }
 
 // Plugin is an implementation of admission.Interface.
+// 1、MutatingWebhook本身并没有实际的业务含义，也并不会执行任何的准入控制，MutatingWebhook的准入控制是通过用户自定义的Webhook来完成准入
+// 控制的，这里可以理解为MutatingWebhook的管理器
 type Plugin struct {
-	*generic.Webhook
+	*generic.Webhook // 解决通用Webhook准入控制插件来实现自己的功能
 }
 
 var _ admission.MutationInterface = &Plugin{}
 
 // NewMutatingWebhook returns a generic admission webhook plugin.
 func NewMutatingWebhook(configFile io.Reader) (*Plugin, error) {
+	// MutatingWebhook支持CREATE, DELETE, UPDATE, CONNECT配置
 	handler := admission.NewHandler(admission.Connect, admission.Create, admission.Delete, admission.Update)
 	p := &Plugin{}
 	var err error
@@ -72,5 +75,6 @@ func (a *Plugin) ValidateInitialization() error {
 
 // Admit makes an admission decision based on the request attributes.
 func (a *Plugin) Admit(ctx context.Context, attr admission.Attributes, o admission.ObjectInterfaces) error {
+	// 把任务委派到各个Webhook
 	return a.Webhook.Dispatch(ctx, attr, o)
 }

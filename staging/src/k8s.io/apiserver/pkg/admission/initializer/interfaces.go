@@ -29,24 +29,28 @@ import (
 )
 
 // WantsExternalKubeClientSet defines a function which sets external ClientSet for admission plugins that need it
+// 注入ClientSet客户端
 type WantsExternalKubeClientSet interface {
 	SetExternalKubeClientSet(kubernetes.Interface)
 	admission.InitializationValidator
 }
 
 // WantsExternalKubeInformerFactory defines a function which sets InformerFactory for admission plugins that need it
+// 注入SharedInformerFactory
 type WantsExternalKubeInformerFactory interface {
 	SetExternalKubeInformerFactory(informers.SharedInformerFactory)
 	admission.InitializationValidator
 }
 
 // WantsAuthorizer defines a function which sets Authorizer for admission plugins that need it.
+// 注入鉴权器
 type WantsAuthorizer interface {
 	SetAuthorizer(authorizer.Authorizer)
 	admission.InitializationValidator
 }
 
 // WantsQuotaConfiguration defines a function which sets quota configuration for admission plugins that need it.
+// 注入Quota配置
 type WantsQuotaConfiguration interface {
 	SetQuotaConfiguration(quota.Configuration)
 	admission.InitializationValidator
@@ -55,6 +59,7 @@ type WantsQuotaConfiguration interface {
 // WantsDrainedNotification defines a function which sets the notification of where the apiserver
 // has already been drained for admission plugins that need it.
 // After receiving that notification, Admit/Validate calls won't be called anymore.
+// 注入APIServer关闭信号，此信号发生时表明APIServer已经处理完所有的请求，可以关闭
 type WantsDrainedNotification interface {
 	SetDrainedNotification(<-chan struct{})
 	admission.InitializationValidator
@@ -67,17 +72,21 @@ type WantsDrainedNotification interface {
 //	func (a *admissionPlugin) InspectFeatureGates(features featuregate.FeatureGate){
 //	    a.myFeatureIsOn = features.Enabled("my-feature")
 //	}
+//
+// 注入特性开关
 type WantsFeatures interface {
 	InspectFeatureGates(featuregate.FeatureGate)
 	admission.InitializationValidator
 }
 
+// WantsDynamicClient 注入DynamicClient
 type WantsDynamicClient interface {
 	SetDynamicClient(dynamic.Interface)
 	admission.InitializationValidator
 }
 
 // WantsRESTMapper defines a function which sets RESTMapper for admission plugins that need it.
+// 注入RESTMapper
 type WantsRESTMapper interface {
 	SetRESTMapper(meta.RESTMapper)
 	admission.InitializationValidator
@@ -85,6 +94,7 @@ type WantsRESTMapper interface {
 
 // WantsSchemaResolver defines a function which sets the SchemaResolver for
 // an admission plugin that needs it.
+// 注入SchemaResolver
 type WantsSchemaResolver interface {
 	SetSchemaResolver(resolver resolver.SchemaResolver)
 	admission.InitializationValidator

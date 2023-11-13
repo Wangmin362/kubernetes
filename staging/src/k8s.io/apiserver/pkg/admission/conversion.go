@@ -23,6 +23,7 @@ import (
 
 // VersionedAttributes is a wrapper around the original admission attributes, adding versioned
 // variants of the object and old object.
+// TODO 这玩意是啥?
 type VersionedAttributes struct {
 	// Attributes holds the original admission attributes
 	Attributes

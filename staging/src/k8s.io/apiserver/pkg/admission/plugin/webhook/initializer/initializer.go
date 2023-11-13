@@ -25,24 +25,28 @@ import (
 
 // WantsServiceResolver defines a function that accepts a ServiceResolver for
 // admission plugins that need to make calls to services.
+// 注入ServiceResolver
 type WantsServiceResolver interface {
 	SetServiceResolver(webhook.ServiceResolver)
 }
 
 // ServiceResolver knows how to convert a service reference into an actual
 // location.
+// 解析Service为合法的URL
 type ServiceResolver interface {
 	ResolveEndpoint(namespace, name string, port int32) (*url.URL, error)
 }
 
 // WantsAuthenticationInfoResolverWrapper defines a function that wraps the standard AuthenticationInfoResolver
 // to allow the apiserver to control what is returned as auth info
+// 注入认证信息解析器
 type WantsAuthenticationInfoResolverWrapper interface {
 	SetAuthenticationInfoResolverWrapper(wrapper webhook.AuthenticationInfoResolverWrapper)
 	admission.InitializationValidator
 }
 
 // PluginInitializer is used for initialization of the webhook admission plugin.
+// 插件初始化器
 type PluginInitializer struct {
 	serviceResolver                   webhook.ServiceResolver
 	authenticationInfoResolverWrapper webhook.AuthenticationInfoResolverWrapper

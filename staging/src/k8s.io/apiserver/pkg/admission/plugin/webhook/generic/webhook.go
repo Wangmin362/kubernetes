@@ -42,18 +42,20 @@ import (
 )
 
 // Webhook is an abstract admission plugin with all the infrastructure to define Admit or Validate on-top.
+// 1、使用webhook方式实现准入控制插件
 type Webhook struct {
-	*admission.Handler
+	*admission.Handler // 基础准入控制插件实现，一般是个准入控制插件都是通过这个基础准入控制插件实现进而实现自己的功能
 
+	// 所谓的源工厂，其实就是用于获取Source
 	sourceFactory sourceFactory
 
-	hookSource       Source
+	hookSource       Source // 用于获取Webhook
 	clientManager    *webhookutil.ClientManager
-	namespaceMatcher *namespace.Matcher
-	objectMatcher    *object.Matcher
-	dispatcher       Dispatcher
-	filterCompiler   cel.FilterCompiler
-	authorizer       authorizer.Authorizer
+	namespaceMatcher *namespace.Matcher    // 名称空间匹配器
+	objectMatcher    *object.Matcher       // 对象标签匹配器
+	dispatcher       Dispatcher            // 用于把当前请求下发到各个webhook
+	filterCompiler   cel.FilterCompiler    // CEL表达式匹配
+	authorizer       authorizer.Authorizer // 鉴权器
 }
 
 var (
@@ -65,12 +67,19 @@ type sourceFactory func(f informers.SharedInformerFactory) Source
 type dispatcherFactory func(cm *webhookutil.ClientManager) Dispatcher
 
 // NewWebhook creates a new generic admission webhook.
-func NewWebhook(handler *admission.Handler, configFile io.Reader, sourceFactory sourceFactory, dispatcherFactory dispatcherFactory) (*Webhook, error) {
+func NewWebhook(
+	handler *admission.Handler, // 基础准入控制插件实现
+	configFile io.Reader, // Kubeconfig文件  TODO 这个Kubeconfig文件是用于干嘛的？
+	sourceFactory sourceFactory, // 所谓的SourceFactory，其实就是可以获取Webhook
+	dispatcherFactory dispatcherFactory,
+) (*Webhook, error) {
+	// 读取KubeConfig文件
 	kubeconfigFile, err := config.LoadConfig(configFile)
 	if err != nil {
 		return nil, err
 	}
 
+	// 实例化ClientManager，用于生成Webhook的调用Client
 	cm, err := webhookutil.NewClientManager(
 		[]schema.GroupVersion{
 			admissionv1beta1.SchemeGroupVersion,
@@ -150,23 +159,36 @@ func (a *Webhook) ValidateInitialization() error {
 
 // ShouldCallHook returns invocation details if the webhook should be called, nil if the webhook should not be called,
 // or an error if an error was encountered during evaluation.
-func (a *Webhook) ShouldCallHook(ctx context.Context, h webhook.WebhookAccessor, attr admission.Attributes, o admission.ObjectInterfaces, v VersionedAttributeAccessor) (*WebhookInvocation, *apierrors.StatusError) {
+// 根据WebhookConfiguration中配置的各种条件判断当前请求是否符合，如果符合，那么就允许调用webhook。如果不符合，那么就不允许调用webhook
+func (a *Webhook) ShouldCallHook(
+	ctx context.Context, // 请求上下文
+	h webhook.WebhookAccessor, // 用于获取准入Webhook的各种属性，本质上最核心的就是webhook
+	attr admission.Attributes, // 用于获取资源的各种属性
+	o admission.ObjectInterfaces, // 主要是Creater, Typer, Defaulter, Converter
+	v VersionedAttributeAccessor,
+) (*WebhookInvocation, *apierrors.StatusError) {
+	// 判断当前请求资源所在名称空间和WebhookConfiguration.namespaceSelector是否匹配
 	matches, matchNsErr := a.namespaceMatcher.MatchNamespaceSelector(h, attr)
 	// Should not return an error here for webhooks which do not apply to the request, even if err is an unexpected scenario.
 	if !matches && matchNsErr == nil {
+		// 如果不匹配，就不需要调用webhook
 		return nil, nil
 	}
 
 	// Should not return an error here for webhooks which do not apply to the request, even if err is an unexpected scenario.
+	// 判断当前请求资源是否和WebhookConfiguration.ObjectSelector是否匹配
 	matches, matchObjErr := a.objectMatcher.MatchObjectSelector(h, attr)
 	if !matches && matchObjErr == nil {
+		// 如果不匹配，就不需要调用webhook
 		return nil, nil
 	}
 
 	var invocation *WebhookInvocation
+	// 获取当前webhookConfiguration指定的规则
 	for _, r := range h.GetRules() {
 		m := rules.Matcher{Rule: r, Attr: attr}
 		if m.Matches() {
+			// 如果匹配上了，就准备重新调用上下文
 			invocation = &WebhookInvocation{
 				Webhook:     h,
 				Resource:    attr.GetResource(),
@@ -176,6 +198,7 @@ func (a *Webhook) ShouldCallHook(ctx context.Context, h webhook.WebhookAccessor,
 			break
 		}
 	}
+	// Equivalent匹配为等效匹配，若Rule指定为app/v1,那么Equivalent匹配规则可以匹配app/v1, app/v1beta1, app/v2，而Exact匹配则只能匹配app/v1
 	if invocation == nil && h.GetMatchPolicy() != nil && *h.GetMatchPolicy() == v1.Equivalent {
 		attrWithOverride := &attrWithResourceOverride{Attributes: attr}
 		equivalents := o.GetEquivalentResourceMapper().EquivalentResourcesFor(attr.GetResource(), attr.GetSubresource())
@@ -224,6 +247,7 @@ func (a *Webhook) ShouldCallHook(ctx context.Context, h webhook.WebhookAccessor,
 			return nil, apierrors.NewInternalError(err)
 		}
 
+		// CEL表达式匹配
 		matcher := h.GetCompiledMatcher(a.filterCompiler, a.authorizer)
 		matchResult := matcher.Match(ctx, versionedAttr, nil)
 
@@ -251,9 +275,11 @@ func (a *Webhook) Dispatch(ctx context.Context, attr admission.Attributes, o adm
 	if rules.IsExemptAdmissionConfigurationResource(attr) {
 		return nil
 	}
+	// 等待webhook就绪
 	if !a.WaitForReady() {
 		return admission.NewForbidden(attr, fmt.Errorf("not yet ready to handle request"))
 	}
+	// 获取当前所有的webhook
 	hooks := a.hookSource.Webhooks()
 	return a.dispatcher.Dispatch(ctx, attr, o, hooks)
 }

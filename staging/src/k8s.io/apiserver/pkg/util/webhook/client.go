@@ -39,6 +39,7 @@ const (
 )
 
 // ClientConfig defines parameters required for creating a hook client.
+// TODO 这玩意应该是Webhook配置
 type ClientConfig struct {
 	Name     string
 	URL      string
@@ -57,10 +58,10 @@ type ClientConfigService struct {
 // ClientManager builds REST clients to talk to webhooks. It caches the clients
 // to avoid duplicate creation.
 type ClientManager struct {
-	authInfoResolver     AuthenticationInfoResolver
-	serviceResolver      ServiceResolver
-	negotiatedSerializer runtime.NegotiatedSerializer
-	cache                *lru.Cache
+	authInfoResolver     AuthenticationInfoResolver   // 通过REST获取认证信息
+	serviceResolver      ServiceResolver              // 把Service解析为合法的URL
+	negotiatedSerializer runtime.NegotiatedSerializer // 编解码器
+	cache                *lru.Cache                   // TODO 缓存的是不同ClientConfig的RESTClient
 }
 
 // NewClientManager creates a clientManager.

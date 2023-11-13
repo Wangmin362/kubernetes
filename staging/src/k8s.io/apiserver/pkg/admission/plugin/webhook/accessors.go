@@ -34,9 +34,11 @@ import (
 
 // WebhookAccessor provides a common interface to both mutating and validating webhook types.
 type WebhookAccessor interface {
-	// This accessor provides the methods needed to support matching against webhook
+	// NamespaceSelectorProvider This accessor provides the methods needed to support matching against webhook
 	// predicates
+	// TODO 似乎实在获取名称空间的Selector
 	namespace.NamespaceSelectorProvider
+	// ObjectSelectorProvider TODO 似乎是在获取对象的Selector
 	object.ObjectSelectorProvider
 
 	// GetUID gets a string that uniquely identifies the webhook.

@@ -51,11 +51,14 @@ var (
 )
 
 // ObserverFunc is a func that emits metrics.
+// 1、此函数用于上送指标
+// 2、elapsed: 用于表示当前准入控制插件执行准入控制所消耗的时间
+// 3、
 type ObserverFunc func(ctx context.Context, elapsed time.Duration, rejected bool, attr admission.Attributes, stepType string, extraLabels ...string)
 
 const (
-	stepValidate = "validate"
-	stepAdmit    = "admit"
+	stepValidate = "validate" // 说明是验证类型的准入控制插件指标
+	stepAdmit    = "admit"    // 说明是修改类型的准入控制插件指标
 )
 
 // WithControllerMetrics is a decorator for named admission handlers.
@@ -112,9 +115,9 @@ func (p pluginHandlerWithMetrics) Validate(ctx context.Context, a admission.Attr
 
 // AdmissionMetrics instruments admission with prometheus metrics.
 type AdmissionMetrics struct {
-	step                     *metricSet
-	controller               *metricSet
-	webhook                  *metricSet
+	step                     *metricSet // Step类型的指标
+	controller               *metricSet // Controller类型的指标
+	webhook                  *metricSet // Webhook类型的指标
 	webhookRejection         *metrics.CounterVec
 	webhookFailOpen          *metrics.CounterVec
 	webhookRequest           *metrics.CounterVec

@@ -32,6 +32,7 @@ import (
 )
 
 // validatingWebhookConfigurationManager collects the validating webhook objects so that they can be called.
+// 1、validatingWebhookConfigurationManager本质上就是Source，并且是Webhook的Source，用于获取Webhook
 type validatingWebhookConfigurationManager struct {
 	lister    admissionregistrationlisters.ValidatingWebhookConfigurationLister
 	hasSynced func() bool
@@ -45,8 +46,10 @@ func NewValidatingWebhookConfigurationManager(f informers.SharedInformerFactory)
 	manager := &validatingWebhookConfigurationManager{
 		lister: informer.Lister(),
 	}
+	// manager.getConfiguration用于获取所有的ValidationWebhookConfiguration
 	manager.lazy.Evaluate = manager.getConfiguration
 
+	// 只要有任何一个ValidatingWebhookConfiguration发生了变化，就重新实例化CacheEntry，只有等到真正执行get方法时才会获取ValidatingWebhookConfiguration
 	handle, _ := informer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    func(_ interface{}) { manager.lazy.Notify() },
 		UpdateFunc: func(_, _ interface{}) { manager.lazy.Notify() },
@@ -80,7 +83,7 @@ func (v *validatingWebhookConfigurationManager) getConfiguration() ([]webhook.We
 
 func mergeValidatingWebhookConfigurations(configurations []*v1.ValidatingWebhookConfiguration) []webhook.WebhookAccessor {
 	sort.SliceStable(configurations, ValidatingWebhookConfigurationSorter(configurations).ByName)
-	accessors := []webhook.WebhookAccessor{}
+	var accessors []webhook.WebhookAccessor
 	for _, c := range configurations {
 		// webhook names are not validated for uniqueness, so we check for duplicates and
 		// add a int suffix to distinguish between them
@@ -88,6 +91,7 @@ func mergeValidatingWebhookConfigurations(configurations []*v1.ValidatingWebhook
 		for i := range c.Webhooks {
 			n := c.Webhooks[i].Name
 			uid := fmt.Sprintf("%s/%s/%d", c.Name, n, names[n])
+			// 解决多个ValidatingWebhook同名的情况
 			names[n]++
 			accessors = append(accessors, webhook.NewValidatingWebhookAccessor(uid, c.Name, &c.Webhooks[i]))
 		}

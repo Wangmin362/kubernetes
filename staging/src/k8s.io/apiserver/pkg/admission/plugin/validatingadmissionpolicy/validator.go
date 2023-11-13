@@ -35,6 +35,23 @@ import (
 	"k8s.io/klog/v2"
 )
 
+/*
+apiVersion: admissionregistration.k8s.io/v1beta1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: "demo-policy.example.com"
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups:   ["apps"]
+      apiVersions: ["v1"]
+      operations:  ["CREATE", "UPDATE"]
+      resources:   ["deployments"]
+  validations:
+    - expression: "object.spec.replicas <= 5"
+*/
+
 // validator implements the Validator interface
 type validator struct {
 	celMatcher            matchconditions.Matcher

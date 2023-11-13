@@ -33,12 +33,13 @@ import (
 )
 
 // WebhookAccessor provides a common interface to both mutating and validating webhook types.
+// WebhookAccessor可以理解为就是WebhookConfiguration配置
 type WebhookAccessor interface {
 	// NamespaceSelectorProvider This accessor provides the methods needed to support matching against webhook
 	// predicates
-	// TODO 似乎实在获取名称空间的Selector
+	// 获取当前请求资源的名称空间，通过WebhookConfiguration.namespaceSelector指定
 	namespace.NamespaceSelectorProvider
-	// ObjectSelectorProvider TODO 似乎是在获取对象的Selector
+	// ObjectSelectorProvider 获取对象选择器，通过WebhookConfiguration.objectSelector指定
 	object.ObjectSelectorProvider
 
 	// GetUID gets a string that uniquely identifies the webhook.
@@ -48,6 +49,7 @@ type WebhookAccessor interface {
 	GetConfigurationName() string
 
 	// GetRESTClient gets the webhook client
+	// 用于获取访问Webhook的客户端
 	GetRESTClient(clientManager *webhookutil.ClientManager) (*rest.RESTClient, error)
 
 	// GetCompiledMatcher gets the compiled matcher object
@@ -121,6 +123,7 @@ func (m *mutatingWebhookAccessor) GetConfigurationName() string {
 
 func (m *mutatingWebhookAccessor) GetRESTClient(clientManager *webhookutil.ClientManager) (*rest.RESTClient, error) {
 	m.initClient.Do(func() {
+		// 实例化Client客户端
 		m.client, m.clientErr = clientManager.HookClient(hookClientConfigForWebhook(m))
 	})
 	return m.client, m.clientErr

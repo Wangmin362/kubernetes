@@ -32,8 +32,12 @@ import (
 )
 
 // LongRunningRequestCheck is a predicate which is true for long-running http requests.
+// 1、判断当前请求是否是一个长时间运行的请求
+// 2、在K8S当中对于WATCH, PROXY动作都是长时间的请求
+// 3、在K8S当中对于Attach, Exec, Proxy, Log, PortForward命令都是长时间请求
 type LongRunningRequestCheck func(r *http.Request, requestInfo *RequestInfo) bool
 
+// RequestInfoResolver 用于从请求当中解析出重要的请求信息
 type RequestInfoResolver interface {
 	NewRequestInfo(req *http.Request) (*RequestInfo, error)
 }
@@ -56,7 +60,7 @@ type RequestInfo struct {
 	// 请求的动作
 	Verb string
 
-	APIPrefix  string
+	APIPrefix  string // URL前缀，要么是apis, 要没事api
 	APIGroup   string
 	APIVersion string
 	Namespace  string
@@ -90,11 +94,11 @@ var namespaceSubresources = sets.NewString("status", "finalize")
 var NamespaceSubResourcesForTest = sets.NewString(namespaceSubresources.List()...)
 
 type RequestInfoFactory struct {
-	APIPrefixes          sets.String // without leading and trailing slashes
-	GrouplessAPIPrefixes sets.String // without leading and trailing slashes
+	APIPrefixes          sets.String // without leading and trailing slashes 前缀有：apis, api
+	GrouplessAPIPrefixes sets.String // without leading and trailing slashes 前缀有：api
 }
 
-// TODO write an integration test against the swagger doc to test the RequestInfo and match up behavior to responses
+// NewRequestInfo TODO write an integration test against the swagger doc to test the RequestInfo and match up behavior to responses
 // NewRequestInfo returns the information from the http request.  If error is not nil, RequestInfo holds the information as best it is known before the failure
 // It handles both resource and non-resource requests and fills in all the pertinent information for each.
 // Valid Inputs:
@@ -128,15 +132,16 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 	requestInfo := RequestInfo{
 		IsResourceRequest: false,
 		Path:              req.URL.Path,
-		Verb:              strings.ToLower(req.Method),
+		Verb:              strings.ToLower(req.Method), // 这里解析出来的动词都是标准的HTTP方法
 	}
 
 	currentParts := splitPath(req.URL.Path)
-	if len(currentParts) < 3 {
+	if len(currentParts) < 3 { // 小于3，说明是非资源请求
 		// return a non-resource request
 		return &requestInfo, nil
 	}
 
+	// 如果URL不是以/apis, /api开头的，那么肯定不是资源请求
 	if !r.APIPrefixes.Has(currentParts[0]) {
 		// return a non-resource request
 		return &requestInfo, nil
@@ -144,6 +149,7 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 	requestInfo.APIPrefix = currentParts[0]
 	currentParts = currentParts[1:]
 
+	// 说明访问的是非核心资源
 	if !r.GrouplessAPIPrefixes.Has(requestInfo.APIPrefix) {
 		// one part (APIPrefix) has already been consumed, so this is actually "do we have four parts?"
 		if len(currentParts) < 3 {
@@ -151,6 +157,7 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 			return &requestInfo, nil
 		}
 
+		// 非核心资源的化，第一个元素自然是组
 		requestInfo.APIGroup = currentParts[0]
 		currentParts = currentParts[1:]
 	}

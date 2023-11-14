@@ -49,7 +49,12 @@ type Controller struct {
 }
 
 // NewAPIServerLeaseGC creates a new Controller.
-func NewAPIServerLeaseGC(clientset kubernetes.Interface, gcCheckPeriod time.Duration, leaseNamespace, leaseLabelSelector string) *Controller {
+func NewAPIServerLeaseGC(
+	clientset kubernetes.Interface, // APIServer客户端
+	gcCheckPeriod time.Duration, // 3600秒
+	leaseNamespace, // kube-system
+	leaseLabelSelector string, // k8s.io/component=kube-apiserver
+) *Controller {
 	// we construct our own informer because we need such a small subset of the information available.
 	// Just one namespace with label selection.
 	leaseInformer := informers.NewFilteredLeaseInformer(
@@ -91,6 +96,7 @@ func (c *Controller) Run(stopCh <-chan struct{}) {
 }
 
 func (c *Controller) gc() {
+	// 查询kube-system名称空间中的Lease对象
 	leases, err := c.leaseLister.Leases(c.leaseNamespace).List(labels.Everything())
 	if err != nil {
 		klog.ErrorS(err, "Error while listing apiserver leases")
@@ -102,6 +108,7 @@ func (c *Controller) gc() {
 			continue
 		}
 		// double check latest lease from apiserver before deleting
+		// 真正查询APIServer看看有没有过期
 		lease, err := c.kubeclientset.CoordinationV1().Leases(c.leaseNamespace).Get(context.TODO(), lease.Name, metav1.GetOptions{})
 		if err != nil && !errors.IsNotFound(err) {
 			klog.ErrorS(err, "Error getting lease")
@@ -118,6 +125,7 @@ func (c *Controller) gc() {
 		if !isLeaseExpired(lease) {
 			continue
 		}
+		// 过期了就删除Lease资源
 		if err := c.kubeclientset.CoordinationV1().Leases(c.leaseNamespace).Delete(
 			context.TODO(), lease.Name, metav1.DeleteOptions{}); err != nil {
 			if errors.IsNotFound(err) {

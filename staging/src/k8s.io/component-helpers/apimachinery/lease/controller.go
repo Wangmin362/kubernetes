@@ -53,12 +53,12 @@ type ProcessLeaseFunc func(*coordinationv1.Lease) error
 type controller struct {
 	client                     clientset.Interface
 	leaseClient                coordclientset.LeaseInterface
-	holderIdentity             string
-	leaseName                  string
-	leaseNamespace             string
-	leaseDurationSeconds       int32
-	renewInterval              time.Duration
-	clock                      clock.Clock
+	holderIdentity             string        // APIServer的唯一标识符 m.GenericAPIServer.APIServerID + "_" + string(uuid.NewUUID())
+	leaseName                  string        // APIServer的ID
+	leaseNamespace             string        // kube-system
+	leaseDurationSeconds       int32         // 3600秒
+	renewInterval              time.Duration // 10秒
+	clock                      clock.Clock   // 时钟
 	onRepeatedHeartbeatFailure func()
 
 	// latestLease is the latest lease which the controller updated or created
@@ -72,7 +72,17 @@ type controller struct {
 }
 
 // NewController constructs and returns a controller
-func NewController(clock clock.Clock, client clientset.Interface, holderIdentity string, leaseDurationSeconds int32, onRepeatedHeartbeatFailure func(), renewInterval time.Duration, leaseName, leaseNamespace string, newLeasePostProcessFunc ProcessLeaseFunc) Controller {
+func NewController(
+	clock clock.Clock, // 时钟
+	client clientset.Interface, // APIServer客户端工具
+	holderIdentity string, // APIServer唯一表示符号
+	leaseDurationSeconds int32, // 3600秒
+	onRepeatedHeartbeatFailure func(),
+	renewInterval time.Duration, // 10秒钟
+	leaseName, // APIServer ID
+	leaseNamespace string, // kube-system
+	newLeasePostProcessFunc ProcessLeaseFunc,
+) Controller {
 	var leaseClient coordclientset.LeaseInterface
 	if client != nil {
 		leaseClient = client.CoordinationV1().Leases(leaseNamespace)
@@ -97,6 +107,7 @@ func (c *controller) Run(ctx context.Context) {
 		klog.FromContext(ctx).Info("lease controller has nil lease client, will not claim or renew leases")
 		return
 	}
+	// 每10秒钟执行一次
 	wait.JitterUntilWithContext(ctx, c.sync, c.renewInterval, 0.04, true)
 }
 
@@ -109,6 +120,7 @@ func (c *controller) sync(ctx context.Context) {
 		// If at some point other agents will also be frequently updating the Lease object, this
 		// can result in performance degradation, because we will end up with calling additional
 		// GET/PUT - at this point this whole "if" should be removed.
+		// 更新Lease
 		err := c.retryUpdateLease(ctx, c.latestLease)
 		if err == nil {
 			return
@@ -116,6 +128,7 @@ func (c *controller) sync(ctx context.Context) {
 		klog.FromContext(ctx).Info("failed to update lease using latest lease, fallback to ensure lease", "err", err)
 	}
 
+	// 创建Lease
 	lease, created := c.backoffEnsureLease(ctx)
 	c.latestLease = lease
 	// we don't need to update the lease if we just created it
@@ -185,6 +198,7 @@ func (c *controller) ensureLease(ctx context.Context) (*coordinationv1.Lease, bo
 func (c *controller) retryUpdateLease(ctx context.Context, base *coordinationv1.Lease) error {
 	for i := 0; i < maxUpdateRetries; i++ {
 		leaseToUpdate, _ := c.newLease(base)
+		// 更新Lease
 		lease, err := c.leaseClient.Update(ctx, leaseToUpdate, metav1.UpdateOptions{})
 		if err == nil {
 			c.latestLease = lease
@@ -225,6 +239,7 @@ func (c *controller) newLease(base *coordinationv1.Lease) (*coordinationv1.Lease
 	} else {
 		lease = base.DeepCopy()
 	}
+	// 重新生成时间
 	lease.Spec.RenewTime = &metav1.MicroTime{Time: c.clock.Now()}
 
 	if c.newLeasePostProcessFunc != nil {

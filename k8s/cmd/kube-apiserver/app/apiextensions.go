@@ -97,7 +97,7 @@ func createAPIExtensionsConfig(
 	}
 
 	// we need to clear the poststarthooks so we don't add them multiple times to all the servers (that fails)
-	// TODO ?
+	// 清空GenericServer携带的后置处理器，否则会多次添加
 	apiextensionsConfig.GenericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
 
 	return apiextensionsConfig, nil

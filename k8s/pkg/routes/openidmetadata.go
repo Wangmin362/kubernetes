@@ -57,6 +57,7 @@ func NewOpenIDMetadataServer(configJSON, keysetJSON []byte) *OpenIDMetadataServe
 }
 
 // Install adds this server to the request router c.
+// 注册/.well-known/openid-configuration, /openid/v1/jwks路由
 func (s *OpenIDMetadataServer) Install(c *restful.Container) {
 	// Configuration WebService
 	// Container.Add "will detect duplicate root paths and exit in that case",

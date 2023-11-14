@@ -87,6 +87,7 @@ type ClusterAuthenticationInfo struct {
 	// RequestHeaderAllowedNames are the sujbects allowed to act as a front proxy
 	RequestHeaderAllowedNames headerrequest.StringSliceProvider
 	// RequestHeaderCA is the CA that can be used to verify the front proxy
+	// 代理的根CA，用于验证代理服务器的CA证书
 	RequestHeaderCA dynamiccertificates.CAContentProvider
 }
 
@@ -137,6 +138,7 @@ func NewClusterAuthenticationTrustController(requiredAuthenticationData ClusterA
 }
 
 func (c *Controller) syncConfigMap() error {
+	// 读取kube-system名称空间下，名为extension-apiserver-authentication的ConfigMap
 	originalAuthConfigMap, err := c.configMapLister.ConfigMaps(configMapNamespace).Get(configMapName)
 	if apierrors.IsNotFound(err) {
 		originalAuthConfigMap = &corev1.ConfigMap{
@@ -148,28 +150,34 @@ func (c *Controller) syncConfigMap() error {
 	// keep the original to diff against later before updating
 	authConfigMap := originalAuthConfigMap.DeepCopy()
 
+	// 读取ConfigMap中的证书信息，实例化一个ClusterAuthenticationInfo
 	existingAuthenticationInfo, err := getClusterAuthenticationInfoFor(originalAuthConfigMap.Data)
 	if err != nil {
 		return err
 	}
+	// 合并
 	combinedInfo, err := combinedClusterAuthenticationInfo(existingAuthenticationInfo, c.requiredAuthenticationData)
 	if err != nil {
 		return err
 	}
+	// 把数据转为map
 	authConfigMap.Data, err = getConfigMapDataFor(combinedInfo)
 	if err != nil {
 		return err
 	}
 
+	// 如果相等，说明没有任何变化
 	if equality.Semantic.DeepEqual(authConfigMap, originalAuthConfigMap) {
 		klog.V(5).Info("no changes to configmap")
 		return nil
 	}
 	klog.V(2).Infof("writing updated authentication info to  %s configmaps/%s", configMapNamespace, configMapName)
 
+	// 如果kube-system名称空间不存在，创建这个名称空间
 	if err := createNamespaceIfNeeded(c.namespaceClient, authConfigMap.Namespace); err != nil {
 		return err
 	}
+	// 更新或者创建kube-system名称空间下，名为extension-apiserver-authentication的ConfigMap
 	if err := writeConfigMap(c.configMapClient, authConfigMap); err != nil {
 		return err
 	}
@@ -196,8 +204,10 @@ func createNamespaceIfNeeded(nsClient corev1client.NamespacesGetter, ns string) 
 }
 
 func writeConfigMap(configMapClient corev1client.ConfigMapsGetter, required *corev1.ConfigMap) error {
+	// 更新kube-system名称空间下，名为extension-apiserver-authentication的ConfigMap
 	_, err := configMapClient.ConfigMaps(required.Namespace).Update(context.TODO(), required, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) {
+		// 没有的话就创建kube-system名称空间下，名为extension-apiserver-authentication的ConfigMap
 		_, err := configMapClient.ConfigMaps(required.Namespace).Create(context.TODO(), required, metav1.CreateOptions{})
 		return err
 	}
@@ -208,6 +218,7 @@ func writeConfigMap(configMapClient corev1client.ConfigMapsGetter, required *cor
 	//   1. request is so big the generic request catcher finds it
 	//   2. the content is so large that that the server sends a validation error "Too long: must have at most 1048576 characters"
 	if apierrors.IsRequestEntityTooLargeError(err) || (apierrors.IsInvalid(err) && strings.Contains(err.Error(), "Too long")) {
+		// 这里应该是需要删除之后重新创建
 		if deleteErr := configMapClient.ConfigMaps(required.Namespace).Delete(context.TODO(), required.Name, metav1.DeleteOptions{}); deleteErr != nil {
 			return deleteErr
 		}
@@ -364,7 +375,7 @@ func combineUniqueStringSlices(lhs, rhs headerrequest.StringSliceProvider) heade
 }
 
 func combineCertLists(lhs, rhs dynamiccertificates.CAContentProvider) (dynamiccertificates.CAContentProvider, error) {
-	certificates := []*x509.Certificate{}
+	var certificates []*x509.Certificate
 
 	if lhs != nil {
 		lhsCABytes := lhs.CurrentCABundleContent()
@@ -430,6 +441,7 @@ func filterExpiredCerts(certs ...*x509.Certificate) []*x509.Certificate {
 }
 
 // Enqueue a method to allow separate control loops to cause the controller to trigger and reconcile content.
+// 当此方法被调用时，说明ClientCA证书或者代理证书发生了变化
 func (c *Controller) Enqueue() {
 	c.queue.Add(keyFn())
 }
@@ -456,6 +468,7 @@ func (c *Controller) Run(ctx context.Context, workers int) {
 
 	// checks are cheap.  run once a minute just to be sure we stay in sync in case fsnotify fails again
 	// start timer that rechecks every minute, just in case.  this also serves to prime the controller quickly.
+	// 虽然CAContentProvider监听了证书的变化，但是这里还是做了兜底策略，将会每分钟认为证书都发生变化
 	_ = wait.PollImmediateUntil(1*time.Minute, func() (bool, error) {
 		c.queue.Add(keyFn())
 		return false, nil

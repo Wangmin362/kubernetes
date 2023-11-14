@@ -132,6 +132,7 @@ const (
 	// DeprecatedKubeAPIServerIdentityLeaseLabelSelector selects kube-apiserver identity leases
 	DeprecatedKubeAPIServerIdentityLeaseLabelSelector = "k8s.io/component=kube-apiserver"
 	// KubeAPIServerIdentityLeaseLabelSelector selects kube-apiserver identity leases
+	// apiserver.kubernetes.io/identity=kube-apiserver
 	KubeAPIServerIdentityLeaseLabelSelector = IdentityLeaseComponentLabelKey + "=" + KubeAPIServer
 	// repairLoopInterval defines the interval used to run the Services ClusterIP and NodePort repair loops
 	repairLoopInterval = 3 * time.Minute
@@ -157,7 +158,8 @@ type ExtraConfig struct {
 	// 用于判断某个GVR，或者是某个组是否被启用
 	APIResourceConfigSource serverstorage.APIResourceConfigSource
 	// 存储工厂，用于获取每个资源的存储配有，尤其是编解码器
-	StorageFactory           serverstorage.StorageFactory
+	StorageFactory serverstorage.StorageFactory
+	// TODO 这玩意干嘛的？
 	EndpointReconcilerConfig EndpointReconcilerConfig
 	EventTTL                 time.Duration
 	KubeletClientConfig      kubeletclient.KubeletClientConfig
@@ -167,8 +169,10 @@ type ExtraConfig struct {
 
 	// Values to build the IP addresses used by discovery
 	// The range of IPs to be assigned to services with type=ClusterIP or greater
+	// K8S Service ClusterIP的地址范围
 	ServiceIPRange net.IPNet
 	// The IP address for the GenericAPIServer service (must be inside ServiceIPRange)
+	// TODO 这玩意应该就是kubernetes.default.svc的地址范围
 	APIServerServiceIP net.IP
 
 	// dual stack services, the range represents an alternative IP range for service IP
@@ -178,6 +182,7 @@ type ExtraConfig struct {
 	SecondaryAPIServerServiceIP net.IP
 
 	// Port for the apiserver service.
+	// TODO 应该指的是kubernetes.default.svc的端口
 	APIServerServicePort int
 
 	// TODO, we can probably group service related items into a substruct to make it easier to configure
@@ -186,10 +191,12 @@ type ExtraConfig struct {
 	// The range of ports to be assigned to services with type=NodePort or greater
 	ServiceNodePortRange utilnet.PortRange
 	// If non-zero, the "kubernetes" services uses this port as NodePort.
+	// 如果非空，那么kubernetes.default.svc将会使用NodePort类型
 	KubernetesServiceNodePort int
 
 	// Number of masters running; all masters must be started with the
 	// same value for this field. (Numbers > 1 currently untested.)
+	// APIServer节点数量
 	MasterCount int
 
 	// MasterEndpointReconcileTTL sets the time to live in seconds of an
@@ -214,10 +221,12 @@ type ExtraConfig struct {
 	ServiceAccountJWKSURI    string
 	ServiceAccountPublicKeys []interface{}
 
+	// SharedInformer
 	VersionedInformers informers.SharedInformerFactory
 
 	// RepairServicesInterval interval used by the repair loops for
 	// the Services NodePort and ClusterIP resources
+	// TODO 这玩意估计用来控制多长时间查看一次kubernetes.default.svc，如果有毛病就修复
 	RepairServicesInterval time.Duration
 }
 
@@ -239,6 +248,7 @@ type CompletedConfig struct {
 
 // EndpointReconcilerConfig holds the endpoint reconciler and endpoint reconciliation interval to be
 // used by the master.
+// TODO 这玩意干嘛的？
 type EndpointReconcilerConfig struct {
 	Reconciler reconcilers.EndpointReconciler
 	Interval   time.Duration
@@ -300,10 +310,11 @@ func (c *Config) createEndpointReconciler() reconcilers.EndpointReconciler {
 // Complete fills in any fields not set that are required to have valid data. It's mutating the receiver.
 func (c *Config) Complete() CompletedConfig {
 	cfg := completedConfig{
-		c.GenericConfig.Complete(c.ExtraConfig.VersionedInformers),
+		c.GenericConfig.Complete(c.ExtraConfig.VersionedInformers), // 补全GenericServer配置
 		&c.ExtraConfig,
 	}
 
+	// 解析Service的IP范围，以及kubernetes.default.svc的地址
 	serviceIPRange, apiServerServiceIP, err := ServiceIPRange(cfg.ExtraConfig.ServiceIPRange)
 	if err != nil {
 		klog.Fatalf("Error determining service IP ranges: %v", err)
@@ -315,6 +326,24 @@ func (c *Config) Complete() CompletedConfig {
 		cfg.ExtraConfig.APIServerServiceIP = apiServerServiceIP
 	}
 
+	// 1、用于返回给客户端合适的ServerAddress TODO 还需要分析的再详细一些
+	// 2、可以通过kubectl get --raw=/api获取此数据
+	/*
+		root@k8s-master1:~# kubectl get --raw=/api | jq
+		{
+		  "kind": "APIVersions",
+		  "versions": [
+		    "v1"
+		  ],
+		  "serverAddressByClientCIDRs": [
+		    {
+		      "clientCIDR": "0.0.0.0/0",
+		      "serverAddress": "192.168.11.71:6443"
+		    }
+		  ]
+		}
+		root@k8s-master1:~#
+	*/
 	discoveryAddresses := discovery.DefaultAddresses{DefaultAddress: cfg.GenericConfig.ExternalAddress}
 	discoveryAddresses.CIDRRules = append(discoveryAddresses.CIDRRules,
 		discovery.CIDRRule{
@@ -323,6 +352,7 @@ func (c *Config) Complete() CompletedConfig {
 		})
 	cfg.GenericConfig.DiscoveryAddresses = discoveryAddresses
 
+	// 设置默认的NodePort端口范围
 	if cfg.ExtraConfig.ServiceNodePortRange.Size == 0 {
 		// TODO: Currently no way to specify an empty range (do we need to allow this?)
 		// We should probably allow this for clouds that don't require NodePort to do load-balancing (GCE)
@@ -355,16 +385,19 @@ func (c *Config) Complete() CompletedConfig {
 // Certain config fields will be set to a default value if unset.
 // Certain config fields must be specified, including:
 // KubeletClientConfig
+// 实例化APIServer，本质上就是GenericServer
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*Instance, error) {
 	if reflect.DeepEqual(c.ExtraConfig.KubeletClientConfig, kubeletclient.KubeletClientConfig{}) {
 		return nil, fmt.Errorf("Master.New() called with empty config.KubeletClientConfig")
 	}
 
+	// 实例化GenericServer
 	s, err := c.GenericConfig.New("kube-apiserver", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
 
+	// 注册/logs路由
 	if c.ExtraConfig.EnableLogsSupport {
 		routes.Logs{}.Install(s.Handler.GoRestfulContainer)
 	}
@@ -396,6 +429,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			klog.Info(msg)
 		}
 	} else {
+		// 注册/.well-known/openid-configuration, /openid/v1/jwks路由
 		routes.NewOpenIDMetadataServer(md.ConfigJSON, md.PublicKeysetJSON).
 			Install(s.Handler.GoRestfulContainer)
 	}
@@ -407,10 +441,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 	// install legacy rest storage
 
+	// 向GenericServer中注册核心资源路由
 	if err := m.InstallLegacyAPI(&c, c.GenericConfig.RESTOptionsGetter); err != nil {
 		return nil, err
 	}
 
+	// 实例化APIServer客户端工具
 	clientset, err := kubernetes.NewForConfig(c.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
@@ -449,10 +485,12 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		eventsrest.RESTStorageProvider{TTL: c.ExtraConfig.EventTTL},
 		resourcerest.RESTStorageProvider{},
 	}
+	// 注册除核心资源以外的其它路由
 	if err := m.InstallAPIs(c.ExtraConfig.APIResourceConfigSource, c.GenericConfig.RESTOptionsGetter, restStorageProviders...); err != nil {
 		return nil, err
 	}
 
+	// 监听ClientCA,代理证书的变化，并更新（如果没有就创建）kube-system名称空间下名为extension-apiserver-authentication的ConfigMap
 	m.GenericAPIServer.AddPostStartHookOrDie("start-cluster-authentication-info-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 		if err != nil {
@@ -466,32 +504,41 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 
 		// prime values and start listeners
 		if m.ClusterAuthenticationInfo.ClientCA != nil {
+			// ClusterAuthenticationTrustController也关心ClientCA的变化
 			m.ClusterAuthenticationInfo.ClientCA.AddListener(controller)
 			if controller, ok := m.ClusterAuthenticationInfo.ClientCA.(dynamiccertificates.ControllerRunner); ok {
 				// runonce to be sure that we have a value.
+				// 初始化CAContentProvider，这是第一次读取ClientCA
 				if err := controller.RunOnce(ctx); err != nil {
 					runtime.HandleError(err)
 				}
+				// 启动CAContentProvider，ClientCAProvider启动之后将会持续监听ClientCA的变化
 				go controller.Run(ctx, 1)
 			}
 		}
 		if m.ClusterAuthenticationInfo.RequestHeaderCA != nil {
+			// ClusterAuthenticationTrustController关心代理证书的变化
 			m.ClusterAuthenticationInfo.RequestHeaderCA.AddListener(controller)
 			if controller, ok := m.ClusterAuthenticationInfo.RequestHeaderCA.(dynamiccertificates.ControllerRunner); ok {
 				// runonce to be sure that we have a value.
+				// 初始化CAContentProvider，这是第一次读取ClientCA
 				if err := controller.RunOnce(ctx); err != nil {
 					runtime.HandleError(err)
 				}
+				// 启动CAContentProvider，ClientCAProvider启动之后将会持续监听代理证书的变化
 				go controller.Run(ctx, 1)
 			}
 		}
 
+		// 启动Controller，一旦发现ClientCA,或者是代理证书发生变化，就更新kube-system名称空间下名为extension-apiserver-authentication的ConfigMap
 		go controller.Run(ctx, 1)
 		return nil
 	})
 
+	// TODO 这玩意用于给每个APIServer的Lease续期  每个APIServer的Lease对象用来干啥的？ 判断APIServer是否存活？
 	if utilfeature.DefaultFeatureGate.Enabled(apiserverfeatures.APIServerIdentity) {
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-controller", func(hookContext genericapiserver.PostStartHookContext) error {
+			// 实例化客户端
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
 				return err
@@ -505,13 +552,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			holderIdentity := m.GenericAPIServer.APIServerID + "_" + string(uuid.NewUUID())
 
 			controller := lease.NewController(
-				clock.RealClock{},
-				kubeClient,
-				holderIdentity,
-				int32(IdentityLeaseDurationSeconds),
+				clock.RealClock{},                   // 时钟
+				kubeClient,                          // APIServer Client客户端
+				holderIdentity,                      // APIServer的标识符
+				int32(IdentityLeaseDurationSeconds), // 1小时
 				nil,
-				IdentityLeaseRenewIntervalPeriod,
-				leaseName,
+				IdentityLeaseRenewIntervalPeriod, // 10秒钟
+				leaseName,                        // APIServer的ID
 				metav1.NamespaceSystem,
 				// TODO: receive identity label value as a parameter when post start hook is moved to generic apiserver.
 				labelAPIServerHeartbeatFunc(KubeAPIServer))
@@ -521,6 +568,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		// Labels for apiserver idenitiy leases switched from k8s.io/component=kube-apiserver to apiserver.kubernetes.io/identity=kube-apiserver.
 		// For compatibility, garbage collect leases with both labels for at least 1 release
 		// TODO: remove in Kubernetes 1.28
+		// 用于清理kube-system名称空间中的过期Lease资源(标签为k8s.io/component=kube-apiserver)
 		m.GenericAPIServer.AddPostStartHookOrDie("start-deprecated-kube-apiserver-identity-lease-garbage-collector", func(hookContext genericapiserver.PostStartHookContext) error {
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
@@ -528,13 +576,14 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			}
 			go apiserverleasegc.NewAPIServerLeaseGC(
 				kubeClient,
-				IdentityLeaseGCPeriod,
+				IdentityLeaseGCPeriod, // 1个小时
 				metav1.NamespaceSystem,
-				DeprecatedKubeAPIServerIdentityLeaseLabelSelector,
+				DeprecatedKubeAPIServerIdentityLeaseLabelSelector, // k8s.io/component=kube-apiserver
 			).Run(hookContext.StopCh)
 			return nil
 		})
 		// TODO: move this into generic apiserver and make the lease identity value configurable
+		// 用于清理kube-system名称空间中的过期Lease资源(标签为apiserver.kubernetes.io/identity=kube-apiserver)
 		m.GenericAPIServer.AddPostStartHookOrDie("start-kube-apiserver-identity-lease-garbage-collector", func(hookContext genericapiserver.PostStartHookContext) error {
 			kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 			if err != nil {
@@ -542,14 +591,15 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 			}
 			go apiserverleasegc.NewAPIServerLeaseGC(
 				kubeClient,
-				IdentityLeaseGCPeriod,
-				metav1.NamespaceSystem,
-				KubeAPIServerIdentityLeaseLabelSelector,
+				IdentityLeaseGCPeriod,                   // 3600秒
+				metav1.NamespaceSystem,                  // kube-system
+				KubeAPIServerIdentityLeaseLabelSelector, // apiserver.kubernetes.io/identity=kube-apiserver
 			).Run(hookContext.StopCh)
 			return nil
 		})
 	}
 
+	// 监听并更新kube-system名称空间中名为kube-apiserver-legacy-service-account-token-tracking的ConfigMap
 	m.GenericAPIServer.AddPostStartHookOrDie("start-legacy-token-tracking-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		kubeClient, err := kubernetes.NewForConfig(hookContext.LoopbackClientConfig)
 		if err != nil {
@@ -583,7 +633,10 @@ func labelAPIServerHeartbeatFunc(identity string) lease.ProcessLeaseFunc {
 }
 
 // InstallLegacyAPI will install the legacy APIs for the restStorageProviders if they are enabled.
-func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generic.RESTOptionsGetter) error {
+func (m *Instance) InstallLegacyAPI(
+	c *completedConfig, // APIServer配置
+	restOptionsGetter generic.RESTOptionsGetter, // 可以理解为资源的存储工厂，用于获取资源的存储配置，特别是编解码器
+) error {
 	legacyRESTStorageProvider := corerest.LegacyRESTStorageProvider{
 		StorageFactory:              c.ExtraConfig.StorageFactory,
 		ProxyTransport:              c.ExtraConfig.ProxyTransport,
@@ -599,6 +652,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 		APIAudiences:                c.GenericConfig.Authentication.APIAudiences,
 		Informers:                   c.ExtraConfig.VersionedInformers,
 	}
+	// TODO 仔细分析
 	legacyRESTStorage, apiGroupInfo, err := legacyRESTStorageProvider.NewLegacyRESTStorage(c.ExtraConfig.APIResourceConfigSource, restOptionsGetter)
 	if err != nil {
 		return fmt.Errorf("error building core storage: %v", err)
@@ -608,14 +662,15 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 	}
 
 	controllerName := "bootstrap-controller"
+	// 实例化APIServer客户端
 	client := kubernetes.NewForConfigOrDie(c.GenericConfig.LoopbackClientConfig)
-	// Kubernetes clusters contains the following system namespaces:
-	// kube-system, kube-node-lease, kube-public, default
+	// 用于创建kube-system, kube-node-lease, kube-public, default名称空间，如果不存在的话
 	m.GenericAPIServer.AddPostStartHookOrDie("start-system-namespaces-controller", func(hookContext genericapiserver.PostStartHookContext) error {
 		go systemnamespaces.NewController(client, c.ExtraConfig.VersionedInformers.Core().V1().Namespaces()).Run(hookContext.StopCh)
 		return nil
 	})
 
+	// TODO 详细分析BootstrapController作用
 	bootstrapController, err := c.NewBootstrapController(legacyRESTStorage, client)
 	if err != nil {
 		return fmt.Errorf("error creating bootstrap controller: %v", err)
@@ -623,6 +678,7 @@ func (m *Instance) InstallLegacyAPI(c *completedConfig, restOptionsGetter generi
 	m.GenericAPIServer.AddPostStartHookOrDie(controllerName, bootstrapController.PostStartHook)
 	m.GenericAPIServer.AddPreShutdownHookOrDie(controllerName, bootstrapController.PreShutdownHook)
 
+	// 注册路由
 	if err := m.GenericAPIServer.InstallLegacyAPIGroup(genericapiserver.DefaultLegacyAPIPrefix, &apiGroupInfo); err != nil {
 		return fmt.Errorf("error in registering group versions: %v", err)
 	}
@@ -636,21 +692,29 @@ type RESTStorageProvider interface {
 }
 
 // InstallAPIs will install the APIs for the restStorageProviders if they are enabled.
-func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter, restStorageProviders ...RESTStorageProvider) error {
-	apiGroupsInfo := []*genericapiserver.APIGroupInfo{}
+func (m *Instance) InstallAPIs(
+	apiResourceConfigSource serverstorage.APIResourceConfigSource, // // 用于判断某个GVR，或者是某个组是否被启用
+	restOptionsGetter generic.RESTOptionsGetter, // 存储工厂，可以获取每个资源的存储配置，以及资源的编解码器
+	restStorageProviders ...RESTStorageProvider, // 组下所有资源的存储增删改查handler
+) error {
+	var apiGroupsInfo []*genericapiserver.APIGroupInfo
 
 	// used later in the loop to filter the served resource by those that have expired.
+	// TODO 这玩意干嘛的？
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*m.GenericAPIServer.Version)
 	if err != nil {
 		return err
 	}
 
+	// 遍历APIServer中除了核心资源以外的所有组，组装APIGroupInfo
 	for _, restStorageBuilder := range restStorageProviders {
 		groupName := restStorageBuilder.GroupName()
+		// 实例化APIGroupInfo
 		apiGroupInfo, err := restStorageBuilder.NewRESTStorage(apiResourceConfigSource, restOptionsGetter)
 		if err != nil {
 			return fmt.Errorf("problem initializing API group %q : %v", groupName, err)
 		}
+		// 如果当前组下没有资源，那么直接退出
 		if len(apiGroupInfo.VersionedResourcesStorageMap) == 0 {
 			// If we have no storage for any resource configured, this API group is effectively disabled.
 			// This can happen when an entire API group, version, or development-stage (alpha, beta, GA) is disabled.
@@ -661,6 +725,7 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 		// Remove resources that serving kinds that are removed.
 		// We do this here so that we don't accidentally serve versions without resources or openapi information that for kinds we don't serve.
 		// This is a spot above the construction of individual storage handlers so that no sig accidentally forgets to check.
+		// TODO 这里在干嘛？
 		resourceExpirationEvaluator.RemoveDeletedKinds(groupName, apiGroupInfo.Scheme, apiGroupInfo.VersionedResourcesStorageMap)
 		if len(apiGroupInfo.VersionedResourcesStorageMap) == 0 {
 			klog.V(1).Infof("Removing API group %v because it is time to stop serving it because it has no versions per APILifecycle.", groupName)
@@ -669,6 +734,7 @@ func (m *Instance) InstallAPIs(apiResourceConfigSource serverstorage.APIResource
 
 		klog.V(1).Infof("Enabling API group %q.", groupName)
 
+		// TODO StorageFlowControl, StorageRBAC, StorageScheduling实现了这个接口，仔细分析这三个实现了什么功能
 		if postHookProvider, ok := restStorageBuilder.(genericapiserver.PostStartHookProvider); ok {
 			name, hook, err := postHookProvider.PostStartHook()
 			if err != nil {

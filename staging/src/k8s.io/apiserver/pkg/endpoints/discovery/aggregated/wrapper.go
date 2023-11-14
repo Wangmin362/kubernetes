@@ -71,8 +71,11 @@ func (wrapped *WrappedHandler) GenerateWebService(prefix string, returnType inte
 // discovery type in content negotiation headers: eg: (Accept:
 // application/json;v=v2beta1;g=apidiscovery.k8s.io;as=APIGroupDiscoveryList)
 func WrapAggregatedDiscoveryToHandler(handler http.Handler, aggHandler http.Handler) *WrappedHandler {
+	// 实例化一个Scheme
 	scheme := runtime.NewScheme()
+	// 注册APIDiscovery路由
 	apidiscoveryv2beta1.AddToScheme(scheme)
+	// 实例化编解码工厂
 	codecs := serializer.NewCodecFactory(scheme)
 	return &WrappedHandler{codecs, handler, aggHandler}
 }

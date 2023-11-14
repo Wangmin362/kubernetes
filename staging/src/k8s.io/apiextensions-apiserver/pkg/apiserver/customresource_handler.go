@@ -130,6 +130,7 @@ type crdHandler struct {
 }
 
 // crdInfo stores enough information to serve the storage for the custom resource
+// 1、用于保存CRD信息
 type crdInfo struct {
 	// spec and acceptedNames are used to compare against if a change is made on a CRD. We only update
 	// the storage if one of these changes.
@@ -164,21 +165,22 @@ type crdInfo struct {
 type crdStorageMap map[types.UID]*crdInfo
 
 func NewCustomResourceDefinitionHandler(
-	versionDiscoveryHandler *versionDiscoveryHandler,
-	groupDiscoveryHandler *groupDiscoveryHandler,
-	crdInformer informers.CustomResourceDefinitionInformer,
-	delegate http.Handler,
+	versionDiscoveryHandler *versionDiscoveryHandler, // 用于保存用户自定义CRD的GV
+	groupDiscoveryHandler *groupDiscoveryHandler, // 用于保存用户自定义CRD的G
+	crdInformer informers.CustomResourceDefinitionInformer, // CRD Informer
+	delegate http.Handler, // ExtensionServer的Delegator为NotFoundHandler
 	restOptionsGetter generic.RESTOptionsGetter,
-	admission admission.Interface,
-	establishingController *establish.EstablishingController,
+	admission admission.Interface, // 注入控制器
+	establishingController *establish.EstablishingController, // 用于给那些刚刚创建，并且名字已经被接受的CRD打上Established=true的Condition
 	serviceResolver webhook.ServiceResolver,
-	authResolverWrapper webhook.AuthenticationInfoResolverWrapper,
-	masterCount int,
-	authorizer authorizer.Authorizer,
-	requestTimeout time.Duration,
+	authResolverWrapper webhook.AuthenticationInfoResolverWrapper, // TODO 详细分析
+	masterCount int, // APIServer节点的数量
+	authorizer authorizer.Authorizer, // 鉴权器
+	requestTimeout time.Duration, // 请求的超时时间
 	minRequestTimeout time.Duration,
 	staticOpenAPISpec map[string]*spec.Schema,
-	maxRequestBodyBytes int64) (*crdHandler, error) {
+	maxRequestBodyBytes int64, // HTTP请求最大可以接受的字节数，默认为3MB
+) (*crdHandler, error) {
 	ret := &crdHandler{
 		versionDiscoveryHandler: versionDiscoveryHandler,
 		groupDiscoveryHandler:   groupDiscoveryHandler,

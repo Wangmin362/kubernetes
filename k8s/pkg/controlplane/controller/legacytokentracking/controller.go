@@ -63,6 +63,7 @@ type Controller struct {
 
 	// enabled controls the behavior of the controller: if enabled is true, the
 	//configmap will be created; otherwise, the configmap will be deleted.
+	// 主要是受到LegacyServiceAccountTokenTracking的影响
 	enabled bool
 	// rate limiter controls the rate limit of the creation of the configmap.
 	// this is useful in multi-apiserver cluster to prevent config existing in a
@@ -79,9 +80,13 @@ func NewController(cs kubernetes.Interface) *Controller {
 }
 
 func newController(cs kubernetes.Interface, cl clock.Clock, limiter *rate.Limiter) *Controller {
-	informer := corev1informers.NewFilteredConfigMapInformer(cs, metav1.NamespaceSystem, 12*time.Hour, cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, func(options *metav1.ListOptions) {
-		options.FieldSelector = fields.OneTermEqualSelector("metadata.name", ConfigMapName).String()
-	})
+	// 监听kube-system名称空间中名为kube-apiserver-legacy-service-account-token-tracking的ConfigMap
+	informer := corev1informers.NewFilteredConfigMapInformer(
+		cs, metav1.NamespaceSystem, 12*time.Hour,
+		cache.Indexers{cache.NamespaceIndex: cache.MetaNamespaceIndexFunc}, func(options *metav1.ListOptions) {
+			options.FieldSelector = fields.OneTermEqualSelector("metadata.name", ConfigMapName).String()
+		},
+	)
 
 	c := &Controller{
 		configMapClient:     cs.CoreV1(),
@@ -156,6 +161,7 @@ func (c *Controller) processNext() bool {
 }
 
 func (c *Controller) syncConfigMap() error {
+	// 获取这个ConfigMap
 	obj, exists, err := c.configMapCache.GetByKey(queueKey)
 	if err != nil {
 		return err
@@ -198,6 +204,7 @@ func (c *Controller) syncConfigMap() error {
 		}
 
 	case !c.enabled:
+		// 如果没有启用LegacyServiceAccountTokenTracking特性，那么删除这个ConfigMap
 		if exists && obj.(*corev1.ConfigMap).DeletionTimestamp == nil {
 			if err := c.configMapClient.ConfigMaps(metav1.NamespaceSystem).Delete(context.TODO(), ConfigMapName, metav1.DeleteOptions{}); err != nil {
 				if apierrors.IsNotFound(err) {

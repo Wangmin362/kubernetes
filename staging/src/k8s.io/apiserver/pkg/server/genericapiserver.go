@@ -97,7 +97,7 @@ type APIGroupInfo struct {
 	// TODO: replace with interfaces
 	Scheme *runtime.Scheme
 	// NegotiatedSerializer controls how this group encodes and decodes data
-	// TODO 数据编解码器
+	// 编解码器
 	NegotiatedSerializer runtime.NegotiatedSerializer
 	// ParameterCodec performs conversions for query parameters passed to API calls
 	// TODO 一个组下的所有资源的参数解码器都是一样的？
@@ -189,9 +189,11 @@ type GenericAPIServer struct {
 	DiscoveryGroupManager discovery.GroupManager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
+	// TODO 仔细分析
 	AggregatedDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// AggregatedLegacyDiscoveryGroupManager serves /api in an aggregated form.
+	// TODO 仔细分析
 	AggregatedLegacyDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// Enable swagger and/or OpenAPI if these configs are non-nil.
@@ -223,6 +225,16 @@ type GenericAPIServer struct {
 	// It may kill the process with a panic if it wishes to by returning an error.
 	postStartHookLock sync.Mutex
 	// 1、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
+	// 2、ExtensionServer添加的后置Hook有：
+	//	2.1 crd-informer-synced：用于等待CRD Informer同步完成
+	// 3、APIServer添加的后置Hook有：
+	//	3.1 start-system-namespaces-controller：用于创建kube-system, kube-node-lease, kube-public, default名称空间，如果不存在的话
+	//	3.2 bootstrap-controller
+	//	3.3 start-cluster-authentication-info-controller 监听ClientCA,代理证书的变化，并更新（如果没有就创建）kube-system名称空间下名为extension-apiserver-authentication的ConfigMap
+	// 	3.4 start-kube-apiserver-identity-lease-controller
+	// 	3.5 start-deprecated-kube-apiserver-identity-lease-garbage-collector 用于清理kube-system名称空间中的过期Lease资源(标签为k8s.io/component=kube-apiserver)
+	//	3.6 start-kube-apiserver-identity-lease-garbage-collector 用于清理kube-system名称空间中的过期Lease资源(标签为apiserver.kubernetes.io/identity=kube-apiserver)
+	// 	3.7 start-legacy-token-tracking-controller 监听并更新kube-system名称空间中名为kube-apiserver-legacy-service-account-token-tracking的ConfigMap
 	postStartHooks map[string]postStartHookEntry
 	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
 	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加
@@ -233,6 +245,8 @@ type GenericAPIServer struct {
 
 	preShutdownHookLock sync.Mutex
 	// GenericServer停止前需要执行的Hook
+	// 3、APIServer添加的后置Hook有：
+	//	3.1 bootstrap-controller
 	preShutdownHooks       map[string]preShutdownHookEntry
 	preShutdownHooksCalled bool
 
@@ -322,6 +336,7 @@ type GenericAPIServer struct {
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
 	// TODO 用于标识GenericServer路由是否注册完成 仔细分析， 生命周期
+	// 1、用于表示某个组件达到某个状态，譬如可以用于判断CRDInformer是否已经同步完成
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -916,7 +931,10 @@ func (s *GenericAPIServer) installAPIResources(
 // InstallLegacyAPIGroup exposes the given legacy api group in the API.
 // The <apiGroupInfo> passed into this function shouldn't be used elsewhere as the
 // underlying storage will be destroyed on this servers shutdown.
-func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo *APIGroupInfo) error {
+func (s *GenericAPIServer) InstallLegacyAPIGroup(
+	apiPrefix string, // 前缀为/api
+	apiGroupInfo *APIGroupInfo,
+) error {
 	if !s.legacyAPIGroupPrefixes.Has(apiPrefix) {
 		return fmt.Errorf("%q is not in the allowed legacy API prefixes: %v", apiPrefix, s.legacyAPIGroupPrefixes.List())
 	}
@@ -926,12 +944,14 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(apiPrefix string, apiGroupInfo 
 		return fmt.Errorf("unable to get openapi models: %v", err)
 	}
 
+	// 注册路由
 	if err := s.installAPIResources(apiPrefix, apiGroupInfo, openAPIModels); err != nil {
 		return err
 	}
 
 	// Install the version handler.
 	// Add a handler at /<apiPrefix> to enumerate the supported api versions.
+	// 注册/api路由
 	legacyRootAPIHandler := discovery.NewLegacyRootAPIHandler(s.discoveryAddresses, s.Serializer, apiPrefix)
 	if utilfeature.DefaultFeatureGate.Enabled(features.AggregatedDiscoveryEndpoint) {
 		wrapped := discoveryendpoint.WrapAggregatedDiscoveryToHandler(legacyRootAPIHandler, s.AggregatedLegacyDiscoveryGroupManager)

@@ -244,7 +244,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		webhook.NewDefaultAuthenticationInfoResolverWrapper( // TODO
 			kubeAPIServerConfig.ExtraConfig.ProxyTransport,         // 用于HTTPS传输
 			kubeAPIServerConfig.GenericConfig.EgressSelector,       // TODO 和APIServer的Konnectivity特性相关
-			kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, // TODO 用于请求本地的APIServer
+			kubeAPIServerConfig.GenericConfig.LoopbackClientConfig, // 用于请求本地的APIServer
 			kubeAPIServerConfig.GenericConfig.TracerProvider,       // 用于链路追踪
 		),
 	)
@@ -259,7 +259,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// Server没有这个路由导致的，也就是说这个请求是一个非法请求，请求需要的资源Server并没有，所以只能返回404错误
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 
-	// 创建ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
+	// 实例化ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
 	apiExtensionsServer, err := createAPIExtensionsServer(
 		apiExtensionsConfig, // ExtensionServer配置，其中包含了GenericServer配置，以及ExtensionServer额外的配置
 		genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler),
@@ -271,7 +271,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// 实例化APIServer
 	kubeAPIServer, err := CreateKubeAPIServer(
 		kubeAPIServerConfig,                  // APIServer的配置
-		apiExtensionsServer.GenericAPIServer, // TODO
+		apiExtensionsServer.GenericAPIServer, // APIServer的delegator其实就是ExtensionServer，准确的说是其中的GenericServer
 	)
 	if err != nil {
 		return nil, err
@@ -306,8 +306,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 // CreateKubeAPIServer creates and wires a workable kube-apiserver
 func CreateKubeAPIServer(
-	kubeAPIServerConfig *controlplane.Config,
-	delegateAPIServer genericapiserver.DelegationTarget,
+	kubeAPIServerConfig *controlplane.Config, // APIServer配置
+	delegateAPIServer genericapiserver.DelegationTarget, // ExtensionServer.GenericServer
 ) (*controlplane.Instance, error) {
 	// Complete用于补全APIServer的参数，设置一些默认值
 	// New实例化APIServer
@@ -398,7 +398,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 		// 2、如果说AggregatorServer, APIServer, ExtensionServer只有通用配置，没有自己业务相关的配置，那这三个Server也就没有什么差别了
 		// 所以AggregatorServer, APIServer, ExtensionServer还有额外的配置，这些配置和这三个Server不同业务有关
 		GenericConfig: genericConfig,
-		// 3、APIServer特定的配置  TODO 似乎再K8S当中controlPlane代表着APIServer
+		// 3、APIServer特定的配置  TODO 似乎在K8S当中controlPlane代表着APIServer
 		ExtraConfig: controlplane.ExtraConfig{
 			APIResourceConfigSource: storageFactory.APIResourceConfigSource,
 			StorageFactory:          storageFactory,
@@ -421,7 +421,7 @@ func CreateKubeAPIServerConfig(s completedServerRunOptions) (
 			// kubernetes.default.svc的NodePort端口，默认kubernetes.default.svc是ClusterIP模式，依次这个端口是0
 			KubernetesServiceNodePort: s.KubernetesServiceNodePort,
 
-			// TODO 这玩意干嘛的
+			// TODO 这玩意似乎是用来生成 kubernetes.default.svc的
 			EndpointReconcilerType: reconcilers.Type(s.EndpointReconcilerType),
 			// Master的数量
 			MasterCount: s.MasterCount,

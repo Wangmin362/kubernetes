@@ -74,7 +74,8 @@ func (r *versionDiscoveryHandler) unsetDiscovery(gv schema.GroupVersion) {
 type groupDiscoveryHandler struct {
 	// TODO, writing is infrequent, optimize this
 	discoveryLock sync.RWMutex
-	discovery     map[string]*discovery.APIGroupHandler
+	// Key为Group
+	discovery map[string]*discovery.APIGroupHandler
 
 	delegate http.Handler
 }

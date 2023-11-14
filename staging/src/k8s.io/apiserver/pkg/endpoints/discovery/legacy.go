@@ -51,7 +51,7 @@ func NewLegacyRootAPIHandler(addresses Addresses, serializer runtime.NegotiatedS
 	}
 }
 
-// AddApiWebService adds a service to return the supported api versions at the legacy /api.
+// WebService adds a service to return the supported api versions at the legacy /api.
 func (s *legacyRootAPIHandler) WebService() *restful.WebService {
 	mediaTypes, _ := negotiation.MediaTypesForSerializer(s.serializer)
 	ws := new(restful.WebService)
@@ -72,6 +72,7 @@ func (s *legacyRootAPIHandler) restfulHandle(req *restful.Request, resp *restful
 
 func (s *legacyRootAPIHandler) ServeHTTP(resp http.ResponseWriter, req *http.Request) {
 	clientIP := utilnet.GetClientIP(req)
+	// 响应值
 	apiVersions := &metav1.APIVersions{
 		ServerAddressByClientCIDRs: s.addresses.ServerAddressByClientCIDRs(clientIP),
 		Versions:                   []string{"v1"},

@@ -133,6 +133,7 @@ func NewCRDRESTOptionsGetter(etcdOptions genericoptions.EtcdOptions) (genericreg
 	etcdOptions.SkipHealthEndpoints = true // avoid double wiring of health checks
 
 	// creates a generic apiserver config for etcdOptions to mutate
+	// 实例化一个新的GenericServer配置
 	c := genericapiserver.Config{}
 	if err := etcdOptions.ApplyTo(&c); err != nil {
 		return nil, err

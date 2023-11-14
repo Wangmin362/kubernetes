@@ -763,13 +763,16 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 	completeOpenAPI(c.OpenAPIConfig, c.Version)
 	completeOpenAPI(c.OpenAPIV3Config, c.Version)
 
+	// DiscoveryAddresses可以通过kubectl get --raw=/api访问
 	if c.DiscoveryAddresses == nil {
 		c.DiscoveryAddresses = discovery.DefaultAddresses{DefaultAddress: c.ExternalAddress}
 	}
 
+	// 初始化Bearer Token认证
 	AuthorizeClientBearerToken(c.LoopbackClientConfig, &c.Authentication, &c.Authorization)
 
 	if c.RequestInfoResolver == nil {
+		// 用于从HTTP请求中解析出认证、鉴权需要的信息，譬如GVR、名称空间、动作、用户信息、路径
 		c.RequestInfoResolver = NewRequestInfoResolver(c)
 	}
 
@@ -1226,8 +1229,8 @@ func NewRequestInfoResolver(c *Config) *apirequest.RequestInfoFactory {
 	}
 
 	return &apirequest.RequestInfoFactory{
-		APIPrefixes:          apiPrefixes,
-		GrouplessAPIPrefixes: legacyAPIPrefixes,
+		APIPrefixes:          apiPrefixes,       // apis, api
+		GrouplessAPIPrefixes: legacyAPIPrefixes, // api
 	}
 }
 
@@ -1250,7 +1253,11 @@ func (s *SecureServingInfo) HostPort() (string, int, error) {
 // AuthorizeClientBearerToken wraps the authenticator and authorizer in loopback authentication logic
 // if the loopback client config is specified AND it has a bearer token. Note that if either authn or
 // authz is nil, this function won't add a token authenticator or authorizer.
-func AuthorizeClientBearerToken(loopback *restclient.Config, authn *AuthenticationInfo, authz *AuthorizationInfo) {
+func AuthorizeClientBearerToken(
+	loopback *restclient.Config, // 访问APIServer的客户端
+	authn *AuthenticationInfo, // 认证信息
+	authz *AuthorizationInfo, // 鉴权信息
+) {
 	if loopback == nil || len(loopback.BearerToken) == 0 {
 		return
 	}
@@ -1273,6 +1280,7 @@ func AuthorizeClientBearerToken(loopback *restclient.Config, authn *Authenticati
 		Groups: []string{user.SystemPrivilegedGroup},
 	}
 
+	// 基于Bearer Token进行认证
 	tokenAuthenticator := authenticatorfactory.NewFromTokens(tokens, authn.APIAudiences)
 	authn.Authenticator = authenticatorunion.New(tokenAuthenticator, authn.Authenticator)
 }

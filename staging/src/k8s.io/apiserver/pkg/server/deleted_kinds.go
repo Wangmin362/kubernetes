@@ -152,7 +152,7 @@ type removedInterface interface {
 	APILifecycleRemoved() (major, minor int)
 }
 
-// removeDeletedKinds inspects the storage map and modifies it in place by removing storage for kinds that have been deleted.
+// RemoveDeletedKinds inspects the storage map and modifies it in place by removing storage for kinds that have been deleted.
 // versionedResourcesStorageMap mirrors the field on APIGroupInfo, it's a map from version to resource to the storage.
 func (e *resourceExpirationEvaluator) RemoveDeletedKinds(groupName string, versioner runtime.ObjectVersioner, versionedResourcesStorageMap map[string]map[string]rest.Storage) {
 	versionsToRemove := sets.NewString()

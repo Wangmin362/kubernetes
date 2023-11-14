@@ -76,6 +76,7 @@ func GetAPIApprovalState(annotations map[string]string) (state APIApprovalState,
 func SetCRDCondition(crd *apiextensionsv1.CustomResourceDefinition, newCondition apiextensionsv1.CustomResourceDefinitionCondition) {
 	newCondition.LastTransitionTime = metav1.NewTime(time.Now())
 
+	// 查询CRD同类型的Condition
 	existingCondition := FindCRDCondition(crd, newCondition.Type)
 	if existingCondition == nil {
 		crd.Status.Conditions = append(crd.Status.Conditions, newCondition)

@@ -37,20 +37,25 @@ import (
 )
 
 // EstablishingController controls how and when CRD is established.
+// 用于给那些刚刚创建，并且名字已经被接受的CRD打上Established=true的Condition
 type EstablishingController struct {
 	crdClient client.CustomResourceDefinitionsGetter
 	crdLister listers.CustomResourceDefinitionLister
 	crdSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// SyncFn用于处理队列中的元素
 	syncFn func(key string) error
 
 	queue workqueue.RateLimitingInterface
 }
 
 // NewEstablishingController creates new EstablishingController.
-func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInformer,
-	crdClient client.CustomResourceDefinitionsGetter) *EstablishingController {
+// 用于给那些刚刚创建，并且名字已经被接受的CRD打上Established=true的Condition
+func NewEstablishingController(
+	crdInformer informers.CustomResourceDefinitionInformer, // CRD Informer
+	crdClient client.CustomResourceDefinitionsGetter, // CRD客户端
+) *EstablishingController {
 	ec := &EstablishingController{
 		crdClient: crdClient,
 		crdLister: crdInformer.Lister(),
@@ -64,6 +69,7 @@ func NewEstablishingController(crdInformer informers.CustomResourceDefinitionInf
 }
 
 // QueueCRD adds CRD into the establishing queue.
+// 说明CRD发生了变化
 func (ec *EstablishingController) QueueCRD(key string, timeout time.Duration) {
 	ec.queue.AddAfter(key, timeout)
 }
@@ -76,6 +82,7 @@ func (ec *EstablishingController) Run(stopCh <-chan struct{}) {
 	klog.Info("Starting EstablishingController")
 	defer klog.Info("Shutting down EstablishingController")
 
+	// 等待CRD Informer同步完成
 	if !cache.WaitForCacheSync(stopCh, ec.crdSynced) {
 		return
 	}
@@ -114,6 +121,7 @@ func (ec *EstablishingController) processNextWorkItem() bool {
 
 // sync is used to turn CRDs into the Established state.
 func (ec *EstablishingController) sync(key string) error {
+	// 查询CRD
 	cachedCRD, err := ec.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -122,6 +130,7 @@ func (ec *EstablishingController) sync(key string) error {
 		return err
 	}
 
+	// 如果CRD的Condition中包含NamesAccepted=false或者Established=true直接退出
 	if !apiextensionshelpers.IsCRDConditionTrue(cachedCRD, apiextensionsv1.NamesAccepted) ||
 		apiextensionshelpers.IsCRDConditionTrue(cachedCRD, apiextensionsv1.Established) {
 		return nil
@@ -134,9 +143,11 @@ func (ec *EstablishingController) sync(key string) error {
 		Reason:  "InitialNamesAccepted",
 		Message: "the initial names have been accepted",
 	}
+	// 更新CRD Condition
 	apiextensionshelpers.SetCRDCondition(crd, establishedCondition)
 
 	// Update server with new CRD condition.
+	// 更新CRD
 	_, err = ec.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again

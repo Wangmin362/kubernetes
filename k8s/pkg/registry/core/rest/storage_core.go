@@ -100,15 +100,18 @@ type LegacyRESTStorageProvider struct {
 // LegacyRESTStorage returns stateful information about particular instances of REST storage to
 // master.go for wiring controllers.
 // TODO remove this by running the controller as a poststarthook
+//
+//	TODO 思考抽象设计
 type LegacyRESTStorage struct {
 	ServiceClusterIPAllocator          rangeallocation.RangeRegistry
 	SecondaryServiceClusterIPAllocator rangeallocation.RangeRegistry
 	ServiceNodePortAllocator           rangeallocation.RangeRegistry
 }
 
-func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource, restOptionsGetter generic.RESTOptionsGetter) (LegacyRESTStorage, genericapiserver.APIGroupInfo, error) {
+func (c LegacyRESTStorageProvider) NewLegacyRESTStorage(apiResourceConfigSource serverstorage.APIResourceConfigSource,
+	restOptionsGetter generic.RESTOptionsGetter) (LegacyRESTStorage, genericapiserver.APIGroupInfo, error) {
 	apiGroupInfo := genericapiserver.APIGroupInfo{
-		PrioritizedVersions:          legacyscheme.Scheme.PrioritizedVersionsForGroup(""),
+		PrioritizedVersions:          legacyscheme.Scheme.PrioritizedVersionsForGroup(""), // 优先选择的版本，对于核心资源而言就是v1
 		VersionedResourcesStorageMap: map[string]map[string]rest.Storage{},
 		Scheme:                       legacyscheme.Scheme,
 		ParameterCodec:               legacyscheme.ParameterCodec,

@@ -48,7 +48,7 @@ type APIServerHandler struct {
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
 	// 1、一个Container就是一个Web服务，里面包含了这个Web服务的路由信息
 	// 2、注册的路由有：/versions, /apis, /apis/<group>, /apis/<group>/<version>, /apis/<group>/<version>/<resource>, 不包含核心资源
-	// 除了核心资源意外的其余资源增删改查也是在这里注册的
+	// 除了核心资源意外的其余资源增删改查也是在这里注册的, /logs, /.well-known/openid-configuration, /openid/v1/jwks路由, /api
 	GoRestfulContainer *restful.Container
 	// NonGoRestfulMux is the final HTTP handler in the chain.
 	// It comes after all filters and the API handling

@@ -57,6 +57,7 @@ type ClientConfigService struct {
 
 // ClientManager builds REST clients to talk to webhooks. It caches the clients
 // to avoid duplicate creation.
+// 用于生成RESTClient，简单来说就是生成HTTP客户端
 type ClientManager struct {
 	authInfoResolver     AuthenticationInfoResolver   // 通过REST获取认证信息
 	serviceResolver      ServiceResolver              // 把Service解析为合法的URL

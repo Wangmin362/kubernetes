@@ -56,6 +56,7 @@ type CustomResourceDefinitionSpec struct {
 	// by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing
 	// major version, then minor version. An example sorted list of versions:
 	// v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.
+	// 当前CRD支持的版本
 	Versions []CustomResourceDefinitionVersion `json:"versions" protobuf:"bytes,7,rep,name=versions"`
 
 	// conversion defines conversion settings for the CRD.
@@ -170,9 +171,11 @@ type CustomResourceDefinitionVersion struct {
 	// The custom resources are served under this version at `/apis/<group>/<version>/...` if `served` is true.
 	Name string `json:"name" protobuf:"bytes,1,opt,name=name"`
 	// served is a flag enabling/disabling this version from being served via REST APIs
+	// TODO 什么时候需要设置为false, 什么时候需要被设置为true?
 	Served bool `json:"served" protobuf:"varint,2,opt,name=served"`
 	// storage indicates this version should be used when persisting custom resources to storage.
 	// There must be exactly one version with storage=true.
+	// TODO 什么时候需要设置为false, 什么时候需要被设置为true?
 	Storage bool `json:"storage" protobuf:"varint,3,opt,name=storage"`
 	// deprecated indicates this version of the custom resource API is deprecated.
 	// When set to true, API requests to this version receive a warning header in the server response.
@@ -278,6 +281,7 @@ const (
 	// Established means that the resource has become active. A resource is established when all names are
 	// accepted without a conflict for the first time. A resource stays established until deleted, even during
 	// a later NamesAccepted due to changed names. Note that not all names can be changed.
+	// CRD处于这个Condition，说明CRD的所有名字都已经被接受，和当前系统中存在的CRD的名字没有任何冲突
 	Established CustomResourceDefinitionConditionType = "Established"
 	// NamesAccepted means the names chosen for this CustomResourceDefinition do not conflict with others in
 	// the group and are therefore accepted.
@@ -395,6 +399,7 @@ type CustomResourceValidation struct {
 }
 
 // CustomResourceSubresources defines the status and scale subresources for CustomResources.
+// 目前CRD支持Status, Scale子资源
 type CustomResourceSubresources struct {
 	// status indicates the custom resource should serve a `/status` subresource.
 	// When enabled:

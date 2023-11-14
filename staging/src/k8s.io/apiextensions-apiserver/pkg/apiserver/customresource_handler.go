@@ -85,6 +85,7 @@ import (
 
 // crdHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
+// 1、CRDHandler本质上就是一个http.Handler
 type crdHandler struct {
 	versionDiscoveryHandler *versionDiscoveryHandler
 	groupDiscoveryHandler   *groupDiscoveryHandler
@@ -94,6 +95,7 @@ type crdHandler struct {
 	// atomic.Value has a very good read performance compared to sync.RWMutex
 	// see https://gist.github.com/dim/152e6bf80e1384ea72e17ac717a5000a
 	// which is suited for most read and rarely write cases
+	// TODO 这玩意完全可以转为atomic.Pointer[crdStorageMap]
 	customStorage atomic.Value
 
 	crdLister listers.CustomResourceDefinitionLister
@@ -164,21 +166,22 @@ type crdInfo struct {
 type crdStorageMap map[types.UID]*crdInfo
 
 func NewCustomResourceDefinitionHandler(
-	versionDiscoveryHandler *versionDiscoveryHandler,
-	groupDiscoveryHandler *groupDiscoveryHandler,
-	crdInformer informers.CustomResourceDefinitionInformer,
-	delegate http.Handler,
+	versionDiscoveryHandler *versionDiscoveryHandler, // 缓存用户自定义CRD的GroupVersion
+	groupDiscoveryHandler *groupDiscoveryHandler, // 缓存用户自定义CRD的Group
+	crdInformer informers.CustomResourceDefinitionInformer, // CRD SharedInformerFactory
+	delegate http.Handler, // ExtensionServer的Delegator时NotFoundHandler
 	restOptionsGetter generic.RESTOptionsGetter,
-	admission admission.Interface,
-	establishingController *establish.EstablishingController,
-	serviceResolver webhook.ServiceResolver,
-	authResolverWrapper webhook.AuthenticationInfoResolverWrapper,
-	masterCount int,
-	authorizer authorizer.Authorizer,
-	requestTimeout time.Duration,
+	admission admission.Interface, // 准入控制插件
+	establishingController *establish.EstablishingController, // 监听CRD资源，并给那些刚创建的CRD并且名字已经被接受的CRD添加Established=true的Condition
+	serviceResolver webhook.ServiceResolver, // Service解析器用于把一个Service转为URL
+	authResolverWrapper webhook.AuthenticationInfoResolverWrapper, // TODO 仔细分析
+	masterCount int, // APIServer节点的数量
+	authorizer authorizer.Authorizer, // 鉴权器
+	requestTimeout time.Duration, // 请求超时时间
 	minRequestTimeout time.Duration,
 	staticOpenAPISpec map[string]*spec.Schema,
-	maxRequestBodyBytes int64) (*crdHandler, error) {
+	maxRequestBodyBytes int64, // HTTP请求的Body最大可以携带字节数，默认为3MB
+) (*crdHandler, error) {
 	ret := &crdHandler{
 		versionDiscoveryHandler: versionDiscoveryHandler,
 		groupDiscoveryHandler:   groupDiscoveryHandler,
@@ -202,12 +205,14 @@ func NewCustomResourceDefinitionHandler(
 			ret.removeDeadStorage()
 		},
 	})
+	// TODO 仔细分析
 	crConverterFactory, err := conversion.NewCRConverterFactory(serviceResolver, authResolverWrapper)
 	if err != nil {
 		return nil, err
 	}
 	ret.converterFactory = crConverterFactory
 
+	// 用于缓存用户自定义的CRD
 	ret.customStorage.Store(crdStorageMap{})
 
 	return ret, nil
@@ -452,7 +457,9 @@ func (r *crdHandler) createCustomResourceDefinition(obj interface{}) {
 	r.customStorageLock.Lock()
 	defer r.customStorageLock.Unlock()
 	// this could happen if the create event is merged from create-update events
+	// atomic.Value使用起来就是需要强转一次
 	storageMap := r.customStorage.Load().(crdStorageMap)
+	// 如果能够找到，说明之前
 	oldInfo, found := storageMap[crd.UID]
 	if !found {
 		return
@@ -507,6 +514,7 @@ func (r *crdHandler) updateCustomResourceDefinition(oldObj, newObj interface{}) 
 // removeStorage_locked removes the cached storage with the given uid as key from the storage map. This function
 // updates r.customStorage with the cleaned-up storageMap and tears down the old storage.
 // NOTE: Caller MUST hold r.customStorageLock to write r.customStorage thread-safely.
+// TODO 这玩意干嘛的？
 func (r *crdHandler) removeStorage_locked(uid types.UID) {
 	storageMap := r.customStorage.Load().(crdStorageMap)
 	if oldInfo, ok := storageMap[uid]; ok {

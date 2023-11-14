@@ -210,7 +210,9 @@ func GetSchemaForVersion(crd *apiextensionsv1.CustomResourceDefinition, version 
 
 // GetSubresourcesForVersion returns the subresources for given version or nil.
 func GetSubresourcesForVersion(crd *apiextensionsv1.CustomResourceDefinition, version string) (*apiextensionsv1.CustomResourceSubresources, error) {
+	// 遍历CRD的所有版本
 	for _, v := range crd.Spec.Versions {
+		// 如果版本相同，发挥这个版本的子资源
 		if version == v.Name {
 			return v.Subresources, nil
 		}

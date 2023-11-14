@@ -50,7 +50,7 @@ const (
 // ResourceManager This handler serves the /apis endpoint for an aggregated list of
 // api resources indexed by their group version.
 // TODO 资源管理器是如何管理资源的？它提供了什么功能？
-// 1、资源管理器本质上也是一个http.Handler
+// 1、资源管理器本质上也是一个http.Handler，用于动态发现路由
 type ResourceManager interface {
 	// AddGroupVersion Adds knowledge of the given groupversion to the discovery document
 	// If it was already being tracked, updates the stored APIVersionDiscovery
@@ -123,6 +123,7 @@ type groupKey struct {
 
 	// Source identifies where this group came from and dictates which group
 	// among duplicates is chosen to be used for discovery.
+	// 资源的来源
 	source Source
 }
 
@@ -132,8 +133,9 @@ type groupVersionKey struct {
 }
 
 type resourceDiscoveryManager struct {
-	serializer runtime.NegotiatedSerializer
+	serializer runtime.NegotiatedSerializer // 编解码器
 	// cache is an atomic pointer to avoid the use of locks
+	// TODO 缓存的啥？
 	cache atomic.Pointer[cachedGroupList]
 
 	serveHTTPFunc http.HandlerFunc
@@ -151,8 +153,11 @@ type priorityInfo struct {
 }
 
 func NewResourceManager(path string) ResourceManager {
+	// 实例化Scheme
 	scheme := runtime.NewScheme()
+	// 通过scheme获取编解码器
 	codecs := serializer.NewCodecFactory(scheme)
+	// 向scheme中注册APIGroupDiscovery, APIGroupDiscoveryList
 	utilruntime.Must(apidiscoveryv2beta1.AddToScheme(scheme))
 	rdm := &resourceDiscoveryManager{
 		serializer:        codecs,
@@ -365,7 +370,7 @@ func (rdm *resourceDiscoveryManager) RemoveGroup(source Source, groupName string
 func (rdm *resourceDiscoveryManager) calculateAPIGroupsLocked() []apidiscoveryv2beta1.APIGroupDiscovery {
 	regenerationCounter.Inc()
 	// Re-order the apiGroups by their priority.
-	groups := []apidiscoveryv2beta1.APIGroupDiscovery{}
+	var groups []apidiscoveryv2beta1.APIGroupDiscovery
 
 	groupsToUse := map[string]apidiscoveryv2beta1.APIGroupDiscovery{}
 	sourcesUsed := map[metav1.GroupVersion]Source{}

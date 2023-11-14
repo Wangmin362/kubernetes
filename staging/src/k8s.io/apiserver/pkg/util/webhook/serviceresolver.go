@@ -23,7 +23,7 @@ import (
 )
 
 // ServiceResolver knows how to convert a service reference into an actual location.
-// Service解析器应该就是把一个Service转为URL
+// Service解析器用于把一个Service转为URL
 type ServiceResolver interface {
 	ResolveEndpoint(namespace, name string, port int32) (*url.URL, error)
 }

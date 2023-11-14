@@ -29,6 +29,7 @@ import (
 )
 
 // CRConverterFactory is the factory for all CR converters.
+// 用于生成
 type CRConverterFactory struct {
 	// webhookConverterFactory is the factory for webhook converters.
 	// This field should not be used if CustomResourceWebhookConversion feature is disabled.
@@ -40,7 +41,10 @@ type CRConverterFactory struct {
 var converterMetricFactorySingleton = newConverterMetricFactory()
 
 // NewCRConverterFactory creates a new CRConverterFactory
-func NewCRConverterFactory(serviceResolver webhook.ServiceResolver, authResolverWrapper webhook.AuthenticationInfoResolverWrapper) (*CRConverterFactory, error) {
+func NewCRConverterFactory(
+	serviceResolver webhook.ServiceResolver,
+	authResolverWrapper webhook.AuthenticationInfoResolverWrapper,
+) (*CRConverterFactory, error) {
 	converterFactory := &CRConverterFactory{}
 	webhookConverterFactory, err := newWebhookConverterFactory(serviceResolver, authResolverWrapper)
 	if err != nil {

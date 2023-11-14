@@ -173,7 +173,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// hasCRDInformerSyncedSignal is closed when the CRD informer this server uses has been fully synchronized.
 	// It ensures that requests to potential custom resource endpoints while the server hasn't installed all known HTTP paths get a 503 error instead of a 404
 	hasCRDInformerSyncedSignal := make(chan struct{})
-	// TODO 添加一个信号，用于表示CRDInformer已经同步完成
+	// 添加一个信号，用于表示CRDInformer已经同步完成
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("CRDInformerHasNotSynced", hasCRDInformerSyncedSignal); err != nil {
 		return nil, err
 	}
@@ -185,10 +185,10 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	// 用于表示哪些资源被启用/禁用
 	apiResourceConfig := c.GenericConfig.MergedResourceConfig
 
-	// TODO 1、apiGroupInfo用于表征当前组的信息，其中最重要的就是存储信息
+	// APIGroupInfo用于表征当前组的信息，其中最重要的就是存储信息
 	apiGroupInfo := genericapiserver.NewDefaultAPIGroupInfo(apiextensions.GroupName, Scheme, metav1.ParameterCodec, Codecs)
-	// TODO 重点分析这个Storage
 	storage := map[string]rest.Storage{}
+	// ExtensionServer仅仅需要注册CRD资源，以及CRD/status资源
 	// customresourcedefinitions
 	if resource := "customresourcedefinitions"; apiResourceConfig.ResourceEnabled(v1.SchemeGroupVersion.WithResource(resource)) {
 		customResourceDefinitionStorage, err := customresourcedefinition.NewREST(Scheme, c.GenericConfig.RESTOptionsGetter)
@@ -204,32 +204,38 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		apiGroupInfo.VersionedResourcesStorageMap[v1.SchemeGroupVersion.Version] = storage
 	}
 
-	// TODO 这里注册路由的路径还是比较复杂的,对于ExtensionServer只需要注册apiextensions.k8s.io组下的资源
+	// T里注册路由的路径还是比较复杂的,对于ExtensionServer只需要注册apiextensions.k8s.io组下的资源，其实只有CRD, CRD/status资源
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
 
+	// 实例化APIServer客户端
 	crdClient, err := clientset.NewForConfig(s.GenericAPIServer.LoopbackClientConfig)
 	if err != nil {
 		// it's really bad that this is leaking here, but until we can fix the test (which I'm pretty sure isn't even testing what it wants to test),
 		// we need to be able to move forward
 		return nil, fmt.Errorf("failed to create clientset: %v", err)
 	}
+	// 实例化SharedInformerFactory， TODO 这个Informer缓存了哪些资源？ 只有CRD资源还是所有资源
 	s.Informers = externalinformers.NewSharedInformerFactory(crdClient, 5*time.Minute)
 
+	// ExtensionServer的Delegator其实就是NotFoundHandler
 	delegateHandler := delegationTarget.UnprotectedHandler()
 	if delegateHandler == nil {
 		delegateHandler = http.NotFoundHandler()
 	}
 
+	// 缓存用户自定义CRD的GroupVersion
 	versionDiscoveryHandler := &versionDiscoveryHandler{
 		discovery: map[schema.GroupVersion]*discovery.APIVersionHandler{},
 		delegate:  delegateHandler,
 	}
+	// 缓存用户自定义CRD的Group
 	groupDiscoveryHandler := &groupDiscoveryHandler{
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
+	// 监听CRD资源，并给那些刚创建的CRD并且名字已经被接受的CRD添加Established=true的Condition
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler,
@@ -259,7 +265,8 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	if aggregatedDiscoveryManager != nil {
 		aggregatedDiscoveryManager = aggregatedDiscoveryManager.WithSource(aggregated.CRDSource)
 	}
-	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), versionDiscoveryHandler, groupDiscoveryHandler, aggregatedDiscoveryManager)
+	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		versionDiscoveryHandler, groupDiscoveryHandler, aggregatedDiscoveryManager)
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())

@@ -51,6 +51,7 @@ type APIGroupDiscoveryList struct {
 // It contains a list of APIVersionDiscovery that holds a list of APIResourceDiscovery types served for a version.
 // Versions are in descending order of preference, with the first version being the preferred entry.
 // TODO 这个资源是干嘛用的？为啥才引入没有多久就要移除？设计上有什么缺陷？
+// TODO APIGroupDiscovery是用于解决什么问题而诞生的？
 type APIGroupDiscovery struct {
 	v1.TypeMeta `json:",inline"`
 	// Standard object's metadata.

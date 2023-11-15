@@ -678,7 +678,7 @@ func buildGenericConfig(
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIPriorityAndFairness) && s.GenericServerRunOptions.EnablePriorityAndFairness {
 		genericConfig.FlowControl, lastErr = BuildPriorityAndFairness(s, clientgoExternalClient, versionedInformers)
 	}
-	// TODO 资源管理器有啥用？
+	// 实例化资源管理器，用于动态发现路由
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		genericConfig.AggregatedDiscoveryGroupManager = aggregated.NewResourceManager("apis")
 	}

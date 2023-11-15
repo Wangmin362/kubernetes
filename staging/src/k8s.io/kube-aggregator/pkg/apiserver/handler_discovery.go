@@ -40,7 +40,7 @@ import (
 
 var APIRegistrationGroupVersion metav1.GroupVersion = metav1.GroupVersion{Group: "apiregistration.k8s.io", Version: "v1"}
 
-// Maximum is 20000. Set to higher than that so apiregistration always is listed
+// APIRegistrationGroupPriority Maximum is 20000. Set to higher than that so apiregistration always is listed
 // first (mirrors v1 discovery behavior)
 var APIRegistrationGroupPriority int = 20001
 
@@ -48,17 +48,17 @@ var APIRegistrationGroupPriority int = 20001
 // DiscoveryManager caches a list of discovery documents for each server
 
 type DiscoveryAggregationController interface {
-	// Adds or Updates an APIService from the Aggregated Discovery Controller's
+	// AddAPIService Adds or Updates an APIService from the Aggregated Discovery Controller's
 	// knowledge base
 	// Thread-safe
 	AddAPIService(apiService *apiregistrationv1.APIService, handler http.Handler)
 
-	// Removes an APIService from the Aggregated Discovery Controller's Knowledge
+	// RemoveAPIService Removes an APIService from the Aggregated Discovery Controller's Knowledge
 	// bank
 	// Thread-safe
 	RemoveAPIService(apiServiceName string)
 
-	// Spwans a worker which waits for added/updated apiservices and updates
+	// Run Spwans a worker which waits for added/updated apiservices and updates
 	// the unified discovery document by contacting the aggregated api services
 	Run(stopCh <-chan struct{})
 }

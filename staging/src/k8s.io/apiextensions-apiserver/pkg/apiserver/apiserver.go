@@ -216,25 +216,26 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		// we need to be able to move forward
 		return nil, fmt.Errorf("failed to create clientset: %v", err)
 	}
-	// 实例化SharedInformerFactory  TODO 这个Informer只会缓存CRD资源还是会缓存所有资源？
+	// 实例化SharedInformerFactory， TODO 这个Informer缓存了哪些资源？ 只有CRD资源还是所有资源
 	s.Informers = externalinformers.NewSharedInformerFactory(crdClient, 5*time.Minute)
 
+	// ExtensionServer的Delegator其实就是NotFoundHandler
 	delegateHandler := delegationTarget.UnprotectedHandler()
 	if delegateHandler == nil {
 		delegateHandler = http.NotFoundHandler()
 	}
 
-	// 保用用户自定义的GV
+	// 缓存用户自定义CRD的GroupVersion
 	versionDiscoveryHandler := &versionDiscoveryHandler{
 		discovery: map[schema.GroupVersion]*discovery.APIVersionHandler{},
 		delegate:  delegateHandler,
 	}
-	// 保存用户自定义的Group
+	// 缓存用户自定义CRD的Group
 	groupDiscoveryHandler := &groupDiscoveryHandler{
 		discovery: map[string]*discovery.APIGroupHandler{},
 		delegate:  delegateHandler,
 	}
-	// 用于给那些刚刚创建，并且名字已经被接受的CRD打上Established=true的Condition
+	// 监听CRD资源，并给那些刚创建的CRD并且名字已经被接受的CRD添加Established=true的Condition
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler,
@@ -261,14 +262,20 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
 	aggregatedDiscoveryManager := genericServer.AggregatedDiscoveryGroupManager
-	if aggregatedDiscoveryManager != nil {
+	if aggregatedDiscoveryManager != nil { // GenericServerConfig已经初始化了，肯定非空
+		// 当前资源管理器管理的是CRD资源
 		aggregatedDiscoveryManager = aggregatedDiscoveryManager.WithSource(aggregated.CRDSource)
 	}
+	// TODO 主要是用于监听CRD，从而动态发现路由
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		versionDiscoveryHandler, groupDiscoveryHandler, aggregatedDiscoveryManager)
-	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// TODO 这里应该是用于判断CRD的命名是否冲突
+	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		crdClient.ApiextensionsV1())
+	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		crdClient.ApiextensionsV1())
+	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(
+		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	finalizingController := finalizer.NewCRDFinalizer(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1(),

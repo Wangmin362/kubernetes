@@ -189,7 +189,7 @@ type GenericAPIServer struct {
 	DiscoveryGroupManager discovery.GroupManager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
-	// TODO 仔细分析
+	// 资源管理器
 	AggregatedDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// AggregatedLegacyDiscoveryGroupManager serves /api in an aggregated form.
@@ -944,7 +944,6 @@ func (s *GenericAPIServer) InstallLegacyAPIGroup(
 		return fmt.Errorf("unable to get openapi models: %v", err)
 	}
 
-	// 注册路由
 	if err := s.installAPIResources(apiPrefix, apiGroupInfo, openAPIModels); err != nil {
 		return err
 	}

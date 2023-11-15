@@ -50,7 +50,7 @@ const (
 // ResourceManager This handler serves the /apis endpoint for an aggregated list of
 // api resources indexed by their group version.
 // TODO 资源管理器是如何管理资源的？它提供了什么功能？
-// 1、资源管理器本质上也是一个http.Handler
+// 1、资源管理器本质上也是一个http.Handler，用于动态发现路由
 type ResourceManager interface {
 	// AddGroupVersion Adds knowledge of the given groupversion to the discovery document
 	// If it was already being tracked, updates the stored APIVersionDiscovery
@@ -123,6 +123,7 @@ type groupKey struct {
 
 	// Source identifies where this group came from and dictates which group
 	// among duplicates is chosen to be used for discovery.
+	// 资源的来源
 	source Source
 }
 
@@ -132,16 +133,19 @@ type groupVersionKey struct {
 }
 
 type resourceDiscoveryManager struct {
-	serializer runtime.NegotiatedSerializer
+	serializer runtime.NegotiatedSerializer // 编解码器
 	// cache is an atomic pointer to avoid the use of locks
+	// TODO 缓存的啥？
 	cache atomic.Pointer[cachedGroupList]
 
 	serveHTTPFunc http.HandlerFunc
 
 	// Writes protected by the lock.
 	// List of all apigroups & resources indexed by the resource manager
-	lock              sync.RWMutex
-	apiGroups         map[groupKey]*apidiscoveryv2beta1.APIGroupDiscovery
+	lock sync.RWMutex
+	// 保存每个组的所有资源
+	apiGroups map[groupKey]*apidiscoveryv2beta1.APIGroupDiscovery
+	// 保存每个GV的优先级
 	versionPriorities map[groupVersionKey]priorityInfo
 }
 
@@ -151,13 +155,17 @@ type priorityInfo struct {
 }
 
 func NewResourceManager(path string) ResourceManager {
+	// 实例化Scheme
 	scheme := runtime.NewScheme()
+	// 通过scheme获取编解码器
 	codecs := serializer.NewCodecFactory(scheme)
+	// 向scheme中注册APIGroupDiscovery, APIGroupDiscoveryList
 	utilruntime.Must(apidiscoveryv2beta1.AddToScheme(scheme))
 	rdm := &resourceDiscoveryManager{
 		serializer:        codecs,
 		versionPriorities: make(map[groupVersionKey]priorityInfo),
 	}
+	// 使用metric指标包装请求，可以用于获取请求执行的时间
 	rdm.serveHTTPFunc = metrics.InstrumentHandlerFunc("GET",
 		/* group = */ "",
 		/* version = */ "",
@@ -186,6 +194,7 @@ func (rdm *resourceDiscoveryManager) SetGroupVersionPriority(source Source, gv m
 		GroupPriorityMinimum: groupPriorityMinimum,
 		VersionPriority:      versionPriority,
 	}
+	// 清空缓存，其实就是让缓存失效，重新生成缓存
 	rdm.cache.Store(nil)
 }
 
@@ -193,9 +202,12 @@ func (rdm *resourceDiscoveryManager) SetGroups(source Source, groups []apidiscov
 	rdm.lock.Lock()
 	defer rdm.lock.Unlock()
 
+	// 每次添加新的数据之前，清空老数据
 	rdm.apiGroups = nil
 	rdm.cache.Store(nil)
 
+	// 1、注册每个group，以及每个group下的每个资源
+	// 2、这里注册的每个GV的GroupPriorityMinimum默认为1000， VersionPriority默认为15
 	for _, group := range groups {
 		for _, version := range group.Versions {
 			rdm.addGroupVersionLocked(source, group.Name, version)
@@ -203,11 +215,13 @@ func (rdm *resourceDiscoveryManager) SetGroups(source Source, groups []apidiscov
 	}
 
 	// Filter unused out priority entries
+	// 删除无用的GV优先级，如果判断当前GV是无用的？ 只需要在apiGroups中查找这个GV，如果找不到直接删除
 	for gv := range rdm.versionPriorities {
 		key := groupKey{
 			source: source,
 			name:   gv.Group,
 		}
+		// 如果当前组已经不存在，那么删除这个组GV的优先级
 		entry, exists := rdm.apiGroups[key]
 		if !exists {
 			delete(rdm.versionPriorities, gv)
@@ -216,6 +230,7 @@ func (rdm *resourceDiscoveryManager) SetGroups(source Source, groups []apidiscov
 
 		containsVersion := false
 
+		// 如果组存在，那么还需要看看这个组下的GV是存在
 		for _, v := range entry.Versions {
 			if v.Version == gv.Version {
 				containsVersion = true
@@ -223,6 +238,7 @@ func (rdm *resourceDiscoveryManager) SetGroups(source Source, groups []apidiscov
 			}
 		}
 
+		// 如果不存在，直接删除GV的优先级
 		if !containsVersion {
 			delete(rdm.versionPriorities, gv)
 		}
@@ -248,6 +264,7 @@ func (rdm *resourceDiscoveryManager) addGroupVersionLocked(source Source, groupN
 		name:   groupName,
 	}
 
+	// 获取当前组
 	if existing, groupExists := rdm.apiGroups[key]; groupExists {
 		// If this version already exists, replace it
 		versionExists := false
@@ -258,21 +275,25 @@ func (rdm *resourceDiscoveryManager) addGroupVersionLocked(source Source, groupN
 				// The new gv is the exact same as what is already in
 				// the map. This is a noop and cache should not be
 				// invalidated.
+				// 如果相等，也就没有替换的必要了，直接退出
 				if reflect.DeepEqual(existing.Versions[i], value) {
 					return
 				}
 
+				// 如果不相等，直接替换
 				existing.Versions[i] = value
 				versionExists = true
 				break
 			}
 		}
 
+		// 如果当前group中还没有保存这个版本，直接添加进去
 		if !versionExists {
 			existing.Versions = append(existing.Versions, value)
 		}
 
 	} else {
+		// 如果当前还没有保存这个组下的任何资源，直接新建一个组
 		group := &apidiscoveryv2beta1.APIGroupDiscovery{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: groupName,
@@ -289,12 +310,13 @@ func (rdm *resourceDiscoveryManager) addGroupVersionLocked(source Source, groupN
 	}
 	if _, ok := rdm.versionPriorities[gvKey]; !ok {
 		rdm.versionPriorities[gvKey] = priorityInfo{
-			GroupPriorityMinimum: 1000,
+			GroupPriorityMinimum: 1000, // TODO 为什么这里的版本号是固定的
 			VersionPriority:      15,
 		}
 	}
 
 	// Reset response document so it is recreated lazily
+	// 由于当前保存的资源已经发生了变化，因此需要清空缓存，重新生成
 	rdm.cache.Store(nil)
 }
 
@@ -307,6 +329,7 @@ func (rdm *resourceDiscoveryManager) RemoveGroupVersion(source Source, apiGroup 
 		name:   apiGroup.Group,
 	}
 
+	// 如果当前group不存在，直接退出
 	group, exists := rdm.apiGroups[key]
 	if !exists {
 		return
@@ -314,6 +337,7 @@ func (rdm *resourceDiscoveryManager) RemoveGroupVersion(source Source, apiGroup 
 
 	modified := false
 	for i := range group.Versions {
+		// 删除GV
 		if group.Versions[i].Version == apiGroup.Version {
 			group.Versions = append(group.Versions[:i], group.Versions[i+1:]...)
 			modified = true
@@ -321,21 +345,25 @@ func (rdm *resourceDiscoveryManager) RemoveGroupVersion(source Source, apiGroup 
 		}
 	}
 	// If no modification was done, cache does not need to be cleared
+	// 如果根本就不存在这个GV，直接退出
 	if !modified {
 		return
 	}
 
+	// 如果删除了这个GV，那么还需要清理优先级
 	gvKey := groupVersionKey{
 		GroupVersion: apiGroup,
 		source:       source,
 	}
 
 	delete(rdm.versionPriorities, gvKey)
+	// 如果当前组删除这个GV之后，没有任何版本了，直接删除这个组
 	if len(group.Versions) == 0 {
 		delete(rdm.apiGroups, key)
 	}
 
 	// Reset response document so it is recreated lazily
+	// 清空缓存，其实就是让缓存失效，重新生成缓存
 	rdm.cache.Store(nil)
 }
 
@@ -348,8 +376,10 @@ func (rdm *resourceDiscoveryManager) RemoveGroup(source Source, groupName string
 		name:   groupName,
 	}
 
+	// 直接移除组
 	delete(rdm.apiGroups, key)
 
+	// 同时需要移除当前组的每个GV的优先级
 	for k := range rdm.versionPriorities {
 		if k.Group == groupName && k.source == source {
 			delete(rdm.versionPriorities, k)
@@ -357,26 +387,33 @@ func (rdm *resourceDiscoveryManager) RemoveGroup(source Source, groupName string
 	}
 
 	// Reset response document so it is recreated lazily
+	// 清空缓存，其实就是让缓存失效，重新生成缓存
 	rdm.cache.Store(nil)
 }
 
 // Prepares the api group list for serving by converting them from map into
 // list and sorting them according to insertion order
 func (rdm *resourceDiscoveryManager) calculateAPIGroupsLocked() []apidiscoveryv2beta1.APIGroupDiscovery {
+	// 指标加一
 	regenerationCounter.Inc()
 	// Re-order the apiGroups by their priority.
-	groups := []apidiscoveryv2beta1.APIGroupDiscovery{}
+	var groups []apidiscoveryv2beta1.APIGroupDiscovery
 
 	groupsToUse := map[string]apidiscoveryv2beta1.APIGroupDiscovery{}
+	// 记录每个GV的源
 	sourcesUsed := map[metav1.GroupVersion]Source{}
 
+	// 遍历所有的分组
 	for key, group := range rdm.apiGroups {
+		// 如果当前已经记录过这个组
 		if existing, ok := groupsToUse[key.name]; ok {
+			// 遍历每个版本
 			for _, v := range group.Versions {
 				gv := metav1.GroupVersion{Group: key.name, Version: v.Version}
 
 				// Skip groupversions we've already seen before. Only DefaultSource
 				// takes precedence
+				// TODO 这里在干嘛？
 				if usedSource, seen := sourcesUsed[gv]; seen && key.source >= usedSource {
 					continue
 				} else if seen {
@@ -407,6 +444,7 @@ func (rdm *resourceDiscoveryManager) calculateAPIGroupsLocked() []apidiscoveryv2
 		}
 	}
 
+	// 给每个组不同的GV排序
 	for _, group := range groupsToUse {
 
 		// Re-order versions based on their priority. Use kube-aware string

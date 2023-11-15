@@ -51,16 +51,17 @@ type DiscoveryController struct {
 	crdsSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// 队列消费函数
 	syncFn func(version schema.GroupVersion) error
 
 	queue workqueue.RateLimitingInterface
 }
 
 func NewDiscoveryController(
-	crdInformer informers.CustomResourceDefinitionInformer,
-	versionHandler *versionDiscoveryHandler,
-	groupHandler *groupDiscoveryHandler,
-	resourceManager discoveryendpoint.ResourceManager,
+	crdInformer informers.CustomResourceDefinitionInformer, // CRDInformer
+	versionHandler *versionDiscoveryHandler, // 缓存用户自定义CRD的GroupVersion
+	groupHandler *groupDiscoveryHandler, // 缓存用户自定义CRD的Group
+	resourceManager discoveryendpoint.ResourceManager, // 资源管理，用于动态发现路由
 ) *DiscoveryController {
 	c := &DiscoveryController{
 		versionHandler:  versionHandler,
@@ -83,13 +84,15 @@ func NewDiscoveryController(
 	return c
 }
 
+// 同步指定GV资源
 func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
-	apiVersionsForDiscovery := []metav1.GroupVersionForDiscovery{}
-	apiResourcesForDiscovery := []metav1.APIResource{}
-	aggregatedApiResourcesForDiscovery := []apidiscoveryv2beta1.APIResourceDiscovery{}
+	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
+	var apiResourcesForDiscovery []metav1.APIResource
+	var aggregatedApiResourcesForDiscovery []apidiscoveryv2beta1.APIResourceDiscovery
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
+	// 获取当前所有的CRD
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -97,24 +100,31 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	foundVersion := false
 	foundGroup := false
 	for _, crd := range crds {
+		// 如果当前CRD还没有建立成功，直接忽略。也就是说当前的CRD可能还存在名称冲突，还没有真正的激活
 		if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 			continue
 		}
 
+		// 如果组不相等，直接忽略
 		if crd.Spec.Group != version.Group {
 			continue
 		}
 
 		foundThisVersion := false
 		var storageVersionHash string
+		// 遍历当前CRD的所有版本
 		for _, v := range crd.Spec.Versions {
+			// 如果当前版本不用于REST API，直接跳过
 			if !v.Served {
 				continue
 			}
 			// If there is any Served version, that means the group should show up in discovery
+			// 说明当前组下有一个以上的版本处于Server状态
 			foundGroup = true
 
+			// CRD具体的某个版本
 			gv := metav1.GroupVersion{Group: crd.Spec.Group, Version: v.Name}
+			// 缓存起来
 			if !versionsForDiscoveryMap[gv] {
 				versionsForDiscoveryMap[gv] = true
 				apiVersionsForDiscovery = append(apiVersionsForDiscovery, metav1.GroupVersionForDiscovery{
@@ -130,6 +140,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			}
 		}
 
+		// 说明找到了当前指定GV的CRD
 		if !foundThisVersion {
 			continue
 		}
@@ -137,6 +148,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 		verbs := metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "patch", "create", "update", "watch"})
 		// if we're terminating we don't allow some verbs
+		// 如果当前CRD处于Terminating状态，那么只支持查看动作以及删除动作
 		if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating) {
 			verbs = metav1.Verbs([]string{"delete", "deletecollection", "get", "list", "watch"})
 		}
@@ -152,6 +164,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			StorageVersionHash: storageVersionHash,
 		})
 
+		// 获取当前指定GV CRD的子资源
 		subresources, err := apiextensionshelpers.GetSubresourcesForVersion(crd, version.Version)
 		if err != nil {
 			return err
@@ -256,9 +269,13 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		}
 		return nil
 	}
-	c.versionHandler.setDiscovery(version, discovery.NewAPIVersionHandler(Codecs, version, discovery.APIResourceListerFunc(func() []metav1.APIResource {
-		return apiResourcesForDiscovery
-	})))
+	c.versionHandler.setDiscovery(version,
+		discovery.NewAPIVersionHandler(Codecs, version,
+			discovery.APIResourceListerFunc(func() []metav1.APIResource {
+				return apiResourcesForDiscovery
+			}),
+		),
+	)
 
 	sort.Slice(aggregatedApiResourcesForDiscovery[:], func(i, j int) bool {
 		return aggregatedApiResourcesForDiscovery[i].Resource < aggregatedApiResourcesForDiscovery[j].Resource
@@ -288,13 +305,16 @@ func (c *DiscoveryController) Run(stopCh <-chan struct{}, synchedCh chan<- struc
 
 	klog.Info("Starting DiscoveryController")
 
+	// 等待informer同步完成
 	if !cache.WaitForCacheSync(stopCh, c.crdsSynced) {
 		utilruntime.HandleError(fmt.Errorf("timed out waiting for caches to sync"))
 		return
 	}
 
 	// initially sync all group versions to make sure we serve complete discovery
+	// 每秒钟执行一次  执行第一次路由发现
 	if err := wait.PollImmediateUntil(time.Second, func() (bool, error) {
+		// 获取当前所有的CRD资源
 		crds, err := c.crdLister.List(labels.Everything())
 		if err != nil {
 			utilruntime.HandleError(fmt.Errorf("failed to initially list CRDs: %v", err))

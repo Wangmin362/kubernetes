@@ -101,6 +101,7 @@ type ExplicitKey string
 //
 // TODO: replace key-as-string with a key-as-struct so that this
 // packing/unpacking won't be necessary.
+// 如果当前资源存在Namespace，那么返回<namespace>/<name>，否则返回<name>
 func MetaNamespaceKeyFunc(obj interface{}) (string, error) {
 	if key, ok := obj.(ExplicitKey); ok {
 		return string(key), nil

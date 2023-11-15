@@ -61,7 +61,7 @@ func NewDiscoveryController(
 	crdInformer informers.CustomResourceDefinitionInformer, // CRDInformer
 	versionHandler *versionDiscoveryHandler, // 缓存用户自定义CRD的GroupVersion
 	groupHandler *groupDiscoveryHandler, // 缓存用户自定义CRD的Group
-	resourceManager discoveryendpoint.ResourceManager, // TODO 这玩意干嘛的？
+	resourceManager discoveryendpoint.ResourceManager, // 资源管理，用于动态发现路由
 ) *DiscoveryController {
 	c := &DiscoveryController{
 		versionHandler:  versionHandler,
@@ -84,6 +84,7 @@ func NewDiscoveryController(
 	return c
 }
 
+// 同步指定GV资源
 func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
@@ -268,9 +269,13 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		}
 		return nil
 	}
-	c.versionHandler.setDiscovery(version, discovery.NewAPIVersionHandler(Codecs, version, discovery.APIResourceListerFunc(func() []metav1.APIResource {
-		return apiResourcesForDiscovery
-	})))
+	c.versionHandler.setDiscovery(version,
+		discovery.NewAPIVersionHandler(Codecs, version,
+			discovery.APIResourceListerFunc(func() []metav1.APIResource {
+				return apiResourcesForDiscovery
+			}),
+		),
+	)
 
 	sort.Slice(aggregatedApiResourcesForDiscovery[:], func(i, j int) bool {
 		return aggregatedApiResourcesForDiscovery[i].Resource < aggregatedApiResourcesForDiscovery[j].Resource

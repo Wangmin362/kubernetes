@@ -22,6 +22,7 @@ import (
 )
 
 var (
+	// 用于计数聚合发现被聚合了多少次
 	regenerationCounter = metrics.NewCounter(
 		&metrics.CounterOpts{
 			Name:           "aggregator_discovery_aggregation_count_total",

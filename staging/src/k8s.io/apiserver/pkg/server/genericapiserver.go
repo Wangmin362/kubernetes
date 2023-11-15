@@ -189,6 +189,7 @@ type GenericAPIServer struct {
 	DiscoveryGroupManager discovery.GroupManager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
+	// 资源管理器
 	AggregatedDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// AggregatedLegacyDiscoveryGroupManager serves /api in an aggregated form.

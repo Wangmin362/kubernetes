@@ -262,14 +262,20 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	s.GenericAPIServer.RegisterDestroyFunc(crdHandler.destroy)
 
 	aggregatedDiscoveryManager := genericServer.AggregatedDiscoveryGroupManager
-	if aggregatedDiscoveryManager != nil {
+	if aggregatedDiscoveryManager != nil { // GenericServerConfig已经初始化了，肯定非空
+		// 当前资源管理器管理的是CRD资源
 		aggregatedDiscoveryManager = aggregatedDiscoveryManager.WithSource(aggregated.CRDSource)
 	}
+	// TODO 主要是用于监听CRD，从而动态发现路由
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		versionDiscoveryHandler, groupDiscoveryHandler, aggregatedDiscoveryManager)
-	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
-	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// TODO 这里应该是用于判断CRD的命名是否冲突
+	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		crdClient.ApiextensionsV1())
+	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
+		crdClient.ApiextensionsV1())
+	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(
+		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
 	finalizingController := finalizer.NewCRDFinalizer(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1(),

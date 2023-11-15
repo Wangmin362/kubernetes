@@ -227,6 +227,8 @@ type GenericAPIServer struct {
 	// 1、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
 	// 2、ExtensionServer添加的后置Hook有：
 	//	2.1 crd-informer-synced：用于等待CRD Informer同步完成
+	// 	2.2 start-apiextensions-informers: 用于启动SharedInformerFactory
+	// 	2.3 start-apiextensions-controllers：用于启动ExtensionServer的所有Controller
 	// 3、APIServer添加的后置Hook有：
 	//	3.1 start-system-namespaces-controller：用于创建kube-system, kube-node-lease, kube-public, default名称空间，如果不存在的话
 	//	3.2 bootstrap-controller

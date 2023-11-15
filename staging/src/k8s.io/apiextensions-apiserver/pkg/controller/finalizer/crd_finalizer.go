@@ -64,8 +64,11 @@ type CRDFinalizer struct {
 	crdSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// key为CRD的名字
 	syncFn func(key string) error
 
+	// 1、能进入队列中的CRD，肯定都指定了Finalizer
+	// 2、队列中保存的是CRD的名字
 	queue workqueue.RateLimitingInterface
 }
 
@@ -107,6 +110,7 @@ func NewCRDFinalizer(
 }
 
 func (c *CRDFinalizer) sync(key string) error {
+	// 获取当前CRD
 	cachedCRD, err := c.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -115,7 +119,7 @@ func (c *CRDFinalizer) sync(key string) error {
 		return err
 	}
 
-	// no work to do
+	// 如果当前CRD没有被删除，并且没有设置customresourcecleanup.apiextensions.k8s.io Finalizer，直接退出
 	if cachedCRD.DeletionTimestamp.IsZero() || !apiextensionshelpers.CRDHasFinalizer(cachedCRD, apiextensionsv1.CustomResourceCleanupFinalizer) {
 		return nil
 	}
@@ -123,6 +127,7 @@ func (c *CRDFinalizer) sync(key string) error {
 	crd := cachedCRD.DeepCopy()
 
 	// update the status condition.  This cleanup could take a while.
+	// 设置CRD的状态为Termination
 	apiextensionshelpers.SetCRDCondition(crd, apiextensionsv1.CustomResourceDefinitionCondition{
 		Type:    apiextensionsv1.Terminating,
 		Status:  apiextensionsv1.ConditionTrue,
@@ -149,6 +154,7 @@ func (c *CRDFinalizer) sync(key string) error {
 			Message: "instances overlap with built-in resources in storage",
 		})
 	} else if apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
+		// 删除所有的CR
 		cond, deleteErr := c.deleteInstances(crd)
 		apiextensionshelpers.SetCRDCondition(crd, cond)
 		if deleteErr != nil {
@@ -202,7 +208,7 @@ func (c *CRDFinalizer) deleteInstances(crd *apiextensionsv1.CustomResourceDefini
 	}
 
 	deletedNamespaces := sets.String{}
-	deleteErrors := []error{}
+	var deleteErrors []error
 	for _, item := range allResources.(*unstructured.UnstructuredList).Items {
 		metadata, err := meta.Accessor(&item)
 		if err != nil {
@@ -315,6 +321,7 @@ func (c *CRDFinalizer) enqueue(obj *apiextensionsv1.CustomResourceDefinition) {
 func (c *CRDFinalizer) addCustomResourceDefinition(obj interface{}) {
 	castObj := obj.(*apiextensionsv1.CustomResourceDefinition)
 	// only queue deleted things
+	// 说明当前CRD被删除
 	if !castObj.DeletionTimestamp.IsZero() && apiextensionshelpers.CRDHasFinalizer(castObj, apiextensionsv1.CustomResourceCleanupFinalizer) {
 		c.enqueue(castObj)
 	}

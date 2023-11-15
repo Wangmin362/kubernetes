@@ -36,6 +36,7 @@ import (
 // resourceVersions for comparisons.
 // Implementations must be thread-safe.
 // TODO find a way to layer this into an informer/lister
+// TODO 这玩意有啥功能？
 type MutationCache interface {
 	GetByKey(key string) (interface{}, bool, error)
 	ByIndex(indexName, indexKey string) ([]interface{}, error)
@@ -74,6 +75,7 @@ func NewIntegerResourceVersionMutationCache(backingCache Store, indexer Indexer,
 // mutationCache doesn't guarantee that it returns values added via Mutation since they can page out and
 // since you can't distinguish between, "didn't observe create" and "was deleted after create",
 // if the key is missing from the backing cache, we always return it as missing
+// TODO 为啥实现这个缓存这么复杂？
 type mutationCache struct {
 	lock          sync.Mutex
 	backingCache  Store

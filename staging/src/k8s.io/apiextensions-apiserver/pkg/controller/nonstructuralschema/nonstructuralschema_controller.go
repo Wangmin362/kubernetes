@@ -48,14 +48,17 @@ type ConditionController struct {
 	crdSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// key为CRD的名字
 	syncFn func(key string) error
 
+	// 保存的CRD的名字
 	queue workqueue.RateLimitingInterface
 
 	// last generation this controller updated the condition per CRD name (to avoid two
 	// different version of the apiextensions-apiservers in HA to fight for the right message)
 	lastSeenGenerationLock sync.Mutex
-	lastSeenGeneration     map[string]int64
+	// TODO 干嘛的？
+	lastSeenGeneration map[string]int64
 }
 
 // NewConditionController constructs a non-structural schema condition controller.
@@ -90,13 +93,16 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 
 	allErrs := field.ErrorList{}
 
+	// TODO 这里说明这个字段必须是False
 	if in.Spec.PreserveUnknownFields {
 		allErrs = append(allErrs, field.Invalid(field.NewPath("spec", "preserveUnknownFields"),
 			in.Spec.PreserveUnknownFields,
 			fmt.Sprint("must be false")))
 	}
 
+	// 遍历当前CRD所有的版本
 	for i, v := range in.Spec.Versions {
+		// 如果当前CRD没有定义OpenAPI，直接跳过。这玩意其实就是用于定义CRD的的字段，以及每个字段的类型
 		if v.Schema == nil || v.Schema.OpenAPIV3Schema == nil {
 			continue
 		}
@@ -106,6 +112,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 			klog.Errorf("failed to convert CRD validation to internal version: %v", err)
 			continue
 		}
+		// 判断当前的CRD到底是否是非结构化的
 		s, err := schema.NewStructural(internalSchema.OpenAPIV3Schema)
 		if err != nil {
 			cond.Reason = "StructuralError"
@@ -130,6 +137,7 @@ func calculateCondition(in *apiextensionsv1.CustomResourceDefinition) *apiextens
 }
 
 func (c *ConditionController) sync(key string) error {
+	// 根据CRD名字查询当前CRD
 	inCustomResourceDefinition, err := c.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -142,11 +150,13 @@ func (c *ConditionController) sync(key string) error {
 	c.lastSeenGenerationLock.Lock()
 	lastSeen, seenBefore := c.lastSeenGeneration[inCustomResourceDefinition.Name]
 	c.lastSeenGenerationLock.Unlock()
+	// 如果之前已经看过这个CRD，并且CRD的结果没有发生改变，那么无需再次处理这个CRD。换言之，如果CRD的结构发生改变，那么Generation一定会发生改变
 	if seenBefore && inCustomResourceDefinition.Generation <= lastSeen {
 		return nil
 	}
 
 	// check old condition
+	// 判断当前CRD是否是非结构化的，如果是那么返回Condition NonStructuralSchema=True
 	cond := calculateCondition(inCustomResourceDefinition)
 	old := apiextensionshelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.NonStructuralSchema)
 
@@ -166,6 +176,7 @@ func (c *ConditionController) sync(key string) error {
 		apiextensionshelpers.SetCRDCondition(crd, *cond)
 	}
 
+	// 更新这个CRD的状态
 	_, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again
@@ -179,6 +190,7 @@ func (c *ConditionController) sync(key string) error {
 	// fights of API server in HA environments).
 	c.lastSeenGenerationLock.Lock()
 	defer c.lastSeenGenerationLock.Unlock()
+	// 记录下来，说明当前已经处理过这个CRD了，下次不需要再处理
 	c.lastSeenGeneration[crd.Name] = crd.Generation
 
 	return nil

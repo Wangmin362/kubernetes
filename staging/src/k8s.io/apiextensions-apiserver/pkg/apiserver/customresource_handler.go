@@ -229,6 +229,7 @@ var possiblyAcrossAllNamespacesVerbs = sets.NewString("list", "watch")
 
 func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := req.Context()
+	// 从请求当中获取请求信息
 	requestInfo, ok := apirequest.RequestInfoFrom(ctx)
 	if !ok {
 		responsewriters.ErrorNegotiated(
@@ -237,15 +238,17 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		)
 		return
 	}
+	// 如果当前请求不是资源请求
 	if !requestInfo.IsResourceRequest {
 		pathParts := splitPath(requestInfo.Path)
 		// only match /apis/<group>/<version>
 		// only registered under /apis
+		// 譬如kubectl get --raw=/apis/crd.skyguard.com.cn/v1
 		if len(pathParts) == 3 {
 			r.versionDiscoveryHandler.ServeHTTP(w, req)
 			return
 		}
-		// only match /apis/<group>
+		// only match /apis/<group>，譬如kubectl get --raw=/apis/crd.skyguard.com.cn
 		if len(pathParts) == 2 {
 			r.groupDiscoveryHandler.ServeHTTP(w, req)
 			return
@@ -255,7 +258,10 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 1、拼接出CRD的名字，格式为<resource>.<group>
+	// 2、譬如kubectl get --raw=/apis/crd.skyguard.com.cn/tenantauths，那么crdName=tenantauths.crd.skyguard.com.cn
 	crdName := requestInfo.Resource + "." + requestInfo.APIGroup
+	// 查询当前CRD
 	crd, err := r.crdLister.Get(crdName)
 	if apierrors.IsNotFound(err) {
 		r.delegate.ServeHTTP(w, req)
@@ -273,15 +279,18 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// if the scope in the CRD and the scope in request differ (with exception of the verbs in possiblyAcrossAllNamespacesVerbs
 	// for namespaced resources), pass request to the delegate, which is supposed to lead to a 404.
 	namespacedCRD, namespacedReq := crd.Spec.Scope == apiextensionsv1.NamespaceScoped, len(requestInfo.Namespace) > 0
+	// 如果当前资源是Cluster级别的，但是是名称空间级别的请求，只能委派给NotFoundHandler了
 	if !namespacedCRD && namespacedReq {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
+	// 如果是名称空间级别的，但是又不是名称空间级别的请求
 	if namespacedCRD && !namespacedReq && !possiblyAcrossAllNamespacesVerbs.Has(requestInfo.Verb) {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
+	// 如果当前CRD的版本并不支持服务，那么只能委派给NotFoundHandler
 	if !apiextensionshelpers.HasServedCRDVersion(crd, requestInfo.APIVersion) {
 		r.delegate.ServeHTTP(w, req)
 		return
@@ -291,16 +300,20 @@ func (r *crdHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// but it becomes "unserved" because another names update leads to a conflict
 	// and EstablishingController wasn't fast enough to put the CRD into the Established condition.
 	// We accept this as the problem is small and self-healing.
+	// 如果当前的CRD的名字还没有被接受并且还没有成功激活，那么只能委派给NotFoundHandler
 	if !apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.NamesAccepted) &&
 		!apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Established) {
 		r.delegate.ServeHTTP(w, req)
 		return
 	}
 
+	// 判断当前CRD是否处于删除状态
 	terminating := apiextensionshelpers.IsCRDConditionTrue(crd, apiextensionsv1.Terminating)
 
+	// TODO  查询当前CRD信息
 	crdInfo, err := r.getOrCreateServingInfoFor(crd.UID, crd.Name)
 	if apierrors.IsNotFound(err) {
+		// 如果没有找到CRD信息，委派给NotFoundHandler
 		r.delegate.ServeHTTP(w, req)
 		return
 	}

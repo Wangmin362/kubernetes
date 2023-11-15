@@ -44,8 +44,10 @@ type KubernetesAPIApprovalPolicyConformantConditionController struct {
 	crdSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// Key为CRD的名字
 	syncFn func(key string) error
 
+	// 队列中保存的CRD的名字
 	queue workqueue.RateLimitingInterface
 
 	// last protectedAnnotation value this controller updated the condition per CRD name (to avoid two
@@ -80,6 +82,8 @@ func NewKubernetesAPIApprovalPolicyConformantConditionController(
 
 // calculateCondition determines the new KubernetesAPIApprovalPolicyConformant condition
 func calculateCondition(crd *apiextensionsv1.CustomResourceDefinition) *apiextensionsv1.CustomResourceDefinitionCondition {
+	// 1、在K8S中，受保护的组为：k8s.io, *.k8s.io, kubernetes.io, *.kubernetes.io
+	// 如果当前CRD的组并不匹配受保护的组，那么直接退出
 	if !apihelpers.IsProtectedCommunityGroup(crd.Spec.Group) {
 		return nil
 	}
@@ -93,21 +97,21 @@ func calculateCondition(crd *apiextensionsv1.CustomResourceDefinition) *apiexten
 			Reason:  "InvalidAnnotation",
 			Message: reason,
 		}
-	case apihelpers.APIApprovalMissing:
+	case apihelpers.APIApprovalMissing: // 说明当前CRD的注解没有api-approved.kubernetes.io
 		return &apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.KubernetesAPIApprovalPolicyConformant,
 			Status:  apiextensionsv1.ConditionFalse,
 			Reason:  "MissingAnnotation",
 			Message: reason,
 		}
-	case apihelpers.APIApproved:
+	case apihelpers.APIApproved: // 说明当前CRD的注解有api-approved.kubernetes.io，并且值为合法的URL
 		return &apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.KubernetesAPIApprovalPolicyConformant,
 			Status:  apiextensionsv1.ConditionTrue,
 			Reason:  "ApprovedAnnotation",
 			Message: reason,
 		}
-	case apihelpers.APIApprovalBypassed:
+	case apihelpers.APIApprovalBypassed: // 说明当前CRD的注解有api-approved.kubernetes.io，但是值为unapproved
 		return &apiextensionsv1.CustomResourceDefinitionCondition{
 			Type:    apiextensionsv1.KubernetesAPIApprovalPolicyConformant,
 			Status:  apiextensionsv1.ConditionFalse,
@@ -125,6 +129,7 @@ func calculateCondition(crd *apiextensionsv1.CustomResourceDefinition) *apiexten
 }
 
 func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key string) error {
+	// 根据名字查询CRD
 	inCustomResourceDefinition, err := c.crdLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		return nil
@@ -138,11 +143,13 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 	c.lastSeenProtectedAnnotationLock.Lock()
 	lastSeen, seenBefore := c.lastSeenProtectedAnnotation[inCustomResourceDefinition.Name]
 	c.lastSeenProtectedAnnotationLock.Unlock()
+	// 如果之前已经处理过了，那么无需再次处理
 	if seenBefore && protectionAnnotationValue == lastSeen {
 		return nil
 	}
 
 	// check old condition
+	// 如果当前CRD的组是受保护的组，那么需要根据api-approved.kubernetes.io注解的值打上KubernetesAPIApprovalPolicyConformant Condition
 	cond := calculateCondition(inCustomResourceDefinition)
 	if cond == nil {
 		// because group is immutable, if we have no condition now, we have no need to remove a condition.
@@ -151,6 +158,7 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 	old := apihelpers.FindCRDCondition(inCustomResourceDefinition, apiextensionsv1.KubernetesAPIApprovalPolicyConformant)
 
 	// don't attempt a write if all the condition details are the same
+	// 本来就是，那么无需更新
 	if old != nil && old.Status == cond.Status && old.Reason == cond.Reason && old.Message == cond.Message {
 		// no need to update annotation because we took no action.
 		return nil
@@ -160,6 +168,7 @@ func (c *KubernetesAPIApprovalPolicyConformantConditionController) sync(key stri
 	crd := inCustomResourceDefinition.DeepCopy()
 	apihelpers.SetCRDCondition(crd, *cond)
 
+	// 更新状态
 	_, err = c.crdClient.CustomResourceDefinitions().UpdateStatus(context.TODO(), crd, metav1.UpdateOptions{})
 	if apierrors.IsNotFound(err) || apierrors.IsConflict(err) {
 		// deleted or changed in the meantime, we'll get called again

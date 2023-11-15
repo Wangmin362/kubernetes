@@ -29,6 +29,9 @@ const (
 	// KubeAPIApprovedAnnotation is an annotation that must be set to create a CRD for the k8s.io, *.k8s.io, kubernetes.io, or *.kubernetes.io namespaces.
 	// The value should be a link to a URL where the current spec was approved, so updates to the spec should also update the URL.
 	// If the API is unapproved, you may set the annotation to a string starting with `"unapproved"`.  For instance, `"unapproved, temporarily squatting"` or `"unapproved, experimental-only"`.  This is discouraged.
+	// 1、K8S的k8s.io, *k8s.io, kubernetes.io, *.kubernetes.io是受保护的组，不能随意添加资源，如果想要把CRD添加到这个组下面，那么这个
+	// CRD的注解必须包含api-approved.kubernetes.io=<URL>
+	// 2、api-approved.kubernetes.io注解的值应该是一个URL TODO 这个URL应该指向哪里？
 	KubeAPIApprovedAnnotation = "api-approved.kubernetes.io"
 
 	// NoneConverter is a converter that only sets apiversion of the CR and leave everything else unchanged.
@@ -281,10 +284,10 @@ const (
 	// Established means that the resource has become active. A resource is established when all names are
 	// accepted without a conflict for the first time. A resource stays established until deleted, even during
 	// a later NamesAccepted due to changed names. Note that not all names can be changed.
-	// CRD处于这个Condition，说明CRD的所有名字都已经被接受，和当前系统中存在的CRD的名字没有任何冲突
 	Established CustomResourceDefinitionConditionType = "Established"
 	// NamesAccepted means the names chosen for this CustomResourceDefinition do not conflict with others in
 	// the group and are therefore accepted.
+	// CRD的NamesAccepted=True，说明CRD的所有名字都已经被接受，和当前系统中存在的CRD的名字没有任何冲突
 	NamesAccepted CustomResourceDefinitionConditionType = "NamesAccepted"
 	// NonStructuralSchema means that one or more OpenAPI schema is not structural.
 	//
@@ -301,6 +304,9 @@ const (
 	// - read-only
 	// - OpenAPI publishing
 	// - webhook conversion
+	// 1、什么叫做非结构化Schema，其实说的是定义的CRD Spec字段的类型不明确，譬如是x-kubernetes-int-or-string
+	// 或者x-kubernetes-preserve-unknown-fields类型，或者定义的字段没有类型，那么这个CRD就是非结构化Schema。
+	// 2、目前K8S很多特性已经不再支持非结构化CRD定义，因此不在建议把CRD定义为结构化的。
 	NonStructuralSchema CustomResourceDefinitionConditionType = "NonStructuralSchema"
 	// Terminating means that the CustomResourceDefinition has been deleted and is cleaning up.
 	Terminating CustomResourceDefinitionConditionType = "Terminating"

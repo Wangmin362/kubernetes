@@ -43,7 +43,9 @@ import (
 )
 
 type DiscoveryController struct {
-	versionHandler  *versionDiscoveryHandler
+	// 用于获取某个GV的所有资源, 譬如 kubectl get --raw=/apis/crd.skyguard.com.cn/v1
+	versionHandler *versionDiscoveryHandler
+	// 用于获取某个Group下的所有资源,譬如 kubectl get --raw=/apis/crd.skyguard.com.cn
 	groupHandler    *groupDiscoveryHandler
 	resourceManager discoveryendpoint.ResourceManager
 
@@ -54,6 +56,7 @@ type DiscoveryController struct {
 	// 队列消费函数
 	syncFn func(version schema.GroupVersion) error
 
+	// 队列中保存的是CRD的GV
 	queue workqueue.RateLimitingInterface
 }
 
@@ -87,8 +90,11 @@ func NewDiscoveryController(
 // 同步指定GV资源
 func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
+	// 保存所有发现的GV
 	var apiVersionsForDiscovery []metav1.GroupVersionForDiscovery
+	// 保存所有资源
 	var apiResourcesForDiscovery []metav1.APIResource
+	// 保存所有
 	var aggregatedApiResourcesForDiscovery []apidiscoveryv2beta1.APIResourceDiscovery
 	versionsForDiscoveryMap := map[metav1.GroupVersion]bool{}
 
@@ -140,8 +146,8 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 			}
 		}
 
-		// 说明找到了当前指定GV的CRD
 		if !foundThisVersion {
+			// 说明当前CRD没有找到指定的GV
 			continue
 		}
 		foundVersion = true
@@ -238,10 +244,13 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 	}
 
 	if !foundGroup {
+		// 删除组
 		c.groupHandler.unsetDiscovery(version.Group)
+		// 删除这个版本
 		c.versionHandler.unsetDiscovery(version)
 
 		if c.resourceManager != nil {
+			// 路由发现也需要移除
 			c.resourceManager.RemoveGroup(version.Group)
 		}
 		return nil
@@ -249,6 +258,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 
 	sortGroupDiscoveryByKubeAwareVersion(apiVersionsForDiscovery)
 
+	// 保存组
 	apiGroup := metav1.APIGroup{
 		Name:     version.Group,
 		Versions: apiVersionsForDiscovery,
@@ -269,6 +279,7 @@ func (c *DiscoveryController) sync(version schema.GroupVersion) error {
 		}
 		return nil
 	}
+	// 保存GV的资源
 	c.versionHandler.setDiscovery(version,
 		discovery.NewAPIVersionHandler(Codecs, version,
 			discovery.APIResourceListerFunc(func() []metav1.APIResource {

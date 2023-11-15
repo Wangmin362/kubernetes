@@ -237,6 +237,7 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 	}
 	// 监听CRD资源，并给那些刚创建的CRD并且名字已经被接受的CRD添加Established=true的Condition
 	establishingController := establish.NewEstablishingController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// 1、实现了CRD资源的增删改查
 	crdHandler, err := NewCustomResourceDefinitionHandler(
 		versionDiscoveryHandler,
 		groupDiscoveryHandler,
@@ -266,22 +267,40 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		// 当前资源管理器管理的是CRD资源
 		aggregatedDiscoveryManager = aggregatedDiscoveryManager.WithSource(aggregated.CRDSource)
 	}
-	// TODO 主要是用于监听CRD，从而动态发现路由
+	// 1、主要用于监听CRD，并动态填充versionDiscoveryHandler, groupDiscoveryHandler
+	// 2、versionDiscoveryHandler本质上就是http.Handler，用于获取某个GV的所有资源, 譬如 kubectl get --raw=/apis/crd.skyguard.com.cn/v1
+	// 3、groupDiscoveryHandler本质上就是http.Handler，用于获取某个Group下的所有资源,譬如 kubectl get --raw=/apis/crd.skyguard.com.cn
 	discoveryController := NewDiscoveryController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		versionDiscoveryHandler, groupDiscoveryHandler, aggregatedDiscoveryManager)
-	// TODO 这里应该是用于判断CRD的命名是否冲突
+	// 1、判断当前CRD可以被接受的名字，其实就是看看当前CRD的单数名称、附属名称、缩写名称、Kind、ListKind是否和其它CRD有冲突
+	// 2、如果有冲突，那么会给这个CRD打上NamesAccepted=False的Condition。否则，如果没有冲突，那么打上NamesAccepted=True
+	// 3、更新CRD的状态，主要是更新当前CRD被接受的名称
+	// 4、根据CRD的名称冲突问题初始化Established=False的Condition
 	namingController := status.NewNamingConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
+	// 1、判断当前定义的CRD是否是非结构化定义的，如果是当前CRD是非结构化定义，那么给这个CRD打上NonStructuralSchema=True的Condition
+	// 2、什么叫做非结构化Schema，其实说的是定义的CRD Spec字段的类型不明确，譬如是x-kubernetes-int-or-string
+	// 或者x-kubernetes-preserve-unknown-fields类型，或者定义的字段没有类型，那么这个CRD就是非结构化Schema。
+	// 3、目前K8S很多特性已经不再支持非结构化CRD定义，因此不在建议把CRD定义为结构化的。
 	nonStructuralSchemaController := nonstructuralschema.NewConditionController(s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1())
+	// 1、用于判断当前CRD所在的组是否是受保护的组，如果不是，那么这个Controller没有任何租用。如果当前CRD所在的组是受保护组，那么需要更具CRD的
+	// api-approved.kubernetes.io注解的值打上KubernetesAPIApprovalPolicyConformant Condition
+	// 2、在K8S中所谓受保护的组，其实就是k8s.io, *.k8s.io, kubernetes.io, *.kubernetes.io这几个组，只要定义的CRD满足这四个组，就是
+	// 受保护组。在这个组中添加CRD是收到限制的
+	// 3、如果用户自定的CRD的组是受保护的，那么这个CRD的注解必须含有api-approved.kubernetes.io，并且它的值是一个合法的URL
 	apiApprovalController := apiapproval.NewKubernetesAPIApprovalPolicyConformantConditionController(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(), crdClient.ApiextensionsV1())
+	// 1、如果定义的CRD定义了customresourcecleanup.apiextensions.k8s.io Finalizer，那么这个CRD在被删除的时候会删除这个CRD的所有CR
+	// 2、说白了就是一个清理控制器，只要CRD使用了customresourcecleanup.apiextensions.k8s.io Finalizer，那么用在在删除这个CRD的时候，
+	// 当前Controller就会清理这个CRD的所有CR资源
 	finalizingController := finalizer.NewCRDFinalizer(
 		s.Informers.Apiextensions().V1().CustomResourceDefinitions(),
 		crdClient.ApiextensionsV1(),
 		crdHandler,
 	)
 
+	// 启动Informer，开始同步所有资源
 	s.GenericAPIServer.AddPostStartHookOrDie("start-apiextensions-informers", func(context genericapiserver.PostStartHookContext) error {
 		s.Informers.Start(context.StopCh)
 		return nil
@@ -293,11 +312,13 @@ func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget)
 		// and StaticOpenAPISpec are both null. In that case we don't run the CRD OpenAPI controller.
 		if s.GenericAPIServer.StaticOpenAPISpec != nil {
 			if s.GenericAPIServer.OpenAPIVersionedService != nil {
+				// TODO 这里应该是为了在Swagger文档上动态展示用户自定义的CRD，格式为openapi v2
 				openapiController := openapicontroller.NewController(s.Informers.Apiextensions().V1().CustomResourceDefinitions())
 				go openapiController.Run(s.GenericAPIServer.StaticOpenAPISpec, s.GenericAPIServer.OpenAPIVersionedService, context.StopCh)
 			}
 
 			if s.GenericAPIServer.OpenAPIV3VersionedService != nil && utilfeature.DefaultFeatureGate.Enabled(features.OpenAPIV3) {
+				// TODO 这里应该是为了在Swagger文档上动态展示用户自定义的CRD，格式为openapi v3
 				openapiv3Controller := openapiv3controller.NewController(s.Informers.Apiextensions().V1().CustomResourceDefinitions())
 				go openapiv3Controller.Run(s.GenericAPIServer.OpenAPIV3VersionedService, context.StopCh)
 			}

@@ -28,6 +28,7 @@ import (
 
 // IsProtectedCommunityGroup returns whether or not a group specified for a CRD is protected for the community and needs
 // to have the v1beta1.KubeAPIApprovalAnnotation set.
+// 在K8S中，受保护的组为：k8s.io, *.k8s.io, kubernetes.io, *.kubernetes.io
 func IsProtectedCommunityGroup(group string) bool {
 	switch {
 	case group == "k8s.io" || strings.HasSuffix(group, ".k8s.io"):
@@ -59,10 +60,12 @@ func GetAPIApprovalState(annotations map[string]string) (state APIApprovalState,
 	annotation := annotations[apiextensionsv1.KubeAPIApprovedAnnotation]
 
 	// we use the result of this parsing in the switch/case below
+	// 解析URL
 	url, annotationURLParseErr := url.ParseRequestURI(annotation)
 	switch {
 	case len(annotation) == 0:
-		return APIApprovalMissing, fmt.Sprintf("protected groups must have approval annotation %q, see https://github.com/kubernetes/enhancements/pull/1111", apiextensionsv1.KubeAPIApprovedAnnotation)
+		return APIApprovalMissing, fmt.Sprintf("protected groups must have approval annotation %q, see https://github.com/kubernetes/enhancements/pull/1111",
+			apiextensionsv1.KubeAPIApprovedAnnotation)
 	case strings.HasPrefix(annotation, "unapproved"):
 		return APIApprovalBypassed, fmt.Sprintf("not approved: %q", annotation)
 	case annotationURLParseErr == nil && url != nil && len(url.Host) > 0 && len(url.Scheme) > 0:

@@ -300,7 +300,7 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 }
 
 func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget, registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
-	apiServices := []*v1.APIService{}
+	var apiServices []*v1.APIService
 
 	for _, curr := range delegateAPIServer.ListedPaths() {
 		if curr == "/api/v1" {

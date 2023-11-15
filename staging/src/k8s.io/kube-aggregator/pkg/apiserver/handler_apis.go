@@ -74,6 +74,7 @@ func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		Groups: []metav1.APIGroup{r.discoveryGroup},
 	}
 
+	// 查询所有的APIService
 	apiServices, err := r.lister.List(labels.Everything())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

@@ -33,6 +33,7 @@ type APIServiceList struct {
 }
 
 // ServiceReference holds a reference to Service.legacy.k8s.io
+// 说明APIService必须以Pod的形式部署在K8S当中
 type ServiceReference struct {
 	// Namespace is the namespace of the service
 	Namespace string `json:"namespace,omitempty" protobuf:"bytes,1,opt,name=namespace"`

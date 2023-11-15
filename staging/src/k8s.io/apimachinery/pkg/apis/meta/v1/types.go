@@ -1077,7 +1077,7 @@ type APIGroupList struct {
 
 // APIGroup contains the name, the supported versions, and the preferred version
 // of a group.
-// 1、用于描述组的进本信息
+// 1、用于描述组的版本信息
 type APIGroup struct {
 	TypeMeta `json:",inline"`
 	// name is the name of the group.

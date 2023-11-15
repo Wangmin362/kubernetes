@@ -184,15 +184,18 @@ func (cfg *Config) Complete() CompletedConfig {
 
 // NewWithDelegate returns a new instance of APIAggregator from the given config.
 func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.DelegationTarget) (*APIAggregator, error) {
+	// 实例化GenericServer
 	genericServer, err := c.GenericConfig.New("kube-aggregator", delegationTarget)
 	if err != nil {
 		return nil, err
 	}
 
+	// 实例化APIServer客户端
 	apiregistrationClient, err := clientset.NewForConfig(c.GenericConfig.LoopbackClientConfig)
 	if err != nil {
 		return nil, err
 	}
+	// TODO GenericServer中已经带了SharedInformerFactory，为什么这里还需要再次定义？
 	informerFactory := informers.NewSharedInformerFactory(
 		apiregistrationClient,
 		5*time.Minute, // this is effectively used as a refresh interval right now.  Might want to do something nicer later on.
@@ -204,6 +207,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	//
 	// Note that the APIServiceRegistrationController waits for APIServiceInformer to synced before doing its work.
 	apiServiceRegistrationControllerInitiated := make(chan struct{})
+	// TODO 用于表示完成了某个动作
 	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated", apiServiceRegistrationControllerInitiated); err != nil {
 		return nil, err
 	}
@@ -221,6 +225,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		proxyTransportDial = &transport.DialHolder{Dial: c.ExtraConfig.ProxyTransport.DialContext}
 	}
 
+	// 实例化AggregatorServer
 	s := &APIAggregator{
 		GenericAPIServer:           genericServer,
 		delegateHandler:            delegationTarget.UnprotectedHandler(),
@@ -237,12 +242,16 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	}
 
 	// used later  to filter the served resource by those that have expired.
+	// TODO 仔细分析
 	resourceExpirationEvaluator, err := genericapiserver.NewResourceExpirationEvaluator(*c.GenericConfig.Version)
 	if err != nil {
 		return nil, err
 	}
 
-	apiGroupInfo := apiservicerest.NewRESTStorage(c.GenericConfig.MergedResourceConfig, c.GenericConfig.RESTOptionsGetter, resourceExpirationEvaluator.ShouldServeForVersion(1, 22))
+	// AggregatorServer只需要管APIService, APIService/Status资源的增删改查
+	apiGroupInfo := apiservicerest.NewRESTStorage(c.GenericConfig.MergedResourceConfig, c.GenericConfig.RESTOptionsGetter,
+		resourceExpirationEvaluator.ShouldServeForVersion(1, 22))
+	// 注册路由
 	if err := s.GenericAPIServer.InstallAPIGroup(&apiGroupInfo); err != nil {
 		return nil, err
 	}
@@ -261,7 +270,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		discoveryGroup: discoveryGroup(enabledVersions),
 	}
 
-	// 注册路由
+	// 注册路由/api
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		apisHandlerWithAggregationSupport := aggregated.WrapAggregatedDiscoveryToHandler(apisHandler, s.GenericAPIServer.AggregatedDiscoveryGroupManager)
 		s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandlerWithAggregationSupport)

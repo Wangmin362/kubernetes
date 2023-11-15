@@ -259,7 +259,8 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 	// Server没有这个路由导致的，也就是说这个请求是一个非法请求，请求需要的资源Server并没有，所以只能返回404错误
 	notFoundHandler := notfoundhandler.New(kubeAPIServerConfig.GenericConfig.Serializer, genericapifilters.NoMuxAndDiscoveryIncompleteKey)
 
-	// 实例化ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
+	// 1、实例化ExtensionServer，并把自己无法处理的请求委派给NotFoundHandler
+	// 2、ExtensionServer主要用于处理CRD的增删改查
 	apiExtensionsServer, err := createAPIExtensionsServer(
 		apiExtensionsConfig, // ExtensionServer配置，其中包含了GenericServer配置，以及ExtensionServer额外的配置
 		genericapiserver.NewEmptyDelegateWithCustomHandler(notFoundHandler),
@@ -268,7 +269,7 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 		return nil, err
 	}
 
-	// 实例化APIServer
+	// 1、实例化APIServer，主要用于处理K8S内建资源（核心资源、非核心资源）的增删改查
 	kubeAPIServer, err := CreateKubeAPIServer(
 		kubeAPIServerConfig,                  // APIServer的配置
 		apiExtensionsServer.GenericAPIServer, // APIServer的delegator其实就是ExtensionServer，准确的说是其中的GenericServer

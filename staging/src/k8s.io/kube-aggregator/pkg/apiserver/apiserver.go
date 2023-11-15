@@ -174,6 +174,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 	// the kube aggregator wires its own discovery mechanism
 	// TODO eventually collapse this by extracting all of the discovery out
+	// TODO 为啥要禁用路由发现？
 	c.GenericConfig.EnableDiscovery = false
 	version := version.Get()
 	c.GenericConfig.Version = &version

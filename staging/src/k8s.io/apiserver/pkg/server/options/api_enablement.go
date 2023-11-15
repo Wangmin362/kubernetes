@@ -87,6 +87,7 @@ func (s *APIEnablementOptions) Validate(registries ...GroupRegistry) []error {
 }
 
 // ApplyTo override MergedResourceConfig with defaults and registry
+// 用于表示GV的启用/禁用，或者是GVR的启用/禁用
 func (s *APIEnablementOptions) ApplyTo(
 	c *server.Config, // GenericServer配置
 	defaultResourceConfig *serverstore.ResourceConfig, // 默认启用/禁用的资源

@@ -53,17 +53,19 @@ import (
 )
 
 func createAggregatorConfig(
-	kubeAPIServerConfig genericapiserver.Config,
-	commandOptions *options.ServerRunOptions,
-	externalInformers kubeexternalinformers.SharedInformerFactory,
-	serviceResolver aggregatorapiserver.ServiceResolver,
-	proxyTransport *http.Transport,
+	kubeAPIServerConfig genericapiserver.Config, // GenericServerConfig配置
+	commandOptions *options.ServerRunOptions, // 启动Kube-APIServer传递的启动参数
+	externalInformers kubeexternalinformers.SharedInformerFactory, // SharedInformerFactory
+	serviceResolver aggregatorapiserver.ServiceResolver, // Service解析器，用于把一个Service解析为一个合法的URL
+	proxyTransport *http.Transport, // APIServer的Transport
 	pluginInitializers []admission.PluginInitializer,
 ) (*aggregatorapiserver.Config, error) {
 	// make a shallow copy to let us twiddle a few things
 	// most of the config actually remains the same.  We only need to mess with a couple items related to the particulars of the aggregator
 	genericConfig := kubeAPIServerConfig
+	// GenericServer的PostHook清空，后续会添加自己的后置处理器
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
+	// RESTOptionsGetter清空，因为AggregatorServer会构建自己的
 	genericConfig.RESTOptionsGetter = nil
 	// prevent generic API server from installing the OpenAPI handler. Aggregator server
 	// has its own customized OpenAPI handler.
@@ -74,6 +76,7 @@ func createAggregatorConfig(
 		// Add StorageVersionPrecondition handler to aggregator-apiserver.
 		// The handler will block write requests to built-in resources until the
 		// target resources' storage versions are up-to-date.
+		// 构建请求处理链
 		genericConfig.BuildHandlerChainFunc = genericapiserver.BuildHandlerChainWithStorageVersionPrecondition
 	}
 
@@ -85,11 +88,13 @@ func createAggregatorConfig(
 	etcdOptions.StorageConfig.Codec = aggregatorscheme.Codecs.LegacyCodec(v1.SchemeGroupVersion, v1beta1.SchemeGroupVersion)
 	etcdOptions.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(v1.SchemeGroupVersion, schema.GroupKind{Group: v1beta1.GroupName})
 	etcdOptions.SkipHealthEndpoints = true // avoid double wiring of health checks
+	// 初始化genericConfig.RESTOptionsGetter
 	if err := etcdOptions.ApplyTo(&genericConfig); err != nil {
 		return nil, err
 	}
 
 	// override MergedResourceConfig with aggregator defaults and registry
+	// 用于表示GV的启用/禁用，或者是GVR的启用/禁用
 	if err := commandOptions.APIEnablement.ApplyTo(
 		&genericConfig,
 		aggregatorapiserver.DefaultAPIResourceConfigSource(),
@@ -97,6 +102,7 @@ func createAggregatorConfig(
 		return nil, err
 	}
 
+	// 实例化AggregatorServer配置
 	aggregatorConfig := &aggregatorapiserver.Config{
 		GenericConfig: &genericapiserver.RecommendedConfig{
 			Config:                genericConfig,
@@ -118,6 +124,7 @@ func createAggregatorConfig(
 }
 
 func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delegateAPIServer genericapiserver.DelegationTarget, apiExtensionInformers apiextensionsinformers.SharedInformerFactory) (*aggregatorapiserver.APIAggregator, error) {
+	// TODO 实例化AggregatorServer
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err
@@ -128,7 +135,8 @@ func createAggregatorServer(aggregatorConfig *aggregatorapiserver.Config, delega
 	if err != nil {
 		return nil, err
 	}
-	autoRegistrationController := autoregister.NewAutoRegisterController(aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
+	autoRegistrationController := autoregister.NewAutoRegisterController(
+		aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),

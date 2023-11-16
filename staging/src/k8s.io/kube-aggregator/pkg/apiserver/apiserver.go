@@ -121,20 +121,25 @@ type preparedAPIAggregator struct {
 
 // APIAggregator contains state for a Kubernetes cluster master/api server.
 type APIAggregator struct {
+	// 集成GenericServer
 	GenericAPIServer *genericapiserver.GenericAPIServer
 
 	// provided for easier embedding
 	APIRegistrationInformers informers.SharedInformerFactory
 
+	// AggregatorServer的Delegator为APIServer
 	delegateHandler http.Handler
 
 	// proxyCurrentCertKeyContent holds he client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
+	// 用于获取代理证书的内容，包括证书和私钥
 	proxyCurrentCertKeyContent certKeyFunc
 	proxyTransportDial         *transport.DialHolder
 
 	// proxyHandlers are the proxy handlers that are currently registered, keyed by apiservice.name
+	// 1、Key为APIServer的名字，proxyHandler为APIService的代理服务，用于访问此代理服务
 	proxyHandlers map[string]*proxyHandler
 	// handledGroups are the groups that already have routes
+	// 缓存所有的组
 	handledGroups sets.String
 
 	// lister is used to add group handling for /apis/<group> aggregator lookups based on
@@ -142,6 +147,7 @@ type APIAggregator struct {
 	lister listers.APIServiceLister
 
 	// Information needed to determine routing for the aggregator
+	// Service解析器，用于把一个Service解析为一个合法的URL
 	serviceResolver ServiceResolver
 
 	// Enable swagger and/or OpenAPI if these configs are non-nil.
@@ -159,6 +165,7 @@ type APIAggregator struct {
 	// discoveryAggregationController downloads and caches discovery documents
 	// from all aggregated apiservices so they are available from /apis endpoint
 	// when discovery with resources are requested
+	// TODO
 	discoveryAggregationController DiscoveryAggregationController
 
 	// rejectForwardingRedirects is whether to allow to forward redirect response
@@ -228,7 +235,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	// 实例化AggregatorServer
 	s := &APIAggregator{
 		GenericAPIServer:           genericServer,
-		delegateHandler:            delegationTarget.UnprotectedHandler(),
+		delegateHandler:            delegationTarget.UnprotectedHandler(), // AggregatorServer的Delegator为APIServer
 		proxyTransportDial:         proxyTransportDial,
 		proxyHandlers:              map[string]*proxyHandler{},
 		handledGroups:              sets.String{},
@@ -260,6 +267,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	for v := range apiGroupInfo.VersionedResourcesStorageMap {
 		enabledVersions.Insert(v)
 	}
+	// AggregatorServer必须启用APIService V1这个版本
 	if !enabledVersions.Has(v1.SchemeGroupVersion.Version) {
 		return nil, fmt.Errorf("API group/version %s must be enabled", v1.SchemeGroupVersion.String())
 	}
@@ -270,30 +278,36 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		discoveryGroup: discoveryGroup(enabledVersions),
 	}
 
-	// 注册路由/api
+	// 注册路由/apis
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.AggregatedDiscoveryEndpoint) {
 		apisHandlerWithAggregationSupport := aggregated.WrapAggregatedDiscoveryToHandler(apisHandler, s.GenericAPIServer.AggregatedDiscoveryGroupManager)
 		s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandlerWithAggregationSupport)
 	} else {
 		s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	}
+	// TODO 为什么需要这里？
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
+	// 1、通过监听APIService的创建/更新/销毁动态的创建/更新/销毁/apis/<group>/<version>路由
 	apiserviceRegistrationController := NewAPIServiceRegistrationController(informerFactory.Apiregistration().V1().APIServices(), s)
 	if len(c.ExtraConfig.ProxyClientCertFile) > 0 && len(c.ExtraConfig.ProxyClientKeyFile) > 0 {
-		aggregatorProxyCerts, err := dynamiccertificates.NewDynamicServingContentFromFiles("aggregator-proxy-cert", c.ExtraConfig.ProxyClientCertFile, c.ExtraConfig.ProxyClientKeyFile)
+		// 监听代理证书、私钥的变化
+		aggregatorProxyCerts, err := dynamiccertificates.NewDynamicServingContentFromFiles("aggregator-proxy-cert",
+			c.ExtraConfig.ProxyClientCertFile, c.ExtraConfig.ProxyClientKeyFile)
 		if err != nil {
 			return nil, err
 		}
 		// We are passing the context to ProxyCerts.RunOnce as it needs to implement RunOnce(ctx) however the
 		// context is not used at all. So passing a empty context shouldn't be a problem
 		ctx := context.TODO()
+		// 第一次加载证书
 		if err := aggregatorProxyCerts.RunOnce(ctx); err != nil {
 			return nil, err
 		}
+		// 说明apiserviceRegistrationController需要关心代理证书的变化
 		aggregatorProxyCerts.AddListener(apiserviceRegistrationController)
 		s.proxyCurrentCertKeyContent = aggregatorProxyCerts.CurrentCertKeyContent
-
+		// 监听代理证书的变化，同时如果证书有变化，会通知所有关心代理证书的组件
 		s.GenericAPIServer.AddPostStartHookOrDie("aggregator-reload-proxy-client-cert", func(postStartHookContext genericapiserver.PostStartHookContext) error {
 			// generate a context  from stopCh. This is to avoid modifying files which are relying on apiserver
 			// TODO: See if we can pass ctx to the current method
@@ -305,6 +319,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 				case <-ctx.Done():
 				}
 			}()
+			// 开始监听代理证书的变化，同时如果证书有变化，会通知所有关心代理证书的组件
 			go aggregatorProxyCerts.Run(ctx, 1)
 			return nil
 		})
@@ -323,11 +338,13 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		return nil, err
 	}
 
+	// 启动Informer
 	s.GenericAPIServer.AddPostStartHookOrDie("start-kube-aggregator-informers", func(context genericapiserver.PostStartHookContext) error {
 		informerFactory.Start(context.StopCh)
 		c.GenericConfig.SharedInformerFactory.Start(context.StopCh)
 		return nil
 	})
+	//
 	s.GenericAPIServer.AddPostStartHookOrDie("apiservice-registration-controller", func(context genericapiserver.PostStartHookContext) error {
 		go apiserviceRegistrationController.Run(context.StopCh, apiServiceRegistrationControllerInitiated)
 		select {
@@ -471,7 +488,9 @@ func (s preparedAPIAggregator) Run(stopCh <-chan struct{}) error {
 func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	// if the proxyHandler already exists, it needs to be updated. The aggregation bits do not
 	// since they are wired against listers because they require multiple resources to respond
+	// 如果当前APIService已经保存过，那么可能需要更新这个APIService
 	if proxyHandler, exists := s.proxyHandlers[apiService.Name]; exists {
+		// 根据指定的APIService更新它的Handler，主要是重新获取代理证书、私钥以及TLS配置
 		proxyHandler.updateAPIService(apiService)
 		if s.openAPIAggregationController != nil {
 			s.openAPIAggregationController.UpdateAPIService(proxyHandler, apiService)
@@ -480,6 +499,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 			s.openAPIV3AggregationController.UpdateAPIService(proxyHandler, apiService)
 		}
 		// Forward calls to discovery manager to update discovery document
+		// TODO 这里在干嘛？
 		if s.discoveryAggregationController != nil {
 			handlerCopy := *proxyHandler
 			handlerCopy.setServiceAvailable()
@@ -487,6 +507,8 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		}
 		return nil
 	}
+
+	// 说明之前，没有保存过这个APIService
 
 	proxyPath := "/apis/" + apiService.Spec.Group + "/" + apiService.Spec.Version
 	// v1. is a special case for the legacy API.  It proxies to a wider set of endpoints.
@@ -496,12 +518,14 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 
 	// register the proxy handler
 	proxyHandler := &proxyHandler{
-		localDelegate:              s.delegateHandler,
-		proxyCurrentCertKeyContent: s.proxyCurrentCertKeyContent,
-		proxyTransportDial:         s.proxyTransportDial,
-		serviceResolver:            s.serviceResolver,
+		localDelegate:              s.delegateHandler,            // APIServer
+		proxyCurrentCertKeyContent: s.proxyCurrentCertKeyContent, // 用于获取代理证书的内容，包括证书和私钥
+		proxyTransportDial:         s.proxyTransportDial,         // TODO 应该是用于和用户自定义的APIService交互
+		serviceResolver:            s.serviceResolver,            // // Service解析器，用于把一个Service解析为一个合法的URL
 		rejectForwardingRedirects:  s.rejectForwardingRedirects,
 	}
+
+	// 根据指定的APIService更新它的Handler，主要是重新获取代理证书、私钥以及TLS配置
 	proxyHandler.updateAPIService(apiService)
 	if s.openAPIAggregationController != nil {
 		s.openAPIAggregationController.AddAPIService(proxyHandler, apiService)
@@ -514,6 +538,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	}
 
 	s.proxyHandlers[apiService.Name] = proxyHandler
+	// TODO 这两个方法有何区别？
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle(proxyPath, proxyHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandlePrefix(proxyPath+"/", proxyHandler)
 
@@ -533,9 +558,10 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 		codecs:    aggregatorscheme.Codecs,
 		groupName: apiService.Spec.Group,
 		lister:    s.lister,
-		delegate:  s.delegateHandler,
+		delegate:  s.delegateHandler, // APIServer
 	}
 	// aggregation is protected
+	// 注册/apis/<group>
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle(groupPath, groupDiscoveryHandler)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle(groupPath+"/", groupDiscoveryHandler)
 	s.handledGroups.Insert(apiService.Spec.Group)
@@ -557,6 +583,7 @@ func (s *APIAggregator) RemoveAPIService(apiServiceName string) {
 	if apiServiceName == legacyAPIServiceName {
 		proxyPath = "/api"
 	}
+	// 注销路由
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Unregister(proxyPath)
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Unregister(proxyPath + "/")
 	if s.openAPIAggregationController != nil {
@@ -565,6 +592,7 @@ func (s *APIAggregator) RemoveAPIService(apiServiceName string) {
 	if s.openAPIV3AggregationController != nil {
 		s.openAPIAggregationController.RemoveAPIService(apiServiceName)
 	}
+	// 删除处理器
 	delete(s.proxyHandlers, apiServiceName)
 
 	// TODO unregister group level discovery when there are no more versions for the group

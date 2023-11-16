@@ -237,6 +237,11 @@ type GenericAPIServer struct {
 	// 	3.5 start-deprecated-kube-apiserver-identity-lease-garbage-collector 用于清理kube-system名称空间中的过期Lease资源(标签为k8s.io/component=kube-apiserver)
 	//	3.6 start-kube-apiserver-identity-lease-garbage-collector 用于清理kube-system名称空间中的过期Lease资源(标签为apiserver.kubernetes.io/identity=kube-apiserver)
 	// 	3.7 start-legacy-token-tracking-controller 监听并更新kube-system名称空间中名为kube-apiserver-legacy-service-account-token-tracking的ConfigMap
+	// 4、Aggregator添加的后置hook有：
+	// 	4.1 aggregator-reload-proxy-client-cert：用于监听代理证书的变化
+	// 	4.2 start-kube-aggregator-informers：用于启动Informer
+	// 	4.3 apiservice-registration-controller：启用APIService注册Controller，通过监听APIService的创建/更新/销毁动态的创建/更新/销毁/apis/<group>/<version>路由
+	// 	4.4 apiservice-status-available-controller：启动AvailableController，用于判断APIService指向的服务是否可用
 	postStartHooks map[string]postStartHookEntry
 	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
 	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加

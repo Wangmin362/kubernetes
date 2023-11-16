@@ -37,9 +37,9 @@ import (
 // apisHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
 type apisHandler struct {
-	codecs         serializer.CodecFactory
-	lister         listers.APIServiceLister
-	discoveryGroup metav1.APIGroup
+	codecs         serializer.CodecFactory  // 编解码器
+	lister         listers.APIServiceLister // 用于批量查询APIService
+	discoveryGroup metav1.APIGroup          // 组信息，包含了当前组下有那些版本，那个版本是优先选择的版本
 }
 
 func discoveryGroup(enabledVersions sets.String) metav1.APIGroup {
@@ -57,6 +57,7 @@ func discoveryGroup(enabledVersions sets.String) metav1.APIGroup {
 		},
 	}
 
+	// 在1.27.2当中并没有启用v1beta1
 	if enabledVersions.Has(apiregistrationv1beta1api.SchemeGroupVersion.Version) {
 		retval.Versions = append(retval.Versions, metav1.GroupVersionForDiscovery{
 			GroupVersion: apiregistrationv1beta1api.SchemeGroupVersion.String(),
@@ -80,6 +81,7 @@ func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	// TODO 按照组以及版本的优先级进行排序
 	apiServicesByGroup := apiregistrationv1apihelper.SortedByGroupAndVersion(apiServices)
 	for _, apiGroupServers := range apiServicesByGroup {
 		// skip the legacy group
@@ -92,7 +94,8 @@ func (r *apisHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		}
 	}
 
-	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, w, req, http.StatusOK, discoveryGroupList, false)
+	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		w, req, http.StatusOK, discoveryGroupList, false)
 }
 
 // convertToDiscoveryAPIGroup takes apiservices in a single group and returns a discovery compatible object.
@@ -126,16 +129,18 @@ func convertToDiscoveryAPIGroup(apiServices []*apiregistrationv1api.APIService) 
 }
 
 // apiGroupHandler serves the `/apis/<group>` endpoint.
+// 1、用于响应/apis/<group>的Handler，也就是可以查询某个组下有那些版本和哪些资源
 type apiGroupHandler struct {
-	codecs    serializer.CodecFactory
-	groupName string
+	codecs    serializer.CodecFactory // 编解码器
+	groupName string                  // 当前组名
 
-	lister listers.APIServiceLister
+	lister listers.APIServiceLister // 用于查询APIService
 
-	delegate http.Handler
+	delegate http.Handler // APIServer
 }
 
 func (r *apiGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// 查询所有的APIService
 	apiServices, err := r.lister.List(labels.Everything())
 	if statusErr, ok := err.(*apierrors.StatusError); ok {
 		responsewriters.WriteRawJSON(int(statusErr.Status().Code), statusErr.Status(), w)
@@ -146,13 +151,15 @@ func (r *apiGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	apiServicesForGroup := []*apiregistrationv1api.APIService{}
+	var apiServicesForGroup []*apiregistrationv1api.APIService
 	for _, apiService := range apiServices {
+		// 如果当前APIService属于指定的分组，那么这个资源就是我们想要的
 		if apiService.Spec.Group == r.groupName {
 			apiServicesForGroup = append(apiServicesForGroup, apiService)
 		}
 	}
 
+	// 如果一个都没有找到，直接委派给APIServer
 	if len(apiServicesForGroup) == 0 {
 		r.delegate.ServeHTTP(w, req)
 		return
@@ -163,5 +170,6 @@ func (r *apiGroupHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "", http.StatusNotFound)
 		return
 	}
-	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{}, w, req, http.StatusOK, discoveryGroup, false)
+	responsewriters.WriteObjectNegotiated(r.codecs, negotiation.DefaultEndpointRestrictions, schema.GroupVersion{},
+		w, req, http.StatusOK, discoveryGroup, false)
 }

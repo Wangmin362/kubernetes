@@ -49,8 +49,10 @@ type APIServiceRegistrationController struct {
 	apiServiceSynced cache.InformerSynced
 
 	// To allow injection for testing.
+	// key为APIService的名字
 	syncFn func(key string) error
 
+	// 队列中保存的是APIService的名字
 	queue workqueue.RateLimitingInterface
 }
 
@@ -77,8 +79,10 @@ func NewAPIServiceRegistrationController(apiServiceInformer informers.APIService
 }
 
 func (c *APIServiceRegistrationController) sync(key string) error {
+	// 查询APIService
 	apiService, err := c.apiServiceLister.Get(key)
 	if apierrors.IsNotFound(err) {
+		// 说明APIService被删除，此时需要删除相关的路由
 		c.apiHandlerManager.RemoveAPIService(key)
 		return nil
 	}
@@ -162,6 +166,7 @@ func (c *APIServiceRegistrationController) enqueueInternal(obj *v1.APIService) {
 		return
 	}
 
+	// APIService是Cluster级别的资源，因此key为APIService的名字
 	c.queue.Add(key)
 }
 

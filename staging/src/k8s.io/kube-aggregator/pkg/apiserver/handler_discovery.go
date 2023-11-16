@@ -44,9 +44,9 @@ var APIRegistrationGroupVersion metav1.GroupVersion = metav1.GroupVersion{Group:
 // first (mirrors v1 discovery behavior)
 var APIRegistrationGroupPriority int = 20001
 
-// Given a list of APIServices and proxyHandlers for contacting them,
+// DiscoveryAggregationController Given a list of APIServices and proxyHandlers for contacting them,
 // DiscoveryManager caches a list of discovery documents for each server
-
+// TODO 这玩意应该是用于动态发现APIService
 type DiscoveryAggregationController interface {
 	// AddAPIService Adds or Updates an APIService from the Aggregated Discovery Controller's
 	// knowledge base

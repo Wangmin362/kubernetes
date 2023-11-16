@@ -58,7 +58,7 @@ type APIServerHandler struct {
 	// 2、添加的路由有：/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
 	// /debug/pprof/trace, /metrics, /metrics/slis, /debug/api_priority_and_fairness/dump_priority_levels,
 	// /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests, /healthz,
-	// /livez, /readyz, /openapi/v2, /openapi/v3
+	// /livez, /readyz, /openapi/v2, /openapi/v3, APIService的定义，譬如/apis/<group>/<version>
 	NonGoRestfulMux *mux.PathRecorderMux
 
 	// Director is here so that we can properly handle fall through and proxy cases.

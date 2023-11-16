@@ -93,13 +93,13 @@ type AvailableConditionController struct {
 
 // NewAvailableConditionController returns a new AvailableConditionController.
 func NewAvailableConditionController(
-	apiServiceInformer informers.APIServiceInformer,
-	serviceInformer v1informers.ServiceInformer,
-	endpointsInformer v1informers.EndpointsInformer,
-	apiServiceClient apiregistrationclient.APIServicesGetter,
+	apiServiceInformer informers.APIServiceInformer, // APIServiceInformer
+	serviceInformer v1informers.ServiceInformer, // ServiceInformer
+	endpointsInformer v1informers.EndpointsInformer, // EndpointInformer
+	apiServiceClient apiregistrationclient.APIServicesGetter, // 用于获取APIService
 	proxyTransportDial *transport.DialHolder,
-	proxyCurrentCertKeyContent certKeyFunc,
-	serviceResolver ServiceResolver,
+	proxyCurrentCertKeyContent certKeyFunc, // 用于获取代理证书、私钥
+	serviceResolver ServiceResolver, // 服务解析器
 ) (*AvailableConditionController, error) {
 	c := &AvailableConditionController{
 		apiServiceClient: apiServiceClient,
@@ -160,6 +160,7 @@ func NewAvailableConditionController(
 }
 
 func (c *AvailableConditionController) sync(key string) error {
+	// 查询APIService
 	originalAPIService, err := c.apiServiceLister.Get(key)
 	if apierrors.IsNotFound(err) {
 		c.metrics.ForgetAPIService(key)

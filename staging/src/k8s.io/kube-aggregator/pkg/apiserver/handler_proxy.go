@@ -53,15 +53,23 @@ type certKeyFunc func() ([]byte, []byte)
 // specified by items implementing Redirector.
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
+	// TODO
 	localDelegate http.Handler
 
 	// proxyCurrentCertKeyContent holds the client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
+	// TODO 看到这里，突然明白了代理证书的意义之所在，之所以需要代理证书，是因为AggregatorServer的存在。通过AggregatorServer,用户可以
+	// 自定义Aggregator，当真正访问用户子当以Aggregator时，AggregatorServer实际上就是一个代理，它负责把流量代理到用户自定义的Aggregator,
+	// 而K8S中，所有的HTTPS服务必须是双向认证，因此访问用户自定义的Aggregator，肯定是需要给AggregatorServer配置代理证书的。此证书专门用于
+	// 访问用户自定义Aggregator。
 	proxyCurrentCertKeyContent certKeyFunc
-	proxyTransportDial         *transport.DialHolder
+	// 用于访问用户自定义的Aggregator
+	proxyTransportDial *transport.DialHolder
 
 	// Endpoints based routing to map from cluster IP to routable IP
+	// Service解析器，用于把一个Service解析为一个合法的URL
 	serviceResolver ServiceResolver
 
+	// 用于存储 proxyHandlingInfo
 	handlingInfo atomic.Value
 
 	// reject to forward redirect response
@@ -70,11 +78,14 @@ type proxyHandler struct {
 
 type proxyHandlingInfo struct {
 	// local indicates that this APIService is locally satisfied
+	// 如果为true，表示当前APIService用于本地服务，在K8S当中，本地服务只有APIServer以及ExtensionServer
 	local bool
 
 	// name is the name of the APIService
+	// APIService的名字
 	name string
 	// transportConfig holds the information for building a roundtripper
+	// 用于配置TLS
 	transportConfig *transport.Config
 	// transportBuildingError is an error produced while building the transport.  If this
 	// is non-nil, it will be reported to clients.
@@ -82,12 +93,16 @@ type proxyHandlingInfo struct {
 	// proxyRoundTripper is the re-useable portion of the transport.  It does not vary with any request.
 	proxyRoundTripper http.RoundTripper
 	// serviceName is the name of the service this handler proxies to
+	// 服务名
 	serviceName string
 	// namespace is the namespace the service lives in
+	// 名称空间
 	serviceNamespace string
 	// serviceAvailable indicates this APIService is available or not
+	// 服务是否可用 TODO K8S应该是起了一个controller定期判断服务是否可用
 	serviceAvailable bool
 	// servicePort is the port of the service this handler proxies to
+	// 服务端口
 	servicePort int32
 }
 
@@ -233,12 +248,15 @@ func (r *proxyHandler) setServiceAvailable() {
 	r.handlingInfo.Store(info)
 }
 
+// 根据指定的APIService更新它的Handler，主要是重新获取代理证书、私钥以及TLS配置
 func (r *proxyHandler) updateAPIService(apiService *apiregistrationv1api.APIService) {
+	// 如果Service为空，说明是APIServer或者是ExtensionServer
 	if apiService.Spec.Service == nil {
 		r.handlingInfo.Store(proxyHandlingInfo{local: true})
 		return
 	}
 
+	// 获取代理证书、以及私钥
 	proxyClientCert, proxyClientKey := r.proxyCurrentCertKeyContent()
 
 	transportConfig := &transport.Config{

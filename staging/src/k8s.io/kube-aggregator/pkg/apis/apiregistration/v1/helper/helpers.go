@@ -31,6 +31,7 @@ import (
 // group with the highest priority; while the last element of the last array contains the APIService with the lowest
 // version number, in the group with the lowest priority.
 func SortedByGroupAndVersion(servers []*v1.APIService) [][]*v1.APIService {
+	// 按照组优先级进行排序，优先级数值越小，越在前面
 	serversByGroupPriorityMinimum := ByGroupPriorityMinimum(servers)
 	sort.Sort(serversByGroupPriorityMinimum)
 

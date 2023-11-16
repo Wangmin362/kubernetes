@@ -54,6 +54,7 @@ type APIServiceSpec struct {
 	// If the Service is nil, that means the handling for the API groupversion is handled locally on this server.
 	// The call will simply delegate to the normal handler chain to be fulfilled.
 	// +optional
+	// 1、如果这玩意为空，说明需要直接把请求转给APIServer
 	Service *ServiceReference `json:"service,omitempty" protobuf:"bytes,1,opt,name=service"`
 	// Group is the API group name this server hosts
 	Group string `json:"group,omitempty" protobuf:"bytes,2,opt,name=group"`
@@ -75,6 +76,7 @@ type APIServiceSpec struct {
 	// The secondary sort is based on the alphabetical comparison of the name of the object.  (v1.bar before v1.foo)
 	// We'd recommend something like: *.k8s.io (except extensions) at 18000 and
 	// PaaSes (OpenShift, Deis) are recommended to be in the 2000s
+	// TODO 这玩意有啥用？
 	GroupPriorityMinimum int32 `json:"groupPriorityMinimum" protobuf:"varint,7,opt,name=groupPriorityMinimum"`
 
 	// VersionPriority controls the ordering of this API version inside of its group.  Must be greater than zero.
@@ -87,6 +89,7 @@ type APIServiceSpec struct {
 	// by GA > beta > alpha (where GA is a version with no suffix such as beta or alpha), and then by comparing major
 	// version, then minor version. An example sorted list of versions:
 	// v10, v2, v1, v11beta2, v10beta3, v3beta1, v12alpha1, v11alpha2, foo1, foo10.
+	// TODO 版本优先级有什么用？
 	VersionPriority int32 `json:"versionPriority" protobuf:"varint,8,opt,name=versionPriority"`
 
 	// leaving this here so everyone remembers why proto index 6 is skipped

@@ -267,7 +267,7 @@ func WriteObjectNegotiated(
 	w http.ResponseWriter, // HTTP响应
 	req *http.Request, // HTTP请求
 	statusCode int, // HTTP响应状态码
-	object runtime.Object, // 需要序列化的Go结构体
+	object runtime.Object, // 需要序列化的Go结构体，其实就是需要返回的结果
 	listGVKInContentType bool, // TODO 这个参数有何作用？
 ) {
 	stream, ok := object.(rest.ResourceStreamer)

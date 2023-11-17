@@ -325,6 +325,12 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		})
 	}
 
+	// 1、首先判断APIService指向的Service是否存在，如果不存在，那么认为服务不可用，打上Available=False的Condition，原因为ServiceNotFound。如果存在继续后面的检查。
+	// 2、遍历Service暴露的端口，如果Service暴露的端口没有包含APIService指定的带端口，那么服务不可以用，打上Available=False的Condition，原因为ServicePortError。
+	// 3、查询Service对应的Endpoint，如果Endpoint不存在，那么打上Available=False，并且原因为EndpointsNotFound
+	// 4、遍历Endpoint，看看有没有一个Endpoint的端口是APIService指定的端口，如果没有，那么打上Available=False，并且原因为MissingEndpoints
+	// 5、通过APIService指定的Service namespace, name, port以及当前APIServer的group, version，构造一个URL, https://<ip>:<port>/apis/<group>/<version>。
+	// 尝试5此请求，只要其中有一次成功了，就认为APIService执行的服务是可用的。
 	availableController, err := statuscontrollers.NewAvailableConditionController(
 		informerFactory.Apiregistration().V1().APIServices(),
 		c.GenericConfig.SharedInformerFactory.Core().V1().Services(),
@@ -344,7 +350,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		c.GenericConfig.SharedInformerFactory.Start(context.StopCh)
 		return nil
 	})
-	//
+	// 注册APIService，动态发现路由
 	s.GenericAPIServer.AddPostStartHookOrDie("apiservice-registration-controller", func(context genericapiserver.PostStartHookContext) error {
 		go apiserviceRegistrationController.Run(context.StopCh, apiServiceRegistrationControllerInitiated)
 		select {
@@ -354,6 +360,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 
 		return nil
 	})
+	// 启动服务是否可用检测器
 	s.GenericAPIServer.AddPostStartHookOrDie("apiservice-status-available-controller", func(context genericapiserver.PostStartHookContext) error {
 		// if we end up blocking for long periods of time, we may need to increase workers.
 		go availableController.Run(5, context.StopCh)
@@ -364,6 +371,7 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 		utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerIdentity) {
 		// Spawn a goroutine in aggregator apiserver to update storage version for
 		// all built-in resources
+		// TODO 这玩意干嘛的？
 		s.GenericAPIServer.AddPostStartHookOrDie(StorageVersionPostStartHookName, func(hookContext genericapiserver.PostStartHookContext) error {
 			// Wait for apiserver-identity to exist first before updating storage
 			// versions, to avoid storage version GC accidentally garbage-collecting

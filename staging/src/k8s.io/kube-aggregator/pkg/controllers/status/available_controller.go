@@ -208,14 +208,17 @@ func (c *AvailableConditionController) sync(key string) error {
 	}
 
 	// local API services are always considered available
+	// 如果是local Service，直接认为是可用的
 	if apiService.Spec.Service == nil {
 		apiregistrationv1apihelper.SetAPIServiceCondition(apiService, apiregistrationv1apihelper.NewLocalAvailableAPIServiceCondition())
 		_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
 		return err
 	}
 
+	// 查询Service
 	service, err := c.serviceLister.Services(apiService.Spec.Service.Namespace).Get(apiService.Spec.Service.Name)
 	if apierrors.IsNotFound(err) {
+		// 更新APIService的状态，增加Available=False的Condition，原因为ServiceNotFound
 		availableCondition.Status = apiregistrationv1.ConditionFalse
 		availableCondition.Reason = "ServiceNotFound"
 		availableCondition.Message = fmt.Sprintf("service/%s in %q is not present", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
@@ -223,6 +226,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		_, err := c.updateAPIServiceStatus(originalAPIService, apiService)
 		return err
 	} else if err != nil {
+		// 更新APIService的状态，增加Available=Unknown的Condition，原因为ServiceAccessError
 		availableCondition.Status = apiregistrationv1.ConditionUnknown
 		availableCondition.Reason = "ServiceAccessError"
 		availableCondition.Message = fmt.Sprintf("service/%s in %q cannot be checked due to: %v", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace, err)
@@ -231,12 +235,13 @@ func (c *AvailableConditionController) sync(key string) error {
 		return err
 	}
 
+	// 如果当前APIService指向的Service找到了，并且这个Service的类型是ClusterIP类型
 	if service.Spec.Type == v1.ServiceTypeClusterIP {
 		// if we have a cluster IP service, it must be listening on configured port and we can check that
-		servicePort := apiService.Spec.Service.Port
+		servicePort := apiService.Spec.Service.Port // APIService指向的端口
 		portName := ""
 		foundPort := false
-		for _, port := range service.Spec.Ports {
+		for _, port := range service.Spec.Ports { // 遍历Service暴露的端口
 			if port.Port == *servicePort {
 				foundPort = true
 				portName = port.Name
@@ -244,6 +249,7 @@ func (c *AvailableConditionController) sync(key string) error {
 			}
 		}
 		if !foundPort {
+			// 如果发现Service暴露的端口并不包含APIService指定的端口，很有可能用户指定端口错误，因此更新APIService的状态，更新Available=False的Condition，原因为ServicePortError
 			availableCondition.Status = apiregistrationv1.ConditionFalse
 			availableCondition.Reason = "ServicePortError"
 			availableCondition.Message = fmt.Sprintf("service/%s in %q is not listening on port %d", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace, *apiService.Spec.Service.Port)
@@ -252,8 +258,10 @@ func (c *AvailableConditionController) sync(key string) error {
 			return err
 		}
 
+		// 查询当前Service对应的Endpoint
 		endpoints, err := c.endpointsLister.Endpoints(apiService.Spec.Service.Namespace).Get(apiService.Spec.Service.Name)
 		if apierrors.IsNotFound(err) {
+			// 如果当前Service的Endpoint都没有找到，那么服务访问肯定有问题。此时需要修改Available=False，并且原因为EndpointsNotFound
 			availableCondition.Status = apiregistrationv1.ConditionFalse
 			availableCondition.Reason = "EndpointsNotFound"
 			availableCondition.Message = fmt.Sprintf("cannot find endpoints for service/%s in %q", apiService.Spec.Service.Name, apiService.Spec.Service.Namespace)
@@ -271,10 +279,12 @@ func (c *AvailableConditionController) sync(key string) error {
 		hasActiveEndpoints := false
 	outer:
 		for _, subset := range endpoints.Subsets {
+			// 遍历Service所有可用的endpoint
 			if len(subset.Addresses) == 0 {
 				continue
 			}
 			for _, endpointPort := range subset.Ports {
+				// 但凡发现一个endpoint的端口是APIService指定的端口，就认为这个endpoint是优先的
 				if endpointPort.Name == portName {
 					hasActiveEndpoints = true
 					break outer
@@ -290,12 +300,16 @@ func (c *AvailableConditionController) sync(key string) error {
 			return err
 		}
 	}
+
+	// 通过上面的检查，可以确保APIService指向的Service一定存在，并且暴露了指定的端口，同时还可以找到对应的Endpoint
+
 	// actually try to hit the discovery endpoint when it isn't local and when we're routing as a service.
 	if apiService.Spec.Service != nil && c.serviceResolver != nil {
-		attempts := 5
+		attempts := 5 // 尝试五次
 		results := make(chan error, attempts)
 		for i := 0; i < attempts; i++ {
 			go func() {
+				// 获取这个Service的URL
 				discoveryURL, err := c.serviceResolver.ResolveEndpoint(apiService.Spec.Service.Namespace, apiService.Spec.Service.Name, *apiService.Spec.Service.Port)
 				if err != nil {
 					results <- err
@@ -311,6 +325,7 @@ func (c *AvailableConditionController) sync(key string) error {
 				errCh := make(chan error, 1)
 				go func() {
 					// be sure to check a URL that the aggregated API server is required to serve
+					// 构造APIService的请求
 					newReq, err := http.NewRequest("GET", discoveryURL.String(), nil)
 					if err != nil {
 						errCh <- err
@@ -318,7 +333,9 @@ func (c *AvailableConditionController) sync(key string) error {
 					}
 
 					// setting the system-masters identity ensures that we will always have access rights
+					// 指定请求头
 					transport.SetAuthProxyHeaders(newReq, "system:kube-aggregator", []string{"system:masters"}, nil)
+					// 发出请求
 					resp, err := discoveryClient.Do(newReq)
 					if resp != nil {
 						resp.Body.Close()
@@ -354,6 +371,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		for i := 0; i < attempts; i++ {
 			lastError = <-results
 			// if we had at least one success, we are successful overall and we can return now
+			// 如果尝试了访问5次APIService，只要其中有一次请求成功，就认为服务没有问题
 			if lastError == nil {
 				break
 			}
@@ -374,6 +392,7 @@ func (c *AvailableConditionController) sync(key string) error {
 		}
 	}
 
+	// 所有的检查都通过了，就认为服务是可以用的
 	availableCondition.Reason = "Passed"
 	availableCondition.Message = "all checks passed"
 	apiregistrationv1apihelper.SetAPIServiceCondition(apiService, availableCondition)
@@ -385,8 +404,10 @@ func (c *AvailableConditionController) sync(key string) error {
 // apiservices. Doing that means we don't want to quickly issue no-op updates.
 func (c *AvailableConditionController) updateAPIServiceStatus(originalAPIService, newAPIService *apiregistrationv1.APIService) (*apiregistrationv1.APIService, error) {
 	// update this metric on every sync operation to reflect the actual state
+	// 设置Service的可用性
 	c.setUnavailableGauge(newAPIService)
 
+	// 如果新老APIService的状态一样，直接退出
 	if equality.Semantic.DeepEqual(originalAPIService.Status, newAPIService.Status) {
 		return newAPIService, nil
 	}
@@ -407,6 +428,7 @@ func (c *AvailableConditionController) updateAPIServiceStatus(originalAPIService
 		klog.V(2).InfoS("changing APIService availability", "name", newAPIService.Name, "oldStatus", orig.Status, "newStatus", now.Status, "message", now.Message, "reason", now.Reason)
 	}
 
+	// 修改APIService的状态
 	newAPIService, err := c.apiServiceClient.APIServices().UpdateStatus(context.TODO(), newAPIService, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, err

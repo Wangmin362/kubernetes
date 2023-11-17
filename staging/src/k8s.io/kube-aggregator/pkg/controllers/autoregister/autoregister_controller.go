@@ -78,9 +78,11 @@ type autoRegisterController struct {
 	syncedSuccessfully     map[string]bool
 
 	// remember names of services that existed when we started
+	// TODO
 	apiServicesAtStart map[string]bool
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors
+	// 队列中保存的是APIService的名字
 	queue workqueue.RateLimitingInterface
 }
 
@@ -101,6 +103,7 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer, 
 	}
 	c.syncHandler = c.checkAPIService
 
+	// 监听APIService
 	apiServiceInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			cast := obj.(*v1.APIService)
@@ -142,11 +145,13 @@ func (c *autoRegisterController) Run(workers int, stopCh <-chan struct{}) {
 	defer klog.Info("Shutting down autoregister controller")
 
 	// wait for your secondary caches to fill before starting your work
+	// 等待APIService同步完成
 	if !controllers.WaitForCacheSync("autoregister", stopCh, c.apiServiceSynced) {
 		return
 	}
 
 	// record APIService objects that existed when we started
+	// 查询所有的APIService
 	if services, err := c.apiServiceLister.List(labels.Everything()); err == nil {
 		for _, service := range services {
 			c.apiServicesAtStart[service.Name] = true

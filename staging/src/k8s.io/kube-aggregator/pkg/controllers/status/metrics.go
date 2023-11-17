@@ -87,7 +87,8 @@ func (m *availabilityMetrics) UnavailableCounter(apiServiceName, reason string) 
 type availabilityCollector struct {
 	metrics.BaseStableCollector
 
-	mtx            sync.RWMutex
+	mtx sync.RWMutex
+	// 用于记录服务的可用性，Key为APIService的名字
 	availabilities map[string]bool
 }
 
@@ -130,6 +131,7 @@ func (c *availabilityCollector) SetAPIServiceAvailable(apiServiceKey string) {
 }
 
 // SetAPIServiceUnavailable sets the given apiservice availability gauge to unavailable.
+// apiServiceKey为APIService的名字
 func (c *availabilityCollector) SetAPIServiceUnavailable(apiServiceKey string) {
 	c.setAPIServiceAvailability(apiServiceKey, false)
 }
@@ -138,6 +140,7 @@ func (c *availabilityCollector) setAPIServiceAvailability(apiServiceKey string, 
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
+	// apiServiceKey为APIService的名字
 	c.availabilities[apiServiceKey] = availability
 }
 

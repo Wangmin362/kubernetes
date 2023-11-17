@@ -123,6 +123,7 @@ type KubeletConfiguration struct {
 	// tlsPrivateKeyFile are not provided, a self-signed certificate
 	// and key are generated for the public address and saved to the directory
 	// passed to the Kubelet's --cert-dir flag.
+	// 证书，Kubelet也需要对外提供服务，因此需要证书加密
 	TLSCertFile string
 	// tlsPrivateKeyFile is the file containing x509 private key matching tlsCertFile
 	TLSPrivateKeyFile string

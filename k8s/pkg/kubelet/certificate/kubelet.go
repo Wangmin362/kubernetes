@@ -42,9 +42,10 @@ import (
 // or returns an error.
 func NewKubeletServerCertificateManager(
 	kubeClient clientset.Interface, // APIServer客户端
-	kubeCfg *kubeletconfig.KubeletConfiguration,
-	nodeName types.NodeName,
-	getAddresses func() []v1.NodeAddress, certDirectory string,
+	kubeCfg *kubeletconfig.KubeletConfiguration, // kubelet配置
+	nodeName types.NodeName, // node名字
+	getAddresses func() []v1.NodeAddress, // 用于获取node地址
+	certDirectory string, // 证书目录
 ) (certificate.Manager, error) {
 	var clientsetFn certificate.ClientsetFunc
 	if kubeClient != nil {
@@ -52,12 +53,14 @@ func NewKubeletServerCertificateManager(
 			return kubeClient, nil
 		}
 	}
+	// 用于保存证书
 	certificateStore, err := certificate.NewFileStore(
 		"kubelet-server",
-		certDirectory,
-		certDirectory,
-		kubeCfg.TLSCertFile,
-		kubeCfg.TLSPrivateKeyFile)
+		certDirectory,             // 证书目录
+		certDirectory,             // 私钥目录
+		kubeCfg.TLSCertFile,       // 证书
+		kubeCfg.TLSPrivateKeyFile, // 私钥
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize server certificate store: %v", err)
 	}

@@ -43,6 +43,7 @@ func NewUnstructuredObjectTyper() *UnstructuredObjectTyper {
 // has no group,version,kind information. unversionedType will always be false
 // because runtime.Unstructured object should always have group,version,kind
 // information set.
+// 获取非结构化对象的GVK
 func (d *UnstructuredObjectTyper) ObjectKinds(obj runtime.Object) (gvks []schema.GroupVersionKind, unversionedType bool, err error) {
 	if _, ok := obj.(runtime.Unstructured); ok {
 		gvk := obj.GetObjectKind().GroupVersionKind()

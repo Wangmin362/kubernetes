@@ -37,6 +37,7 @@ import (
 )
 
 // KubernetesAPIApprovalPolicyConformantConditionController is maintaining the KubernetesAPIApprovalPolicyConformant condition.
+// 用于解决用户自定义CRD的组为k8s.io, *.k8s.io, kubernetes.io, *.kubernetes.io时需要审批才行
 type KubernetesAPIApprovalPolicyConformantConditionController struct {
 	crdClient client.CustomResourceDefinitionsGetter
 

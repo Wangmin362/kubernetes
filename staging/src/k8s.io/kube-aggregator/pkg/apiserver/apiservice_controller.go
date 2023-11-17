@@ -42,6 +42,7 @@ type APIHandlerManager interface {
 }
 
 // APIServiceRegistrationController is responsible for registering and removing API services.
+// 监听APIService，并动态添加/删除APIService的路由
 type APIServiceRegistrationController struct {
 	apiHandlerManager APIHandlerManager
 
@@ -59,6 +60,7 @@ type APIServiceRegistrationController struct {
 var _ dynamiccertificates.Listener = &APIServiceRegistrationController{}
 
 // NewAPIServiceRegistrationController returns a new APIServiceRegistrationController.
+// 监听APIService，并动态添加/删除APIService的路由
 func NewAPIServiceRegistrationController(apiServiceInformer informers.APIServiceInformer, apiHandlerManager APIHandlerManager) *APIServiceRegistrationController {
 	c := &APIServiceRegistrationController{
 		apiHandlerManager: apiHandlerManager,

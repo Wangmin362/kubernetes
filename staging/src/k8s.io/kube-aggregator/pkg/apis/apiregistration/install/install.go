@@ -26,8 +26,11 @@ import (
 
 // Install registers the API group and adds types to a scheme
 func Install(scheme *runtime.Scheme) {
+	// 注册内部版本
 	utilruntime.Must(apiregistration.AddToScheme(scheme))
+	// 注册外部版本
 	utilruntime.Must(v1.AddToScheme(scheme))
 	utilruntime.Must(v1beta1.AddToScheme(scheme))
+	// 设置版本优先级
 	utilruntime.Must(scheme.SetVersionPriority(v1.SchemeGroupVersion, v1beta1.SchemeGroupVersion))
 }

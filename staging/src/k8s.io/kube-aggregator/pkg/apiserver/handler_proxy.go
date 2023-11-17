@@ -53,11 +53,11 @@ type certKeyFunc func() ([]byte, []byte)
 // specified by items implementing Redirector.
 type proxyHandler struct {
 	// localDelegate is used to satisfy local APIServices
-	// TODO
+	// 其实就是APIServer
 	localDelegate http.Handler
 
 	// proxyCurrentCertKeyContent holds the client cert used to identify this proxy. Backing APIServices use this to confirm the proxy's identity
-	// TODO 看到这里，突然明白了代理证书的意义之所在，之所以需要代理证书，是因为AggregatorServer的存在。通过AggregatorServer,用户可以
+	// 看到这里，突然明白了代理证书的意义之所在，之所以需要代理证书，是因为AggregatorServer的存在。通过AggregatorServer,用户可以
 	// 自定义Aggregator，当真正访问用户子当以Aggregator时，AggregatorServer实际上就是一个代理，它负责把流量代理到用户自定义的Aggregator,
 	// 而K8S中，所有的HTTPS服务必须是双向认证，因此访问用户自定义的Aggregator，肯定是需要给AggregatorServer配置代理证书的。此证书专门用于
 	// 访问用户自定义Aggregator。
@@ -99,7 +99,7 @@ type proxyHandlingInfo struct {
 	// 名称空间
 	serviceNamespace string
 	// serviceAvailable indicates this APIService is available or not
-	// 服务是否可用 TODO K8S应该是起了一个controller定期判断服务是否可用
+	// 服务是否可用 K8S起了一个controller定期判断服务是否可用
 	serviceAvailable bool
 	// servicePort is the port of the service this handler proxies to
 	// 服务端口
@@ -120,13 +120,16 @@ func proxyError(w http.ResponseWriter, req *http.Request, error string, code int
 }
 
 func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// 加载handlingInfor信息
 	value := r.handlingInfo.Load()
 	if value == nil {
+		// 如果没有找到代理信息，那么直接把请求转发给APIServer
 		r.localDelegate.ServeHTTP(w, req)
 		return
 	}
 	handlingInfo := value.(proxyHandlingInfo)
 	if handlingInfo.local {
+		// 所有APIServer所有的组都是local=true，所有都是直接代理给APIServer
 		if r.localDelegate == nil {
 			http.Error(w, "", http.StatusNotFound)
 			return
@@ -145,6 +148,7 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	// 必须要从请求当中获取到用户信息
 	user, ok := genericapirequest.UserFrom(req.Context())
 	if !ok {
 		proxyError(w, req, "missing user", http.StatusInternalServerError)
@@ -161,9 +165,10 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	location.Host = rloc.Host
-	location.Path = req.URL.Path
-	location.RawQuery = req.URL.Query().Encode()
+	location.Path = req.URL.Path                 // 原始请求的路径
+	location.RawQuery = req.URL.Query().Encode() // 原始请求的参数
 
+	// 构造一个新的请求，此请求一会儿会发送给APIService指向的服务
 	newReq, cancelFn := newRequestForProxy(location, req)
 	defer cancelFn()
 
@@ -184,11 +189,13 @@ func (r *proxyHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		transport.SetAuthProxyHeaders(newReq, user.GetName(), user.GetGroups(), user.GetExtra())
 	}
 
+	// TODO 分析这里
 	handler := proxy.NewUpgradeAwareHandler(location, proxyRoundTripper, true, upgrade, &responder{w: w})
 	if r.rejectForwardingRedirects {
 		handler.RejectForwardingRedirects = true
 	}
 	utilflowcontrol.RequestDelegated(req.Context())
+	// 发起真正请求
 	handler.ServeHTTP(w, newReq)
 }
 

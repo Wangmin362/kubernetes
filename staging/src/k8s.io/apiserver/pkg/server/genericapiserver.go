@@ -429,6 +429,8 @@ func (s *GenericAPIServer) PreShutdownHooks() map[string]preShutdownHookEntry {
 func (s *GenericAPIServer) HealthzChecks() []healthz.HealthChecker {
 	return s.healthzChecks
 }
+
+// ListedPaths 列出当前支持的路由
 func (s *GenericAPIServer) ListedPaths() []string {
 	return s.listedPathProvider.ListedPaths()
 }

@@ -36,6 +36,9 @@ import (
 
 // apisHandler serves the `/apis` endpoint.
 // This is registered as a filter so that it never collides with any explicitly registered endpoints
+// 1、用于响应/apis的Handler，当我们请求/apis时，就会返回当前K8S支持的所有的GV。由于AggregatorServer把APIServer所有支持的GV都生成一个
+// APIService，所以当用户请求这个接口是，只需要查询系统中所有的APIService就可以知道当前系统所有的GV
+// 2、譬如，我们可以通过kubectl get --raw=/apis查询当前系统中所有的GV
 type apisHandler struct {
 	codecs         serializer.CodecFactory  // 编解码器
 	lister         listers.APIServiceLister // 用于批量查询APIService
@@ -129,7 +132,9 @@ func convertToDiscoveryAPIGroup(apiServices []*apiregistrationv1api.APIService) 
 }
 
 // apiGroupHandler serves the `/apis/<group>` endpoint.
-// 1、用于响应/apis/<group>的Handler，也就是可以查询某个组下有那些版本和哪些资源
+// 1、用于响应/apis/<group>的Handler，也就是可以查询某个组下有那些版本和哪些资源，可以通过kubectl get --raw=/apis/<group>查询某个
+// 组下的资源
+// 2、由于AggregatorServer把K8S所有支持的GV都生成了一个APIService，因此这里直接查询APIService就可以获取某个组的所有资源
 type apiGroupHandler struct {
 	codecs    serializer.CodecFactory // 编解码器
 	groupName string                  // 当前组名

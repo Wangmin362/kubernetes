@@ -32,5 +32,6 @@ var (
 )
 
 func init() {
+	// 向scheme中注册APIService, APIService/status资源，包括内部版本、以及外部版本。同时设置了各个版本的优先级
 	install.Install(Scheme)
 }

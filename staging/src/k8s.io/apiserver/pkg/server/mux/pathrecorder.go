@@ -39,7 +39,9 @@ type PathRecorderMux struct {
 
 	lock            sync.Mutex
 	notFoundHandler http.Handler
-	pathToHandler   map[string]http.Handler
+	// key为路径，是精确匹配
+	pathToHandler map[string]http.Handler
+	// key为路径前缀，是前缀匹配
 	prefixToHandler map[string]http.Handler
 
 	// mux stores a pathHandler and is used to handle the actual serving.
@@ -49,6 +51,7 @@ type PathRecorderMux struct {
 	mux atomic.Value
 
 	// exposedPaths is the list of paths that should be shown at /
+	// 所谓暴露的路径指的是，将来调用方通过ListPaths()接口获取当前Mux所支持的所有路由时，只会返回此数组中包含的路由
 	exposedPaths []string
 
 	// pathStacks holds the stacks of all registered paths.  This allows us to show a more helpful message
@@ -63,9 +66,11 @@ type pathHandler struct {
 	muxName string
 
 	// pathToHandler is a map of exactly matching request to its handler
+	// 精确路由匹配
 	pathToHandler map[string]http.Handler
 
 	// this has to be sorted by most slashes then by length
+	// 前缀路由匹配
 	prefixHandlers []prefixHandler
 
 	// notFoundHandler is the handler to use for satisfying requests with no other match
@@ -169,6 +174,7 @@ func (m *PathRecorderMux) Unregister(path string) {
 
 // Handle registers the handler for the given pattern.
 // If a handler already exists for pattern, Handle panics.
+// 精确匹配path
 func (m *PathRecorderMux) Handle(path string, handler http.Handler) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -181,12 +187,14 @@ func (m *PathRecorderMux) Handle(path string, handler http.Handler) {
 
 // HandleFunc registers the handler function for the given pattern.
 // If a handler already exists for pattern, Handle panics.
+// 适配器
 func (m *PathRecorderMux) HandleFunc(path string, handler func(http.ResponseWriter, *http.Request)) {
 	m.Handle(path, http.HandlerFunc(handler))
 }
 
 // UnlistedHandle registers the handler for the given pattern, but doesn't list it.
 // If a handler already exists for pattern, Handle panics.
+// 同样是添加Handler，只不过通过此方法添加的路由，调用方通过ListPaths()方法获取不到
 func (m *PathRecorderMux) UnlistedHandle(path string, handler http.Handler) {
 	m.lock.Lock()
 	defer m.lock.Unlock()
@@ -198,11 +206,13 @@ func (m *PathRecorderMux) UnlistedHandle(path string, handler http.Handler) {
 
 // UnlistedHandleFunc registers the handler function for the given pattern, but doesn't list it.
 // If a handler already exists for pattern, Handle panics.
+// 适配器
 func (m *PathRecorderMux) UnlistedHandleFunc(path string, handler func(http.ResponseWriter, *http.Request)) {
 	m.UnlistedHandle(path, http.HandlerFunc(handler))
 }
 
 // HandlePrefix is like Handle, but matches for anything under the path.  Like a standard golang trailing slash.
+// 以前缀的方式添加路由，此路由也会通过ListPaths()方法暴露出去
 func (m *PathRecorderMux) HandlePrefix(path string, handler http.Handler) {
 	if !strings.HasSuffix(path, "/") {
 		panic(fmt.Sprintf("%q must end in a trailing slash", path))
@@ -218,6 +228,7 @@ func (m *PathRecorderMux) HandlePrefix(path string, handler http.Handler) {
 }
 
 // UnlistedHandlePrefix is like UnlistedHandle, but matches for anything under the path.  Like a standard golang trailing slash.
+// 添加前缀路由，但是此路由并不会通过ListPaths()方法暴露出去
 func (m *PathRecorderMux) UnlistedHandlePrefix(path string, handler http.Handler) {
 	if !strings.HasSuffix(path, "/") {
 		panic(fmt.Sprintf("%q must end in a trailing slash", path))
@@ -238,12 +249,14 @@ func (m *PathRecorderMux) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // ServeHTTP makes it an http.Handler
 func (h *pathHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 先匹配精确路由
 	if exactHandler, ok := h.pathToHandler[r.URL.Path]; ok {
 		klog.V(5).Infof("%v: %q satisfied by exact match", h.muxName, r.URL.Path)
 		exactHandler.ServeHTTP(w, r)
 		return
 	}
 
+	// 再匹配前缀路由
 	for _, prefixHandler := range h.prefixHandlers {
 		if strings.HasPrefix(r.URL.Path, prefixHandler.prefix) {
 			klog.V(5).Infof("%v: %q satisfied by prefix %v", h.muxName, r.URL.Path, prefixHandler.prefix)

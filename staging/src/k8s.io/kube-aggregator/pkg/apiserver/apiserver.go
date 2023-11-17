@@ -528,7 +528,7 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	proxyHandler := &proxyHandler{
 		localDelegate:              s.delegateHandler,            // APIServer
 		proxyCurrentCertKeyContent: s.proxyCurrentCertKeyContent, // 用于获取代理证书的内容，包括证书和私钥
-		proxyTransportDial:         s.proxyTransportDial,         // TODO 应该是用于和用户自定义的APIService交互
+		proxyTransportDial:         s.proxyTransportDial,         // 应该是用于和用户自定义的APIService交互
 		serviceResolver:            s.serviceResolver,            // // Service解析器，用于把一个Service解析为一个合法的URL
 		rejectForwardingRedirects:  s.rejectForwardingRedirects,
 	}
@@ -546,8 +546,9 @@ func (s *APIAggregator) AddAPIService(apiService *v1.APIService) error {
 	}
 
 	s.proxyHandlers[apiService.Name] = proxyHandler
-	// TODO 这两个方法有何区别？
+	// 添加精确路由匹配
 	s.GenericAPIServer.Handler.NonGoRestfulMux.Handle(proxyPath, proxyHandler)
+	// 添加前缀路由匹配
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandlePrefix(proxyPath+"/", proxyHandler)
 
 	// if we're dealing with the legacy group, we're done here

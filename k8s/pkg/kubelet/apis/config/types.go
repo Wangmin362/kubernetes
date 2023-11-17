@@ -79,6 +79,7 @@ const (
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // KubeletConfiguration contains the configuration for the Kubelet
+// Kubelet配置，目前Kubelet的配置被分成两个部分，一个部分是从这里的配置文件当中获取，另外一部分是从kubelet的启动参数中获取
 type KubeletConfiguration struct {
 	metav1.TypeMeta
 

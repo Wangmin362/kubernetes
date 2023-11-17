@@ -40,7 +40,12 @@ import (
 
 // NewKubeletServerCertificateManager creates a certificate manager for the kubelet when retrieving a server certificate
 // or returns an error.
-func NewKubeletServerCertificateManager(kubeClient clientset.Interface, kubeCfg *kubeletconfig.KubeletConfiguration, nodeName types.NodeName, getAddresses func() []v1.NodeAddress, certDirectory string) (certificate.Manager, error) {
+func NewKubeletServerCertificateManager(
+	kubeClient clientset.Interface, // APIServer客户端
+	kubeCfg *kubeletconfig.KubeletConfiguration,
+	nodeName types.NodeName,
+	getAddresses func() []v1.NodeAddress, certDirectory string,
+) (certificate.Manager, error) {
 	var clientsetFn certificate.ClientsetFunc
 	if kubeClient != nil {
 		clientsetFn = func(current *tls.Certificate) (clientset.Interface, error) {

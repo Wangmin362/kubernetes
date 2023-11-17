@@ -118,6 +118,7 @@ var (
 // Manager maintains and updates the certificates in use by this certificate
 // manager. In the background it communicates with the API server to get new
 // certificates for certificates about to expire.
+// 证书管理器
 type Manager interface {
 	// Start the API server status sync loop.
 	Start()

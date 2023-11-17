@@ -45,6 +45,7 @@ const (
 	AutoRegisterManagedLabel = "kube-aggregator.kubernetes.io/automanaged"
 
 	// manageOnStart is a value for the AutoRegisterManagedLabel that indicates the APIService wants to be synced one time when the controller starts.
+	// TODO
 	manageOnStart = "onstart"
 	// manageContinuously is a value for the AutoRegisterManagedLabel that indicates the APIService wants to be synced continuously.
 	manageContinuously = "true"
@@ -63,22 +64,26 @@ type AutoAPIServiceRegistration interface {
 
 // autoRegisterController is used to keep a particular set of APIServices present in the API.  It is useful
 // for cases where you want to auto-register APIs like TPRs or groups from the core kube-apiserver
+// TODO 虽然源码看完了，但是好像还是没有搞懂这个Controller的核心目的
 type autoRegisterController struct {
 	apiServiceLister listers.APIServiceLister
 	apiServiceSynced cache.InformerSynced
 	apiServiceClient apiregistrationclient.APIServicesGetter
 
 	apiServicesToSyncLock sync.RWMutex
-	apiServicesToSync     map[string]*v1.APIService
+	// key为APIService的名字
+	apiServicesToSync map[string]*v1.APIService
 
+	// 队列消费函数
 	syncHandler func(apiServiceName string) error
 
 	// track which services we have synced
 	syncedSuccessfullyLock *sync.RWMutex
-	syncedSuccessfully     map[string]bool
+	// 缓存所有成功同步的APIService
+	syncedSuccessfully map[string]bool
 
 	// remember names of services that existed when we started
-	// TODO
+	// Controller刚启动时APIService的状态
 	apiServicesAtStart map[string]bool
 
 	// queue is where incoming work is placed to de-dup and to allow "easy" rate limited requeues on errors
@@ -101,6 +106,7 @@ func NewAutoRegisterController(apiServiceInformer informers.APIServiceInformer, 
 
 		queue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "autoregister"),
 	}
+	// 处理队列中的元素
 	c.syncHandler = c.checkAPIService
 
 	// 监听APIService
@@ -217,8 +223,12 @@ func (c *autoRegisterController) processNextWorkItem() bool {
 //	4. current: sync on start, not present at start | -                     | -                         | -
 //	5. current: sync on start, present at start     | delete once           | update once               | update once
 //	6. current: sync always                         | delete                | update once               | update
+//
+// 1、name为APIService的名字
 func (c *autoRegisterController) checkAPIService(name string) (err error) {
+	// 获取缓存的APIService
 	desired := c.GetAPIServiceToSync(name)
+	// 从Informer中获取APIService
 	curr, err := c.apiServiceLister.Get(name)
 
 	// if we've never synced this service successfully, record a successful sync.
@@ -226,6 +236,7 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 	if !hasSynced {
 		defer func() {
 			if err == nil {
+				// 只要一顿子操作下来没有任何错误，就认为APIService同步成功，记录这个APIService
 				c.setSyncedSuccessfully(name)
 			}
 		}()
@@ -233,18 +244,23 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 
 	switch {
 	// we had a real error, just return it (1A,1B,1C)
+	// 如果查询当前APIService出错, 并且还不是因为这个APIService没找到，直接返回error
 	case err != nil && !apierrors.IsNotFound(err):
 		return err
 
 	// we don't have an entry and we don't want one (2A)
+	// 如果当前APIService没找到，并且之前也没有保存过这个APIService，那么就忽略这个APIService
 	case apierrors.IsNotFound(err) && desired == nil:
 		return nil
 
 	// the local object only wants to sync on start and has already synced (2B,5B,6B "once" enforcement)
+	// 如果当前APIService只需要再启动的时候同步一次，并且这个APIService已经同步过，那么不再管这个APIServie
+	// TODO 有哪些APIService会有只需要同步一次的需求？  我猜测是APIServer的
 	case isAutomanagedOnStart(desired) && hasSynced:
 		return nil
 
 	// we don't have an entry and we do want one (2B,2C)
+	// 如果当前APIServer再Informer中没有找到，并且也没有缓存这个APIService，那么持久化这个APIService，后续就可以再Informer当中找到
 	case apierrors.IsNotFound(err) && desired != nil:
 		_, err := c.apiServiceClient.APIServices().Create(context.TODO(), desired, metav1.CreateOptions{})
 		if apierrors.IsAlreadyExists(err) {
@@ -254,18 +270,22 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 		return err
 
 	// we aren't trying to manage this APIService (3A,3B,3C)
+	// 如果当前APIService没有kube-aggregator.kubernetes.io/automanaged=true,或者kube-aggregator.kubernetes.io/automanaged=onstart的标签，直接退出
 	case !isAutomanaged(curr):
 		return nil
 
 	// the remote object only wants to sync on start, but was added after we started (4A,4B,4C)
+	// 如果当前APIService打了kube-aggregator.kubernetes.io/automanaged=onstart的标签，并且再启动的时候没有缓存过这个APIService，直接退出
 	case isAutomanagedOnStart(curr) && !c.apiServicesAtStart[name]:
 		return nil
 
 	// the remote object only wants to sync on start and has already synced (5A,5B,5C "once" enforcement)
+	// 如果当前APIService打了kube-aggregator.kubernetes.io/automanaged=onstart的标签，并且已经通不过了，直接退出
 	case isAutomanagedOnStart(curr) && hasSynced:
 		return nil
 
 	// we have a spurious APIService that we're managing, delete it (5A,6A)
+	// 如果当前Controller没有缓存这个APIService，那么删除这个APIService
 	case desired == nil:
 		opts := metav1.DeleteOptions{Preconditions: metav1.NewUIDPreconditions(string(curr.UID))}
 		err := c.apiServiceClient.APIServices().Delete(context.TODO(), curr.Name, opts)
@@ -276,11 +296,13 @@ func (c *autoRegisterController) checkAPIService(name string) (err error) {
 		return err
 
 	// if the specs already match, nothing for us to do
+	// 如果当前缓存的APIService和从Informer查询到的APIService一毛一样，直接退出
 	case reflect.DeepEqual(curr.Spec, desired.Spec):
 		return nil
 	}
 
 	// we have an entry and we have a desired, now we deconflict.  Only a few fields matter. (5B,5C,6B,6C)
+	// 否则，说明APIService发生了改变，更新这个APIService
 	apiService := curr.DeepCopy()
 	apiService.Spec = desired.Spec
 	_, err = c.apiServiceClient.APIServices().Update(context.TODO(), apiService, metav1.UpdateOptions{})

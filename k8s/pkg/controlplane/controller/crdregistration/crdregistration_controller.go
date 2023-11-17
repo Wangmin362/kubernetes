@@ -194,6 +194,7 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 	apiServiceName := groupVersion.Version + "." + groupVersion.Group
 
 	// check all CRDs.  There shouldn't that many, but if we have problems later we can index them
+	// 查询素有的CRD
 	crds, err := c.crdLister.List(labels.Everything())
 	if err != nil {
 		return err
@@ -207,6 +208,7 @@ func (c *crdRegistrationController) handleVersionUpdate(groupVersion schema.Grou
 				continue
 			}
 
+			// 向AutoRegistration中注册CRD生成的APIService
 			c.apiServiceRegistration.AddAPIServiceToSync(&v1.APIService{
 				ObjectMeta: metav1.ObjectMeta{Name: apiServiceName},
 				Spec: v1.APIServiceSpec{

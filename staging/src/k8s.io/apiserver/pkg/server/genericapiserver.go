@@ -243,6 +243,7 @@ type GenericAPIServer struct {
 	// 	4.3 apiservice-registration-controller：启用APIService注册Controller，通过监听APIService的创建/更新/销毁动态的创建/更新/销毁/apis/<group>/<version>路由
 	// 	4.4 apiservice-status-available-controller：启动AvailableController，用于判断APIService指向的服务是否可用
 	// 	4.5 built-in-resources-storage-version-updater
+	//  4.6 kube-apiserver-autoregistration 启动CRD自动注册以及AutoRegistrationController
 	postStartHooks map[string]postStartHookEntry
 	// 1、用于标识postStartHook是否被调用，如果已经被调用，那么不能再向GenericServer添加PostStartHook，PostStartHook被调用，说明了
 	// GenericServer基本已经启动完成了，此时添加的PostStartHook极有可能无法被执行，因此是一旦postStartHook被执行，就不再允许添加

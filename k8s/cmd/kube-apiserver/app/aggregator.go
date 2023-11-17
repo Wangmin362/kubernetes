@@ -139,9 +139,13 @@ func createAggregatorServer(
 	if err != nil {
 		return nil, err
 	}
+	// 1、用于根据APIService的状态自动创建、删除APIService
+	// 2、APIServer的每一个组都会创建一个APIService, AutoRegisterController会自动持久化这个APIService
 	autoRegistrationController := autoregister.NewAutoRegisterController(
 		aggregatorServer.APIRegistrationInformers.Apiregistration().V1().APIServices(), apiRegistrationClient)
+	// 注册APIServer的所有路由，每个GV都会注册一个APIService
 	apiServices := apiServicesToRegister(delegateAPIServer, autoRegistrationController)
+	// 不同的GV的CRD就会注册一个APIService
 	crdRegistrationController := crdregistration.NewCRDRegistrationController(
 		apiExtensionInformers.Apiextensions().V1().CustomResourceDefinitions(),
 		autoRegistrationController)
@@ -153,6 +157,7 @@ func createAggregatorServer(
 		}
 	}
 
+	// 启动CRD自动注册以及AutoRegistrationController
 	err = aggregatorServer.GenericAPIServer.AddPostStartHook("kube-apiserver-autoregistration", func(context genericapiserver.PostStartHookContext) error {
 		go crdRegistrationController.Run(5, context.StopCh)
 		go func() {
@@ -170,6 +175,7 @@ func createAggregatorServer(
 		return nil, err
 	}
 
+	// 用于判断APIService是否可用
 	err = aggregatorServer.GenericAPIServer.AddBootSequenceHealthChecks(
 		makeAPIServiceAvailableHealthCheck(
 			"autoregister-completion",
@@ -306,14 +312,17 @@ var apiVersionPriorities = map[schema.GroupVersion]priority{
 func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget, registration autoregister.AutoAPIServiceRegistration) []*v1.APIService {
 	var apiServices []*v1.APIService
 
+	// 遍历APIServer所有支持的路由
 	for _, curr := range delegateAPIServer.ListedPaths() {
 		if curr == "/api/v1" {
+			// 注册核心组资源
 			apiService := makeAPIService(schema.GroupVersion{Group: "", Version: "v1"})
 			registration.AddAPIServiceToSyncOnStart(apiService)
 			apiServices = append(apiServices, apiService)
 			continue
 		}
 
+		// 如果不是以/apis开头的，那么肯定不是资源请求
 		if !strings.HasPrefix(curr, "/apis/") {
 			continue
 		}
@@ -327,6 +336,7 @@ func apiServicesToRegister(delegateAPIServer genericapiserver.DelegationTarget, 
 		if apiService == nil {
 			continue
 		}
+		// 注册非核心组资源
 		registration.AddAPIServiceToSyncOnStart(apiService)
 		apiServices = append(apiServices, apiService)
 	}

@@ -31,6 +31,7 @@ import (
 // for adjusting the behavior of the CodecFactory, for example enable strict decoding.
 func NewSchemeAndCodecs(mutators ...serializer.CodecFactoryOptionsMutator) (*runtime.Scheme, *serializer.CodecFactory, error) {
 	scheme := runtime.NewScheme()
+	// 注册KubeletConfiguration, SerializedNodeConfigSource, CredentialProviderConfig资源
 	if err := kubeletconfig.AddToScheme(scheme); err != nil {
 		return nil, nil, err
 	}

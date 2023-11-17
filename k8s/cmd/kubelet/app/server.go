@@ -123,10 +123,14 @@ const (
 
 // NewKubeletCommand creates a *cobra.Command object with default parameters
 func NewKubeletCommand() *cobra.Command {
+	// TODO 这玩意干嘛的？
 	cleanFlagSet := pflag.NewFlagSet(componentKubelet, pflag.ContinueOnError)
 	cleanFlagSet.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
+
+	// 实例化kubelet参数
 	kubeletFlags := options.NewKubeletFlags()
 
+	// 实例化kubelet的配置，kubelet的总配置就是通过命令行参数 加上配置文件实现的
 	kubeletConfig, err := options.NewKubeletConfiguration()
 	// programmer error
 	if err != nil {
@@ -163,6 +167,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 		SilenceUsage:       true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// initial flag parse, since we disable cobra's flag parsing
+			// 解析命令行参数
 			if err := cleanFlagSet.Parse(args); err != nil {
 				return fmt.Errorf("failed to parse kubelet flag: %w", err)
 			}
@@ -183,15 +188,16 @@ is checked every 20 seconds (also configurable with a flag).`,
 				return cmd.Help()
 			}
 
-			// short-circuit on verflag
+			// short-circuit on verflag 如果使用了-v参数，那么打印版本，然后直接返回
 			verflag.PrintAndExitIfRequested()
 
 			// set feature gates from initial flags-based config
+			// TODO kubelet默认打开了哪些参数？
 			if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
 				return fmt.Errorf("failed to set feature gates from initial flags-based config: %w", err)
 			}
 
-			// validate the initial KubeletFlags
+			// validate the initial KubeletFlags 校验并且初始化参数
 			if err := options.ValidateKubeletFlags(kubeletFlags); err != nil {
 				return fmt.Errorf("failed to validate kubelet flags: %w", err)
 			}
@@ -202,6 +208,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// 如果提供了kubelet配置文件，那么加载配置文件
 			if configFile := kubeletFlags.KubeletConfigFile; len(configFile) > 0 {
+				// 加载配置文件
 				kubeletConfig, err = loadConfigFile(configFile)
 				if err != nil {
 					return fmt.Errorf("failed to load kubelet config file, error: %w, path: %s", err, configFile)
@@ -212,13 +219,14 @@ is checked every 20 seconds (also configurable with a flag).`,
 				if err := kubeletConfigFlagPrecedence(kubeletConfig, args); err != nil {
 					return fmt.Errorf("failed to precedence kubeletConfigFlag: %w", err)
 				}
-				// update feature gates based on new config
+				// update feature gates based on new config 设置kubelet默认开启的特性
 				if err := utilfeature.DefaultMutableFeatureGate.SetFromMap(kubeletConfig.FeatureGates); err != nil {
 					return fmt.Errorf("failed to set feature gates from initial flags-based config: %w", err)
 				}
 			}
 
 			// Config and flags parsed, now we can initialize logging.
+			// 初始化日志
 			logs.InitLogs()
 			if err := logsapi.ValidateAndApplyAsField(&kubeletConfig.Logging, utilfeature.DefaultFeatureGate, field.NewPath("logging")); err != nil {
 				return fmt.Errorf("initialize logging: %v", err)
@@ -227,7 +235,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 
 			// We always validate the local configuration (command line + config file).
 			// This is the default "last-known-good" config for dynamic config, and must always remain valid.
-			// 校验KubeletConfiguration配置, KubeletConfiguration是kubelet的配置，kubelet大部分配置都放到了KubeletConfiguration配置当汇总
+			// 校验KubeletConfiguration配置, KubeletConfiguration是kubelet的配置，kubelet大部分配置都放到了KubeletConfiguration配置当中
 			if err := kubeletconfigvalidation.ValidateKubeletConfiguration(kubeletConfig, utilfeature.DefaultFeatureGate); err != nil {
 				return fmt.Errorf("failed to validate kubelet configuration, error: %w, path: %s", err, kubeletConfig)
 			}
@@ -351,6 +359,7 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, name, err)
 	}
+	// 读取配置文件
 	loader, err := configfiles.NewFsLoader(&utilfs.DefaultFs{}, kubeletConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf(errFmt, name, err)
@@ -989,7 +998,9 @@ func updateDialer(clientConfig *restclient.Config) (func(), error) {
 	if clientConfig.Transport != nil || clientConfig.Dial != nil {
 		return nil, fmt.Errorf("there is already a transport or dialer configured")
 	}
-	d := connrotation.NewDialer((&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext)
+
+	dial := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	d := connrotation.NewDialer(dial.DialContext)
 	clientConfig.Dial = d.DialContext
 	return d.CloseAll, nil
 }

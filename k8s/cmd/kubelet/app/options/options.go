@@ -51,8 +51,31 @@ const defaultRootDir = "/var/lib/kubelet"
 //
 // In general, please try to avoid adding flags or configuration fields,
 // we already have a confusingly large amount of them.
+// kubelet的命令参数
 type KubeletFlags struct {
-	KubeConfig          string
+	// TODO 这个是什么配置
+	KubeConfig string
+	// BootstrapKubeconfig指的是Kubelet启动时候的认证配置文件，用于使用Bearer Token的方式证明自己的身份，格式如下：
+	/*
+		apiVersion: v1
+		clusters:
+		- cluster:
+		    certificate-authority-data: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSUR3RENDQXFpZ0F3SUJBZ0lVZGQ0UzhFcENHbEVkajJ3VVE5WFlqRU5uYWRJd0RRWUpLb1pJaHZjTkFRRUwKQlFBd2R6RUxNQWtHQTFVRUJoTUNRMDR4RURBT0JnTlZCQWdUQjBKbGFXcHBibWN4RURBT0JnTlZCQWNUQjBKbAphV3BwYm1jeEV6QVJCZ05WQkFvVENrdDFZbVZ5Ym1WMFpYTXhHakFZQmdOVkJBc1RFVXQxWW1WeWJtVjBaWE10CmJXRnVkV0ZzTVJNd0VRWURWUVFERXdwcmRXSmxjbTVsZEdWek1DQVhEVEl6TVRBeE9USXpNRGd3TUZvWUR6SXgKTWpNd09USTFNak13T0RBd1dqQjNNUXN3Q1FZRFZRUUdFd0pEVGpFUU1BNEdBMVVFQ0JNSFFtVnBhbWx1WnpFUQpNQTRHQTFVRUJ4TUhRbVZwYW1sdVp6RVRNQkVHQTFVRUNoTUtTM1ZpWlhKdVpYUmxjekVhTUJnR0ExVUVDeE1SClMzVmlaWEp1WlhSbGN5MXRZVzUxWVd3eEV6QVJCZ05WQkFNVENtdDFZbVZ5Ym1WMFpYTXdnZ0VpTUEwR0NTcUcKU0liM0RRRUJBUVVBQTRJQkR3QXdnZ0VLQW9JQkFRRFhmZm9RZ0p3MnVObjZSaTFyWm1JaXhKSzc5UnY2U25TVAp2cnhCSzI5NVRBK0tlenJyNW1aY3hmRDBweTEySXhlam9RR2VwSmxpUkxnUmJDcEp6VDh5a3NtK2JnVEZDbjlIClRYOEI2Smh6MXoxS09Gc21JZlltV1FLQTJMWHZ6YitKTVlyK2xjTXUxTjZ6RlNNb0RUNytJY2gxL05EYkkwNXoKdDFYWENraFVRVDU4NytOL0p4aFpNM2wxM3dLMXJFaVFnWXU1UUpnY0tMeFZZR2NYMVIxd0s1WkdoUlczYnhwKwpwRUU4by9UT1dMN0hBMVlPd1JMVm5OWFRpclBPQTh3REo2cjU2RDBpcE9SRVRwM25OTFIrWENNekFUMXhOVjlkCmpKNmRmS1huZ0tKRmQreWY0SEVhcFZVeXROU1o5ZjFYL2VwMGdFT2xjSURENFdRaXh5ZjFBZ01CQUFHalFqQkEKTUE0R0ExVWREd0VCL3dRRUF3SUJCakFQQmdOVkhSTUJBZjhFQlRBREFRSC9NQjBHQTFVZERnUVdCQlM4Tkw1dwpBRm9VVis2S1R1TnNra0NXMDNnUGh6QU5CZ2txaGtpRzl3MEJBUXNGQUFPQ0FRRUFzUW5aem5nVDA5bHkvZGNlClpPUzVjOWpsMHB4UHorUmNPL2JRanV3dlovRzdkSUVLQ1JQMmwzaG0xR2l6MGZsMG9IWitaK2RNZGprazVzT2cKZDBBUDVoOU00WnhCb0FWRWR4cUZnblpTUFJ2OHFaVXlUU0xpa2twWURsSUhLMUdOM1BwSU10MkVMaW9aWnRtNApvTjFydVRXMDlzUy9tMFFzNXVjcDhaM21hUzkyc0hrMU9QcFdlcmZJenVYQi9ZblNRRkg1dU9SVFdvaU45ZzdQCmthQ2p4UUw0TkZPbjcxVzQ2T2xGMDhaanpycjFyRC8vdXZVK1lBTVBCNmtuR1Bod0YzOHlDeXM1WmJHZ3RmdHcKOTMwRkN6clNLMExqZ3o3dWRlZnF1Q082WlVleXd1QlJvY2duNFNxdkxVbVBDa1FYTGNVMzAzS1pZdWp6eHZ6QQpyT1BKSHc9PQotLS0tLUVORCBDRVJUSUZJQ0FURS0tLS0tCg==
+		    server: https://192.168.11.71:6443
+		  name: kubernetes
+		contexts:
+		- context:
+		    cluster: kubernetes
+		    user: tls-bootstrap-token-user
+		  name: tls-bootstrap-token-user@kubernetes
+		current-context: tls-bootstrap-token-user@kubernetes
+		kind: Config
+		preferences: {}
+		users:
+		- name: tls-bootstrap-token-user
+		  user:
+		    token: c8ad9c.2e4d610cf3e7426e
+	*/
 	BootstrapKubeconfig string
 
 	// HostnameOverride is the hostname used to identify the kubelet instead
@@ -84,6 +107,7 @@ type KubeletFlags struct {
 	// The Kubelet will load its initial configuration from this file.
 	// The path may be absolute or relative; relative paths are under the Kubelet's current working directory.
 	// Omit this flag to use the combination of built-in default configuration values and flags.
+	// kubelet配置文件路径
 	KubeletConfigFile string
 
 	// WindowsService should be set to true if kubelet is running as a service on Windows.
@@ -138,14 +162,14 @@ type KubeletFlags struct {
 // NewKubeletFlags will create a new KubeletFlags with default values
 func NewKubeletFlags() *KubeletFlags {
 	return &KubeletFlags{
-		ContainerRuntimeOptions: *NewContainerRuntimeOptions(),
-		CertDirectory:           "/var/lib/kubelet/pki",
-		RootDirectory:           filepath.Clean(defaultRootDir),
-		MaxContainerCount:       -1,
-		MaxPerPodContainerCount: 1,
-		MinimumGCAge:            metav1.Duration{Duration: 0},
+		ContainerRuntimeOptions: *NewContainerRuntimeOptions(),  // 实例化容器运行时依赖的参数
+		CertDirectory:           "/var/lib/kubelet/pki",         // 证书目录
+		RootDirectory:           filepath.Clean(defaultRootDir), // 默认为/var/lib/kubelet
+		MaxContainerCount:       -1,                             // 节点运行的容器最大数量
+		MaxPerPodContainerCount: 1,                              // 每个Pod允许容器的最大数量
+		MinimumGCAge:            metav1.Duration{Duration: 0},   // 容器创建出来之后，最小存活时间，在最小存存活时间之内无法删除容器
 		RegisterSchedulable:     true,
-		NodeLabels:              make(map[string]string),
+		NodeLabels:              make(map[string]string), // node标签
 	}
 }
 
@@ -198,6 +222,8 @@ func getLabelNamespace(key string) string {
 
 // NewKubeletConfiguration will create a new KubeletConfiguration with default values
 func NewKubeletConfiguration() (*kubeletconfig.KubeletConfiguration, error) {
+	// 实例化scheme，scheme中注册了KubeletConfiguration, SerializedNodeConfigSource, CredentialProviderConfig资源，因此我们
+	// 知道如何从YAML配置文件中反序列化kubelet配置文件
 	scheme, _, err := kubeletscheme.NewSchemeAndCodecs()
 	if err != nil {
 		return nil, err
@@ -208,6 +234,7 @@ func NewKubeletConfiguration() (*kubeletconfig.KubeletConfiguration, error) {
 	if err := scheme.Convert(versioned, config, nil); err != nil {
 		return nil, err
 	}
+	// 设置默认参数
 	applyLegacyDefaults(config)
 	return config, nil
 }

@@ -69,6 +69,7 @@ type discoveryManager struct {
 
 	// Map from APIService's name (or a unique string for local servers)
 	// to information about contacting that API Service
+	// 1、groupVersionInfo本质上就是一个http.Handler
 	apiServices map[string]groupVersionInfo
 
 	// Locks cachedResults

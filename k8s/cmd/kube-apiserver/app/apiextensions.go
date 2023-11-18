@@ -50,7 +50,7 @@ func createAPIExtensionsConfig(
 	// 1、先清空GenericServer配置的PostStartHooks，因为APIServer已经初始化了自己的PostStartHooks, ExtensionServer并不需要APIServer
 	// 的PostStartHook，因此需要先清空，然后再初始化自己的PostStartHook
 	genericConfig.PostStartHooks = map[string]genericapiserver.PostStartHookConfigEntry{}
-	// TODO 和存储相关，这里清空之后，后续肯定会重新初始化
+	// GenericServer的RESTOptionsGetter是给APIServer用的，所以ExtensionServer需要清空初始化自己的
 	genericConfig.RESTOptionsGetter = nil
 
 	// copy the etcd options so we don't mutate originals.
@@ -60,9 +60,11 @@ func createAPIExtensionsConfig(
 	etcdOptions.StorageConfig.Paging = utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
 	// this is where the true decodable levels come from.
 	etcdOptions.StorageConfig.Codec = apiextensionsapiserver.Codecs.LegacyCodec(v1beta1.SchemeGroupVersion, v1.SchemeGroupVersion)
+	// TODO 为什没有V1版本
 	// prefer the more compact serialization (v1beta1) for storage until https://issue.k8s.io/82292 is resolved for objects whose v1 serialization is too big but whose v1beta1 serialization can be stored
 	etcdOptions.StorageConfig.EncodeVersioner = runtime.NewMultiGroupVersioner(v1beta1.SchemeGroupVersion, schema.GroupKind{Group: v1beta1.GroupName})
 	etcdOptions.SkipHealthEndpoints = true // avoid double wiring of health checks
+	// 初始化RESTOptionsGetter
 	if err := etcdOptions.ApplyTo(&genericConfig); err != nil {
 		return nil, err
 	}

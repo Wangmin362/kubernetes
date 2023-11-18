@@ -377,6 +377,7 @@ type Config struct {
 	StorageVersionManager storageversion.Manager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
+	// TODO 仔细分析
 	AggregatedDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// ShutdownWatchTerminationGracePeriod, if set to a positive value,
@@ -427,7 +428,7 @@ type SecureServingInfo struct {
 	SNICerts []dynamiccertificates.SNICertKeyContentProvider
 
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
-	// 监听CABundle的变化
+	// 监听client-ca, request-header-client-ca证书的变化
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// MinTLSVersion optionally overrides the minimum TLS version supported.

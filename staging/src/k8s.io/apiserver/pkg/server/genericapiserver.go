@@ -227,6 +227,7 @@ type GenericAPIServer struct {
 	// 0、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
 	// 1、GenericServer在初始化的过程中，默认添加的PostStartHook有：
 	// 	1.1 start-encryption-provider-config-automatic-reload: 用于加解密
+	// 	1.2 start-kube-apiserver-admission-initializer:
 	// 2、ExtensionServer添加的后置Hook有：
 	//	2.1 crd-informer-synced：用于等待CRD Informer同步完成
 	// 	2.2 start-apiextensions-informers: 用于启动SharedInformerFactory

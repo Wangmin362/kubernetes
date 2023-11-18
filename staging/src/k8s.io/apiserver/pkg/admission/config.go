@@ -55,7 +55,11 @@ func makeAbs(path, base string) (string, error) {
 // set of pluginNames whose config location references the specified configFilePath.
 // It does this to preserve backward compatibility when admission control files were opaque.
 // It returns an error if the file did not exist.
-func ReadAdmissionConfiguration(pluginNames []string, configFilePath string, configScheme *runtime.Scheme) (ConfigProvider, error) {
+func ReadAdmissionConfiguration(
+	pluginNames []string, // 当前启用的插件
+	configFilePath string, // 配置文件路径
+	configScheme *runtime.Scheme, // 此Scheme中注册了AdmissionConfiguration、EgressSelectorConfiguration、TracingConfiguration，因此可以反序列化准入插件配置
+) (ConfigProvider, error) {
 	if configFilePath == "" {
 		return configProvider{config: &apiserver.AdmissionConfiguration{}}, nil
 	}

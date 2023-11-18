@@ -74,7 +74,7 @@ type Controller struct {
 // 集群认证信息
 type ClusterAuthenticationInfo struct {
 	// ClientCA is the CA that can be used to verify the identity of normal clients
-	// 证书认证
+	// 用于获取CA实际内容，并且当CA发生变化时也能感知到CA的变化
 	ClientCA dynamiccertificates.CAContentProvider
 
 	// 代理认证

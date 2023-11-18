@@ -65,12 +65,13 @@ type Config struct {
 	VersionedInformerFactory versionedinformers.SharedInformerFactory
 
 	// Optional field, custom dial function used to connect to webhook
+	// TODO 这玩意干嘛的？
 	CustomDial utilnet.DialFunc
 }
 
 // New returns the right sort of union of multiple authorizer.Authorizer objects
 // based on the authorizationMode or an error.
-// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
+// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权组(system:masters)鉴权器
 func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, error) {
 	if len(config.AuthorizationModes) == 0 {
 		return nil, nil, fmt.Errorf("at least one authorization mode must be passed")
@@ -86,6 +87,7 @@ func (config Config) New() (authorizer.Authorizer, authorizer.RuleResolver, erro
 	superuserAuthorizer := authorizerfactory.NewPrivilegedGroups(user.SystemPrivilegedGroup)
 	authorizers = append(authorizers, superuserAuthorizer)
 
+	// 为每个启用的鉴权模式实例化对应的鉴权器
 	for _, authorizationMode := range config.AuthorizationModes {
 		// Keep cases in sync with constant list in k8s.io/kubernetes/pkg/kubeapiserver/authorizer/modes/modes.go.
 		switch authorizationMode {

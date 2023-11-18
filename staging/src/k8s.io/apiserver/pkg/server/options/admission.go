@@ -43,6 +43,7 @@ import (
 	"k8s.io/component-base/featuregate"
 )
 
+// 用于注册AdmissionConfiguration、EgressSelectorConfiguration、TracingConfiguration
 var configScheme = runtime.NewScheme()
 
 func init() {
@@ -132,11 +133,11 @@ func (a *AdmissionOptions) AddFlags(fs *pflag.FlagSet) {
 //
 //	genericconfig.Authorizer
 func (a *AdmissionOptions) ApplyTo(
-	c *server.Config,
+	c *server.Config, // GenericServerConfig
 	informers informers.SharedInformerFactory,
 	kubeAPIServerClientConfig *rest.Config,
-	features featuregate.FeatureGate,
-	pluginInitializers ...admission.PluginInitializer,
+	features featuregate.FeatureGate, // 启用的特性开关
+	pluginInitializers ...admission.PluginInitializer, // 准入插件初始化器,用于向准入控制插件注入依赖
 ) error {
 	if a == nil {
 		return nil
@@ -147,8 +148,10 @@ func (a *AdmissionOptions) ApplyTo(
 		return fmt.Errorf("admission depends on a Kubernetes core API shared informer, it cannot be nil")
 	}
 
+	// 当前启用的插件
 	pluginNames := a.enabledPluginNames()
 
+	// 实例化pluginsConfigProvider, 插件的配置其实是通过插件配置文件提供的
 	pluginsConfigProvider, err := admission.ReadAdmissionConfiguration(pluginNames, a.ConfigFile, configScheme)
 	if err != nil {
 		return fmt.Errorf("failed to read plugin config: %v", err)
@@ -162,15 +165,18 @@ func (a *AdmissionOptions) ApplyTo(
 	if err != nil {
 		return err
 	}
+	// 实例化插件初始化器
 	genericInitializer := initializer.New(clientset, dynamicClient, informers, c.Authorization.Authorizer, features, c.DrainedNotify())
 	initializersChain := admission.PluginInitializers{genericInitializer}
 	initializersChain = append(initializersChain, pluginInitializers...)
 
+	// 通过配置文件实例化准入控制插件，然后通过插件初始化器向准入控制插件当中注入依赖信息，最后校验插件是否初始化完成
 	admissionChain, err := a.Plugins.NewFromPlugins(pluginNames, pluginsConfigProvider, initializersChain, a.Decorators)
 	if err != nil {
 		return err
 	}
 
+	// 统计指标
 	c.AdmissionControl = admissionmetrics.WithStepMetrics(admissionChain)
 	return nil
 }
@@ -229,7 +235,7 @@ func (a *AdmissionOptions) enabledPluginNames() []string {
 	enabledPlugins := sets.NewString(a.EnablePlugins...)
 	disabledPlugins = disabledPlugins.Difference(enabledPlugins)
 
-	orderedPlugins := []string{}
+	var orderedPlugins []string
 	for _, plugin := range a.RecommendedPluginOrder {
 		if !disabledPlugins.Has(plugin) {
 			orderedPlugins = append(orderedPlugins, plugin)

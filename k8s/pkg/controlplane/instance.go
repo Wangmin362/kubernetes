@@ -232,7 +232,7 @@ type ExtraConfig struct {
 
 // Config defines configuration for the master
 type Config struct {
-	GenericConfig *genericapiserver.Config
+	GenericConfig *genericapiserver.Config //
 	ExtraConfig   ExtraConfig
 }
 

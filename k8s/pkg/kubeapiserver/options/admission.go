@@ -112,11 +112,11 @@ func (a *AdmissionOptions) Validate() []error {
 // ApplyTo adds the admission chain to the server configuration.
 // Kube-apiserver just call generic AdmissionOptions.ApplyTo.
 func (a *AdmissionOptions) ApplyTo(
-	c *server.Config,
-	informers informers.SharedInformerFactory,
-	kubeAPIServerClientConfig *rest.Config,
-	features featuregate.FeatureGate,
-	pluginInitializers ...admission.PluginInitializer,
+	c *server.Config, // GenericServerConfig
+	informers informers.SharedInformerFactory, // sharedInformerFactory
+	kubeAPIServerClientConfig *rest.Config, // 可以用于构建restClient
+	features featuregate.FeatureGate, // 启用的特性开关
+	pluginInitializers ...admission.PluginInitializer, // 准入插件初始化器,用于向准入控制插件注入依赖
 ) error {
 	if a == nil {
 		return nil

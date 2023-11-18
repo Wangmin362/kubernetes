@@ -378,15 +378,15 @@ func (o *BuiltInAuthenticationOptions) AddFlags(fs *pflag.FlagSet) {
 // 1、这里主要是在初始化认证配置，并没有实例化认证器
 func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticator.Config, error) {
 	ret := kubeauthenticator.Config{
-		TokenSuccessCacheTTL: o.TokenSuccessCacheTTL,
-		TokenFailureCacheTTL: o.TokenFailureCacheTTL,
+		TokenSuccessCacheTTL: o.TokenSuccessCacheTTL, // token认证成功之后失效时间。默认是10秒，在此期间都认为认证成功
+		TokenFailureCacheTTL: o.TokenFailureCacheTTL, // token认证失败之后失效时间。默认是0秒，在此期间都认为认证失败
 	}
 
 	if o.Anonymous != nil {
 		ret.Anonymous = o.Anonymous.Allow
 	}
 
-	// 是否启用BootstrapToken这种认证方式
+	// 是否启用BootstrapToken这种认证方式，这种方式用于kubelet签发证书
 	if o.BootstrapToken != nil {
 		ret.BootstrapToken = o.BootstrapToken.Enable
 	}
@@ -414,6 +414,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 
 	if o.RequestHeader != nil {
 		var err error
+		// 实例化代理认证方式
 		ret.RequestHeaderConfig, err = o.RequestHeader.ToAuthenticationRequestHeaderConfig()
 		if err != nil {
 			return kubeauthenticator.Config{}, err
@@ -435,6 +436,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 		ret.TokenAuthFile = o.TokenFile.TokenFile
 	}
 
+	// webhook认证
 	if o.WebHook != nil {
 		ret.WebhookTokenAuthnConfigFile = o.WebHook.ConfigFile
 		ret.WebhookTokenAuthnVersion = o.WebHook.Version
@@ -457,7 +459,7 @@ func (o *BuiltInAuthenticationOptions) ToAuthenticationConfig() (kubeauthenticat
 // ApplyTo requires already applied OpenAPIConfig and EgressSelector if present.
 // 这里主要还是在初始化认证参数，仅仅实例化了BootstrapToken认证器，其余的认证器并没有实例化
 func (o *BuiltInAuthenticationOptions) ApplyTo(
-	authInfo *genericapiserver.AuthenticationInfo,
+	authInfo *genericapiserver.AuthenticationInfo, // 虽然前四个都是参数，但其实主要是给了给这四个参数初始化
 	secureServing *genericapiserver.SecureServingInfo,
 	egressSelector *egressselector.EgressSelector,
 	openAPIConfig *openapicommon.Config,
@@ -468,7 +470,6 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(
 		return nil
 	}
 
-	// TODO 为什么需要OpenAPI
 	if openAPIConfig == nil {
 		return errors.New("uninitialized OpenAPIConfig")
 	}
@@ -479,13 +480,14 @@ func (o *BuiltInAuthenticationOptions) ApplyTo(
 		return err
 	}
 
-	// TODO 分析这里的作用
+	// 1、ClientCAContentProvider用于监听client-ca证书
+	// 2、这里主要适用于初始化secureServing.ClientCA参数
 	if authenticatorConfig.ClientCAContentProvider != nil {
 		if err = authInfo.ApplyClientCert(authenticatorConfig.ClientCAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)
 		}
 	}
-	// TODO 分析这里的作用
+	// 还是为了初始化secureServing.ClientCA参数
 	if authenticatorConfig.RequestHeaderConfig != nil && authenticatorConfig.RequestHeaderConfig.CAContentProvider != nil {
 		if err = authInfo.ApplyClientCert(authenticatorConfig.RequestHeaderConfig.CAContentProvider, secureServing); err != nil {
 			return fmt.Errorf("unable to load client CA file: %v", err)

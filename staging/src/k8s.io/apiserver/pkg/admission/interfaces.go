@@ -206,6 +206,7 @@ type InitializationValidator interface {
 
 // ConfigProvider provides a way to get configuration for an admission plugin based on its name
 // 1、用于向插件提供配置，有些插件可以提供配置文件来配置
+// 2、这个配置其实是从插件配置文件当中获取的
 type ConfigProvider interface {
 	ConfigFor(pluginName string) (io.Reader, error)
 }

@@ -49,7 +49,7 @@ type Config struct {
 
 // New sets up the plugins and admission start hooks needed for admission
 func (c *Config) New(
-	proxyTransport *http.Transport,
+	proxyTransport *http.Transport, // 用于连接node
 	egressSelector *egressselector.EgressSelector,
 	serviceResolver webhook.ServiceResolver,
 	tp trace.TracerProvider,
@@ -73,6 +73,7 @@ func (c *Config) New(
 		return nil, nil, err
 	}
 	discoveryClient := cacheddiscovery.NewMemCacheClient(clientset.Discovery())
+	// TODO 这玩意又少用？ 为什么要这么设计？
 	discoveryRESTMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
 	// kubePluginInitializer主要是为了向webhook插件注入cloudConfig,discoveryRESTMapper,quotaConfiguration,schemaResolver
 	kubePluginInitializer := NewPluginInitializer(

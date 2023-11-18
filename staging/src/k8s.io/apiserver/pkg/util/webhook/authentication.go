@@ -47,8 +47,9 @@ type AuthenticationInfoResolverWrapper func(AuthenticationInfoResolver) Authenti
 func NewDefaultAuthenticationInfoResolverWrapper(
 	proxyTransport *http.Transport,
 	egressSelector *egressselector.EgressSelector,
-	kubeapiserverClientConfig *rest.Config,
-	tp trace.TracerProvider) AuthenticationInfoResolverWrapper {
+	kubeapiserverClientConfig *rest.Config, // ClientSet
+	tp trace.TracerProvider,
+) AuthenticationInfoResolverWrapper {
 
 	webhookAuthResolverWrapper := func(delegate AuthenticationInfoResolver) AuthenticationInfoResolver {
 		return &AuthenticationInfoResolverDelegator{

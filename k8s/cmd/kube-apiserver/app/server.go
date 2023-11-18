@@ -233,7 +233,6 @@ func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatora
 
 	// If additional API servers are added, they should be gated.
 	// 创建ExtensionServer配置，ExtensionServer允许需要这些参数进行配置
-	// TODO 分析RESTOptionsGetter原理
 	apiExtensionsConfig, err := createAPIExtensionsConfig(
 		*kubeAPIServerConfig.GenericConfig,                 // GenericServer的通用配置
 		kubeAPIServerConfig.ExtraConfig.VersionedInformers, // SharedInformerFactory，用于缓存各种APIServer，可以理解为一个缓存，用于以空间换时间
@@ -363,18 +362,17 @@ func CreateProxyTransport() *http.Transport {
 // 1、初始化APIServer配置，APIServer配置是有GenericServer配置加上额外的参数构成的
 // 2、
 func CreateKubeAPIServerConfig(s completedServerRunOptions) (
-	*controlplane.Config,
-	aggregatorapiserver.ServiceResolver,
-	[]admission.PluginInitializer,
+	*controlplane.Config, // APIServer参数，主要包含GenericServer参数以及APIServer私有的参数
+	aggregatorapiserver.ServiceResolver, // 服务解析器，用于把Service资源解析为一个可用的URL
+	[]admission.PluginInitializer, // 准入插件初始化器
 	error,
 ) {
-	// TODO 理解golang HTTP设计  ProxyTransport是什么时候使用的？
+	// TODO 理解golang HTTP设计  ProxyTransport是什么时候使用的？ 什么时候被初始化的？
 	// Transport用于APIServer去连接Node节点，这是一个HTTPS客户端配置，虽然是客户端，但是必须要配置证书，因为K8S的HTTPS通信都是双向通信
 	proxyTransport := CreateProxyTransport()
 
-	// 1、ServerRunOptions当中包含了APIServer运行所需要的全部参数，而GenericConfig则是用于给GenericServer使用的配置，通过这个配置
-	// 可以实例化一个GenericServer
-	// 2、在KubeAPIServer当中，APIServer, ExtensionServer, AggregatedServer本质上都是GenericServer
+	// 1、通过传递给KubeAPIServer的参数实例化GenericServer配置
+	// 2、在KubeAPIServer中，APIServer, ExtensionServer, AggregatedServer本质上都是GenericServer
 	// 3、versionedInformers：本质上就是SharedInformerFactory，用于缓存K8S各种资源
 	// 4、serviceResolver：用于把Service转为一个可用的URL，其实就是用于把Service转为一个可用的URL
 	// 5、pluginInitializers：这里所说的插件其实指的是准入插件，K8S中有许多内置的准入插件，用户也可以定制Webhook准入插件。这里的插件
@@ -608,12 +606,12 @@ func buildGenericConfig(
 	// set it in kube-apiserver.
 	// 使用protobuf进行传输
 	genericConfig.LoopbackClientConfig.ContentConfig.ContentType = "application/vnd.kubernetes.protobuf"
-	// Disable compression for self-communication, since we are going to be
-	// on a fast local network
+	// Disable compression for self-communication, since we are going to be on a fast local network
+	// 自己请求自己，完全没有必要压缩，因为走的是环回网卡
 	genericConfig.LoopbackClientConfig.DisableCompression = true
 
 	kubeClientConfig := genericConfig.LoopbackClientConfig
-	// TODO 为什么叫做ExternalClient? 这是为了和LoopbackClient做区分么？
+	// 实例化clientset客户端
 	clientgoExternalClient, err := clientgoclientset.NewForConfig(kubeClientConfig)
 	if err != nil {
 		lastErr = fmt.Errorf("failed to create real external clientset: %v", err)
@@ -632,7 +630,7 @@ func buildGenericConfig(
 		return
 	}
 
-	// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
+	// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权组(system:masters)鉴权器
 	genericConfig.Authorization.Authorizer, genericConfig.RuleResolver, err = BuildAuthorizer(s, genericConfig.EgressSelector, versionedInformers)
 	if err != nil {
 		lastErr = fmt.Errorf("invalid authorization config: %v", err)
@@ -656,7 +654,7 @@ func buildGenericConfig(
 	}
 	// 所谓的服务解析器实际上就是把一个Service
 	serviceResolver = buildServiceResolver(s.EnableAggregatorRouting, genericConfig.LoopbackClientConfig.Host, versionedInformers)
-	// TODO 这玩意是干嘛的
+	// TODO schemaResolver主要是和OpenAPI有关
 	schemaResolver := resolver.NewDefinitionsSchemaResolver(k8sscheme.Scheme, genericConfig.OpenAPIConfig.GetDefinitions)
 	pluginInitializers, admissionPostStartHook, err = admissionConfig.New(proxyTransport, genericConfig.EgressSelector,
 		serviceResolver, genericConfig.TracerProvider, schemaResolver)
@@ -665,11 +663,12 @@ func buildGenericConfig(
 		return
 	}
 
-	// TODO 准入控制插件的初始化
+	// 读取准入插件配置初始化所有启用的准入控制插件，然后利用准入插件初始化器向准入控制插件注入依赖，最后验证准入控制插件是否初始化完成。
+	// 同时把所有初始化号的准入控制插件组装为一个准入控制插件链（实际上就是通过遍历数组，挨个执行准入控制即可），并统计指标
 	err = s.Admission.ApplyTo(
-		genericConfig,
-		versionedInformers,
-		kubeClientConfig,
+		genericConfig,      // GenericServerConfig
+		versionedInformers, // SharedInformerFactory
+		kubeClientConfig,   // clientSet
 		utilfeature.DefaultFeatureGate,
 		pluginInitializers...)
 	if err != nil {
@@ -690,8 +689,12 @@ func buildGenericConfig(
 }
 
 // BuildAuthorizer constructs the authorizer
-// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权鉴权器
-func BuildAuthorizer(s *options.ServerRunOptions, EgressSelector *egressselector.EgressSelector, versionedInformers clientgoinformers.SharedInformerFactory) (authorizer.Authorizer, authorizer.RuleResolver, error) {
+// 实例化各个模式的鉴权器，除此之外每个模式还实例化了一个RuleResolver，并且还实例化了一个特权组(system:masters)鉴权器
+func BuildAuthorizer(
+	s *options.ServerRunOptions, // KubeAPIServer运行参数
+	EgressSelector *egressselector.EgressSelector,
+	versionedInformers clientgoinformers.SharedInformerFactory,
+) (authorizer.Authorizer, authorizer.RuleResolver, error) {
 	// 生成认证配置
 	authorizationConfig := s.Authorization.ToAuthorizationConfig(versionedInformers)
 

@@ -33,6 +33,7 @@ import (
 // The config parameter provides an io.Reader handler to the factory in
 // order to load specific configurations. If no configuration is provided
 // the parameter is nil.
+// 通过配置文件实例化准入控制插件
 type Factory func(config io.Reader) (Interface, error)
 
 type Plugins struct {
@@ -92,6 +93,7 @@ func (ps *Plugins) Register(name string, plugin Factory) {
 func (ps *Plugins) getPlugin(name string, config io.Reader) (Interface, bool, error) {
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
+	// 直接冲插件注册中心中获取插件
 	f, found := ps.registry[name]
 	if !found {
 		return nil, false, nil
@@ -105,6 +107,7 @@ func (ps *Plugins) getPlugin(name string, config io.Reader) (Interface, bool, er
 		return nil, true, nil
 	}
 
+	// 通过配置文件实例化准入控制插件
 	ret, err := f(config2)
 	return ret, true, err
 }
@@ -129,12 +132,15 @@ func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigPro
 	var handlers []Interface
 	var mutationPlugins []string
 	var validationPlugins []string
+	// 遍历所有启用的插件
 	for _, pluginName := range pluginNames {
+		// 获取插件配置
 		pluginConfig, err := configProvider.ConfigFor(pluginName)
 		if err != nil {
 			return nil, err
 		}
 
+		// 通过配置文件实例化准入控制插件，然后通过插件初始化器向准入控制插件当中注入依赖信息，最后校验插件是否初始化完成
 		plugin, err := ps.InitPlugin(pluginName, pluginConfig, pluginInitializer)
 		if err != nil {
 			return nil, err
@@ -155,21 +161,28 @@ func (ps *Plugins) NewFromPlugins(pluginNames []string, configProvider ConfigPro
 		}
 	}
 	if len(mutationPlugins) != 0 {
-		klog.Infof("Loaded %d mutating admission controller(s) successfully in the following order: %s.", len(mutationPlugins), strings.Join(mutationPlugins, ","))
+		klog.Infof("Loaded %d mutating admission controller(s) successfully in the following order: %s.",
+			len(mutationPlugins), strings.Join(mutationPlugins, ","))
 	}
 	if len(validationPlugins) != 0 {
-		klog.Infof("Loaded %d validating admission controller(s) successfully in the following order: %s.", len(validationPlugins), strings.Join(validationPlugins, ","))
+		klog.Infof("Loaded %d validating admission controller(s) successfully in the following order: %s.",
+			len(validationPlugins), strings.Join(validationPlugins, ","))
 	}
 	return newReinvocationHandler(chainAdmissionHandler(handlers)), nil
 }
 
 // InitPlugin creates an instance of the named interface.
-func (ps *Plugins) InitPlugin(name string, config io.Reader, pluginInitializer PluginInitializer) (Interface, error) {
+func (ps *Plugins) InitPlugin(
+	name string, // 插件名
+	config io.Reader, // 插件配置
+	pluginInitializer PluginInitializer, // 插件初始化器
+) (Interface, error) {
 	if name == "" {
 		klog.Info("No admission plugin specified.")
 		return nil, nil
 	}
 
+	// 根据配置实例化插件
 	plugin, found, err := ps.getPlugin(name, config)
 	if err != nil {
 		return nil, fmt.Errorf("couldn't init admission plugin %q: %v", name, err)
@@ -178,8 +191,10 @@ func (ps *Plugins) InitPlugin(name string, config io.Reader, pluginInitializer P
 		return nil, fmt.Errorf("unknown admission plugin: %s", name)
 	}
 
+	// 初始化插件，向插件注入需要的依赖
 	pluginInitializer.Initialize(plugin)
 	// ensure that plugins have been properly initialized
+	// 校验插件，确保插件已经初始化完成，否则完全没有必要把初始化了一半的准入控制插件返回，因为没有意义，并不能真实使用。
 	if err := ValidateInitialization(plugin); err != nil {
 		return nil, fmt.Errorf("failed to initialize admission plugin %q: %v", name, err)
 	}

@@ -20,6 +20,7 @@ import "context"
 
 // newReinvocationHandler creates a handler that wraps the provided admission chain and reinvokes it
 // if needed according to re-invocation policy of the webhooks.
+// 如果准入控制插件调用失败了，reinvoker会根据配置尝试是否需要进行重新调用
 func newReinvocationHandler(admissionChain Interface) Interface {
 	return &reinvoker{admissionChain}
 }

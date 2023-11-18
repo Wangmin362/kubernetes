@@ -51,8 +51,9 @@ type EtcdOptions struct {
 	EncryptionProviderConfigFilepath        string
 	EncryptionProviderConfigAutomaticReload bool
 
-	// 1、用于覆盖某些资源的存储位置，格式为：group/resource#servers
+	// 1、用于覆盖某些资源的存储位置，格式为：group/resource#server1,server2,server3
 	// 2、也就是说通过这个参数，用于可以单独配置某个资源的存储位置
+	// 3、此配置仅可以用于修改资源的存储位置，并不能修改其它配置
 	EtcdServersOverrides []string
 
 	// To enable protobuf as storage format, it is enough
@@ -388,7 +389,7 @@ func (f *StorageFactoryRestOptionsFactory) GetRESTOptions(resource schema.GroupR
 
 	// 如果启用了缓存，那么APIServer将会缓存ETCD所有资源对象
 	if f.Options.EnableWatchCache {
-		// 如果针对于某些资源单独进行了配置
+		// 如果针对于某些资源单独进行了配置  TODO 仔细分析WatchCache
 		sizes, err := ParseWatchCacheSizes(f.Options.WatchCacheSizes)
 		if err != nil {
 			return generic.RESTOptions{}, err

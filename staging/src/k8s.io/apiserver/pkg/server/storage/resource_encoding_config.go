@@ -23,15 +23,17 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
+// ResourceEncodingConfig
+// TODO 如何理解这里所谓的编码配置
 type ResourceEncodingConfig interface {
 	// StorageEncodingFor returns the serialization format for the resource.
 	// TODO this should actually return a GroupVersionKind since you can logically have multiple "matching" Kinds
 	// For now, it returns just the GroupVersion for consistency with old behavior
-	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是外部资源
+	// 返回资源优先选择的版本
 	StorageEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
 
 	// InMemoryEncodingFor returns the groupVersion for the in memory representation the storage should convert to.
-	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是__internal资源
+	// 返回资源的内部版本，Version=__internal
 	InMemoryEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
 }
 

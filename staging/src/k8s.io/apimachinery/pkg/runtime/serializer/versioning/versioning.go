@@ -34,8 +34,8 @@ func NewDefaultingCodecForScheme(
 	scheme *runtime.Scheme,
 	encoder runtime.Encoder,
 	decoder runtime.Decoder,
-	encodeVersion runtime.GroupVersioner, // 一个资源的持久化
-	decodeVersion runtime.GroupVersioner,
+	encodeVersion runtime.GroupVersioner, // 用于选择合适的编码GV
+	decodeVersion runtime.GroupVersioner, // 用于选择合适的解码GV
 ) runtime.Codec {
 	return NewCodec(encoder, decoder, runtime.UnsafeObjectConvertor(scheme), scheme, scheme, scheme, encodeVersion, decodeVersion, scheme.Name())
 }
@@ -83,8 +83,8 @@ type codec struct {
 	typer     runtime.ObjectTyper
 	defaulter runtime.ObjectDefaulter
 
-	encodeVersion runtime.GroupVersioner
-	decodeVersion runtime.GroupVersioner
+	encodeVersion runtime.GroupVersioner // 用于选择合适的编码GV
+	decodeVersion runtime.GroupVersioner // 用于选择合适的解码GV
 
 	identifier runtime.Identifier // 当前编解码器的标识
 
@@ -237,7 +237,7 @@ func (c *codec) doEncode(obj runtime.Object, w io.Writer, memAlloc runtime.Memor
 	switch obj := obj.(type) {
 	case *runtime.Unknown:
 		return encodeFn(obj, w)
-	case runtime.Unstructured:
+	case runtime.Unstructured: // 当前需要编码的资源是非结构化数据
 		// An unstructured list can contain objects of multiple group version kinds. don't short-circuit just
 		// because the top-level type matches our desired destination type. actually send the object to the converter
 		// to give it a chance to convert the list items if needed.

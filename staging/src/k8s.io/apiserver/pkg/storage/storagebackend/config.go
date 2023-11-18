@@ -59,7 +59,7 @@ type TransportConfig struct {
 
 // Config is configuration for creating a storage backend.
 // 1、用于抽象资源的存储后端的存储配置
-// 2、此配置是所有资源通用配置
+// 2、此配置是所有资源通用配置，可以通过StorageFactory.NewConfig(GR)接口获取资源的存储配置
 type Config struct {
 	// Type defines the type of storage backend. Default ("") is "etcd3".
 	// 存储后端的类型，如果没有配置，那么默认就是ETCD3类型，实际上目前的K8S只支持ETCD3，并不支持ETCD2

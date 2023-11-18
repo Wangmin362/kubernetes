@@ -93,7 +93,7 @@ type DefaultStorageFactory struct {
 	DefaultSerializer runtime.StorageSerializer
 
 	// ResourceEncodingConfig describes how to encode a particular GroupVersionResource
-	// 外部资源、内部资源的映射
+	// 外部资源、内部资源的映射，用于从GR获取GV
 	ResourceEncodingConfig ResourceEncodingConfig
 
 	// APIResourceConfigSource indicates whether the *storage* is enabled, NOT the API
@@ -119,7 +119,7 @@ type groupResourceOverrides struct {
 	// etcdResourcePrefix is the location to use to store a particular type under the `etcdPrefix` location
 	// If empty, the default mapping is used.  If the default mapping doesn't contain an entry, it will use
 	// the ToLowered name of the resource, not including the group.
-	// TODO 这玩意干嘛的？
+	// TODO 这玩意干嘛的？  这个属性一般没有人用，在K8S中就没有找到使用的地方
 	etcdResourcePrefix string
 	// mediaType is the desired serializer to choose. If empty, the default is chosen.
 	// 媒体类型决定了当前资源使用哪一种序列化器进行编解码，当前K8S支持JSON, YAML, Protobuf三种格式的编解码
@@ -142,6 +142,7 @@ type groupResourceOverrides struct {
 }
 
 // Apply overrides the provided config and options if the override has a value in that position
+// 应用资源的特殊配置
 func (o groupResourceOverrides) Apply(config *storagebackend.Config, options *StorageCodecConfig) {
 	if len(o.etcdLocation) > 0 {
 		config.Transport.ServerList = o.etcdLocation
@@ -255,6 +256,9 @@ func getAllResourcesAlias(resource schema.GroupResource) schema.GroupResource {
 	return schema.GroupResource{Group: resource.Group, Resource: AllResources}
 }
 
+// 1、获取当前资源的持久化GR，对于绝大多数的资源来说，都是它本身。
+// 2、但是对于networkpolicies, deployments, daemonsets, replicasets, events, replicationcontrollers, podsecuritypolicies, ingresses
+// 资源来说，由于这些资源同时在两个组下，因此需要选择其中的一个组来进行存储，这个时候就可能从一个GR变换为另外一个GR
 func (s *DefaultStorageFactory) getStorageGroupResource(groupResource schema.GroupResource) schema.GroupResource {
 	for _, potentialStorageResource := range s.Overrides[groupResource].cohabitatingResources {
 		// TODO deads2k or liggitt determine if have ever stored any of our cohabitating resources in a different location on new clusters
@@ -293,12 +297,12 @@ func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*
 	}
 
 	var err error
-	// 返回这个资源优先选择的持久化GV
+	// 获取当前资源优先选择的GV版本
 	codecConfig.StorageVersion, err = s.ResourceEncodingConfig.StorageEncodingFor(chosenStorageResource)
 	if err != nil {
 		return nil, err
 	}
-	// 返回这个资源优先选择的__internal GV
+	// 获取当前资源的内部版本（Version=__internal）
 	codecConfig.MemoryVersion, err = s.ResourceEncodingConfig.InMemoryEncodingFor(groupResource)
 	if err != nil {
 		return nil, err
@@ -357,7 +361,7 @@ func backends(storageConfig storagebackend.Config, grOverrides map[schema.GroupR
 		}
 	}
 
-	backends := []Backend{}
+	var backends []Backend
 	for server := range servers {
 		backends = append(backends, Backend{
 			Server: server,

@@ -597,7 +597,7 @@ func buildGenericConfig(
 	if lastErr != nil {
 		return
 	}
-	// 最最重要的是实例化了GenericServer的RESTOptionsGetter  TODO 非常重要
+	// 最最重要的是实例化了GenericServer的RESTOptionsGetter
 	if lastErr = s.Etcd.ApplyWithStorageFactoryTo(storageFactory, genericConfig); lastErr != nil {
 		return
 	}
@@ -606,7 +606,7 @@ func buildGenericConfig(
 	// Since not every generic apiserver has to support protobufs, we
 	// cannot default to it in generic apiserver and need to explicitly
 	// set it in kube-apiserver.
-	// TODO content-type为什么是这个？有啥用？
+	// 使用protobuf进行传输
 	genericConfig.LoopbackClientConfig.ContentConfig.ContentType = "application/vnd.kubernetes.protobuf"
 	// Disable compression for self-communication, since we are going to be
 	// on a fast local network

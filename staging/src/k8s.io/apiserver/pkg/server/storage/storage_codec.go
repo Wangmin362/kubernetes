@@ -30,9 +30,9 @@ import (
 type StorageCodecConfig struct {
 	StorageMediaType  string                    // 存储资源时，资源序列化的格式，目前K8S支持JSON, YAML, Protobuf三种格式
 	StorageSerializer runtime.StorageSerializer // 所谓的存储序列化器，其实就是支持任意类型的媒体类型、任意资源的编解码
-	StorageVersion    schema.GroupVersion       // TODO 什么叫做存储版本？
-	MemoryVersion     schema.GroupVersion       // TODO 什么叫做内存版本？，所谓的MemoryVersion,似乎就是__internal version
-	Config            storagebackend.Config     // 存储后端配置
+	StorageVersion    schema.GroupVersion       // 所谓的StorageVersion其实就是资源优先选择的版本  TODO 这玩意什么时候用？
+	MemoryVersion     schema.GroupVersion       // 所谓的MemoryVersion其实就是资源的内部版本，即Version=__internal TODO 这玩意什么时候用？
+	Config            storagebackend.Config     // 资源的存储后端配置
 
 	EncoderDecoratorFn func(runtime.Encoder) runtime.Encoder     // 编码装饰器
 	DecoderDecoratorFn func([]runtime.Decoder) []runtime.Decoder // 解码装饰器
@@ -106,7 +106,7 @@ func NewStorageCodec(opts StorageCodecConfig) (runtime.Codec, runtime.GroupVersi
 		// decode需要优先转为__internal版本
 		runtime.NewCoercingMultiGroupVersioner(
 			opts.MemoryVersion,
-			schema.GroupKind{Group: opts.MemoryVersion.Group},
+			schema.GroupKind{Group: opts.MemoryVersion.Group}, // TODO 这里的顺序为什么要和encodeVersioner相反
 			schema.GroupKind{Group: opts.StorageVersion.Group},
 		),
 	)

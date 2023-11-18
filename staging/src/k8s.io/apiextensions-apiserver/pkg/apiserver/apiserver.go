@@ -143,7 +143,6 @@ func (cfg *Config) Complete() CompletedConfig {
 // New returns a new instance of CustomResourceDefinitions from the given config.
 // 1、delegationTarget就是后续处理器，只要ExtensionServer处理不了就需要把请求转交给delegationTarget处理
 func (c completedConfig) New(delegationTarget genericapiserver.DelegationTarget) (*CustomResourceDefinitions, error) {
-	// TODO 分析GenericServer的原理
 	// 1、实例化APIServerHandler，APIServerHandler可以理解为请求的处理函数
 	// 2、根据GenericConfig配置实例化GenericServer TODO 具体分析GenericServer
 	// 3、把Delegator的PostStartHook以及PreShutdownHook拷贝到刚才实例化的GenericServer当汇总，因为最终只有ServerChain的最后一个Server

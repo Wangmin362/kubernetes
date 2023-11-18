@@ -847,7 +847,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 
 	// TODO 分析APIServerHandler架构
 	apiServerHandler := NewAPIServerHandler(
-		name,                                  // APIServerHandler名字有何作用？ 打日志？
+		name,                                  // APIServerHandler名字
 		c.Serializer,                          // 序列化器
 		handlerChainBuilder,                   // 请求处理链
 		delegationTarget.UnprotectedHandler(), // 如果自己处理不了，就需要把请求委派给Delegator

@@ -50,6 +50,7 @@ const (
 )
 
 // Register registers a plugin
+// TODO 这玩意居然也是一个插件？
 func Register(plugins *admission.Plugins) {
 	plugins.Register(PluginName, func(config io.Reader) (admission.Interface, error) {
 		return NewPlugin()

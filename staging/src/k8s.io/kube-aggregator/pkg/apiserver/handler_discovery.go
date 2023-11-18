@@ -120,6 +120,7 @@ func newServiceKey(service apiregistrationv1.ServiceReference) serviceKey {
 type cachedResult struct {
 	// Currently cached discovery document for this service
 	// Map from group name to version name to
+	// 缓存GV的所有资源
 	discovery map[metav1.GroupVersion]apidiscoveryv2beta1.APIVersionDiscovery
 
 	// ETag hash of the cached discoveryDocument
@@ -146,6 +147,7 @@ type groupVersionInfo struct {
 
 	// ServiceReference of this GroupVersion. This identifies the Service which
 	// describes how to contact the server responsible for this GroupVersion.
+	// 其实就是Service的namespace, name, port
 	service serviceKey
 
 	// groupPriority describes the priority of the APIService's group for sorting

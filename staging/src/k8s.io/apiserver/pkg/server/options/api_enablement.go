@@ -87,19 +87,24 @@ func (s *APIEnablementOptions) Validate(registries ...GroupRegistry) []error {
 }
 
 // ApplyTo override MergedResourceConfig with defaults and registry
-// 用于表示GV的启用/禁用，或者是GVR的启用/禁用
+// 这里其实就是需要根据注册中心、K8S默认启用/禁用的资源、用户设置禁用/启用的资源做一个合并的动作，最终合并出启用/禁用的资源
 func (s *APIEnablementOptions) ApplyTo(
 	c *server.Config, // GenericServer配置
 	defaultResourceConfig *serverstore.ResourceConfig, // 默认启用/禁用的资源
-	registry resourceconfig.GroupVersionRegistry, // TODO 资源注册中心  实际上就是scheme
+	registry resourceconfig.GroupVersionRegistry, // 所谓GV注册中心，其实就是用于判断group是否已经注册、GV是否已经注册、所有组的GV优先级顺序
 ) error {
 
 	if s == nil {
 		return nil
 	}
 
-	// TODO 这里为什么需要registry
-	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(defaultResourceConfig, s.RuntimeConfig, registry)
+	// 1、所谓GV注册中心，其实就是用于判断group是否已经注册、GV是否已经注册、所有组的GV优先级顺序。注册中心仅仅是提供信息的组件
+	// 2、这里其实就是需要根据注册中心、K8S默认启用/禁用的资源、用户设置禁用/启用的资源做一个合并的动作，最终合并出启用/禁用的资源
+	mergedResourceConfig, err := resourceconfig.MergeAPIResourceConfigs(
+		defaultResourceConfig, // K8S默认启用、禁用的资源
+		s.RuntimeConfig,       // 用于设置的启用/禁用的资源
+		registry,              // 所谓GV注册中心，其实就是用于判断group是否已经注册、GV是否已经注册、所有组的GV优先级顺序
+	)
 	c.MergedResourceConfig = mergedResourceConfig
 
 	return err

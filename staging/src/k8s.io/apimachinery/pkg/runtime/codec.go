@@ -371,6 +371,7 @@ func (v multiGroupVersioner) KindForGroupVersionKinds(kinds []schema.GroupVersio
 			if len(kind.Kind) > 0 && kind.Kind != src.Kind {
 				continue
 			}
+			// 说明GV都相等，那么就是这个GVK是最符合的
 			return v.target.WithKind(src.Kind), true
 		}
 	}

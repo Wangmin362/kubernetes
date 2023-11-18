@@ -51,7 +51,8 @@ type EtcdOptions struct {
 	EncryptionProviderConfigFilepath        string
 	EncryptionProviderConfigAutomaticReload bool
 
-	// 用于覆盖某些资源的存储位置，格式为：group/resource#servers
+	// 1、用于覆盖某些资源的存储位置，格式为：group/resource#servers
+	// 2、也就是说通过这个参数，用于可以单独配置某个资源的存储位置
 	EtcdServersOverrides []string
 
 	// To enable protobuf as storage format, it is enough
@@ -59,10 +60,12 @@ type EtcdOptions struct {
 	// 默认资源个序列化格式，K8S支持JSON, YAML, Protobuf三种格式，默认为JSON格式
 	DefaultStorageMediaType string
 	DeleteCollectionWorkers int
+	// TODO 这玩意有啥用？
 	EnableGarbageCollection bool
 
 	// Set EnableWatchCache to false to disable all watch caches
 	// APIServer对于ETCD的缓存，如果开启，那么GET ,LIST, WATCH操作将会直接使用缓存，减轻ETCD的压力
+	// TODO 还需要分析WatchCache原理
 	EnableWatchCache bool
 	// Set DefaultWatchCacheSize to zero to disable watch caches for those resources that have no explicit cache size set
 	DefaultWatchCacheSize int
@@ -70,8 +73,11 @@ type EtcdOptions struct {
 	WatchCacheSizes []string
 
 	// complete guards fields that must be initialized via Complete before the Apply methods can be used.
-	complete               bool
-	resourceTransformers   encryptionconfig.ResourceTransformers
+	// 用于表示ETCD当前参数是否配置完成，所以需要调用Complete()函数
+	complete bool
+	// TODO 资源转换器什么时候生效？
+	resourceTransformers encryptionconfig.ResourceTransformers
+	// TODO 什么叫KMS插件健康检测？
 	kmsPluginHealthzChecks []healthz.HealthChecker
 
 	// SkipHealthEndpoints, when true, causes the Apply methods to not set up health endpoints.
@@ -93,6 +99,7 @@ func NewEtcdOptions(backendConfig *storagebackend.Config) *EtcdOptions {
 		EnableWatchCache:        true,
 		DefaultWatchCacheSize:   100,
 	}
+	// 指标相关的配置
 	options.StorageConfig.CountMetricPollPeriod = time.Minute
 	return options
 }

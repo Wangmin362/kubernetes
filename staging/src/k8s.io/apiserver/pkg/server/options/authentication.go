@@ -54,6 +54,7 @@ type RequestHeaderAuthenticationOptions struct {
 	// before trusting usernames in headers.
 	// 1、ClientCAFile是客户端的CA根证书，由于APIServer启用了TLS双向认证，因此代理认证也需要开启双向认证。因此需要给代理认证服务器
 	// 配置客户端的CA根证书以校验客户端的证书
+	// 2、这里的证书是代理认证服务的根CA证书，用于K8S验证代理认证服务的证书
 	ClientCAFile string
 
 	UsernameHeaders     []string

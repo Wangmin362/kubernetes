@@ -31,6 +31,7 @@ type Decorators []Decorator
 // Decorate applies the decorator in inside-out order, i.e. the first decorator in the slice is first applied to the given handler.
 func (d Decorators) Decorate(handler Interface, name string) Interface {
 	result := handler
+	// 所有的装饰器都需要执行一次
 	for _, d := range d {
 		result = d.Decorate(result, name)
 	}

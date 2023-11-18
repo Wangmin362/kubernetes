@@ -46,7 +46,7 @@ import (
 // BuiltInAuthenticationOptions contains all build-in authentication options for API Server
 type BuiltInAuthenticationOptions struct {
 	APIAudiences    []string
-	Anonymous       *AnonymousAuthenticationOptions                    // 是否允许匿名用户访问K8S
+	Anonymous       *AnonymousAuthenticationOptions                    // 是否允许匿名用户访问K8S，默认允许匿名访问，但是由于没有给匿名用户设置RBAC权限，所以还是无法访问系统资源
 	BootstrapToken  *BootstrapTokenAuthenticationOptions               // BootstrapToken认证，这种认证方式是专门给Kubelet使用的
 	ClientCert      *genericoptions.ClientCertAuthenticationOptions    // 证书认证方式
 	OIDC            *OIDCAuthenticationOptions                         // OIDC认证
@@ -55,8 +55,8 @@ type BuiltInAuthenticationOptions struct {
 	TokenFile       *TokenFileAuthenticationOptions                    // BearerToken认证
 	WebHook         *WebHookAuthenticationOptions                      // Webhook认证
 
-	TokenSuccessCacheTTL time.Duration // Token认证成功之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证通过
-	TokenFailureCacheTTL time.Duration // Token认证失败之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证失败
+	TokenSuccessCacheTTL time.Duration // Token认证成功之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证通过，默认为10秒
+	TokenFailureCacheTTL time.Duration // Token认证失败之后存活时间，也就是说在存活时间之内，无需再次认证，默认Token认证失败，默认为0秒
 }
 
 // AnonymousAuthenticationOptions contains anonymous authentication options for API Server
@@ -120,14 +120,14 @@ func NewBuiltInAuthenticationOptions() *BuiltInAuthenticationOptions {
 // WithAll set default value for every build-in authentication option
 func (o *BuiltInAuthenticationOptions) WithAll() *BuiltInAuthenticationOptions {
 	return o.
-		WithAnonymous().
-		WithBootstrapToken().
-		WithClientCert().
-		WithOIDC().
-		WithRequestHeader().
-		WithServiceAccounts().
-		WithTokenFile().
-		WithWebHook()
+		WithAnonymous().       // 是否允许匿名访问
+		WithBootstrapToken().  // BootstrapToken认证，用于签发kubelet证书
+		WithClientCert().      // X509证书认证，譬如kubectl
+		WithOIDC().            // OIDC认证
+		WithRequestHeader().   // 代理认证的请求头配置
+		WithServiceAccounts(). // serviceAccount认证
+		WithTokenFile().       // 静态Token认证
+		WithWebHook()          // webhook认证
 }
 
 // WithAnonymous set default value for anonymous authentication

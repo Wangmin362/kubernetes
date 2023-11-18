@@ -37,6 +37,7 @@ import (
 )
 
 // SpecialDefaultResourcePrefixes are prefixes compiled into Kubernetes.
+// 用于单独设置某些资源的前缀
 var SpecialDefaultResourcePrefixes = map[schema.GroupResource]string{
 	{Group: "", Resource: "replicationcontrollers"}:     "controllers",
 	{Group: "", Resource: "endpoints"}:                  "services/endpoints",
@@ -77,7 +78,8 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 	}
 
 	return &StorageFactoryConfig{
-		Serializer:                legacyscheme.Codecs,
+		Serializer: legacyscheme.Codecs,
+		// 默认的资源编码配置中单独配置的资源是空的。
 		DefaultResourceEncoding:   serverstorage.NewDefaultResourceEncodingConfig(legacyscheme.Scheme),
 		ResourceEncodingOverrides: resources,
 	}
@@ -87,7 +89,7 @@ func NewStorageFactoryConfig() *StorageFactoryConfig {
 type StorageFactoryConfig struct {
 	StorageConfig             storagebackend.Config                        // 后端存储配置
 	APIResourceConfig         *serverstorage.ResourceConfig                // 用于表示GV的启用/禁用，或者是GVR的启用/禁用
-	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig // 外部版本和内部版本的映射关系
+	DefaultResourceEncoding   *serverstorage.DefaultResourceEncodingConfig // 外部版本和内部版本的映射关系 默认的资源编码配置中单独配置的资源是空的。
 	DefaultStorageMediaType   string                                       // 默认的存储媒体类型，K8S默认以JSON的方式存储，当然可以设置为其他格式
 	Serializer                runtime.StorageSerializer                    // 序列化器，可以对所有资源进行编解码
 	ResourceEncodingOverrides []schema.GroupVersionResource                // TODO
@@ -99,7 +101,7 @@ type StorageFactoryConfig struct {
 func (c *StorageFactoryConfig) Complete(etcdOptions *serveroptions.EtcdOptions) *completedStorageFactoryConfig {
 	c.StorageConfig = etcdOptions.StorageConfig
 	c.DefaultStorageMediaType = etcdOptions.DefaultStorageMediaType
-	c.EtcdServersOverrides = etcdOptions.EtcdServersOverrides
+	c.EtcdServersOverrides = etcdOptions.EtcdServersOverrides // 用于单独配置某个资源的存储位置
 	return &completedStorageFactoryConfig{c}
 }
 
@@ -117,14 +119,16 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 	resourceEncodingConfig := resourceconfig.MergeResourceEncodingConfigs(c.DefaultResourceEncoding, c.ResourceEncodingOverrides)
 	// 实例化存储工厂
 	storageFactory := serverstorage.NewDefaultStorageFactory(
-		c.StorageConfig,
-		c.DefaultStorageMediaType,
-		c.Serializer,
-		resourceEncodingConfig,
-		c.APIResourceConfig,
-		SpecialDefaultResourcePrefixes)
+		c.StorageConfig,                // 存储后端配置
+		c.DefaultStorageMediaType,      // 默认的媒体类型
+		c.Serializer,                   // 序列化器，用于编码解码
+		resourceEncodingConfig,         // 用于获取一个资源的存储版本以及__internal版本
+		c.APIResourceConfig,            // 启用/禁用资源
+		SpecialDefaultResourcePrefixes, // 用于单独设置某些资源的前缀
+	)
 
-	// 注册等价资源，等价资源是相同的资源在不同的组下
+	// 1、注册等价资源，等价资源是相同的资源在不同的组下，一般是由于历史原因，随着K8S的持续演进造成的
+	// 2、这里主要影响的是资源的持久化，后面的GVR都会使用前面的GVR来进行存储（当然，前提是你没有禁用前面的GVR）
 	storageFactory.AddCohabitatingResources(networking.Resource("networkpolicies"), extensions.Resource("networkpolicies"))
 	storageFactory.AddCohabitatingResources(apps.Resource("deployments"), extensions.Resource("deployments"))
 	storageFactory.AddCohabitatingResources(apps.Resource("daemonsets"), extensions.Resource("daemonsets"))
@@ -134,7 +138,8 @@ func (c *completedStorageFactoryConfig) New() (*serverstorage.DefaultStorageFact
 	storageFactory.AddCohabitatingResources(policy.Resource("podsecuritypolicies"), extensions.Resource("podsecuritypolicies"))
 	storageFactory.AddCohabitatingResources(networking.Resource("ingresses"), extensions.Resource("ingresses"))
 
-	// EtcdServersOverrides格式为：<group>/<resource>#ip:host;ip:host;ip:host
+	// 1、EtcdServersOverrides格式为：<group>/<resource>#ip:host;ip:host;ip:host
+	// 2、用户可以单独为某些资源设置后端存储
 	for _, override := range c.EtcdServersOverrides {
 		tokens := strings.Split(override, "#")
 		apiresource := strings.Split(tokens[0], "/")

@@ -34,7 +34,7 @@ func NewDefaultingCodecForScheme(
 	scheme *runtime.Scheme,
 	encoder runtime.Encoder,
 	decoder runtime.Decoder,
-	encodeVersion runtime.GroupVersioner,
+	encodeVersion runtime.GroupVersioner, // 一个资源的持久化
 	decodeVersion runtime.GroupVersioner,
 ) runtime.Codec {
 	return NewCodec(encoder, decoder, runtime.UnsafeObjectConvertor(scheme), scheme, scheme, scheme, encodeVersion, decodeVersion, scheme.Name())
@@ -44,15 +44,15 @@ func NewDefaultingCodecForScheme(
 // serializing them. It assumes the serializer provided to it only deals with external versions.
 // This class is also a serializer, but is generally used with a specific version.
 func NewCodec(
-	encoder runtime.Encoder,
-	decoder runtime.Decoder,
-	convertor runtime.ObjectConvertor,
+	encoder runtime.Encoder, // 编码器
+	decoder runtime.Decoder, // 解码器
+	convertor runtime.ObjectConvertor, // 转换器，用于把一个对象转换为另外一个对象
 	creater runtime.ObjectCreater,
 	typer runtime.ObjectTyper,
 	defaulter runtime.ObjectDefaulter,
 	encodeVersion runtime.GroupVersioner,
 	decodeVersion runtime.GroupVersioner,
-	originalSchemeName string,
+	originalSchemeName string, // scheme名字
 ) runtime.Codec {
 	internal := &codec{
 		encoder:   encoder,

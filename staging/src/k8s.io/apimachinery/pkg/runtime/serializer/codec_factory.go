@@ -347,6 +347,7 @@ func (f CodecFactory) CodecForVersions(
 		encode = runtime.DisabledGroupVersioner
 	}
 	if decode == nil {
+		// 默认解码为__internal版本
 		decode = runtime.InternalGroupVersioner
 	}
 	return versioning.NewDefaultingCodecForScheme(f.scheme, encoder, decoder, encode, decode)

@@ -46,7 +46,7 @@ type ServerRunOptions struct {
 	Etcd                    *genericoptions.EtcdOptions                      // ETCD相关配置
 	SecureServing           *genericoptions.SecureServingOptionsWithLoopback // HTTPS相关配置
 	Audit                   *genericoptions.AuditOptions                     // 审计相关配置
-	Features                *genericoptions.FeatureOptions                   // 特性管相关配置，譬如pprof,debug
+	Features                *genericoptions.FeatureOptions                   // 特性配置，用于Debug K8S, 查看K8S的性能；注意，这里所说的特性并非是APIServer的各个特性开关，而是APIServer性能特性相关的配置
 	Admission               *kubeoptions.AdmissionOptions                    // 准入控制配置
 	Authentication          *kubeoptions.BuiltInAuthenticationOptions        // 认证配置，主要是配置支持几种认证模式，以及每种认证模式相关的配置
 	Authorization           *kubeoptions.BuiltInAuthorizationOptions         // 及安全配置，主要是配置支持集中及安全模式以及每种鉴权模式相关的配置
@@ -57,11 +57,13 @@ type ServerRunOptions struct {
 	Logs                    *logs.Options                                    // 日志配置
 	Traces                  *genericoptions.TracingOptions                   // 链路追踪配置
 
-	AllowPrivileged bool // 是否允许创建特权容器，通过Linux的Capability来实现
+	// 是否允许创建特权容器，通过Linux的Capability来实现
+	AllowPrivileged bool
 	// LogHandler有啥作用？什么时候应该开启？
 	EnableLogsHandler bool
 	EventTTL          time.Duration
-	KubeletConfig     kubeletclient.KubeletClientConfig
+	// TODO kubelet配置
+	KubeletConfig kubeletclient.KubeletClientConfig
 	// 如果设置为0，表示kubernetes.default.svc为ClusterIP模式。如果指定了端口，那么就是NodePort端口
 	KubernetesServiceNodePort int
 	MaxConnectionBytesPerSec  int64
@@ -69,14 +71,18 @@ type ServerRunOptions struct {
 	ServiceClusterIPRanges string
 	// PrimaryServiceClusterIPRange and SecondaryServiceClusterIPRange are the results
 	// of parsing ServiceClusterIPRange into actual values
-	// TODO 这两个参数的作用
+	// K8S可以支持同时启用IPv4, IPv6协议栈，根据配置顺序的不同，如果先写IPv4协议栈的IPRange，那么PrimaryServiceClusterIPRange就是
+	// IPv4；否则，如果先写IPv6协议栈的IPRange,那么PrimaryServiceClusterIPRange就是IPv6
 	PrimaryServiceClusterIPRange   net.IPNet
 	SecondaryServiceClusterIPRange net.IPNet
 	// APIServerServiceIP is the first valid IP from PrimaryServiceClusterIPRange
+	// kubernetes.default.svc的IP地址
 	APIServerServiceIP net.IP
 
+	// nodePort端口范围
 	ServiceNodePortRange utilnet.PortRange
 
+	// 代理证书、密钥。用于Aggregator访问用户自定义服务时使用的证书和密钥
 	ProxyClientCertFile string
 	ProxyClientKeyFile  string
 
@@ -84,9 +90,12 @@ type ServerRunOptions struct {
 	EnableAggregatorRouting             bool
 	AggregatorRejectForwardingRedirects bool
 
-	MasterCount            int
+	// APIServer节点数量 TODO 那岂不是每增加一个节点，都需要重启一次APIServer
+	MasterCount int
+	// TODO 这玩意干嘛的？默认为lease类型
 	EndpointReconcilerType string
 
+	// TODO ServiceAccount认证相关
 	ServiceAccountSigningKeyFile     string
 	ServiceAccountIssuer             serviceaccount.TokenGenerator
 	ServiceAccountTokenMaxExpiration time.Duration
@@ -101,15 +110,16 @@ func NewServerRunOptions() *ServerRunOptions {
 		GenericServerRunOptions: genericoptions.NewServerRunOptions(),
 		// 1、ETCD相关配置，譬如APIServer访问ETCD使用的证书，以及ETCD的服务器根证书
 		// 2、默认K8S存入ETCD的所有资源的前缀都是/registry
-		// TODO 猜测这里的存储后端是一个抽象接口，让我们可以选择把数据存入其它数据库当中
+		// 3、这里的存储后端是一个抽象接口，让我们可以选择把数据存入其它数据库当中
+		// TODO 按照目前的抽象来看，如何把数据存储再其它地方？ 譬如mysql, NATS
 		Etcd: genericoptions.NewEtcdOptions(storagebackend.NewDefaultConfig(kubeoptions.DefaultEtcdPathPrefix, nil)),
 		// 安全服务配置，用于设置APIServer监听的地址、端口以及提供HTTPS所使用的证书
 		SecureServing: kubeoptions.NewSecureServingOptions(),
 		// 审计配置，审计功能解决了APIServer持久化审计事件，方便K8S用户溯源
 		Audit: genericoptions.NewAuditOptions(),
-		// 特性配置，主要用户Debug K8S, 查看K8S的性能
+		// 特性配置，用于Debug K8S, 查看K8S的性能；注意，这里所说的特性并非是APIServer的各个特性开关，而是APIServer性能特性相关的配置
 		Features: genericoptions.NewFeatureOptions(),
-		// 准入控制配置
+		// 实例化准入控制插件的参数，并注册所有K8S内部实现的准入控制插件、设置默认禁用的准入控制插件
 		Admission: kubeoptions.NewAdmissionOptions(),
 		// 认证参数
 		Authentication: kubeoptions.NewBuiltInAuthenticationOptions().WithAll(),

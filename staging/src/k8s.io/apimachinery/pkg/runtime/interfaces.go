@@ -247,7 +247,7 @@ type ClientNegotiator interface {
 // TODO 1、为什么这个接口不直接组合NegotiatedSerializer接口？
 type StorageSerializer interface {
 	// SupportedMediaTypes are the media types supported for reading and writing objects.
-	// 返回当前支持的所有媒体类型
+	// 返回当前支持的所有媒体类型，每隔媒体类型都携带了这个类型的编解码器
 	SupportedMediaTypes() []SerializerInfo
 
 	// UniversalDeserializer returns a Serializer that can read objects in multiple supported formats

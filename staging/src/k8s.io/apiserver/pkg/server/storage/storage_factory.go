@@ -77,7 +77,8 @@ type DefaultStorageFactory struct {
 	StorageConfig storagebackend.Config
 
 	// 1、用于资源覆盖默认配置，我们是可以覆盖某个资源的存储配置的
-	// 2、可以理解为针对某个GR专门的配置  TODO 这个配置将来会覆盖 storagebackend.Config 配置
+	// 2、可以理解为针对某个GR专门的配置，这个配置将来会覆盖 storagebackend.Config 配置
+	// 3、当key.Reosurce=*时，表示这个组下的所有资源都使用这个配置
 	Overrides map[schema.GroupResource]groupResourceOverrides
 
 	// 默认资源的前缀
@@ -110,7 +111,7 @@ type DefaultStorageFactory struct {
 type groupResourceOverrides struct {
 	// etcdLocation contains the list of "special" locations that are used for particular GroupResources
 	// These are merged on top of the StorageConfig when requesting the storage.Interface for a given GroupResource
-	// TODO 如何理解这个配置，值为ETCD Server地址?
+	// ETCD的地址，一般来说都是使用的ETCD集群，所以这里需要把ETCD所有的地址都配置上
 	etcdLocation []string
 	// etcdPrefix is the base location for a GroupResource.
 	// 资源的ETCD前缀
@@ -118,6 +119,7 @@ type groupResourceOverrides struct {
 	// etcdResourcePrefix is the location to use to store a particular type under the `etcdPrefix` location
 	// If empty, the default mapping is used.  If the default mapping doesn't contain an entry, it will use
 	// the ToLowered name of the resource, not including the group.
+	// TODO 这玩意干嘛的？
 	etcdResourcePrefix string
 	// mediaType is the desired serializer to choose. If empty, the default is chosen.
 	// 媒体类型决定了当前资源使用哪一种序列化器进行编解码，当前K8S支持JSON, YAML, Protobuf三种格式的编解码
@@ -170,12 +172,12 @@ var _ StorageFactory = &DefaultStorageFactory{}
 const AllResources = "*"
 
 func NewDefaultStorageFactory(
-	config storagebackend.Config,
-	defaultMediaType string,
-	defaultSerializer runtime.StorageSerializer,
-	resourceEncodingConfig ResourceEncodingConfig,
-	resourceConfig APIResourceConfigSource,
-	specialDefaultResourcePrefixes map[schema.GroupResource]string,
+	config storagebackend.Config, // 后端存储配置，这是一个通用配置，所有资源都是这个配置，当然资源可以进行定制化的配置
+	defaultMediaType string, // 默认媒体类型
+	defaultSerializer runtime.StorageSerializer, // 序列化器，用于编码、解码
+	resourceEncodingConfig ResourceEncodingConfig, // 用于获取资源的存储版本以及__internal版本
+	resourceConfig APIResourceConfigSource, // 用于获取哪些资源是启用的，哪些是禁用的
+	specialDefaultResourcePrefixes map[schema.GroupResource]string, // 某些资源的前缀配置
 ) *DefaultStorageFactory {
 	config.Paging = utilfeature.DefaultFeatureGate.Enabled(features.APIListChunking)
 	// 如果没有指定默认的媒体类型，那么默认就是使用JSON格式存储
@@ -195,12 +197,14 @@ func NewDefaultStorageFactory(
 	}
 }
 
+// SetEtcdLocation 设置资源的存储位置
 func (s *DefaultStorageFactory) SetEtcdLocation(groupResource schema.GroupResource, location []string) {
 	overrides := s.Overrides[groupResource]
 	overrides.etcdLocation = location
 	s.Overrides[groupResource] = overrides
 }
 
+// SetEtcdPrefix 设置资源的存储前缀
 func (s *DefaultStorageFactory) SetEtcdPrefix(groupResource schema.GroupResource, prefix string) {
 	overrides := s.Overrides[groupResource]
 	overrides.etcdPrefix = prefix
@@ -264,39 +268,50 @@ func (s *DefaultStorageFactory) getStorageGroupResource(groupResource schema.Gro
 
 // NewConfig New finds the storage destination for the given group and resource. It will
 // return an error if the group has no storage destination configured.
+// 1、返回某个资源的存储配置
 func (s *DefaultStorageFactory) NewConfig(groupResource schema.GroupResource) (*storagebackend.ConfigForResource, error) {
+	// 1、获取当前资源的持久化GR，对于绝大多数的资源来说，都是它本身。
+	// 2、但是对于networkpolicies, deployments, daemonsets, replicasets, events, replicationcontrollers, podsecuritypolicies, ingresses
+	// 资源来说，由于这些资源同时在两个组下，因此需要选择其中的一个组来进行存储，这个时候就可能从一个GR变换为另外一个GR
 	chosenStorageResource := s.getStorageGroupResource(groupResource)
 
-	// operate on copy
+	// 拷贝默认的存储配置，这个存储配置是默认的存储配置，有些资源做了特殊的配置，后面会进行对应的初始化
 	storageConfig := s.StorageConfig
 	codecConfig := StorageCodecConfig{
 		StorageMediaType:  s.DefaultMediaType,
 		StorageSerializer: s.DefaultSerializer,
 	}
 
+	// 如果对于某个组进行了通用配置（即resource=*），那么优先应用通用配置
 	if override, ok := s.Overrides[getAllResourcesAlias(chosenStorageResource)]; ok {
 		override.Apply(&storageConfig, &codecConfig)
 	}
+	// 1、如果对于当前的资源进行了单独的配置，那么还需要应用这个资源的配置
+	// 2、从这里可以看出，即使我们通过resource=*的方式对于某个组进行了通用配置，但是我们还是可以指定这个组下的具体资源再次进行配置
 	if override, ok := s.Overrides[chosenStorageResource]; ok {
 		override.Apply(&storageConfig, &codecConfig)
 	}
 
 	var err error
+	// 返回这个资源优先选择的持久化GV
 	codecConfig.StorageVersion, err = s.ResourceEncodingConfig.StorageEncodingFor(chosenStorageResource)
 	if err != nil {
 		return nil, err
 	}
+	// 返回这个资源优先选择的__internal GV
 	codecConfig.MemoryVersion, err = s.ResourceEncodingConfig.InMemoryEncodingFor(groupResource)
 	if err != nil {
 		return nil, err
 	}
 	codecConfig.Config = storageConfig
 
+	// 获取当前资源的编解码器
 	storageConfig.Codec, storageConfig.EncodeVersioner, err = s.newStorageCodecFn(codecConfig)
 	if err != nil {
 		return nil, err
 	}
-	klog.V(3).Infof("storing %v in %v, reading as %v from %#v", groupResource, codecConfig.StorageVersion, codecConfig.MemoryVersion, codecConfig.Config)
+	klog.V(3).Infof("storing %v in %v, reading as %v from %#v", groupResource,
+		codecConfig.StorageVersion, codecConfig.MemoryVersion, codecConfig.Config)
 
 	return storageConfig.ForResource(groupResource), nil
 }

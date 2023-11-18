@@ -224,7 +224,9 @@ type GenericAPIServer struct {
 	// with no guarantee of ordering between them.  The map key is a name used for error reporting.
 	// It may kill the process with a panic if it wishes to by returning an error.
 	postStartHookLock sync.Mutex
-	// 1、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
+	// 0、PostStartHook,GenericServer启动之后，就会启动所有的PostStartHook
+	// 1、GenericServer在初始化的过程中，默认添加的PostStartHook有：
+	// 	1.1 start-encryption-provider-config-automatic-reload: 用于加解密
 	// 2、ExtensionServer添加的后置Hook有：
 	//	2.1 crd-informer-synced：用于等待CRD Informer同步完成
 	// 	2.2 start-apiextensions-informers: 用于启动SharedInformerFactory

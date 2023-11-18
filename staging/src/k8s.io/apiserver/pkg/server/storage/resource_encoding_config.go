@@ -27,7 +27,7 @@ type ResourceEncodingConfig interface {
 	// StorageEncodingFor returns the serialization format for the resource.
 	// TODO this should actually return a GroupVersionKind since you can logically have multiple "matching" Kinds
 	// For now, it returns just the GroupVersion for consistency with old behavior
-	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是常规资源
+	// TODO 这里似乎在获取 GR <-> GV 的映射，并且获取的是外部资源
 	StorageEncodingFor(schema.GroupResource) (schema.GroupVersion, error)
 
 	// InMemoryEncodingFor returns the groupVersion for the in memory representation the storage should convert to.
@@ -37,6 +37,7 @@ type ResourceEncodingConfig interface {
 
 type DefaultResourceEncodingConfig struct {
 	// resources records the overriding encoding configs for individual resources.
+	// TODO 这玩意似乎专门针对特殊资源的设置
 	resources map[schema.GroupResource]*OverridingResourceEncoding
 	scheme    *runtime.Scheme
 }
@@ -56,6 +57,14 @@ func NewDefaultResourceEncodingConfig(scheme *runtime.Scheme) *DefaultResourceEn
 }
 
 // SetResourceEncoding 注册外部资源和内部资源的映射关系，普通用户使用的都是外部资源，在K8S中使用内部资源(__internal)
+/*
+  目前只有下面几个资源进行了单独的配置：
+	admissionregistration.Resource("validatingadmissionpolicies").WithVersion("v1alpha1"),
+	admissionregistration.Resource("validatingadmissionpolicybindings").WithVersion("v1alpha1"),
+	networking.Resource("clustercidrs").WithVersion("v1alpha1"),
+	networking.Resource("ipaddresses").WithVersion("v1alpha1"),
+	certificates.Resource("clustertrustbundles").WithVersion("v1alpha1"),
+*/
 func (o *DefaultResourceEncodingConfig) SetResourceEncoding(
 	resourceBeingStored schema.GroupResource,
 	externalEncodingVersion,
@@ -68,11 +77,12 @@ func (o *DefaultResourceEncodingConfig) SetResourceEncoding(
 }
 
 func (o *DefaultResourceEncodingConfig) StorageEncodingFor(resource schema.GroupResource) (schema.GroupVersion, error) {
-	// 先判断当前资源所在的是否存在，如果不存在，那肯定找不到与之对应的内部版本
+	// 先判断当前资源所在的是否存在，如果不存在，那肯定找不到与之对应的外部版本
 	if !o.scheme.IsGroupRegistered(resource.Group) {
 		return schema.GroupVersion{}, fmt.Errorf("group %q is not registered in scheme", resource.Group)
 	}
 
+	// 如果当前资源进行了特殊设置，那么直接返回外部资源配置
 	resourceOverride, resourceExists := o.resources[resource]
 	if resourceExists {
 		return resourceOverride.ExternalResourceEncoding, nil
@@ -84,6 +94,7 @@ func (o *DefaultResourceEncodingConfig) StorageEncodingFor(resource schema.Group
 }
 
 func (o *DefaultResourceEncodingConfig) InMemoryEncodingFor(resource schema.GroupResource) (schema.GroupVersion, error) {
+	// 先判断当前资源所在的是否存在，如果不存在，那肯定找不到与之对应的内部版本
 	if !o.scheme.IsGroupRegistered(resource.Group) {
 		return schema.GroupVersion{}, fmt.Errorf("group %q is not registered in scheme", resource.Group)
 	}

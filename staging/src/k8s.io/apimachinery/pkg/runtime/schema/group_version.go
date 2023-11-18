@@ -193,11 +193,14 @@ func (gv GroupVersion) Identifier() string {
 // TODO: Introduce an adapter type between GroupVersion and runtime.GroupVersioner, and use LegacyCodec(GroupVersion)
 // in fewer places.
 func (gv GroupVersion) KindForGroupVersionKinds(kinds []GroupVersionKind) (target GroupVersionKind, ok bool) {
+	// 先匹配Group, Version完全相等
 	for _, gvk := range kinds {
 		if gvk.Group == gv.Group && gvk.Version == gv.Version {
 			return gvk, true
 		}
 	}
+
+	// 没有找到的情况下，只能退而求其次选择组相等的GVK
 	for _, gvk := range kinds {
 		if gvk.Group == gv.Group {
 			return gv.WithKind(gvk.Kind), true
@@ -265,6 +268,7 @@ func (gvs GroupVersions) KindForGroupVersionKinds(kinds []GroupVersionKind) (Gro
 	if len(targets) == 1 {
 		return targets[0], true
 	}
+	// 选择最匹配的GVK
 	if len(targets) > 1 {
 		return bestMatch(kinds, targets), true
 	}

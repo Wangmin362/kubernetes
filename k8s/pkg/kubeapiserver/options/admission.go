@@ -50,9 +50,14 @@ type AdmissionOptions struct {
 //	Provides the list of RecommendedPluginOrder that holds sane values
 //	that can be used by servers that don't care about admission chain.
 //	Servers that do care can overwrite/append that field after creation.
+//
+// 实例化准入控制插件的参数，并注册所有K8S内部实现的准入控制插件、设置默认禁用的准入控制插件
 func NewAdmissionOptions() *AdmissionOptions {
+	// 实例化准入控制插件的参数，并注册NamespaceLifecycle、ValidatingAdmissionWebhook、MutatingAdmissionWebhook、
+	// ValidatingAdmissionPolicy准入控制插件
 	options := genericoptions.NewAdmissionOptions()
 	// register all admission plugins
+	// 注册K8S内部的准入控制插件
 	RegisterAllAdmissionPlugins(options.Plugins)
 	// set RecommendedPluginOrder
 	options.RecommendedPluginOrder = AllOrderedPlugins

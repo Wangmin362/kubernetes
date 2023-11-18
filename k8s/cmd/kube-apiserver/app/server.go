@@ -319,6 +319,7 @@ func CreateKubeAPIServer(
 func CreateProxyTransport() *http.Transport {
 	var proxyDialerFn utilnet.DialFunc
 	// Proxying to pods and services is IP-based... don't expect to be able to verify the hostname
+	// 跳过证书验证
 	proxyTLSClientConfig := &tls.Config{InsecureSkipVerify: true}
 	proxyTransport := utilnet.SetTransportDefaults(&http.Transport{
 		DialContext:     proxyDialerFn,
@@ -512,7 +513,7 @@ func buildGenericConfig(
 	// 1、生成GenericServer配置，此配置当中包含HTTPS服务设置（监听地址、端口、证书）、认证器、鉴权器、回环网卡客户端配置、准入控制、
 	// 流控（也就是限速）、审计、链路追踪配置
 	// 2、这里生成的配置仅仅是初始化配置，仅仅会设置一些默认参数，用户配置的参数还没有赋值
-	// 3、这里比较重要的就是其中配置了请求处理链
+	// 3、这里比较重要的就是其中初始化了默认的请求处理链
 	genericConfig = genericapiserver.NewConfig(legacyscheme.Codecs)
 
 	// 后续开始给初始化GenericServer配置
@@ -528,14 +529,15 @@ func buildGenericConfig(
 	}
 
 	// 利用用户设置的SecureServing参数初始化GenericServerConfig配置的HTTPS服务启动参数、回环客户端参数
+	// TODO 为什么这里需要二级指针？
 	if lastErr = s.SecureServing.ApplyTo(&genericConfig.SecureServing, &genericConfig.LoopbackClientConfig); lastErr != nil {
 		return
 	}
-	// 给GenericServerConfig配置一些特性相关的参数
+	// 给GenericServerConfig配置一些性能相关的参数，譬如Profiling, Debug
 	if lastErr = s.Features.ApplyTo(genericConfig); lastErr != nil {
 		return
 	}
-	// 设置启用/禁用的资源
+	// 这里其实就是需要根据注册中心(scheme)、K8S默认启用/禁用的资源、用户设置禁用/启用的资源做一个合并的动作，最终合并出启用/禁用的资源
 	if lastErr = s.APIEnablement.ApplyTo(genericConfig, controlplane.DefaultAPIResourceConfigSource(), legacyscheme.Scheme); lastErr != nil {
 		return
 	}
@@ -544,14 +546,14 @@ func buildGenericConfig(
 		return
 	}
 
-	// 如果启用的APIServer链路追踪的功能，就初始化链路追踪配置 TODO OTLP
+	// TODO 如果启用的APIServer链路追踪的功能，就初始化链路追踪配置
 	if utilfeature.DefaultFeatureGate.Enabled(genericfeatures.APIServerTracing) {
 		if lastErr = s.Traces.ApplyTo(genericConfig.EgressSelector, genericConfig); lastErr != nil {
 			return
 		}
 	}
 	// wrap the definitions to revert any changes from disabled features
-	// TODO Swagger是不是和这里相关
+	// TODO OpenAPI相关配置，用于提供Swagger文档
 	getOpenAPIDefinitions := openapi.GetOpenAPIDefinitionsWithoutDisabledFeatures(generatedopenapi.GetOpenAPIDefinitions)
 	genericConfig.OpenAPIConfig = genericapiserver.DefaultOpenAPIConfig(getOpenAPIDefinitions,
 		openapinamer.NewDefinitionNamer(legacyscheme.Scheme, extensionsapiserver.Scheme, aggregatorscheme.Scheme))
@@ -581,7 +583,7 @@ func buildGenericConfig(
 		s.Etcd.StorageConfig.Transport.TracerProvider = oteltrace.NewNoopTracerProvider()
 	}
 
-	// ETCD配置补全  主要是像GenericServer中添加了一个名为start-encryption-provider-config-automatic-reload的PostStartHook
+	// 向GenericServer中添加了一个名为start-encryption-provider-config-automatic-reload的PostStartHook，用于加解密
 	// TODO 这个后置处理器似乎和ETCD的加密有关，后续有空在分析
 	if lastErr = s.Etcd.Complete(genericConfig.StorageObjectCountTracker, genericConfig.DrainedNotify(), genericConfig.AddPostStartHook); lastErr != nil {
 		return

@@ -29,7 +29,7 @@ import (
 )
 
 // GroupVersionRegistry provides access to registered group versions.
-// TODO 如何理解GV注册中心？  实际上就是scheme
+// 1、所谓GV注册中心，其实就是用于判断group是否已经注册、GV是否已经注册、所有组的GV优先级顺序
 type GroupVersionRegistry interface {
 	// IsGroupRegistered returns true if given group is registered.
 	// 返回当前的组是否已经注册
@@ -38,16 +38,26 @@ type GroupVersionRegistry interface {
 	// 返回当前的GV是否已经注册
 	IsVersionRegistered(v schema.GroupVersion) bool
 	// PrioritizedVersionsAllGroups returns all registered group versions.
+	// 返回K8S当前所有组的GV的版本优先级
 	PrioritizedVersionsAllGroups() []schema.GroupVersion
 }
 
 // MergeResourceEncodingConfigs merges the given defaultResourceConfig with specific GroupVersionResource overrides.
 // 用于设置设置某些GVR的内部版本与外部版本的映射关系
 func MergeResourceEncodingConfigs(
-	defaultResourceEncoding *serverstore.DefaultResourceEncodingConfig,
-	resourceEncodingOverrides []schema.GroupVersionResource,
+	defaultResourceEncoding *serverstore.DefaultResourceEncodingConfig, // 默认的资源编码配置中单独配置的资源是空的
+	resourceEncodingOverrides []schema.GroupVersionResource, // 某些资源单独进行了配置
 ) *serverstore.DefaultResourceEncodingConfig {
 	resourceEncodingConfig := defaultResourceEncoding
+	/*
+		目前resourceEncodingOverrides有以下几个资源：
+			admissionregistration.Resource("validatingadmissionpolicies").WithVersion("v1alpha1"),
+			admissionregistration.Resource("validatingadmissionpolicybindings").WithVersion("v1alpha1"),
+			networking.Resource("clustercidrs").WithVersion("v1alpha1"),
+			networking.Resource("ipaddresses").WithVersion("v1alpha1"),
+			certificates.Resource("clustertrustbundles").WithVersion("v1alpha1"),
+	*/
+
 	for _, gvr := range resourceEncodingOverrides {
 		resourceEncodingConfig.SetResourceEncoding(gvr.GroupResource(), gvr.GroupVersion(),
 			schema.GroupVersion{Group: gvr.Group, Version: runtime.APIVersionInternal})
@@ -86,9 +96,9 @@ var (
 // Exclude the groups not registered in registry, and check if version is
 // not registered in group, then it will fail.
 func MergeAPIResourceConfigs(
-	defaultAPIResourceConfig *serverstore.ResourceConfig,
-	resourceConfigOverrides cliflag.ConfigurationMap,
-	registry GroupVersionRegistry, // 实际上就是scheme
+	defaultAPIResourceConfig *serverstore.ResourceConfig, // K8S默认启用、禁用的资源
+	resourceConfigOverrides cliflag.ConfigurationMap, // 用户配置的启用、禁用的资源
+	registry GroupVersionRegistry, // 所谓GV注册中心，其实就是用于判断group是否已经注册、GV是否已经注册、所有组的GV优先级顺序
 ) (*serverstore.ResourceConfig, error) {
 	resourceConfig := defaultAPIResourceConfig
 	overrides := resourceConfigOverrides

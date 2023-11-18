@@ -67,9 +67,11 @@ func appendBackend(existing, newBackend audit.Backend) audit.Backend {
 type AuditOptions struct {
 	// Policy configuration file for filtering audit events that are captured.
 	// If unspecified, a default is provided.
+	// 用于配置审计的策略文件，策略文件中可以配置哪些审计事件需要持久化，哪些不需要
 	PolicyFile string
 
 	// Plugin options
+	// 审计的持久化支持两种方式，一种是日志，一种是webhook
 	LogOptions     AuditLogOptions
 	WebhookOptions AuditWebhookOptions
 }
@@ -116,9 +118,9 @@ type AuditTruncateOptions struct {
 
 // AuditLogOptions determines the output of the structured audit log by default.
 type AuditLogOptions struct {
-	Path       string
-	MaxAge     int
-	MaxBackups int
+	Path       string // 持久化日志文件的路径
+	MaxAge     int    // TODO 日志保留多长时间？
+	MaxBackups int    // TODO 需要几个备份？
 	MaxSize    int
 	Format     string
 	Compress   bool

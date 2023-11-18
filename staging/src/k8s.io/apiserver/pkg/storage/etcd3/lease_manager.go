@@ -41,7 +41,7 @@ type LeaseManagerConfig struct {
 // NewDefaultLeaseManagerConfig creates a LeaseManagerConfig with default values
 func NewDefaultLeaseManagerConfig() LeaseManagerConfig {
 	return LeaseManagerConfig{
-		ReuseDurationSeconds: defaultLeaseReuseDurationSeconds,
+		ReuseDurationSeconds: defaultLeaseReuseDurationSeconds, // 默认60秒
 		MaxObjectCount:       defaultLeaseMaxObjectCount,
 	}
 }
@@ -51,6 +51,7 @@ func NewDefaultLeaseManagerConfig() LeaseManagerConfig {
 // lease will be reused to reduce the overhead of etcd, since lease operations
 // are expensive. In the implementation, we only store one previous lease,
 // since all the events have the same ttl.
+// TODO 仔细分析
 type leaseManager struct {
 	client                  *clientv3.Client // etcd client used to grant leases
 	leaseMu                 sync.Mutex

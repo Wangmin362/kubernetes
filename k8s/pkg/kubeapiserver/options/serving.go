@@ -29,7 +29,7 @@ func NewSecureServingOptions() *genericoptions.SecureServingOptionsWithLoopback 
 		// 默认APIServer监听0.0.0.0地址，这样所有的IP地址都可以和APIServer建立TCP连接
 		BindAddress: netutils.ParseIPSloppy("0.0.0.0"),
 		BindPort:    6443,
-		Required:    true,
+		Required:    true, // 设置为true，表示BindPort不能为0
 		ServerCert: genericoptions.GeneratableKeyCert{
 			PairName: "apiserver",
 			// 对应到--cert-dir参数，只要我们通过--tls-cert-file参数以及--tls-private-key-file指定了APIServer使用的证书以及密钥

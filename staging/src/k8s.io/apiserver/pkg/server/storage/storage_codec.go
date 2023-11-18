@@ -103,6 +103,7 @@ func NewStorageCodec(opts StorageCodecConfig) (runtime.Codec, runtime.GroupVersi
 	// TODO 获取解码器
 	decoder := opts.StorageSerializer.DecoderToVersion(
 		recognizer.NewDecoder(decoders...),
+		// decode需要优先转为__internal版本
 		runtime.NewCoercingMultiGroupVersioner(
 			opts.MemoryVersion,
 			schema.GroupKind{Group: opts.MemoryVersion.Group},

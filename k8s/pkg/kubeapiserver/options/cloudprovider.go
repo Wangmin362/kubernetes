@@ -33,7 +33,7 @@ func NewCloudProviderOptions() *CloudProviderOptions {
 
 // Validate checks invalid config
 func (s *CloudProviderOptions) Validate() []error {
-	allErrors := []error{}
+	var allErrors []error
 	return allErrors
 }
 

@@ -108,6 +108,7 @@ var AllOrderedPlugins = []string{
 
 // RegisterAllAdmissionPlugins registers all admission plugins.
 // The order of registration is irrelevant, see AllOrderedPlugins for execution order.
+// 注册K8S内部的准入控制插件
 func RegisterAllAdmissionPlugins(plugins *admission.Plugins) {
 	admit.Register(plugins) // DEPRECATED as no real meaning
 	alwayspullimages.Register(plugins)

@@ -54,19 +54,26 @@ func init() {
 // AdmissionOptions holds the admission options
 type AdmissionOptions struct {
 	// RecommendedPluginOrder holds an ordered list of plugin names we recommend to use by default
+	// 推荐插件的顺序
 	RecommendedPluginOrder []string
 	// DefaultOffPlugins is a set of plugin names that is disabled by default
+	// 默认关闭的插件
 	DefaultOffPlugins sets.String
 
 	// EnablePlugins indicates plugins to be enabled passed through `--enable-admission-plugins`.
+	// 启用的插件
 	EnablePlugins []string
 	// DisablePlugins indicates plugins to be disabled passed through `--disable-admission-plugins`.
+	// 禁用的插件
 	DisablePlugins []string
 	// ConfigFile is the file path with admission control configuration.
+	// 插件配置文件路径
 	ConfigFile string
 	// Plugins contains all registered plugins.
+	// 缓存所有注册的插件
 	Plugins *admission.Plugins
 	// Decorators is a list of admission decorator to wrap around the admission plugins
+	// 准入插件的装饰器，目前似乎就是用于记录指标用的，没有看到其它用法
 	Decorators admission.Decorators
 }
 
@@ -83,7 +90,8 @@ type AdmissionOptions struct {
 // 实例化准入控制参数
 func NewAdmissionOptions() *AdmissionOptions {
 	options := &AdmissionOptions{
-		Plugins:    admission.NewPlugins(),
+		Plugins: admission.NewPlugins(),
+		// 记录准入插件的指标
 		Decorators: admission.Decorators{admission.DecoratorFunc(admissionmetrics.WithControllerMetrics)},
 		// This list is mix of mutating admission plugins and validating
 		// admission plugins. The apiserver always runs the validating ones
@@ -92,6 +100,7 @@ func NewAdmissionOptions() *AdmissionOptions {
 		RecommendedPluginOrder: []string{lifecycle.PluginName, mutatingwebhook.PluginName, validatingadmissionpolicy.PluginName, validatingwebhook.PluginName},
 		DefaultOffPlugins:      sets.NewString(),
 	}
+	// 注册NamespaceLifecycle、ValidatingAdmissionWebhook、MutatingAdmissionWebhook、ValidatingAdmissionPolicy准入控制插件
 	server.RegisterAllAdmissionPlugins(options.Plugins)
 	return options
 }

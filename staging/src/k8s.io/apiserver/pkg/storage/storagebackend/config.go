@@ -51,6 +51,7 @@ type TransportConfig struct {
 	CertFile      string
 	TrustedCAFile string // ETCD的CA根证书，用于校验ETCD证书，一般ETCD的证书都是自己签的
 	// function to determine the egress dialer. (i.e. konnectivity server dialer)
+	// TODO 这玩意是干嘛的？
 	EgressLookup egressselector.Lookup
 	// The TracerProvider can add tracing the connection
 	TracerProvider oteltrace.TracerProvider
@@ -106,6 +107,7 @@ type Config struct {
 
 	// StorageObjectCountTracker is used to keep track of the total
 	// number of objects in the storage per resource.
+	// TODO 这玩意干嘛的？
 	StorageObjectCountTracker flowcontrolrequest.StorageObjectCountTracker
 }
 
@@ -137,7 +139,7 @@ func NewDefaultConfig(prefix string, codec runtime.Codec) *Config {
 		DBMetricPollInterval: DefaultDBMetricPollInterval,
 		HealthcheckTimeout:   DefaultHealthcheckTimeout,
 		ReadycheckTimeout:    DefaultReadinessTimeout,
-		LeaseManagerConfig:   etcd3.NewDefaultLeaseManagerConfig(),
+		LeaseManagerConfig:   etcd3.NewDefaultLeaseManagerConfig(), // TODO 分析LeaseManager
 		Transport:            TransportConfig{TracerProvider: oteltrace.NewNoopTracerProvider()},
 	}
 }

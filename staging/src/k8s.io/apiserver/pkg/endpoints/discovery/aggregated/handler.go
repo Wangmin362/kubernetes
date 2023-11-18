@@ -56,6 +56,7 @@ type ResourceManager interface {
 	// If it was already being tracked, updates the stored APIVersionDiscovery
 	// Thread-safe
 	// APIVersionDiscovery本质上就是当前某个版本下的所有资源
+	// TODO 第二个参数为什么不是APIGroupDiscovery
 	AddGroupVersion(groupName string, value apidiscoveryv2beta1.APIVersionDiscovery)
 
 	// SetGroupVersionPriority Sets a priority to be used while sorting a specific group and

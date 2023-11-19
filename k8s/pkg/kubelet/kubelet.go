@@ -240,6 +240,7 @@ type Option func(*Kubelet)
 // Bootstrap is a bootstrapping interface for kubelet, targets the initialization protocol
 // TODO 如何理解这里的抽象接口
 type Bootstrap interface {
+	// GetConfiguration 获取kubelet配置
 	GetConfiguration() kubeletconfiginternal.KubeletConfiguration
 	BirthCry()
 	StartGarbageCollection()
@@ -254,18 +255,18 @@ type Bootstrap interface {
 // at runtime that are necessary for running the Kubelet. This is a temporary solution for grouping
 // these objects while we figure out a more comprehensive dependency injection story for the Kubelet.
 type Dependencies struct {
-	Options []Option
+	Options []Option // 用于修改kubelet实例对象
 
 	// Injected Dependencies
-	Auth                     server.AuthInterface            // 包含认证和授权
+	Auth                     server.AuthInterface            // 认证和授权
 	CAdvisorInterface        cadvisor.Interface              // cAdvisor，用于获取Kubelet所在节点指标
-	Cloud                    cloudprovider.Interface         // TODO 暂时不清除其作用
-	ContainerManager         cm.ContainerManager             // TODO 容器管理器
-	EventClient              v1core.EventsGetter             // 事件客户端
-	HeartbeatClient          clientset.Interface             // TODO 为啥名字叫做Heartbeat, 难道是专门用于心跳？
-	OnHeartbeatFailure       func()                          // 心跳失败回调
-	KubeClient               clientset.Interface             // K8S ClientSet客户端，用于Informer机制，缓存K8S资源
-	Mounter                  mount.Interface                 // TODO 应该是和存储卷的挂载有关
+	Cloud                    cloudprovider.Interface         // TODO 暂时不清楚其作用
+	ContainerManager         cm.ContainerManager             // TODO 容器管理器，相当重要
+	EventClient              v1core.EventsGetter             // 事件客户端，用于上报事件
+	HeartbeatClient          clientset.Interface             // TODO 为啥名字叫做Heartbeat, 难道是专门用于心跳？ 名字起的不咋样
+	OnHeartbeatFailure       func()                          // 心跳失败回调 kubelet需要和谁保持心跳？
+	KubeClient               clientset.Interface             // K8S ClientSet客户端，用于Informer机制，缓存K8S资源 TODO KubeClient和HeartbeatClient有何区别？
+	Mounter                  mount.Interface                 // 存储卷的挂载有关
 	HostUtil                 hostutil.HostUtils              // 主机相关的操作，譬如打开一个设备、判断某个设备是否存在，判断是否支持SELinux，获取文件的属主
 	OOMAdjuster              *oom.OOMAdjuster                // TODO 看起来是和OOM相关的
 	OSInterface              kubecontainer.OSInterface       // 操作系统操作的常规定义，譬如打开、删除、创建、重命名文件等等操作

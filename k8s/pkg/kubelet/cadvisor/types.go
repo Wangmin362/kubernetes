@@ -35,16 +35,16 @@ type Interface interface {
 
 	VersionInfo() (*cadvisorapi.VersionInfo, error)
 
-	// Returns usage information about the filesystem holding container images.
+	// ImagesFsInfo Returns usage information about the filesystem holding container images.
 	ImagesFsInfo() (cadvisorapiv2.FsInfo, error)
 
-	// Returns usage information about the root filesystem.
+	// RootFsInfo Returns usage information about the root filesystem.
 	RootFsInfo() (cadvisorapiv2.FsInfo, error)
 
-	// Get events streamed through passedChannel that fit the request.
+	// WatchEvents Get events streamed through passedChannel that fit the request.
 	WatchEvents(request *events.Request) (*events.EventChannel, error)
 
-	// Get filesystem information for the filesystem that contains the given file.
+	// GetDirFsInfo Get filesystem information for the filesystem that contains the given file.
 	GetDirFsInfo(path string) (cadvisorapiv2.FsInfo, error)
 }
 

@@ -231,6 +231,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 			if err := logsapi.ValidateAndApplyAsField(&kubeletConfig.Logging, utilfeature.DefaultFeatureGate, field.NewPath("logging")); err != nil {
 				return fmt.Errorf("initialize logging: %v", err)
 			}
+			// 打印kubelet的参数
 			cliflag.PrintFlags(cleanFlagSet)
 
 			// We always validate the local configuration (command line + config file).
@@ -240,7 +241,8 @@ is checked every 20 seconds (also configurable with a flag).`,
 				return fmt.Errorf("failed to validate kubelet configuration, error: %w, path: %s", err, kubeletConfig)
 			}
 
-			if (kubeletConfig.KubeletCgroups != "" && kubeletConfig.KubeReservedCgroup != "") && (strings.Index(kubeletConfig.KubeletCgroups, kubeletConfig.KubeReservedCgroup) != 0) {
+			if (kubeletConfig.KubeletCgroups != "" && kubeletConfig.KubeReservedCgroup != "") &&
+				(strings.Index(kubeletConfig.KubeletCgroups, kubeletConfig.KubeReservedCgroup) != 0) {
 				klog.InfoS("unsupported configuration:KubeletCgroups is not within KubeReservedCgroup")
 			}
 
@@ -252,13 +254,13 @@ is checked every 20 seconds (also configurable with a flag).`,
 			}
 
 			// use kubeletServer to construct the default KubeletDeps
-			// TODO 根据特性开关初始化Kubelet Dependencies
+			// TODO 实例化kubelet部分依赖
 			kubeletDeps, err := UnsecuredDependencies(kubeletServer, utilfeature.DefaultFeatureGate)
 			if err != nil {
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
 			}
 
-			// 检测Kubelet是否以Root的方式运行
+			// kubelet必须以ROOT身份运行
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
@@ -352,6 +354,7 @@ func kubeletConfigFlagPrecedence(kc *kubeletconfiginternal.KubeletConfiguration,
 	return nil
 }
 
+// name为kubelet配置文件路径
 func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, error) {
 	const errFmt = "failed to load Kubelet config file %s, error %v"
 	// compute absolute path based on current working dir
@@ -380,6 +383,7 @@ func loadConfigFile(name string) (*kubeletconfiginternal.KubeletConfiguration, e
 
 // UnsecuredDependencies returns a Dependencies suitable for being run, or an error if the server setup
 // is not valid.  It will not start any background processes, and does not include authentication/authorization
+// 1、TODO 为什么叫做不安全的依赖？
 func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.FeatureGate) (*kubelet.Dependencies, error) {
 	// Initialize the TLS Options
 	// 初始化TLS配置
@@ -430,14 +434,17 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 // Otherwise, the caller is assumed to have set up the Dependencies object and a default one will
 // not be generated.
 // 运行Kubelet
-// 1、KubeletServer为Kubelet的命令行参数
-// 2、Dependencies为Kubelet运行时所需要的依赖服务
-// 3、FeatureGate为特性开关
-func Run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) error {
+func Run(
+	ctx context.Context,
+	s *options.KubeletServer, // kubelet配置
+	kubeDeps *kubelet.Dependencies, // kubelet依赖
+	featureGate featuregate.FeatureGate, // kubelet开启的特性
+) error {
 	// To help debugging, immediately log version
 	klog.InfoS("Kubelet version", "kubeletVersion", version.Get())
 
-	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"), "GOTRACEBACK", os.Getenv("GOTRACEBACK"))
+	klog.InfoS("Golang settings", "GOGC", os.Getenv("GOGC"), "GOMAXPROCS", os.Getenv("GOMAXPROCS"),
+		"GOTRACEBACK", os.Getenv("GOTRACEBACK"))
 
 	// 不同的操作系统可能需要一些初始化动作
 	if err := initForOS(s.KubeletFlags.WindowsService, s.KubeletFlags.WindowsPriorityClass); err != nil {

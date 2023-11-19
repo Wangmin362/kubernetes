@@ -238,9 +238,9 @@ func ListenAndServePodResources(socket string, providers podresources.PodResourc
 
 // AuthInterface contains all methods required by the auth filters
 type AuthInterface interface {
-	authenticator.Request
-	authorizer.RequestAttributesGetter
-	authorizer.Authorizer
+	authenticator.Request              // 认证
+	authorizer.RequestAttributesGetter // 用于从请求信息当中抽取某些关键属性用于鉴权
+	authorizer.Authorizer              // 鉴权
 }
 
 // HostInterface contains all the kubelet methods required by the server.

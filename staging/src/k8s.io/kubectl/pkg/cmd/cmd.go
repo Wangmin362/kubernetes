@@ -100,6 +100,7 @@ var defaultConfigFlags = genericclioptions.NewConfigFlags(true).WithDeprecatedPa
 // NewDefaultKubectlCommand creates the `kubectl` command with default arguments
 func NewDefaultKubectlCommand() *cobra.Command {
 	return NewDefaultKubectlCommandWithArgs(KubectlOptions{
+		// kubectl插件原理
 		PluginHandler: NewDefaultPluginHandler(plugin.ValidPluginFilenamePrefixes),
 		Arguments:     os.Args,
 		ConfigFlags:   defaultConfigFlags,

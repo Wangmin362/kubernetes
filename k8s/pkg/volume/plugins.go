@@ -122,6 +122,7 @@ type DynamicPluginProber interface {
 
 // VolumePlugin is an interface to volume plugins that can be used on a
 // kubernetes node (e.g. by kubelet) to instantiate and manage volumes.
+// TODO 什么叫做卷插件? 干嘛用的？ K8S是如何抽象的？
 type VolumePlugin interface {
 	// Init initializes the plugin.  This will be called exactly once
 	// before any New* calls are made - implementations of plugins may

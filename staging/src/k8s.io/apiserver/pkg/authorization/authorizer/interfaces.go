@@ -33,7 +33,7 @@ type Attributes interface {
 	// or the lowercased HTTP verb associated with non-API requests (this includes get, put, post, patch, and delete)
 	GetVerb() string
 
-	// When IsReadOnly() == true, the request has no side effects, other than
+	// IsReadOnly When IsReadOnly() == true, the request has no side effects, other than
 	// caching, logging, and other incidentals.
 	IsReadOnly() bool
 
@@ -89,6 +89,7 @@ type RuleResolver interface {
 }
 
 // RequestAttributesGetter provides a function that extracts Attributes from an http.Request
+// 用于从请求信息当中抽取某些关键属性用于鉴权
 type RequestAttributesGetter interface {
 	GetRequestAttributes(user.Info, *http.Request) Attributes
 }

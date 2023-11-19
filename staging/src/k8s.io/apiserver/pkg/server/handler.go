@@ -39,11 +39,15 @@ import (
 // the gorestful handler (used for the API) which falls through to the nonGoRestful handler on unregistered paths,
 // and the nonGoRestful handler (which can contain a fallthrough of its own)
 // FullHandlerChain -> Director -> {GoRestfulContainer,NonGoRestfulMux} based on inspection of registered web services
-// TODO 如何理解APIServerHandler的抽象
 // 1、APIServerHandler本质上就是要一个http.Handler，用于处理HTTP请求
+// 2、本质上APIServer, ExtensionServer, AggregatorServer都是Web服务，因此肯定需要一个http.Handler处理HTTP请求。所以K8S就需要一个
+// 地方可以用来保存合法的路由以及对应的处理器。APIServerHandler的设计就是如此。只不过路由被分别放在了两个地方保存，同时根据Delegator的设计
+// 思路，分别设计了一个需要鉴权、认证、审计的http.Handler，以及不需要认证、鉴权、审计的http.Handler。
+
 type APIServerHandler struct {
 	// FullHandlerChain is the one that is eventually served with.  It should include the full filter
 	// chain and then call the Director.
+	// 需要经过认证、鉴权、审计、流程的Handler
 	FullHandlerChain http.Handler
 	// The registered APIs.  InstallAPIs uses this.  Other servers probably shouldn't access this directly.
 	// 1、一个Container就是一个Web服务，里面包含了这个Web服务的路由信息
@@ -85,7 +89,7 @@ type APIServerHandler struct {
 type HandlerChainBuilderFn func(apiHandler http.Handler) http.Handler
 
 func NewAPIServerHandler(
-	name string,
+	name string, // 当前处理器的名字
 	s runtime.NegotiatedSerializer, // 序列化器用于响应请求的时候把go结构体序列化响应请求
 	handlerChainBuilder HandlerChainBuilderFn, // 默认的请求处理链
 	notFoundHandler http.Handler, // 如果自己处理不了这个请求，就需要把请求委派给NotFoundHandler
@@ -143,6 +147,7 @@ func (d director) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	path := req.URL.Path
 
 	// check to see if our webservices want to claim this path
+	//先看看是不是资源请求，如果是处理请求，如果不是，那么看看是不是非资源请求
 	for _, ws := range d.goRestfulContainer.RegisteredWebServices() {
 		switch {
 		case ws.RootPath() == "/apis":

@@ -40,7 +40,7 @@ func (s *GenericAPIServer) AddHealthChecks(checks ...healthz.HealthChecker) erro
 // will default to healthy. One may want to set a grace period in order to prevent the kubelet from restarting
 // the kube-apiserver due to long-ish boot sequences. Readyz health checks, on the other hand, have no grace period,
 // since readyz should fail until boot fully completes.
-// TODO 这玩意干嘛的？ 执行时间点？ 生命周期？
+// 其实就是服务的健康检测以及服务存活检测
 func (s *GenericAPIServer) AddBootSequenceHealthChecks(checks ...healthz.HealthChecker) error {
 	return s.addHealthChecks(s.livezGracePeriod, checks...)
 }

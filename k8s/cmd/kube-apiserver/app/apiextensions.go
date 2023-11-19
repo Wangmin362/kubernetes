@@ -79,7 +79,6 @@ func createAPIExtensionsConfig(
 	); err != nil {
 		return nil, err
 	}
-	// TODO 分析这里到底是如何存储的
 	crdRESTOptionsGetter, err := apiextensionsoptions.NewCRDRESTOptionsGetter(etcdOptions)
 	if err != nil {
 		return nil, err

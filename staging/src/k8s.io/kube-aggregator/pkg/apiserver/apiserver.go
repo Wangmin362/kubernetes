@@ -181,7 +181,7 @@ func (cfg *Config) Complete() CompletedConfig {
 
 	// the kube aggregator wires its own discovery mechanism
 	// TODO eventually collapse this by extracting all of the discovery out
-	// TODO 为啥要禁用路由发现？
+	// APIServer中已经开启了路由发现，AggregatorServer当中不需要再开启
 	c.GenericConfig.EnableDiscovery = false
 	version := version.Get()
 	c.GenericConfig.Version = &version
@@ -214,8 +214,8 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	//
 	// Note that the APIServiceRegistrationController waits for APIServiceInformer to synced before doing its work.
 	apiServiceRegistrationControllerInitiated := make(chan struct{})
-	// TODO 用于表示完成了某个动作
-	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated", apiServiceRegistrationControllerInitiated); err != nil {
+	if err := genericServer.RegisterMuxAndDiscoveryCompleteSignal("APIServiceRegistrationControllerInitiated",
+		apiServiceRegistrationControllerInitiated); err != nil {
 		return nil, err
 	}
 
@@ -285,7 +285,6 @@ func (c completedConfig) NewWithDelegate(delegationTarget genericapiserver.Deleg
 	} else {
 		s.GenericAPIServer.Handler.NonGoRestfulMux.Handle("/apis", apisHandler)
 	}
-	// TODO 为什么需要这里？
 	s.GenericAPIServer.Handler.NonGoRestfulMux.UnlistedHandle("/apis/", apisHandler)
 
 	// 1、通过监听APIService的创建/更新/销毁动态的创建/更新/销毁/apis/<group>/<version>路由

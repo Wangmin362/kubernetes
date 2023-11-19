@@ -22,7 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// Addresses 用于返回给客户端合适的ServerAddress
+// Addresses 用于根据客户端IP返回给客户端合适的ServerAddress
 type Addresses interface {
 	ServerAddressByClientCIDRs(net.IP) []metav1.ServerAddressByClientCIDR
 }

@@ -113,7 +113,7 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 	// that the poststarthook is finished
 	// done实际上是为了两个协程之间的通信，当PostStartHook执行完成之后，BootSequenceHealthCheck就会检测通过
 	done := make(chan struct{})
-	// TODO 猜测是GenericServer启动完成之后会启动健康检测
+	// 用于判断当前postStartHook是否已经运行完
 	if err := s.AddBootSequenceHealthChecks(postStartHookHealthz{name: "poststarthook/" + name, done: done}); err != nil {
 		return err
 	}
@@ -124,6 +124,7 @@ func (s *GenericAPIServer) AddPostStartHook(name string, hook PostStartHookFunc)
 }
 
 // AddPostStartHookOrDie allows you to add a PostStartHook, but dies on failure
+// 注册PostStartHook，如果注册失败，那么APIServer启动将会失败
 func (s *GenericAPIServer) AddPostStartHookOrDie(name string, hook PostStartHookFunc) {
 	if err := s.AddPostStartHook(name, hook); err != nil {
 		klog.Fatalf("Error registering PostStartHook %q: %v", name, err)

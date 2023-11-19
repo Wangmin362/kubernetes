@@ -150,30 +150,33 @@ type Config struct {
 	// 1、开启profile之后，会想GenericServer当中注册/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
 	// /debug/pprof/trace路由
 	// 2、我们可以通过kubectl get --raw=/debug/pprof来测试接口
-	// 3、默认是开启的
+	// 3、默认是开启的，此参数可以通过命令行传参控制
 	EnableProfiling bool
 	DebugSocketPath string // TODO 分析DebugSocket的作用
 	// 1、是否允许发现资源组的发现，如果允许发现，那么将会GenericServer由添加/apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
 	// /apis/<group>/<version>/<resource>路由，并遍历安装所有除了核心资源外的其余资源的路由
 	// 2、如果开启资源组的发现，我们可以通过 kubectl get --raw=/apis 可以获取到除了核心组意外的所有资源
 	// 3、默认就是开启的
-	EnableDiscovery bool // TODO 这玩意干嘛的？
+	EnableDiscovery bool
 
 	// Requires generic profiling enabled
 	// TODO 什么叫做BlockProfiling
 	EnableContentionProfiling bool
-	// 1、如果启用了Metric，添加/metrics, /metrics/slis路由
+	// 1、如果启用了Metric，将会注册/metrics, /metrics/slis路由
 	// 2、默认是启用的
 	EnableMetrics bool
 
-	// TODO PostStartHook在什么时候被调用？一般如何使用？最佳实践是什么？
 	// 1、顾名思义，就是就是被禁用的后置回调，在GenericServer中，一但某个后置回调被禁用，那么这个后置回调通过GenericServerConfig.AddPostStartHook
 	// 函数时就无法被添加
 	// 2、显然禁用的后置回调应该在后置回调调用GenericServerConfig.AddPostStartHook之前被写入，否则肯定无法起到被禁用的效果。
 	DisabledPostStartHooks sets.String
 	// done values in this values for this map are ignored.
-	// TODO GenericServer配置在初始化的时候一般会添加哪些PostStartHook，APIServer, AggregatorServer, ExtensionServer都添加了哪些PostStartHook?
 	// 1、所谓后置回调，其实就是GenericServer启动之后，需要执行的回调函数
+	// 2、我们知道KubeAPIServer, ExtensionServer以及AggregatorServer本质上都是GenericServer。然而，KubeAPIServer, ExtensionServer以及AggregatorServer
+	// 都分别向自己的GenericServer中注册了路由，但是我们最终启动的只有一个GenericServer。其核心原理就是这个所谓的后置回调。我们把一个个的
+	// 功能封装为controller，然后以后置回调的方式添加到GenericServer当中。同时通过Delegator来实现把一个Delegator所有功能抓交给Delegator。
+	// 也就是说，GenericServer会把Delegator的所有后置回调添加到自己的PostStartHooks当中。然后启动最外层GenericServer时，就会启动
+	// 所有的后置回调
 	PostStartHooks map[string]PostStartHookConfigEntry
 
 	// Version will enable the /version endpoint if non-nil
@@ -264,6 +267,7 @@ type Config struct {
 	// OpenAPIV3Config will be used in generating OpenAPI V3 spec. This is nil by default. Use DefaultOpenAPIV3Config for "working" defaults.
 	OpenAPIV3Config *openapicommon.Config
 	// SkipOpenAPIInstallation avoids installing the OpenAPI handler if set to true.
+	// 一般都会设置为true，因为需要支持swagger
 	SkipOpenAPIInstallation bool
 
 	// RESTOptionsGetter is used to construct RESTStorage types via the generic registry.
@@ -367,6 +371,7 @@ type Config struct {
 	// EquivalentResourceRegistry provides information about resources equivalent to a given resource,
 	// and the kind associated with a given resource. As resources are installed, they are registered here.
 	// TODO 这玩意是啥？
+	// 1、K8S所有资源都会注册到这里
 	EquivalentResourceRegistry runtime.EquivalentResourceRegistry
 
 	// APIServerID is the ID of this API server
@@ -529,11 +534,14 @@ func NewConfig(codecs serializer.CodecFactory) *Config {
 		// 1、开启APIServer的/index.html路由，开启之后我们可以直接访问https://172.30.3.130:6443/index.html或者是
 		// https://172.30.3.130:6443/获取当前Server支持的所有路由，当然前提是kubernetes.svc开启了NodePort，否则只能用
 		// kubectl get --raw=/  或者 kubectl get --raw=/index.html来测试
-		EnableIndex:                 true,                            // 是否允许注册 /, 以及 /index.html路由
-		EnableDiscovery:             true,                            // TODO
+		EnableIndex: true, // 是否允许注册 /, 以及 /index.html路由
+		// 1、是否允许发现资源组的发现，如果允许发现，那么将会GenericServer由添加/apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
+		// /apis/<group>/<version>/<resource>路由，并遍历安装所有除了核心资源外的其余资源的路由
+		// 2、如果开启资源组的发现，我们可以通过 kubectl get --raw=/apis 可以获取到除了核心组意外的所有资源
+		EnableDiscovery:             true,
 		EnableProfiling:             true,                            // 开启后会向GenericServer中注册注册/debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol, /debug/pprof/trace路由
 		DebugSocketPath:             "",                              // TODO
-		EnableMetrics:               true,                            // TODO
+		EnableMetrics:               true,                            // 如果启用了Metric，将会注册/metrics, /metrics/slis路由
 		MaxRequestsInFlight:         400,                             // 默认APIServer每秒钟最多只能同时处理400个请求
 		MaxMutatingRequestsInFlight: 200,                             // 默认APIServer每秒钟最多只能同时处理200个写请求，这里的Mutating指的是修改、创建、删除动作
 		RequestTimeout:              time.Duration(60) * time.Second, // 默认请求超时时间为60秒
@@ -845,7 +853,6 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		debugSocket = routes.NewDebugSocket(c.DebugSocketPath)
 	}
 
-	// TODO 分析APIServerHandler架构
 	apiServerHandler := NewAPIServerHandler(
 		name,                                  // APIServerHandler名字
 		c.Serializer,                          // 序列化器
@@ -1052,7 +1059,7 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		}
 	})
 
-	// 列出所有支持的路由，包括Delegator的路由
+	// 列出GenericServer所有支持的路由，并且包括Delegator的路由
 	s.listedPathProvider = routes.ListedPathProviders{s.listedPathProvider, delegationTarget}
 
 	// 1、NonGoRestfulMux添加/, /index.html, /debug/pprof, /debug/pprof/, /debug/pprof/profile， /debug/pprof/symbol,
@@ -1159,8 +1166,10 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 // /debug/api_priority_and_fairness/dump_queues, /debug/api_priority_and_fairness/dump_requests路由
 // 2、GoRestfulContainer添加/versions, /apis, /apis/<group>, /apis/<group>, /apis/<group>/<version>,
 // /apis/<group>/<version>/<resource>路由, 当然，这并不包含核心资源路由
+// 3、只有APIServer调用了此函数，ExtensionServer, AggregatorServer不需要调用此函数
 func installAPI(s *GenericAPIServer, c *Config) {
-	// 如果启用了Index页面，添加/, /index.html路由
+	// 1、如果启用了Index页面，注册/, /index.html路由
+	// 2、通过注册/, /index.html, 用户可以通过kubectl get --raw=/或者kubectl get --raw=/index.html获取GenericServer所有的路由
 	if c.EnableIndex {
 		routes.Index{}.Install(s.listedPathProvider, s.Handler.NonGoRestfulMux)
 	}

@@ -128,7 +128,7 @@ func createAggregatorServer(
 	delegateAPIServer genericapiserver.DelegationTarget, // AggregatorServer的Delegator是APIServer
 	apiExtensionInformers apiextensionsinformers.SharedInformerFactory, // SharedInformerFactory
 ) (*aggregatorapiserver.APIAggregator, error) {
-	// TODO 实例化AggregatorServer
+	// 实例化AggregatorServer
 	aggregatorServer, err := aggregatorConfig.Complete().NewWithDelegate(delegateAPIServer)
 	if err != nil {
 		return nil, err

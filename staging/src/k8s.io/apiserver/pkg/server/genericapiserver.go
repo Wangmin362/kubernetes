@@ -95,6 +95,7 @@ type APIGroupInfo struct {
 	// Scheme includes all of the types used by this group and how to convert between them (or
 	// to convert objects from outside of this group that are accepted in this API).
 	// TODO: replace with interfaces
+	// 主要用资源的类型转换
 	Scheme *runtime.Scheme
 	// NegotiatedSerializer controls how this group encodes and decodes data
 	// 编解码器
@@ -121,7 +122,7 @@ func (a *APIGroupInfo) destroyStorage() {
 // 1、GenericServer本身就是一个Delegator
 type GenericAPIServer struct {
 	// discoveryAddresses is used to build cluster IPs for discovery.
-	// TODO 用于返回给客户端合适的ServerAddress
+	// 用于返回给客户端合适的ServerAddress
 	discoveryAddresses discovery.Addresses
 
 	// LoopbackClientConfig is a config for a privileged loopback connection to the API server
@@ -144,8 +145,9 @@ type GenericAPIServer struct {
 	legacyAPIGroupPrefixes sets.String
 
 	// admissionControl is used to build the RESTStorage that backs an API Group.
-	// 1、GenericServer可以配置准入控制插件  TODO 详细分析准入控制插件的生命周期
-	// TODO 2、插件初始化器的执行流程我猜测和鉴权器以及认证器应该是一样，也是用一个UnionAdmissionControl插件组装所有的准入控制插件
+	// 1、GenericServer可以配置准入控制插件，准入控制插件并没有什么所谓的生命周期，在GenericServer运行期间服务，当请求进来时，只要准入
+	// 控制插件的条件可以匹配当前操作的资源就会执行
+	// 2、插件初始化器的执行流程我猜测和鉴权器以及认证器应该是一样，也是用一个UnionAdmissionControl插件组装所有的准入控制插件
 	// 并且在请求到来时挨个遍历每个准入控制插件
 	admissionControl admission.Interface
 
@@ -155,7 +157,7 @@ type GenericAPIServer struct {
 
 	// ExternalAddress is the address (hostname or IP and port) that should be used in
 	// external (public internet) URLs for this GenericAPIServer.
-	// TODO 什么叫做ExternalAddress? 难道还有一个InternalAddress？
+	// 为此主机生成外部化 URL时要使用的主机名（例如 Swagger API 文档或 OpenID 发现）
 	ExternalAddress string
 
 	// Serializer controls how common API objects not in a group/version prefix are serialized for this server.
@@ -168,7 +170,9 @@ type GenericAPIServer struct {
 	// "Outputs"
 	// Handler holds the handlers being used by this API server
 	// 1、APIServerHandler实际上就是一个http.Handler，用于处理HTTP请求。
-	// 2、ExtensionServer, APIServer, Aggregated在初始化的时候会把相关的路由注册到GenericServer当中 TODO 路由都是在这里
+	// 2、ExtensionServer, APIServer, Aggregated在初始化的时候会把相关的路由注册到GenericServer当中
+	// 3、ExtensionServer, APIServer, Aggregated在实例化自己的GenericServer的时候都会实例化自己的Handler，因为Handler中需要保存
+	// 路由
 	Handler *APIServerHandler
 
 	// UnprotectedDebugSocket is used to serve pprof information in a unix-domain socket. This socket is
@@ -177,7 +181,11 @@ type GenericAPIServer struct {
 	UnprotectedDebugSocket *routes.DebugSocket
 
 	// listedPathProvider is a lister which provides the set of paths to show at /
-	// 用于列出当前GenericServer支持的所有路由，也就是URL
+	// 1、用于列出当前GenericServer支持的所有路由，也就是URL；当然列出的是GenericServer需要暴露的路由，有些不需要暴露的路由是不会列出来的
+	// 2、那么GenericServer是如何区分哪些路由需要暴露，哪些路由不需要暴露的呢？ 这其实是在注册的时候决定的，以UnlistedXXX的函数注册的路由
+	// 是不会被列出来的，通过其余函数注册的路由将会被暴露出来。
+	// 3、我们可以通过kubectl get --raw=/, 或者kubectl get --raw=/index.html获取当前GenericServer支持的路由
+	// 4、此接口可以获取到GenericServer所有注册的路由，并且包含Delegator所有支持的路由。
 	listedPathProvider routes.ListedPathProvider
 
 	// DiscoveryGroupManager serves /apis in an unaggregated form.
@@ -189,7 +197,7 @@ type GenericAPIServer struct {
 	DiscoveryGroupManager discovery.GroupManager
 
 	// AggregatedDiscoveryGroupManager serves /apis in an aggregated form.
-	// 资源管理器
+	// TODO 资源管理器
 	AggregatedDiscoveryGroupManager discoveryendpoint.ResourceManager
 
 	// AggregatedLegacyDiscoveryGroupManager serves /api in an aggregated form.
@@ -206,6 +214,7 @@ type GenericAPIServer struct {
 	// during PrepareRun.
 	// Set this to true when the specific API Server has its own OpenAPI handler
 	// (e.g. kube-aggregator)
+	// 一般都是设置为true，从而支持swagger文档
 	skipOpenAPIInstallation bool
 
 	// OpenAPIVersionedService controls the /openapi/v2 endpoint, and can be used to update the served spec.
@@ -277,8 +286,9 @@ type GenericAPIServer struct {
 	readyzLock            sync.Mutex
 	readyzChecks          []healthz.HealthChecker
 	readyzChecksInstalled bool
-	livezGracePeriod      time.Duration
-	livezClock            clock.Clock
+	// 多久之后开始运行存活检测函数，在此之前，认为livezCheck是存活的
+	livezGracePeriod time.Duration
+	livezClock       clock.Clock
 
 	// auditing. The backend is started before the server starts listening.
 	// 1、所谓的审计后端，其实就是保存审计日志的地方
@@ -347,8 +357,10 @@ type GenericAPIServer struct {
 	// it exists primarily to avoid returning a 404 response when a resource actually exists but we haven't installed the path to a handler.
 	// it is exposed for easier composition of the individual servers.
 	// the primary users of this field are the WithMuxCompleteProtection filter and the NotFoundHandler
-	// TODO 用于标识GenericServer路由是否注册完成 仔细分析， 生命周期
-	// 1、用于表示某个组件达到某个状态，譬如可以用于判断CRDInformer是否已经同步完成
+	// 1、用于表示某个组件达到某个状态，譬如可以用于判断CRDInformer是否已经同步完成，或者是判断APIService是否已经初始化完成。总而言之，
+	// 就是用于判断某个动作是否已经完成。
+	// 2、当所有注册的信号都表示已经完成之后，说明APIServer已经准备好了对外提供服务。如果在此之前有请求进来，并且对应的路由还没有注册完成，
+	// KubeAPIServer会返回给用户一些友好的提信息告诉用户APIServer还没有准备好，请一会儿再来尝试。譬如：the request has been made before all known HTTP paths have been installed, please try again
 	muxAndDiscoveryCompleteSignals map[string]<-chan struct{}
 
 	// ShutdownSendRetryAfter dictates when to initiate shutdown of the HTTP
@@ -405,8 +417,8 @@ type DelegationTarget interface {
 	NextDelegate() DelegationTarget
 
 	// PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
-	// TODO 从这里可以看出，用户无法实现Delegator,因为这里的返回值时包外不可见的，因此只能使用GenericServer
-	// 注册/openapi/v2, /openapi/v3, /healthz, /livez, /readyz路由
+	// 1、册/openapi/v2, /openapi/v3, /healthz, /livez, /readyz路由
+	// 2、实际上这玩意直接可以理解为Run，就是为了运行GenericServer
 	PrepareRun() preparedGenericAPIServer
 
 	// MuxAndDiscoveryCompleteSignals exposes registered signals that indicate if all known HTTP paths have been installed.
@@ -444,7 +456,7 @@ func (s *GenericAPIServer) NextDelegate() DelegationTarget {
 
 // RegisterMuxAndDiscoveryCompleteSignal registers the given signal that will be used to determine if all known
 // HTTP paths have been registered. It is okay to call this method after instantiating the generic server but before running.
-// 注册MuxAndDiscoveryCompleteSignal信号
+// 向GenericServer中注册状态信号，用于表示某个动作是否已经完成。当然，这个信号肯定是一次性的。
 func (s *GenericAPIServer) RegisterMuxAndDiscoveryCompleteSignal(signalName string, signal <-chan struct{}) error {
 	if _, exists := s.muxAndDiscoveryCompleteSignals[signalName]; exists {
 		return fmt.Errorf("%s already registered", signalName)
@@ -524,6 +536,8 @@ type preparedGenericAPIServer struct {
 
 // PrepareRun does post API installation setup steps. It calls recursively the same function of the delegates.
 // 1、注册/openapi/v2, /openapi/v3, /healthz, /livez, /readyz路由
+// 2、想要启动GenericServer，就必须要调用这个函数，因为只有preparedGenericAPIServer才封装了Run方法，而由于这个结构体是私有的，因此用户
+// 无法自行实例化这个结构体，只能调用这个方法。然后才能调用preparedGenericAPIServer.Run方法启动GenericServer
 func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 	s.delegationTarget.PrepareRun()
 

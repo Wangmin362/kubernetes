@@ -127,6 +127,7 @@ func (c *APIServiceRegistrationController) Run(stopCh <-chan struct{}, handlerSy
 	} else if err != nil {
 		panic(fmt.Errorf("unexpected error: %v", err))
 	}
+	// 表示APIService初始化已经完成
 	close(handlerSyncedCh)
 
 	// only start one worker thread since its a slow moving API and the aggregation server adding bits

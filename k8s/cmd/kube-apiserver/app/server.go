@@ -225,7 +225,7 @@ func Run(completeOptions completedServerRunOptions, stopCh <-chan struct{}) erro
 func CreateServerChain(completedOptions completedServerRunOptions) (*aggregatorapiserver.APIAggregator, error) {
 	// 1、初始化APIServer配置，APIServer配置是通过GenericConfig配置加上额外的配置构成的
 	// 2、ServiceResolver用于把Service解析为一个合法的URL
-	// 3、PluginInitializer中的Plugin指的是准入控制插件，这里的初始化器是为了向准入控制插件当中注入需要的依赖
+	// 3、PluginInitializer中的Plugin指的是准入控制插件，插件初始化器是为了向准入控制插件当中注入需要的依赖
 	kubeAPIServerConfig, serviceResolver, pluginInitializer, err := CreateKubeAPIServerConfig(completedOptions)
 	if err != nil {
 		return nil, err

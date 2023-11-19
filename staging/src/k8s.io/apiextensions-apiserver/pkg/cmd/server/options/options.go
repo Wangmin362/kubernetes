@@ -143,6 +143,7 @@ func NewCRDRESTOptionsGetter(etcdOptions genericoptions.EtcdOptions) (genericreg
 		return nil, fmt.Errorf("server.Config RESTOptionsGetter should not be nil")
 	}
 	// sanity check that no other fields are set
+	// 确保只有RESTOptionsGetter字段被修改
 	c.RESTOptionsGetter = nil
 	if !reflect.DeepEqual(c, genericapiserver.Config{}) {
 		return nil, fmt.Errorf("only RESTOptionsGetter should have been mutated in server.Config")

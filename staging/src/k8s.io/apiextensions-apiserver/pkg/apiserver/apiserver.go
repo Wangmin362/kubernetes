@@ -54,9 +54,8 @@ import (
 )
 
 var (
-	// TODO ExtensionServer的Scheme中会注册什么?
+	// Scheme ExtensionServer中的Scheme只会注册CRD资源
 	Scheme = runtime.NewScheme()
-	// TODO 如何理解这个设计？
 	Codecs = serializer.NewCodecFactory(Scheme)
 
 	// if you modify this, make sure you update the crEncoder
@@ -128,7 +127,7 @@ func (cfg *Config) Complete() CompletedConfig {
 		&cfg.ExtraConfig,
 	}
 
-	// TODO 这里为什么要禁用路由发现？
+	// APIServer中已经设置了路由发现，ExtensionServer无需再进行路由发现
 	c.GenericConfig.EnableDiscovery = false
 	if c.GenericConfig.Version == nil {
 		c.GenericConfig.Version = &version.Info{

@@ -56,11 +56,13 @@ type rootAPIsHandler struct {
 	// addresses is used to build cluster IPs for discovery.
 	addresses Addresses
 
+	// 用于序列化响应数据
 	serializer runtime.NegotiatedSerializer
 
 	// Map storing information about all groups to be exposed in discovery response.
 	// The map is from name to the group.
-	lock      sync.RWMutex
+	lock sync.RWMutex
+	// key为Group
 	apiGroups map[string]metav1.APIGroup
 	// apiGroupNames preserves insertion order
 	// 这里又用到了数组 + Map的方式，既可以提供O(1)的查找速度，又可以知道元素的插入顺序

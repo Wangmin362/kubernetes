@@ -92,6 +92,7 @@ func LoadClientConfig(kubeconfigPath, bootstrapPath, certDir string) (certConfig
 	}
 
 	clientConfig := restclient.AnonymousClientConfig(bootstrapClientConfig)
+	// 路径为/var/lib/kubelet/pki/kubelet-client-current.pem
 	pemPath := store.CurrentPath()
 	clientConfig.KeyFile = pemPath
 	clientConfig.CertFile = pemPath

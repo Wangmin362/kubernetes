@@ -120,14 +120,19 @@ const (
 //   - every GetObject() call tries to fetch the value from local cache; if it is
 //     not there, invalidated or too old, we fetch it from apiserver and refresh the
 //     value in cache; otherwise it is just fetched from cache
+//
+// 1、用于缓存Pod依赖的ConfigMap, 主要实现了以下功能
+// 1.1、当有Pod更新或者创建的时候，这个Pod所引用的ConfigMap缓存将会失效，等下次获取这个ConfigMap时才会重新请求APIServer，并重新缓存
+// 1.2、每次调用GetObject()方法时，都会尝试从本地缓存中获取ConfigMap。当然，如果本地没有缓存或者是缓存失效，此时将会请求APIServer，
+// 重新获取ConfigMap依赖，然后缓存起来，下一次就可以直接获取（当然前提是缓存没有失效）
 func NewCachingConfigMapManager(kubeClient clientset.Interface, getTTL manager.GetObjectTTLFunc) Manager {
+	// 根据名称空间、名字查询ConfigMap
 	getConfigMap := func(namespace, name string, opts metav1.GetOptions) (runtime.Object, error) {
 		return kubeClient.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, opts)
 	}
+	// 用于缓存资源对象，并且该资源对象有TTL，即资源对象有过期时间
 	configMapStore := manager.NewObjectStore(getConfigMap, clock.RealClock{}, getTTL, defaultTTL)
-	return &configMapManager{
-		manager: manager.NewCacheBasedManager(configMapStore, getConfigMapNames),
-	}
+	return &configMapManager{manager.NewCacheBasedManager(configMapStore, getConfigMapNames)}
 }
 
 // NewWatchingConfigMapManager creates a manager that keeps a cache of all configmaps
@@ -136,6 +141,8 @@ func NewCachingConfigMapManager(kubeClient clientset.Interface, getTTL manager.G
 //   - whenever a pod is created or updated, we start individual watches for all
 //     referenced objects that aren't referenced from other registered pods
 //   - every GetObject() returns a value from local cache propagated via watches
+//
+// TODO 分析原理
 func NewWatchingConfigMapManager(kubeClient clientset.Interface, resyncInterval time.Duration) Manager {
 	listConfigMap := func(namespace string, opts metav1.ListOptions) (runtime.Object, error) {
 		return kubeClient.CoreV1().ConfigMaps(namespace).List(context.TODO(), opts)

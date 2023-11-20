@@ -66,7 +66,8 @@ func updateTransport(stopCh <-chan struct{}, period time.Duration, clientConfig 
 		return nil, fmt.Errorf("there is already a transport or dialer configured")
 	}
 
-	d := connrotation.NewDialer((&net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}).DialContext)
+	dial := &net.Dialer{Timeout: 30 * time.Second, KeepAlive: 30 * time.Second}
+	d := connrotation.NewDialer(dial.DialContext)
 
 	if clientCertificateManager != nil {
 		if err := addCertRotation(stopCh, period, clientConfig, clientCertificateManager, exitAfter, d); err != nil {

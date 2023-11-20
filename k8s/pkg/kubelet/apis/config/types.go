@@ -123,7 +123,8 @@ type KubeletConfiguration struct {
 	// tlsPrivateKeyFile are not provided, a self-signed certificate
 	// and key are generated for the public address and saved to the directory
 	// passed to the Kubelet's --cert-dir flag.
-	// 证书，Kubelet也需要对外提供服务，因此需要证书加密
+	// 1、证书，Kubelet也需要对外提供服务，因此需要证书加密
+	// 2、如果没有提供参数，那么Kubelet将会自己生成证书，并放在--cert-dir目录（这个目录一般配置为/var/lib/kubelet/pki）
 	TLSCertFile string
 	// tlsPrivateKeyFile is the file containing x509 private key matching tlsCertFile
 	TLSPrivateKeyFile string

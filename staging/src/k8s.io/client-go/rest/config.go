@@ -221,8 +221,10 @@ type TLSClientConfig struct {
 	ServerName string
 
 	// Server requires TLS client certificate authentication
+	// /var/lib/kubelet/pki/kubelet-client-current.pem 这个文件同时包含了证书和私钥
 	CertFile string
 	// Server requires TLS client certificate authentication
+	// /var/lib/kubelet/pki/kubelet-client-current.pem
 	KeyFile string
 	// Trusted root certificates for server
 	CAFile string

@@ -866,7 +866,8 @@ func NewMainKubelet(kubeCfg *kubeletconfiginternal.KubeletConfiguration,
 
 	if kubeCfg.ServerTLSBootstrap && kubeDeps.TLSOptions != nil && utilfeature.DefaultFeatureGate.Enabled(features.RotateKubeletServerCertificate) {
 		// TODO 实例化KubeletServerCertificateManager
-		klet.serverCertificateManager, err = kubeletcertificate.NewKubeletServerCertificateManager(klet.kubeClient, kubeCfg, klet.nodeName, klet.getLastObservedNodeAddresses, certDirectory)
+		klet.serverCertificateManager, err = kubeletcertificate.NewKubeletServerCertificateManager(klet.kubeClient, kubeCfg,
+			klet.nodeName, klet.getLastObservedNodeAddresses, certDirectory)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize certificate manager: %v", err)
 		}

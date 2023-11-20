@@ -45,7 +45,7 @@ func NewKubeletServerCertificateManager(
 	kubeCfg *kubeletconfig.KubeletConfiguration, // kubelet配置
 	nodeName types.NodeName, // node名字
 	getAddresses func() []v1.NodeAddress, // 用于获取node地址
-	certDirectory string, // 证书目录
+	certDirectory string, // 证书目录,一般默认为 /var/lib/kubelet/pki
 ) (certificate.Manager, error) {
 	var clientsetFn certificate.ClientsetFunc
 	if kubeClient != nil {
@@ -58,8 +58,8 @@ func NewKubeletServerCertificateManager(
 		"kubelet-server",
 		certDirectory,             // 证书目录
 		certDirectory,             // 私钥目录
-		kubeCfg.TLSCertFile,       // 证书
-		kubeCfg.TLSPrivateKeyFile, // 私钥
+		kubeCfg.TLSCertFile,       // 证书路径
+		kubeCfg.TLSPrivateKeyFile, // 私钥路径
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize server certificate store: %v", err)
@@ -96,6 +96,7 @@ func NewKubeletServerCertificateManager(
 	)
 	legacyregistry.MustRegister(certificateRotationAge)
 
+	// TODO 这玩意是证书签名请求么？
 	getTemplate := func() *x509.CertificateRequest {
 		hostnames, ips := addressesToHostnamesAndIPs(getAddresses())
 		// don't return a template if we have no addresses to request for
@@ -196,12 +197,14 @@ func NewKubeletClientCertificateManager(
 	clientsetFn certificate.ClientsetFunc,
 ) (certificate.Manager, error) {
 
+	// 用于存保存证书，并且可以获取证书
 	certificateStore, err := certificate.NewFileStore(
 		"kubelet-client",
-		certDirectory,
-		certDirectory,
-		certFile,
-		keyFile)
+		certDirectory, // /var/lib/kubelet/pki
+		certDirectory, // /var/lib/kubelet/pki
+		certFile,      // /var/lib/kubelet/pki/kubelet-client-current.pem
+		keyFile,       // /var/lib/kubelet/pki/kubelet-client-current.pem
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize client certificate store: %v", err)
 	}

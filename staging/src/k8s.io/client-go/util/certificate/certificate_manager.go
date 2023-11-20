@@ -127,6 +127,7 @@ type Manager interface {
 	// Current returns the currently selected certificate from the
 	// certificate manager, as well as the associated certificate and key data
 	// in PEM format.
+	// 获取当前证书
 	Current() *tls.Certificate
 	// ServerHealthy returns true if the manager is able to communicate with
 	// the server. This allows a caller to determine whether the cert manager
@@ -222,10 +223,12 @@ type Store interface {
 	// have a cert/key pair currently, it should return a NoCertKeyError so
 	// that the Manager can recover by using bootstrap certificates to request
 	// a new cert/key pair.
+	// 当前证书
 	Current() (*tls.Certificate, error)
 	// Update accepts the PEM data for the cert/key pair and makes the new
 	// cert/key pair the 'current' pair, that will be returned by future calls
 	// to Current().
+	// 更新证书
 	Update(cert, key []byte) (*tls.Certificate, error)
 }
 

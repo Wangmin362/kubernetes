@@ -44,7 +44,7 @@ type isImmutableFunc func(runtime.Object) bool
 
 // objectCacheItem is a single item stored in objectCache.
 type objectCacheItem struct {
-	refCount  int
+	refCount  int // 引用次数
 	store     *cacheStore
 	reflector *cache.Reflector
 
@@ -164,7 +164,8 @@ type objectCache struct {
 	clock         clock.Clock
 	maxIdleTime   time.Duration
 
-	lock    sync.RWMutex
+	lock sync.RWMutex
+	// 缓存的资源对象
 	items   map[objectKey]*objectCacheItem
 	stopped bool
 }
@@ -173,15 +174,17 @@ const minIdleTime = 1 * time.Minute
 
 // NewObjectCache returns a new watch-based instance of Store interface.
 func NewObjectCache(
-	listObject listObjectFunc,
-	watchObject watchObjectFunc,
-	newObject newObjectFunc,
-	isImmutable isImmutableFunc,
-	groupResource schema.GroupResource,
-	clock clock.Clock,
+	listObject listObjectFunc, // 批量查询资源（譬如批量查询ConfigMap或者是Secret）
+	watchObject watchObjectFunc, // 监听资源对象
+	newObject newObjectFunc, // 实例化资源对象
+	isImmutable isImmutableFunc, // 判断当前资源对象是否可以修改
+	groupResource schema.GroupResource, // ConfigMap或者是Secret
+	clock clock.Clock, // 时间工具
 	maxIdleTime time.Duration,
-	stopCh <-chan struct{}) Store {
+	stopCh <-chan struct{}, // 停止信号
+) Store {
 
+	// 至少一分钟同步一次，频率不能太快了
 	if maxIdleTime < minIdleTime {
 		maxIdleTime = minIdleTime
 	}

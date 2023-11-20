@@ -37,7 +37,7 @@ import (
 // Manager manages Kubernetes secrets. This includes retrieving
 // secrets or registering/unregistering them via Pods.
 type Manager interface {
-	// Get secret by secret namespace and name.
+	// GetSecret Get secret by secret namespace and name.
 	GetSecret(namespace, name string) (*v1.Secret, error)
 
 	// WARNING: Register/UnregisterPod functions should be efficient,

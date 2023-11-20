@@ -57,5 +57,6 @@ type Store interface {
 	// when refcount was reduced to zero).
 	DeleteReference(namespace, name string)
 	// Get an object from a store.
+	// 用于获取资源对象，这里并没有存入资源的地方，所以一定是动态获取的
 	Get(namespace, name string) (runtime.Object, error)
 }

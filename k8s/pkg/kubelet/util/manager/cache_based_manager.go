@@ -251,7 +251,7 @@ func (c *cacheBasedManager) RegisterPod(pod *v1.Pod) {
 	c.registeredPods[key] = pod
 	// 以前存在，说明现在很有可能是更新
 	if prev != nil {
-		// 获取上一个版本所引用的资源，然后遍历每个引用的资源并删除
+		// 获取上一个版本所引用的资源，然后遍历每个引用的资源并删除，这里的删除并不是真正的删除，而是引用减一
 		for name := range c.getReferencedObjects(prev) {
 			// On an update, the .Add() call above will have re-incremented the
 			// ref count of any existing object, so any objects that are in both

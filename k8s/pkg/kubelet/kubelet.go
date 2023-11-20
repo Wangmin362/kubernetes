@@ -262,10 +262,10 @@ type Dependencies struct {
 	CAdvisorInterface        cadvisor.Interface              // cAdvisor，用于获取Kubelet所在节点指标
 	Cloud                    cloudprovider.Interface         // TODO 暂时不清楚其作用
 	ContainerManager         cm.ContainerManager             // TODO 容器管理器，相当重要
-	EventClient              v1core.EventsGetter             // 事件客户端，用于上报事件
-	HeartbeatClient          clientset.Interface             // TODO 为啥名字叫做Heartbeat, 难道是专门用于心跳？ 名字起的不咋样
-	OnHeartbeatFailure       func()                          // 心跳失败回调 kubelet需要和谁保持心跳？
-	KubeClient               clientset.Interface             // K8S ClientSet客户端，用于Informer机制，缓存K8S资源 TODO KubeClient和HeartbeatClient有何区别？
+	EventClient              v1core.EventsGetter             // 事件客户端，用于上报事件；EventClient也是使用KubeConfig配置构造的，只不过增加了QPS以及Burst限制
+	HeartbeatClient          clientset.Interface             // HeartbeatClient和KubeClient基本上是一样的，都是使用KubeConfig构造的，只不过增加了超时参数
+	OnHeartbeatFailure       func()                          // 心跳失败回调 TODO kubelet需要和谁保持心跳？
+	KubeClient               clientset.Interface             // K8S ClientSet客户端，用于Informer机制，缓存K8S资源
 	Mounter                  mount.Interface                 // 存储卷的挂载有关
 	HostUtil                 hostutil.HostUtils              // 主机相关的操作，譬如打开一个设备、判断某个设备是否存在，判断是否支持SELinux，获取文件的属主
 	OOMAdjuster              *oom.OOMAdjuster                // TODO 看起来是和OOM相关的

@@ -379,7 +379,8 @@ func NewWatchBasedManager(
 	isImmutable isImmutableFunc,
 	groupResource schema.GroupResource,
 	resyncInterval time.Duration,
-	getReferencedObjects func(*v1.Pod) sets.String) Manager {
+	getReferencedObjects func(*v1.Pod) sets.String,
+) Manager {
 
 	// If a configmap/secret is used as a volume, the volumeManager will visit the objectCacheItem every resyncInterval cycle,
 	// We just want to stop the objectCacheItem referenced by environment variables,

@@ -94,7 +94,7 @@ func NewDynamic(nameHeaders, groupHeaders, extraHeaderPrefixes StringSliceProvid
 }
 
 func trimHeaders(headerNames ...string) ([]string, error) {
-	ret := []string{}
+	var ret []string
 	for _, headerName := range headerNames {
 		trimmedHeader := strings.TrimSpace(headerName)
 		if len(trimmedHeader) == 0 {
@@ -148,7 +148,13 @@ func NewSecure(clientCA string, proxyClientNames []string, nameHeaders []string,
 	), nil
 }
 
-func NewDynamicVerifyOptionsSecure(verifyOptionFn x509request.VerifyOptionFunc, proxyClientNames, nameHeaders, groupHeaders, extraHeaderPrefixes StringSliceProvider) authenticator.Request {
+func NewDynamicVerifyOptionsSecure(
+	verifyOptionFn x509request.VerifyOptionFunc, // X509证书校验，用于校验代理认证CA证书的有效性
+	proxyClientNames,
+	nameHeaders,
+	groupHeaders,
+	extraHeaderPrefixes StringSliceProvider,
+) authenticator.Request {
 	headerAuthenticator := NewDynamic(nameHeaders, groupHeaders, extraHeaderPrefixes)
 
 	return x509request.NewDynamicCAVerifier(verifyOptionFn, headerAuthenticator, proxyClientNames)

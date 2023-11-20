@@ -36,7 +36,8 @@ import (
 
 // Manager interface provides methods for Kubelet to manage ConfigMap.
 type Manager interface {
-	// Get configmap by configmap namespace and name.
+	// GetConfigMap Get configmap by configmap namespace and name.
+	// 根据名称空间以及名字查询Configmap
 	GetConfigMap(namespace, name string) (*v1.ConfigMap, error)
 
 	// WARNING: Register/UnregisterPod functions should be efficient,

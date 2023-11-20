@@ -136,6 +136,9 @@ type KubeletConfiguration struct {
 	// rotateCertificates enables client certificate rotation. The Kubelet will request a
 	// new certificate from the certificates.k8s.io API. This requires an approver to approve the
 	// certificate signing requests.
+	// 1、RotateCertificates中文含义为轮换证书，其实就是指在必要的时候会使用新的证书替换老的证书。kubelet的新证书是通过APIServer给颁发的
+	// 2、证书轮换主要发生在以下几个场景：2.1 证书过期  2.2 更换了CA，因此需要更换集群的根证书  2.3 需要对证书增加更多的约束
+	// 2.4 当前使用的证书被泄露，或者发生了安全漏洞，证书链不再可信
 	RotateCertificates bool
 	// serverTLSBootstrap enables server certificate bootstrap. Instead of self
 	// signing a serving certificate, the Kubelet will request a certificate from
@@ -144,8 +147,11 @@ type KubeletConfiguration struct {
 	// must be enabled.
 	ServerTLSBootstrap bool
 	// authentication specifies how requests to the Kubelet's server are authenticated
+	// 1、认证配置，用于认证进入到kubelet的请求
+	// 2、kubelet支持匿名认证、X509证书认证、Webhook认证
 	Authentication KubeletAuthentication
 	// authorization specifies how requests to the Kubelet's server are authorized
+	// 1、kubelet的鉴权配置，仅支持AlwaysAllow, Webhook这两种鉴权方式
 	Authorization KubeletAuthorization
 	// registryPullQPS is the limit of registry pulls per second.
 	// Set to 0 for no limit.
@@ -188,6 +194,8 @@ type KubeletConfiguration struct {
 	// status. If node lease feature is not enabled, it is also the frequency that
 	// kubelet posts node status to master. In that case, be cautious when
 	// changing the constant, it must work with nodeMonitorGracePeriod in nodecontroller.
+	// todo 仔细分析
+	// 1、上报node状态的频率
 	NodeStatusUpdateFrequency metav1.Duration
 	// nodeStatusReportFrequency is the frequency that kubelet posts node
 	// status to master if node status does not change. Kubelet will ignore this
@@ -210,6 +218,7 @@ type KubeletConfiguration struct {
 	// How frequently to calculate and cache volume disk usage for all pods
 	VolumeStatsAggPeriod metav1.Duration
 	// KubeletCgroups is the absolute name of cgroups to isolate the kubelet in
+	// cgroup路径是干嘛的？
 	KubeletCgroups string
 	// SystemCgroups is absolute name of cgroups in which to place
 	// all non-kernel processes that are not already in a container. Empty
@@ -230,7 +239,7 @@ type KubeletConfiguration struct {
 	// CPUManagerPolicyOptions is a set of key=value which 	allows to set extra options
 	// to fine tune the behaviour of the cpu manager policies.
 	// Requires  both the "CPUManager" and "CPUManagerPolicyOptions" feature gates to be enabled.
-	// CPUManager的参数设置
+	// TODO CPUManager的参数设置，有啥用？
 	CPUManagerPolicyOptions map[string]string
 	// CPU Manager reconciliation period.
 	// Requires the CPUManager feature gate to be enabled.
@@ -248,7 +257,7 @@ type KubeletConfiguration struct {
 	// TopologyManagerPolicyOptions is a set of key=value which allows to set extra options
 	// to fine tune the behaviour of the topology manager policies.
 	// Requires  both the "TopologyManager" and "TopologyManagerPolicyOptions" feature gates to be enabled.
-	// TopologyManger的参数设置
+	// TODO TopologyManger的参数设置 这个参数有啥用？ 如何正确使用？
 	TopologyManagerPolicyOptions map[string]string
 	// Map of QoS resource reservation percentages (memory only for now).
 	// Requires the QOSReserved feature gate to be enabled.
@@ -341,6 +350,7 @@ type KubeletConfiguration struct {
 	// featureGates is a map of feature names to bools that enable or disable alpha/experimental
 	// features. This field modifies piecemeal the built-in default values from
 	// "k8s.io/kubernetes/pkg/features/kube_features.go".
+	// 启用/禁用的特性
 	FeatureGates map[string]bool
 	// Tells the Kubelet to fail to start if swap is enabled on the node.
 	FailSwapOn bool
@@ -391,12 +401,14 @@ type KubeletConfiguration struct {
 	// This option specifies the cpu list reserved for the host level system threads and kubernetes related threads.
 	// This provide a "static" CPU list rather than the "dynamic" list by system-reserved and kube-reserved.
 	// This option overwrites CPUs provided by system-reserved and kube-reserved.
+	// 给系统进程以及K8S相关进程预留的CPU资源
 	ReservedSystemCPUs string
 	// The previous version for which you want to show hidden metrics.
 	// Only the previous minor version is meaningful, other values will not be allowed.
 	// The format is <major>.<minor>, e.g.: '1.16'.
 	// The purpose of this format is make sure you have the opportunity to notice if the next release hides additional metrics,
 	// rather than being surprised when they are permanently removed in the release after that.
+	// 用于隐藏之前版本的指标，主要是用于随便版本的变迁可以永久移除一些不必要的指标，这玩意应该就是功能演进的一个产物
 	ShowHiddenMetricsForVersion string
 	// Logging specifies the options of logging.
 	// Refer [Logs Options](https://github.com/kubernetes/component-base/blob/master/logs/options.go) for more information.

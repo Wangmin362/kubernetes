@@ -39,9 +39,11 @@ import (
 // DelegatingAuthenticatorConfig is the minimal configuration needed to create an authenticator
 // built to delegate authentication to a kube API server
 type DelegatingAuthenticatorConfig struct {
+	// 是否允许匿名认证
 	Anonymous bool
 
 	// TokenAccessReviewClient is a client to do token review. It can be nil. Then every token is ignored.
+	// 用于TokenReview资源的增删改查
 	TokenAccessReviewClient authenticationclient.AuthenticationV1Interface
 
 	// TokenAccessReviewTimeout specifies a time limit for requests made by the authorization webhook client.
@@ -50,6 +52,7 @@ type DelegatingAuthenticatorConfig struct {
 	// WebhookRetryBackoff specifies the backoff parameters for the authentication webhook retry logic.
 	// This allows us to configure the sleep time at each iteration and the maximum number of retries allowed
 	// before we fail the webhook call in order to limit the fan out that ensues when the system is degraded.
+	// webhook重试
 	WebhookRetryBackoff *wait.Backoff
 
 	// CacheTTL is the length of time that a token authentication answer will be cached.
@@ -58,20 +61,24 @@ type DelegatingAuthenticatorConfig struct {
 	// CAContentProvider are the options for verifying incoming connections using mTLS and directly assigning to users.
 	// Generally this is the CA bundle file used to authenticate client certificates
 	// If this is nil, then mTLS will not be used.
+	// 监听证书的变化
 	ClientCertificateCAContentProvider dynamiccertificates.CAContentProvider
 
 	APIAudiences authenticator.Audiences
 
+	// 代理认证配置
 	RequestHeaderConfig *RequestHeaderConfig
 }
 
+// New 构建认证器
 func (c DelegatingAuthenticatorConfig) New() (authenticator.Request, *spec.SecurityDefinitions, error) {
-	authenticators := []authenticator.Request{}
+	var authenticators []authenticator.Request
 	securityDefinitions := spec.SecurityDefinitions{}
 
 	// front-proxy first, then remote
 	// Add the front proxy authenticator if requested
 	if c.RequestHeaderConfig != nil {
+		// 代理认证
 		requestHeaderAuthenticator := headerrequest.NewDynamicVerifyOptionsSecure(
 			c.RequestHeaderConfig.CAContentProvider.VerifyOptions,
 			c.RequestHeaderConfig.AllowedClientNames,
@@ -84,6 +91,7 @@ func (c DelegatingAuthenticatorConfig) New() (authenticator.Request, *spec.Secur
 
 	// x509 client cert auth
 	if c.ClientCertificateCAContentProvider != nil {
+		// 证书认证
 		authenticators = append(authenticators, x509.NewDynamic(c.ClientCertificateCAContentProvider.VerifyOptions, x509.CommonNameUserConversion))
 	}
 
@@ -91,14 +99,16 @@ func (c DelegatingAuthenticatorConfig) New() (authenticator.Request, *spec.Secur
 		if c.WebhookRetryBackoff == nil {
 			return nil, nil, errors.New("retry backoff parameters for delegating authentication webhook has not been specified")
 		}
-		tokenAuth, err := webhooktoken.NewFromInterface(c.TokenAccessReviewClient, c.APIAudiences, *c.WebhookRetryBackoff, c.TokenAccessReviewTimeout, webhooktoken.AuthenticatorMetrics{
-			RecordRequestTotal:   RecordRequestTotal,
-			RecordRequestLatency: RecordRequestLatency,
-		})
+		tokenAuth, err := webhooktoken.NewFromInterface(c.TokenAccessReviewClient, c.APIAudiences, *c.WebhookRetryBackoff,
+			c.TokenAccessReviewTimeout, webhooktoken.AuthenticatorMetrics{
+				RecordRequestTotal:   RecordRequestTotal,
+				RecordRequestLatency: RecordRequestLatency,
+			})
 		if err != nil {
 			return nil, nil, err
 		}
 		cachingTokenAuth := cache.New(tokenAuth, false, c.CacheTTL, c.CacheTTL)
+		// Bearer Token认证
 		authenticators = append(authenticators, bearertoken.New(cachingTokenAuth), websocket.NewProtocolAuthenticator(cachingTokenAuth))
 
 		securityDefinitions["BearerToken"] = &spec.SecurityScheme{

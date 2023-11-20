@@ -303,6 +303,7 @@ func GetPodCgroupNameSuffix(podUID types.UID) string {
 }
 
 // NodeAllocatableRoot returns the literal cgroup path for the node allocatable cgroup
+// 1、这玩意干嘛的
 func NodeAllocatableRoot(cgroupRoot string, cgroupsPerQOS bool, cgroupDriver string) string {
 	nodeAllocatableRoot := ParseCgroupfsToCgroupName(cgroupRoot)
 	if cgroupsPerQOS {

@@ -39,7 +39,11 @@ import (
 
 // BuildAuth creates an authenticator, an authorizer, and a matching authorizer attributes getter compatible with the kubelet's needs
 // It returns AuthInterface, a run method to start internal controllers (like cert reloading) and error.
-func BuildAuth(nodeName types.NodeName, client clientset.Interface, config kubeletconfig.KubeletConfiguration) (server.AuthInterface, func(<-chan struct{}), error) {
+func BuildAuth(
+	nodeName types.NodeName, // node名字
+	client clientset.Interface, // clientSet客户端
+	config kubeletconfig.KubeletConfiguration, // kubelet配置
+) (server.AuthInterface, func(<-chan struct{}), error) {
 	// Get clients, if provided
 	var (
 		tokenClient authenticationclient.AuthenticationV1Interface
@@ -50,13 +54,16 @@ func BuildAuth(nodeName types.NodeName, client clientset.Interface, config kubel
 		sarClient = client.AuthorizationV1()
 	}
 
+	// 实例化认证器
 	authenticator, runAuthenticatorCAReload, err := BuildAuthn(tokenClient, config.Authentication)
 	if err != nil {
 		return nil, nil, err
 	}
 
+	// 从请求当中获取鉴权信息
 	attributes := server.NewNodeAuthorizerAttributesGetter(nodeName)
 
+	// 实例化鉴权器，kubelet支持AlwaysAllow以及Webhook认证其中的一种
 	authorizer, err := BuildAuthz(sarClient, config.Authorization)
 	if err != nil {
 		return nil, nil, err
@@ -70,6 +77,7 @@ func BuildAuthn(client authenticationclient.AuthenticationV1Interface, authn kub
 	var dynamicCAContentFromFile *dynamiccertificates.DynamicFileCAContent
 	var err error
 	if len(authn.X509.ClientCAFile) > 0 {
+		// 监听client-ca证书的变化
 		dynamicCAContentFromFile, err = dynamiccertificates.NewDynamicCAContentFromFile("client-ca-bundle", authn.X509.ClientCAFile)
 		if err != nil {
 			return nil, nil, err
@@ -86,10 +94,12 @@ func BuildAuthn(client authenticationclient.AuthenticationV1Interface, authn kub
 		if client == nil {
 			return nil, nil, errors.New("no client provided, cannot use webhook authentication")
 		}
+		// 默认0.5秒左右重试一次
 		authenticatorConfig.WebhookRetryBackoff = genericoptions.DefaultAuthWebhookRetryBackoff()
 		authenticatorConfig.TokenAccessReviewClient = client
 	}
 
+	// 构建代理认证、X509证书认证、Bearer Token认证的认证器
 	authenticator, _, err := authenticatorConfig.New()
 	if err != nil {
 		return nil, nil, err
@@ -107,6 +117,7 @@ func BuildAuthn(client authenticationclient.AuthenticationV1Interface, authn kub
 			}
 		}()
 		if dynamicCAContentFromFile != nil {
+			// 开始监听证书
 			go dynamicCAContentFromFile.Run(ctx, 1)
 		}
 	}, err

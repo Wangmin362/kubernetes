@@ -520,7 +520,12 @@ func getReservedCPUs(machineInfo *cadvisorapi.MachineInfo, cpus string) (cpuset.
 	return reservedCPUSet, nil
 }
 
-func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Dependencies, featureGate featuregate.FeatureGate) (err error) {
+func run(
+	ctx context.Context,
+	s *options.KubeletServer, // kubelet配置
+	kubeDeps *kubelet.Dependencies, // kubelet需要的依赖，后续
+	featureGate featuregate.FeatureGate, // kubelet启用的特性
+) (err error) {
 	// Set global feature gates based on the value on the initial KubeletServer
 	// 合并用户设置的特性开关，有可能有些特性会被用户关闭，同时有些特性会被用户打开
 	err = utilfeature.DefaultMutableFeatureGate.SetFromMap(s.KubeletConfiguration.FeatureGates)
@@ -535,8 +540,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 	// Warn if MemoryQoS enabled with cgroups v1
 	// 参数检测
-	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) &&
-		!isCgroup2UnifiedMode() {
+	if utilfeature.DefaultFeatureGate.Enabled(features.MemoryQoS) && !isCgroup2UnifiedMode() {
 		klog.InfoS("Warning: MemoryQoS feature only works with cgroups v2 on Linux, but enabled with cgroups v1")
 	}
 	// Obtain Kubelet Lock File
@@ -566,12 +570,14 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 	}
 
 	// TODO 什么叫做HiddenMetrics?
+	// 用于隐藏之前版本的指标，主要是用于随便版本的变迁可以永久移除一些不必要的指标，这玩意应该就是功能演进的一个产物
 	if len(s.ShowHiddenMetricsForVersion) > 0 {
 		metrics.SetShowHidden()
 	}
 
 	// About to get clients and such, detect standaloneMode
 	standaloneMode := true
+	// KubeConfig用于访问APIServer，如果没有指定，只能以单例模式的方式启动
 	if len(s.KubeConfig) > 0 {
 		standaloneMode = false
 	}
@@ -599,11 +605,12 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
+	// 获取当前node节点的hostname，如果指定了HostnameOverride，那么使用此值。如果没有指定，那么使用物理节点的hostname
 	hostName, err := nodeutil.GetHostname(s.HostnameOverride)
 	if err != nil {
 		return err
 	}
-	// TODO 通过CloudProvider获取Node的名字
+	// 如果指定了CloudProvider，那么hostname有CloudProvider指定
 	nodeName, err := getNodeName(kubeDeps.Cloud, hostName)
 	if err != nil {
 		return err
@@ -619,9 +626,9 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		klog.InfoS("Standalone mode, no API client")
 
 	case kubeDeps.KubeClient == nil, kubeDeps.EventClient == nil, kubeDeps.HeartbeatClient == nil:
-		// 非单例模式启动，这个参数重点  这里主要还是在初始化KubeDeps配置依赖
+		// 非单例模式启动，初始化KubeDeps配置依赖
 
-		// 初始化ClientSet
+		// TODO 通过KubeConfig配置实例化RESTClientConfig,其中会解决证书轮换问题
 		clientConfig, onHeartbeatFailure, err := buildKubeletClientConfig(ctx, s, kubeDeps.TracerProvider, nodeName)
 		if err != nil {
 			return err
@@ -637,6 +644,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 
 		// make a separate client for events
+		// 可以看到EventClient也是基于KubeConfig文件配置的。
 		eventClientConfig := *clientConfig
 		eventClientConfig.QPS = float32(s.EventRecordQPS)
 		eventClientConfig.Burst = int(s.EventBurst)
@@ -662,13 +670,16 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
-	// TODO Kubelet认证和鉴权
+	// 1、构建kubelet的认证器、鉴权器
+	// 2、kubelet支持匿名认证、X509证书认证、代理认证、BearerToken认证
+	// 3、kubelet支持AlwaysAllow以及Webhook认证其中的一种
 	if kubeDeps.Auth == nil {
 		auth, runAuthenticatorCAReload, err := BuildAuth(nodeName, kubeDeps.KubeClient, s.KubeletConfiguration)
 		if err != nil {
 			return err
 		}
 		kubeDeps.Auth = auth
+		// 运行CAContentProvider，监听证书
 		runAuthenticatorCAReload(ctx.Done())
 	}
 
@@ -702,12 +713,13 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		}
 	}
 
-	// Setup event recorder if required.
+	// 实例化EventRecorder，用于生成事件
 	makeEventRecorder(kubeDeps, nodeName)
 
 	// TODO ContainerManager初始化
 	if kubeDeps.ContainerManager == nil {
 		if s.CgroupsPerQOS && s.CgroupRoot == "" {
+			// TODO CgroupRoot是干嘛的？
 			klog.InfoS("--cgroups-per-qos enabled, but --cgroup-root was not specified.  defaulting to /")
 			s.CgroupRoot = "/"
 		}
@@ -717,7 +729,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 		if err != nil {
 			return err
 		}
-		// 系统预留CPU资源
+		// TODO 系统预留CPU资源
 		reservedSystemCPUs, err := getReservedCPUs(machineInfo, s.ReservedSystemCPUs)
 		if err != nil {
 			return err
@@ -753,6 +765,7 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 				return err
 			}
 		}
+		// TODO 后续分析
 		experimentalQOSReserved, err := cm.ParseQOSReserved(s.QOSReserved)
 		if err != nil {
 			return fmt.Errorf("--qos-reserved value failed to parse: %w", err)
@@ -879,7 +892,14 @@ func run(ctx context.Context, s *options.KubeletServer, kubeDeps *kubelet.Depend
 
 // buildKubeletClientConfig constructs the appropriate client config for the kubelet depending on whether
 // bootstrapping is enabled or client certificate rotation is enabled.
-func buildKubeletClientConfig(ctx context.Context, s *options.KubeletServer, tp oteltrace.TracerProvider, nodeName types.NodeName) (*restclient.Config, func(), error) {
+// TODO 仔细分析
+func buildKubeletClientConfig(
+	ctx context.Context,
+	s *options.KubeletServer, // kubelet配置
+	tp oteltrace.TracerProvider, // 链路追踪
+	nodeName types.NodeName, // node名字
+) (*restclient.Config, func(), error) {
+	// 所谓证书旋转，其实就是指在必要的时候会使用新的证书替换老的证书。kubelet的新证书是通过APIServer给颁发的
 	if s.RotateCertificates {
 		// Rules for client rotation and the handling of kube config files:
 		//

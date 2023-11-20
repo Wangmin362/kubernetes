@@ -24,8 +24,9 @@ import (
 // Manager is the interface for registering and unregistering
 // objects referenced by pods in the underlying cache and
 // extracting those from that cache if needed.
+// 1、用于缓存Pod引用的对象
 type Manager interface {
-	// Get object by its namespace and name.
+	// GetObject Get object by its namespace and name.
 	GetObject(namespace, name string) (runtime.Object, error)
 
 	// WARNING: Register/UnregisterPod functions should be efficient,

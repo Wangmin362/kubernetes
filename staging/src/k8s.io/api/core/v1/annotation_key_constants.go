@@ -78,12 +78,13 @@ const (
 	// in the Annotations of a Node.
 	PreferAvoidPodsAnnotationKey string = "scheduler.alpha.kubernetes.io/preferAvoidPods"
 
-	// ObjectTTLAnnotations represents a suggestion for kubelet for how long it can cache
+	// ObjectTTLAnnotationKey represents a suggestion for kubelet for how long it can cache
 	// an object (e.g. secret, config map) before fetching it again from apiserver.
 	// This annotation can be attached to node.
+	// 用于表示资源的失效时间
 	ObjectTTLAnnotationKey string = "node.alpha.kubernetes.io/ttl"
 
-	// annotation key prefix used to identify non-convertible json paths.
+	// NonConvertibleAnnotationPrefix annotation key prefix used to identify non-convertible json paths.
 	NonConvertibleAnnotationPrefix = "non-convertible.kubernetes.io"
 
 	kubectlPrefix = "kubectl.kubernetes.io/"

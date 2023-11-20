@@ -53,7 +53,7 @@ const defaultRootDir = "/var/lib/kubelet"
 // we already have a confusingly large amount of them.
 // kubelet的命令参数
 type KubeletFlags struct {
-	// TODO 这个是什么配置
+	// KubeConfig配置所在路径，用于访问APIServer，Kubelet也需要监听监听APIServer的资源。
 	KubeConfig string
 	// BootstrapKubeconfig指的是Kubelet启动时候的认证配置文件，用于使用Bearer Token的方式证明自己的身份，格式如下：
 	/*

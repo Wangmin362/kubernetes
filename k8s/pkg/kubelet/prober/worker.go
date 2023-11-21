@@ -257,7 +257,7 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 	// 刚开始的时候Worker中记录的容器ID确实是空的
 	if w.containerID.String() != c.ContainerID {
 		if !w.containerID.IsEmpty() {
-			// TODO 什么情况下，容器ID会发生改变？
+			// 当容器通过存活探针或者是启动探针探测失败时，这个容器就会被重启，此时容器会被分配新的ID
 			w.resultsManager.Remove(w.containerID)
 		}
 		w.containerID = kubecontainer.ParseContainerID(c.ContainerID)
@@ -357,8 +357,11 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 		return true
 	}
 
+	// 设置容器探针的执行结果
 	w.resultsManager.Set(w.containerID, result, w.pod)
 
+	// 也就是说容器的存活探针认为当前容器处于非就绪或者启动探针认为容器处于非启动状态，有个组件会重启容器。
+	// TODO 我猜测应该是通过状态管理器来实现的
 	if (w.probeType == liveness || w.probeType == startup) && result == results.Failure {
 		// The container fails a liveness/startup check, it will need to be restarted.
 		// Stop probing until we see a new container ID. This is to reduce the

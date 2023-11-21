@@ -149,7 +149,9 @@ func NewManager(
 
 // Key uniquely identifying container probes
 type probeKey struct {
-	podUID        types.UID
+	podUID types.UID
+	// 1、这里之所以时容器的名字，而不是容器ID，主要是因为容器可能会被重启，一旦容器被重启，容器的ID就会被重启分配
+	// 2、容器什么时候会被重启呢？ 当容器的liveness, startup探针认为容器探测失败的时候就会认为容器
 	containerName string
 	probeType     probeType
 }

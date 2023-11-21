@@ -41,6 +41,7 @@ import (
 const maxProbeRetries = 3
 
 // Prober helps to check the liveness/readiness/startup of a container.
+// 1、用于真正执行探针
 type prober struct {
 	exec   execprobe.Prober
 	http   httpprobe.Prober

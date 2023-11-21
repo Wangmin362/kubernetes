@@ -36,12 +36,14 @@ type Manager interface {
 	// 设置容器的探针状态
 	Set(kubecontainer.ContainerID, Result, *v1.Pod)
 	// Remove clears the cached result for the container with the given ID.
+	// 一处容器的谭政结果
 	Remove(kubecontainer.ContainerID)
 	// Updates creates a channel that receives an Update whenever its result changes (but not
 	// removed).
 	// NOTE: The current implementation only supports a single updates channel.
 	// 1、通过channel监听容器的探针状态
 	// 2、通过缓存容器的状态，放入这个channel一定是容器的探针状态发生了改变
+	// 3、用于外部组件通过此方法监听容器探针状态的改变。 容器探针结果的改变一般会影响容器状态
 	Updates() <-chan Update
 }
 
@@ -104,7 +106,8 @@ var _ Manager = &manager{}
 // NewManager creates and returns an empty results manager.
 func NewManager() Manager {
 	return &manager{
-		cache:   make(map[kubecontainer.ContainerID]Result),
+		cache: make(map[kubecontainer.ContainerID]Result),
+		// 默认只能放20个容器探针结果
 		updates: make(chan Update, 20),
 	}
 }
@@ -124,15 +127,18 @@ func (m *manager) Set(id kubecontainer.ContainerID, result Result, pod *v1.Pod) 
 }
 
 // Internal helper for locked portion of set. Returns whether an update should be sent.
+// 设置容器的探针状态，返回值为true,表示容器的探针状态发生了改变，返回值为false，则表示容器的探针状态没有发生改变
 func (m *manager) setInternal(id kubecontainer.ContainerID, result Result) bool {
 	m.Lock()
 	defer m.Unlock()
 	prev, exists := m.cache[id]
 	// 如果当前容器还没有探针状态或者当前容器的探针状态发生了改变，就把探针结果缓存起来
 	if !exists || prev != result {
+		// 说明容器探针状态发生了改变
 		m.cache[id] = result
 		return true
 	}
+	// 说明容器探针状态没有发生改变
 	return false
 }
 

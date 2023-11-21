@@ -37,6 +37,7 @@ import (
 // associated with it which runs the probe loop until the container permanently terminates, or the
 // stop channel is closed. The worker uses the probe Manager's statusManager to get up-to-date
 // container IDs.
+// 1、worker用于抽象Pod的一个探针的执行
 type worker struct {
 	// Channel for stopping the probe.
 	// ProbeManager会再必要的时候向这个channel当写入数据以停止worker
@@ -46,7 +47,8 @@ type worker struct {
 	stopCh chan struct{}
 
 	// Channel for triggering the probe manually.
-	// TODO 所谓的手动触发实际上就是通过ProbeManager的UpdatePodsStatus方法进行触发的，此方法执行的时候会往这个channel当中写入值
+	// 1、所谓的手动触发，其实就是当我们从探针状态管理器当中获取不到容器的探针状态，此时就可以向这个通道中写入数据，触发探针执行一次，从而
+	// 更新探针的状态
 	manualTriggerCh chan struct{}
 
 	// 当前执行探测的Pod
@@ -65,17 +67,18 @@ type worker struct {
 	initialValue results.Result
 
 	// Where to store this workers results.
-	// 探针的结果存放的地方
+	// 探针结果管理器，用于保存探针的结果，通过probeManager进行初始化
 	resultsManager results.Manager
 	// 引用外部的ProbeManager
 	probeManager *manager
 
 	// The last known container ID for this worker.
-	// TODO ?
+	// 容器ID
 	containerID kubecontainer.ContainerID
 	// The last probe result for this worker.
 	lastResult results.Result
 	// How many times in a row the probe has returned the same result.
+	// 当前探针已经执行了多少次相同的结果了
 	resultRun int
 
 	// If set, skip probing.
@@ -94,10 +97,11 @@ type worker struct {
 
 // Creates and starts a new probe worker.
 func newWorker(
-	m *manager,
-	probeType probeType,
-	pod *v1.Pod,
-	container v1.Container) *worker {
+	m *manager, // 探针管理器
+	probeType probeType, // 探针类型
+	pod *v1.Pod, // 当前Pod
+	container v1.Container, // 当前容器
+) *worker {
 
 	w := &worker{
 		stopCh:          make(chan struct{}, 1), // Buffer so stop() can be non-blocking.
@@ -163,6 +167,7 @@ func newWorker(
 // run periodically probes the container.
 func (w *worker) run() {
 	ctx := context.Background()
+	// 探针执行的周期
 	probeTickerPeriod := time.Duration(w.spec.PeriodSeconds) * time.Second
 
 	// If kubelet restarted the probes could be started in rapid succession.
@@ -181,6 +186,8 @@ func (w *worker) run() {
 		// Clean up.
 		probeTicker.Stop()
 		if !w.containerID.IsEmpty() {
+			// 1、如果当前探针任务被停止，那么需要从探针结果管理中移除这个容器的结果；
+			// 2、这种情况只有当容器被移除的时候才会停止
 			w.resultsManager.Remove(w.containerID)
 		}
 
@@ -199,8 +206,8 @@ probeLoop:
 		select {
 		case <-w.stopCh:
 			break probeLoop
-		case <-probeTicker.C:
-		case <-w.manualTriggerCh:
+		case <-probeTicker.C: // 探针定期执行后期到了
+		case <-w.manualTriggerCh: // 手动触发探针运行一次
 			// continue
 		}
 	}
@@ -281,7 +288,6 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 
 	// Graceful shutdown of the pod.
 	// 1、如果Pod已经删除并且探针类型是liveness探针、startup探针其中的一种，那么设置探针结果为成功
-	// 2、TODO 为啥要这么设计？
 	if w.pod.ObjectMeta.DeletionTimestamp != nil && (w.probeType == liveness || w.probeType == startup) {
 		klog.V(3).InfoS("Pod deletion requested, setting probe result to success",
 			"probeType", w.probeType, "pod", klog.KObj(w.pod), "containerName", w.container.Name)
@@ -301,15 +307,16 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 		return true
 	}
 
-	// TODO 这里为什么要这么设计？
 	if c.Started != nil && *c.Started {
 		// Stop probing for startup once container has started.
 		// we keep it running to make sure it will work for restarted container.
+		// 如果容器已经启动了，那么启动探针也就无需再运行了，因为启动探针只需要保证容器已经启动，启动过后自然就无需启动探针再运行
 		if w.probeType == startup {
 			return true
 		}
 	} else {
 		// Disable other probes until container has started.
+		// 如果当前容器还没有启动，那么存活探针、就绪探针也就没有运行的意义，因为肯定只有当容器启动了，才能执行就绪探针、存货探针
 		if w.probeType != startup {
 			return true
 		}
@@ -325,6 +332,7 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 
 	switch result {
 	case results.Success:
+		// 记录探针的执行结果以及执行时长
 		ProberResults.With(w.proberResultsSuccessfulMetricLabels).Inc()
 		ProberDuration.With(w.proberDurationSuccessfulMetricLabels).Observe(time.Since(startTime).Seconds())
 	case results.Failure:
@@ -341,6 +349,8 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 		w.resultRun = 1
 	}
 
+	// 如果当前探针执行结果失败，但是还没有到达失败阈值，那么还需要继续运行探针；
+	// 如果当前探针执行结果成功，但是还没有到达成功阈值，那么还需要继续运行探针；
 	if (result == results.Failure && w.resultRun < int(w.spec.FailureThreshold)) ||
 		(result == results.Success && w.resultRun < int(w.spec.SuccessThreshold)) {
 		// Success or failure is below threshold - leave the probe state unchanged.

@@ -28,6 +28,9 @@ import (
 // Checkpoint provides the process checkpoint data
 // 1、从Checkpoint接口的设计上来看，checkpoint仅仅规定了其序列化与反序列化以及校验checksum，也就是说该接口并没有规定checkpoint应该
 // 如何使用，仅仅规定了如何保存checkpoint
+// 2、参考文章：https://kubernetes.io/zh-cn/blog/2022/12/05/forensic-container-checkpointing-alpha/
+// https://moelove.info/2022/07/31/K8S-%E7%94%9F%E6%80%81%E5%91%A8%E6%8A%A5-Kubernetes-%E6%96%B0%E7%89%88%E6%9C%AC%E5%BC%95%E5%85%A5-ContainerCheckpoint-%E7%89%B9%E6%80%A7/
+// 3、简单来说，checkpoint是为了能够持久化运行中的容器，使得这个容器可以迁移到别的机器上
 type Checkpoint interface {
 	MarshalCheckpoint() ([]byte, error)
 	UnmarshalCheckpoint(blob []byte) error

@@ -364,6 +364,7 @@ type KubeletConfiguration struct {
 	// Maximum number of container log files that can be present for a container.
 	ContainerLogMaxFiles int32
 	// ConfigMapAndSecretChangeDetectionStrategy is a mode in which config map and secret managers are running.
+	// 默认为watch策略
 	ConfigMapAndSecretChangeDetectionStrategy ResourceChangeDetectionStrategy
 	// A comma separated allowlist of unsafe sysctls or sysctl patterns (ending in `*`).
 	// Unsafe sysctl groups are `kernel.shm*`, `kernel.msg*`, `kernel.sem`, `fs.mqueue.*`, and `net.*`.

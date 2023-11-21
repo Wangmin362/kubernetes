@@ -66,8 +66,8 @@ var ProberDuration = metrics.NewHistogramVec(
 // probe (AddPod). The worker periodically probes its assigned container and caches the results. The
 // manager use the cached probe results to set the appropriate Ready state in the PodStatus when
 // requested (UpdatePodStatus). Updating probe parameters is not currently supported.
-// 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程定时通过探针
-// 的配置检查状态
+// 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程，同时此协程会定时
+// 通过探针的配置检查状态，譬如执行HTTP请求，或者执行Exec命令，或者是看端口是否处于监听状态
 // 2、于此同时，每个容器的每种类型的探针结果都会被存入到ResultManager，从而触发PLEG的syncLoop更新Pod状态
 type Manager interface {
 	// AddPod creates new probe workers for every container probe. This should be called for every
@@ -75,14 +75,17 @@ type Manager interface {
 	AddPod(pod *v1.Pod)
 
 	// StopLivenessAndStartup handles stopping liveness and startup probes during termination.
+	// 将容器的存活探针以及启动探针关闭
 	StopLivenessAndStartup(pod *v1.Pod)
 
 	// RemovePod handles cleaning up the removed pod state, including terminating probe workers and
 	// deleting cached results.
+	// 移除容器，显然容器移除时，应该停止此容器的所有探针
 	RemovePod(pod *v1.Pod)
 
 	// CleanupPods handles cleaning up pods which should no longer be running.
 	// It takes a map of "desired pods" which should not be cleaned up.
+	// 清除所有目标Pod的所有探针
 	CleanupPods(desiredPods map[types.UID]sets.Empty)
 
 	// UpdatePodStatus modifies the given PodStatus with the appropriate Ready state for each
@@ -92,13 +95,14 @@ type Manager interface {
 
 type manager struct {
 	// Map of active workers for probes
-	// 1、Key由三个字段构成，粉笔是：PodUID, ContainerID, 探针类型（liveness, readiness, startup）
+	// 1、Key由三个字段构成，分别是是：PodUID, ContainerID, 探针类型（liveness, readiness, startup）
 	// 2、value抽象为一个worker，实际上将来会针对每个worker启动一个协程运行
 	workers map[probeKey]*worker
 	// Lock for accessing & mutating workers
 	workerLock sync.RWMutex
 
 	// The statusManager cache provides pod IP and container IDs for probing.
+	// Pod状态管理器，探针管理器的跟目标是为了修改Pod中容器的状态
 	statusManager status.Manager
 
 	// 用于记录Readiness探针的结果，每个容器只要指定了readiness探针，ProbeManager就会启动一个协程定期按照探针配置的规则执行，并把
@@ -114,7 +118,7 @@ type manager struct {
 	startupManager results.Manager
 
 	// prober executes the probe actions.
-	// TODO 用于执行tcp, exec, http, grpc方式的探针规则
+	// TODO 用于执行tcp, exec, http, grpc方式的探针
 	prober *prober
 
 	// 实例化ProbeManager的时间
@@ -123,12 +127,13 @@ type manager struct {
 
 // NewManager creates a Manager for pod probing.
 func NewManager(
-	statusManager status.Manager,
-	livenessManager results.Manager,
-	readinessManager results.Manager,
-	startupManager results.Manager,
-	runner kubecontainer.CommandRunner,
-	recorder record.EventRecorder) Manager {
+	statusManager status.Manager, // 状态管理器，显然，Pod的探针状态会影响Pod状态，不然要Pod探针干嘛，Pod探针状态肯定会影响Pod的状态
+	livenessManager results.Manager, // 存活探针结果管理器
+	readinessManager results.Manager, // 就绪探针结果管理器
+	startupManager results.Manager, // 启动探针结果管理器
+	runner kubecontainer.CommandRunner, // 命令执行器，用于在容器内部执行命令，主要用于解决Exec的方式
+	recorder record.EventRecorder, // 事件记录
+) Manager {
 
 	prober := newProber(runner, recorder)
 	return &manager{
@@ -269,30 +274,43 @@ func (m *manager) CleanupPods(desiredPods map[types.UID]sets.Empty) {
 	}
 }
 
-// UpdatePodStatus 主要是为了触发Pod的Readiness探针
+// UpdatePodStatus 通过Pod中的容器状态
 func (m *manager) UpdatePodStatus(podUID types.UID, podStatus *v1.PodStatus) {
+	// TODO 为什么不需要动容器的存活状态？
 	for i, c := range podStatus.ContainerStatuses {
-		var started bool
+		var started bool // 容器是否启动
 		if c.State.Running == nil {
+			// 状态为空，认为容器还没有启动
 			started = false
 		} else if result, ok := m.startupManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok {
+			// 否则从启动状态管理器当中获取容器的启动状态
 			started = result == results.Success
 		} else {
 			// The check whether there is a probe which hasn't run yet.
+			// 说明容器启动状态非空，但是容器启动状态管理器当中没有获取到容器状态，所以尝试获取容器的启动探针任务，看看这个任务是否存在
 			_, exists := m.getWorker(podUID, c.Name, startup)
+			// 1、任务存在，说明容器确实还没有启动。
+			// 2、任务不存在，说明容器根本就没有指定启动探针，那么我们永远认为容器已经启动；因为K8S永远不知道如何判断容器是否已经启动，所以
+			// 只能认为容器已经启动
 			started = !exists
 		}
 		podStatus.ContainerStatuses[i].Started = &started
 
+		// 如果容器已经启动了，那么再看看这个容器是否处于就绪状态；如果容器还没有启动，那么容器不可能处于就绪状态
 		if started {
-			var ready bool
+			var ready bool // 容器是否就绪
 			if c.State.Running == nil {
+				// 容器的运行状态还未初始化，认为容器还未就绪
 				ready = false
 			} else if result, ok := m.readinessManager.Get(kubecontainer.ParseContainerID(c.ContainerID)); ok && result == results.Success {
+				// 否则从就绪探针结果管理器中获取容器的就绪状态，如果就绪。那么认为容器处于就绪状态
 				ready = true
 			} else {
 				// The check whether there is a probe which hasn't run yet.
 				w, exists := m.getWorker(podUID, c.Name, readiness)
+				// 1、获取当前容器就绪探针任务，如果没有获取到，说明容器没有指定就绪探针,那么我们永远认为容器已经启动；因为K8S永远不知道如何判断容器是否已经启动，所以
+				// 只能认为容器已经启动
+				// 2、如果获取到了就绪探针任务，那么就认为容器还未就绪，同时手动就绪任务运行一次，更新就绪状态
 				ready = !exists // no readinessProbe -> always ready
 				if exists {
 					// Trigger an immediate run of the readinessProbe to update ready state
@@ -310,6 +328,7 @@ func (m *manager) UpdatePodStatus(podUID types.UID, podStatus *v1.PodStatus) {
 	// succeeded.
 	for i, c := range podStatus.InitContainerStatuses {
 		var ready bool
+		// 如果容器的Init容器已经退出，并且退出码为0，那么认为init容器正常结束，此时认为init容器就绪，可以开始正常启动业务容器。
 		if c.State.Terminated != nil && c.State.Terminated.ExitCode == 0 {
 			ready = true
 		}

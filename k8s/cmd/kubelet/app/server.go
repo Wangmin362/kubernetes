@@ -1226,12 +1226,14 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 	}
 
 	// TODO 实例化Kubelet
-	k, err := createAndInitKubelet(kubeServer,
+	k, err := createAndInitKubelet(
+		kubeServer,
 		kubeDeps,
 		hostname,
 		hostnameOverridden,
 		nodeName,
-		nodeIPs)
+		nodeIPs,
+	)
 	if err != nil {
 		return fmt.Errorf("failed to create kubelet: %w", err)
 	}
@@ -1281,12 +1283,14 @@ func startKubelet(k kubelet.Bootstrap, podCfg *config.PodConfig, kubeCfg *kubele
 	}
 }
 
-func createAndInitKubelet(kubeServer *options.KubeletServer,
+func createAndInitKubelet(
+	kubeServer *options.KubeletServer,
 	kubeDeps *kubelet.Dependencies,
 	hostname string,
 	hostnameOverridden bool,
 	nodeName types.NodeName,
-	nodeIPs []net.IP) (k kubelet.Bootstrap, err error) {
+	nodeIPs []net.IP,
+) (k kubelet.Bootstrap, err error) {
 	// TODO: block until all sources have delivered at least one update to the channel, or break the sync loop
 	// up into "per source" synchronizations
 
@@ -1322,7 +1326,8 @@ func createAndInitKubelet(kubeServer *options.KubeletServer,
 	// 30、实例化EvictionManager
 	// 31、实例化LeaseController
 	// 32、实例化ShutdownManager
-	k, err = kubelet.NewMainKubelet(&kubeServer.KubeletConfiguration,
+	k, err = kubelet.NewMainKubelet(
+		&kubeServer.KubeletConfiguration,
 		kubeDeps,
 		&kubeServer.ContainerRuntimeOptions,
 		hostname,

@@ -2222,11 +2222,13 @@ type Probe struct {
 	// Number of seconds after the container has started before liveness probes are initiated.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
 	// +optional
+	// 探针启动之后多少秒之后开始工作
 	InitialDelaySeconds int32 `json:"initialDelaySeconds,omitempty" protobuf:"varint,2,opt,name=initialDelaySeconds"`
 	// Number of seconds after which the probe times out.
 	// Defaults to 1 second. Minimum value is 1.
 	// More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
 	// +optional
+	// 每次执行探针的超时时间
 	TimeoutSeconds int32 `json:"timeoutSeconds,omitempty" protobuf:"varint,3,opt,name=timeoutSeconds"`
 	// How often (in seconds) to perform the probe.
 	// Default to 10 seconds. Minimum value is 1.
@@ -2236,10 +2238,12 @@ type Probe struct {
 	// Minimum consecutive successes for the probe to be considered successful after having failed.
 	// Defaults to 1. Must be 1 for liveness and startup. Minimum value is 1.
 	// +optional
+	// 探针执行多少次成功才认为成功
 	SuccessThreshold int32 `json:"successThreshold,omitempty" protobuf:"varint,5,opt,name=successThreshold"`
 	// Minimum consecutive failures for the probe to be considered failed after having succeeded.
 	// Defaults to 3. Minimum value is 1.
 	// +optional
+	// 探针执行多少次失败才认为失败
 	FailureThreshold int32 `json:"failureThreshold,omitempty" protobuf:"varint,6,opt,name=failureThreshold"`
 	// Optional duration in seconds the pod needs to terminate gracefully upon probe failure.
 	// The grace period is the duration in seconds after the processes running in the pod are sent
@@ -2666,6 +2670,7 @@ type ContainerState struct {
 }
 
 // ContainerStatus contains details for the current status of this container.
+// TODO 容器状态为什么不需要是否存活状态
 type ContainerStatus struct {
 	// Name is a DNS_LABEL representing the unique name of the container.
 	// Each container in a pod must have a unique name across all container types.
@@ -2686,6 +2691,7 @@ type ContainerStatus struct {
 	//
 	// The value is typically used to determine whether a container is ready to
 	// accept traffic.
+	// 容器是否继续
 	Ready bool `json:"ready" protobuf:"varint,4,opt,name=ready"`
 	// RestartCount holds the number of times the container has been restarted.
 	// Kubelet makes an effort to always increment the value, but there
@@ -2715,6 +2721,7 @@ type ContainerStatus struct {
 	// has passed the postStart lifecycle hook. The null value must be treated the
 	// same as false.
 	// +optional
+	// 容器是否启动
 	Started *bool `json:"started,omitempty" protobuf:"varint,9,opt,name=started"`
 	// AllocatedResources represents the compute resources allocated for this container by the
 	// node. Kubelet sets this value to Container.Resources.Requests upon successful pod admission

@@ -680,11 +680,11 @@ func NewMainKubelet(
 
 	imageBackOff := flowcontrol.NewBackOff(backOffPeriod, MaxContainerBackOff)
 
-	// TODO 分析ProbeManager
+	// 每个Pod被创建的时候，Pod中所有容器的所有探针都会启动一个协程定期执行，同时容器探针执行的结果将会保存在ResultManager当中
 	klet.livenessManager = proberesults.NewManager()
 	klet.readinessManager = proberesults.NewManager()
 	klet.startupManager = proberesults.NewManager()
-	// TODO PodCache缓存了啥？
+	// 缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
 	klet.podCache = kubecontainer.NewCache()
 
 	// podManager is also responsible for keeping secretManager and configMapManager contents up-to-date.

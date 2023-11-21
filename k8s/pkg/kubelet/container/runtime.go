@@ -310,11 +310,14 @@ type PodStatus struct {
 	// Namespace of the pod.
 	Namespace string
 	// All IPs assigned to this pod
+	// TODO 什么时候会给一个Pod分配多个IP地址？
 	IPs []string
 	// Status of containers in the pod.
+	// 容器的状态
 	ContainerStatuses []*Status
 	// Status of the pod sandbox.
 	// Only for kuberuntime now, other runtime may keep it nil.
+	// 沙箱状态  TODO 什么时候一个Pod会存在多个沙箱？
 	SandboxStatuses []*runtimeapi.PodSandboxStatus
 	// Timestamp at which container and pod statuses were recorded
 	TimeStamp time.Time

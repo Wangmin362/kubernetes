@@ -72,6 +72,10 @@ var ProberDuration = metrics.NewHistogramVec(
 type Manager interface {
 	// AddPod creates new probe workers for every container probe. This should be called for every
 	// pod created.
+	// 1、添加容器的时候，会遍历Pod中所有容器的探针（包括启动探针、就绪探针、存活探针），只要容器指定了探针，那么就为这个探针生成一个worker，并且
+	// 用一个协程启动，同时这个协程会根据探针配置的时间周期型的探测容器状态
+	// 2、探针在运行的过程中会获取容器的状态，假设容器退出或者已经终止，那么这个协程就会退出
+	// 3、探针的结果将会保存到探针结果管理器当中
 	AddPod(pod *v1.Pod)
 
 	// StopLivenessAndStartup handles stopping liveness and startup probes during termination.
@@ -90,6 +94,7 @@ type Manager interface {
 
 	// UpdatePodStatus modifies the given PodStatus with the appropriate Ready state for each
 	// container based on container running status, cached probe results and worker states.
+	// 根据容器的探针结果修改Pod中容器的状态
 	UpdatePodStatus(types.UID, *v1.PodStatus)
 }
 
@@ -118,7 +123,7 @@ type manager struct {
 	startupManager results.Manager
 
 	// prober executes the probe actions.
-	// TODO 用于执行tcp, exec, http, grpc方式的探针
+	// 用于执行tcp, exec, http, grpc方式的探针
 	prober *prober
 
 	// 实例化ProbeManager的时间

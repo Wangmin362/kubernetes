@@ -80,7 +80,14 @@ func (pb *prober) recordContainerEvent(pod *v1.Pod, container *v1.Container, eve
 }
 
 // probe probes the container.
-func (pb *prober) probe(ctx context.Context, probeType probeType, pod *v1.Pod, status v1.PodStatus, container v1.Container, containerID kubecontainer.ContainerID) (results.Result, error) {
+func (pb *prober) probe(
+	ctx context.Context, // 上下文
+	probeType probeType, // 探针类型
+	pod *v1.Pod, // Pod
+	status v1.PodStatus, // Pod状态
+	container v1.Container, // 需要执行探针的容器
+	containerID kubecontainer.ContainerID, // 容器ID
+) (results.Result, error) {
 	var probeSpec *v1.Probe
 	switch probeType {
 	case readiness:
@@ -93,12 +100,13 @@ func (pb *prober) probe(ctx context.Context, probeType probeType, pod *v1.Pod, s
 		return results.Failure, fmt.Errorf("unknown probe type: %q", probeType)
 	}
 
+	// 如果当前容器没有指定该类型的探针，那么永远认为正确
 	if probeSpec == nil {
 		klog.InfoS("Probe is nil", "probeType", probeType, "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
 		return results.Success, nil
 	}
 
-	// TODO 执行探针
+	// 执行探针
 	result, output, err := pb.runProbeWithRetries(ctx, probeType, probeSpec, pod, status, container, containerID, maxProbeRetries)
 	if err != nil || (result != probe.Success && result != probe.Warning) {
 		// Probe failed in one way or another.

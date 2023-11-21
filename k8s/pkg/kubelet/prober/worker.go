@@ -267,7 +267,8 @@ func (w *worker) doProbe(ctx context.Context) (keepGoing bool) {
 		w.onHold = false
 	}
 
-	// TODO 如何理解这里的判断？
+	// 1、如果容器的存活探针认为当前容器处于非就绪或者启动探针认为容器处于非启动状态，有个组件会重启容器。
+	// 2、在此容器重启完成之前，无需在对这个容器做检测，直达容器启动完成，onHold将会被修改为true
 	if w.onHold {
 		// Worker is on hold until there is a new container.
 		return true

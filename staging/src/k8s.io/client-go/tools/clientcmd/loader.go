@@ -177,10 +177,10 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 		return nil, err
 	}
 
-	errlist := []error{}
-	missingList := []string{}
+	var errlist []error
+	var missingList []string
 
-	kubeConfigFiles := []string{}
+	var kubeConfigFiles []string
 
 	// Make sure a file we were explicitly told to use exists
 	if len(rules.ExplicitPath) > 0 {
@@ -193,7 +193,7 @@ func (rules *ClientConfigLoadingRules) Load() (*clientcmdapi.Config, error) {
 		kubeConfigFiles = append(kubeConfigFiles, rules.Precedence...)
 	}
 
-	kubeconfigs := []*clientcmdapi.Config{}
+	var kubeconfigs []*clientcmdapi.Config
 	// read and cache the config files so that we only look at them once
 	for _, filename := range kubeConfigFiles {
 		if len(filename) == 0 {

@@ -43,9 +43,9 @@ type CheckpointManager interface {
 	CreateCheckpoint(checkpointKey string, checkpoint Checkpoint) error
 	// GetCheckpoint retrieves checkpoint from CheckpointStore.
 	GetCheckpoint(checkpointKey string, checkpoint Checkpoint) error
-	// WARNING: RemoveCheckpoint will not return error if checkpoint does not exist.
+	// RemoveCheckpoint WARNING: RemoveCheckpoint will not return error if checkpoint does not exist.
 	RemoveCheckpoint(checkpointKey string) error
-	// ListCheckpoint returns the list of existing checkpoints.
+	// ListCheckpoints ListCheckpoint returns the list of existing checkpoints.
 	ListCheckpoints() ([]string, error)
 }
 
@@ -59,7 +59,9 @@ type impl struct {
 
 // NewCheckpointManager returns a new instance of a checkpoint manager
 // 1、CheckpointManager保存checkpoint的方式是以文件的形式进行持久化的
+// 2、checkpointDir目录默认为：/var/lib/kubelet
 func NewCheckpointManager(checkpointDir string) (CheckpointManager, error) {
+	// 以文件的方式保存
 	fstore, err := utilstore.NewFileStore(checkpointDir, &utilfs.DefaultFs{})
 	if err != nil {
 		return nil, err
@@ -77,6 +79,7 @@ func (manager *impl) CreateCheckpoint(checkpointKey string, checkpoint Checkpoin
 	if err != nil {
 		return err
 	}
+	// 文件路径为：/var/lib/kubelet/<checkpointKey>，保存内容为blob
 	return manager.store.Write(checkpointKey, blob)
 }
 

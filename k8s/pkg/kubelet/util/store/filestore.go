@@ -31,6 +31,7 @@ const (
 )
 
 // FileStore is an implementation of the Store interface which stores data in files.
+// 1、以文件的方式存储数据，每个KV保存时，Key最终以文件路径的方式保存，Vaule为文件内容
 type FileStore struct {
 	// Absolute path to the base directory for storing data files.
 	// 文件存储路径

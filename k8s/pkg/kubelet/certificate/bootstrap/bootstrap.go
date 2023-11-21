@@ -56,7 +56,11 @@ const tmpPrivateKeyFile = "kubelet-client.key.tmp"
 // kubeconfigPath on disk is populated based on bootstrapPath but pointing to the location of the client cert
 // in certDir. This preserves the historical behavior of bootstrapping where on subsequent restarts the
 // most recent client cert is used to request new client certs instead of the initial token.
-func LoadClientConfig(kubeconfigPath, bootstrapPath, certDir string) (certConfig, userConfig *restclient.Config, err error) {
+func LoadClientConfig(
+	kubeconfigPath, // /etc/kubernetes/kubelet.kubeconfig
+	bootstrapPath, // /etc/kubernetes/bootstrap-kubelet.kubeconfig
+	certDir string, // /var/lib/kubelet/pki
+) (certConfig, userConfig *restclient.Config, err error) {
 	if len(bootstrapPath) == 0 {
 		clientConfig, err := loadRESTClientConfig(kubeconfigPath)
 		if err != nil {
@@ -66,11 +70,13 @@ func LoadClientConfig(kubeconfigPath, bootstrapPath, certDir string) (certConfig
 		return clientConfig, restclient.CopyConfig(clientConfig), nil
 	}
 
+	// 保存证书，/var/lib/kubelet/pki/kubelet-client-current.pem
 	store, err := certificate.NewFileStore("kubelet-client", certDir, certDir, "", "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("unable to build bootstrap cert store")
 	}
 
+	// TODO 校验kubeConfig是否有效
 	ok, err := isClientConfigStillValid(kubeconfigPath)
 	if err != nil {
 		return nil, nil, err

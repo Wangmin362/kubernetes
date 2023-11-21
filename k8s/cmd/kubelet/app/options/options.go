@@ -76,6 +76,7 @@ type KubeletFlags struct {
 		  user:
 		    token: c8ad9c.2e4d610cf3e7426e
 	*/
+	// 配置一般设置为：/etc/kubernetes/bootstrap-kubelet.kubeconfig
 	BootstrapKubeconfig string
 
 	// HostnameOverride is the hostname used to identify the kubelet instead

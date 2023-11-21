@@ -54,6 +54,7 @@ type Manager interface {
 	GetPods() []*v1.Pod
 	// GetPodByFullName returns the (non-mirror) pod that matches full name, as well as
 	// whether the pod was found.
+	// 所谓的podFullName，其实就是：<name>_<namespace>，在一个集权当中是不可能重复的
 	GetPodByFullName(podFullName string) (*v1.Pod, bool)
 	// GetPodByName provides the (non-mirror) pod that matches namespace and
 	// name, as well as whether the pod was found.
@@ -63,14 +64,17 @@ type Manager interface {
 	GetPodByUID(types.UID) (*v1.Pod, bool)
 	// GetPodByMirrorPod returns the static pod for the given mirror pod and
 	// whether it was known to the pod manager.
+	// 获取当前MirrorPod的静态Pod
 	GetPodByMirrorPod(*v1.Pod) (*v1.Pod, bool)
 	// GetMirrorPodByPod returns the mirror pod for the given static pod and
 	// whether it was known to the pod manager.
+	// 获取当前静态Pod的MirrorPod
 	GetMirrorPodByPod(*v1.Pod) (*v1.Pod, bool)
 	// GetPodsAndMirrorPods returns the both regular and mirror pods.
 	GetPodsAndMirrorPods() ([]*v1.Pod, []*v1.Pod)
 	// SetPods replaces the internal pods with the new pods.
 	// It is currently only used for testing.
+	// 仅仅用于测试
 	SetPods(pods []*v1.Pod)
 	// AddPod adds the given pod to the manager.
 	AddPod(pod *v1.Pod)
@@ -89,6 +93,9 @@ type Manager interface {
 	// All public-facing functions should perform this translation for UIDs
 	// because user may provide a mirror pod UID, which is not recognized by
 	// internal Kubelet functions.
+	// 1、返回Pod的UID，有以下两种情况：
+	// 1.1、Pod是普通Pod，那么返回原始的Pod UID
+	// 1.2、Pod是MirrorPod，那么返回静态Pod的UID
 	TranslatePodUID(uid types.UID) kubetypes.ResolvedPodUID
 	// GetUIDTranslations returns the mappings of static pod UIDs to mirror pod
 	// UIDs and mirror pod UIDs to static pod UIDs.
@@ -177,7 +184,7 @@ func updateMetrics(oldPod, newPod *v1.Pod) {
 // lock.
 func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 	for _, pod := range pods {
-		// FullName = <podName>_<namespace>
+		// podFullName = <podName>_<namespace>
 		podFullName := kubecontainer.GetPodFullName(pod)
 		// This logic relies on a static pod and its mirror to have the same name.
 		// It is safe to type convert here due to the IsMirrorPod guard.

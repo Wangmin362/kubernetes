@@ -37,11 +37,11 @@ import (
 
 // Provider hosts methods required by stats handlers.
 type Provider interface {
-	// The following stats are provided by either CRI or cAdvisor.
+	// ListPodStats The following stats are provided by either CRI or cAdvisor.
 	//
 	// ListPodStats returns the stats of all the containers managed by pods.
 	ListPodStats(ctx context.Context) ([]statsapi.PodStats, error)
-	// ListPodStatsAndUpdateCPUNanoCoreUsage updates the cpu nano core usage for
+	// ListPodCPUAndMemoryStats updates the cpu nano core usage for
 	// the containers and returns the stats for all the pod-managed containers.
 	ListPodCPUAndMemoryStats(ctx context.Context) ([]statsapi.PodStats, error)
 	// ListPodStatsAndUpdateCPUNanoCoreUsage returns the stats of all the
@@ -53,7 +53,7 @@ type Provider interface {
 	// ImageFsStats returns the stats of the image filesystem.
 	ImageFsStats(ctx context.Context) (*statsapi.FsStats, error)
 
-	// The following stats are provided by cAdvisor.
+	// GetCgroupStats The following stats are provided by cAdvisor.
 	//
 	// GetCgroupStats returns the stats and the networking usage of the cgroup
 	// with the specified cgroupName.
@@ -64,7 +64,7 @@ type Provider interface {
 	// RootFsStats returns the stats of the node root filesystem.
 	RootFsStats() (*statsapi.FsStats, error)
 
-	// The following stats are provided by cAdvisor for legacy usage.
+	// GetContainerInfo The following stats are provided by cAdvisor for legacy usage.
 	//
 	// GetContainerInfo returns the information of the container with the
 	// containerName managed by the pod with the uid.
@@ -77,7 +77,7 @@ type Provider interface {
 	// the containerName, and with the specified cAdvisor options.
 	GetRequestedContainersInfo(containerName string, options cadvisorv2.RequestOptions) (map[string]*cadvisorapi.ContainerInfo, error)
 
-	// The following information is provided by Kubelet.
+	// GetPodByName The following information is provided by Kubelet.
 	//
 	// GetPodByName returns the spec of the pod with the name in the specified
 	// namespace.

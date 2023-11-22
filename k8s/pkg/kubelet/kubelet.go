@@ -702,7 +702,7 @@ func NewMainKubelet(
 	klet.runtimeService = kubeDeps.RemoteRuntimeService
 
 	if kubeDeps.KubeClient != nil {
-		// TODO RuntimeClassManager
+		// 用于获取底层的容器运行时  TODO K8S调用不同的容器运行时
 		klet.runtimeClassManager = runtimeclass.NewManager(kubeDeps.KubeClient)
 	}
 
@@ -776,7 +776,7 @@ func NewMainKubelet(
 	klet.streamingRuntime = runtime
 	klet.runner = runtime
 
-	// 实例化RuntimeCache
+	// 实例化RuntimeCache，缓存一定时间内的Pod，默认缓存的有效时间为3秒
 	runtimeCache, err := kubecontainer.NewRuntimeCache(klet.containerRuntime, runtimeCacheRefreshPeriod)
 	if err != nil {
 		return nil, err
@@ -1039,7 +1039,8 @@ type Kubelet struct {
 	// hostnameOverridden indicates the hostname was overridden via flag/config
 	hostnameOverridden bool
 
-	nodeName        types.NodeName
+	nodeName types.NodeName
+	// 缓存一定时间内的Pod，默认缓存的有效时间为3秒
 	runtimeCache    kubecontainer.RuntimeCache
 	kubeClient      clientset.Interface
 	heartbeatClient clientset.Interface

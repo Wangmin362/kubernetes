@@ -48,12 +48,16 @@ func NewRuntimeCache(getter podsGetter, cachePeriod time.Duration) (RuntimeCache
 type runtimeCache struct {
 	sync.Mutex
 	// The underlying container runtime used to update the cache.
+	// 获取所有的Pod
 	getter podsGetter
 	// The interval after which the cache should be refreshed.
+	// cache刷新周期
 	cachePeriod time.Duration
 	// Last time when cache was updated.
+	// 最后一次刷新缓存的时间
 	cacheTime time.Time
 	// The content of the cache.
+	// 缓存的Pod
 	pods []*Pod
 }
 
@@ -62,6 +66,7 @@ type runtimeCache struct {
 func (r *runtimeCache) GetPods(ctx context.Context) ([]*Pod, error) {
 	r.Lock()
 	defer r.Unlock()
+	// 如果自上一次刷新缓存已经过了缓存周期了，那么需要更新缓存
 	if time.Since(r.cacheTime) > r.cachePeriod {
 		if err := r.updateCache(ctx); err != nil {
 			return nil, err
@@ -73,6 +78,7 @@ func (r *runtimeCache) GetPods(ctx context.Context) ([]*Pod, error) {
 func (r *runtimeCache) ForceUpdateIfOlder(ctx context.Context, minExpectedCacheTime time.Time) error {
 	r.Lock()
 	defer r.Unlock()
+	// 如果调用方指定了更新时间，如果缓存的更新时间更旧，那么就需要更新时间
 	if r.cacheTime.Before(minExpectedCacheTime) {
 		return r.updateCache(ctx)
 	}
@@ -92,6 +98,7 @@ func (r *runtimeCache) updateCache(ctx context.Context) error {
 func (r *runtimeCache) getPodsWithTimestamp(ctx context.Context) ([]*Pod, time.Time, error) {
 	// Always record the timestamp before getting the pods to avoid stale pods.
 	timestamp := time.Now()
+	// 查询所有的Pod
 	pods, err := r.getter.GetPods(ctx, false)
 	return pods, timestamp, err
 }

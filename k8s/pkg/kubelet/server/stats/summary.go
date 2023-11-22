@@ -29,6 +29,7 @@ import (
 )
 
 // SummaryProvider provides summaries of the stats from Kubelet.
+// 统计一个节点的资源使用情况
 type SummaryProvider interface {
 	// Get provides a new Summary with the stats from Kubelet,
 	// and will update some stats if updateStats is true

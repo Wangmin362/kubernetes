@@ -23,10 +23,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// 记录Pod资源分配情况，以及资源重新配分的状态
 type stateMemory struct {
 	sync.RWMutex
-	podAllocation   PodResourceAllocation
+	// Pod重新分配资源大小的状态，可能的状态有Proposed, InProgress, Deferred, Infeasible
 	podResizeStatus PodResizeStatus
+	// 用于保存Pod每个容器分配的资源大小
+	podAllocation PodResourceAllocation
 }
 
 var _ State = &stateMemory{}
@@ -128,15 +131,18 @@ func (s *stateMemory) deleteContainer(podUID string, containerName string) {
 	klog.V(3).InfoS("Deleted pod resource allocation", "podUID", podUID, "containerName", containerName)
 }
 
+// Delete 删除键Pod容器资源分配情况以及分配状态，如果容器名为空，那么清除整个Pod所有容器的资源分配情况分配状态
 func (s *stateMemory) Delete(podUID string, containerName string) error {
 	s.Lock()
 	defer s.Unlock()
+	// 删除整个Pod的资源分配情况以及分配状态
 	if len(containerName) == 0 {
 		delete(s.podAllocation, podUID)
 		delete(s.podResizeStatus, podUID)
 		klog.V(3).InfoS("Deleted pod resource allocation and resize state", "podUID", podUID)
 		return nil
 	}
+	// 删除Pod的容器资源分配情况
 	s.deleteContainer(podUID, containerName)
 	return nil
 }

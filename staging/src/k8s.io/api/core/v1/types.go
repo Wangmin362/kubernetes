@@ -2721,7 +2721,9 @@ type ContainerStatus struct {
 	// has passed the postStart lifecycle hook. The null value must be treated the
 	// same as false.
 	// +optional
-	// 容器是否启动
+	// 1、容器是否启动，只有当容器执行完成postStartHook并且Startup探针执行完之后才会被设置。
+	// 2、如果为true，表示容器的postStartHook执行成功，并且Startup探针认为容器已经启动。
+	// 3、如果为false, 表示容器的postStartHook执行失败，或者说是Startup探针执行失败。
 	Started *bool `json:"started,omitempty" protobuf:"varint,9,opt,name=started"`
 	// AllocatedResources represents the compute resources allocated for this container by the
 	// node. Kubelet sets this value to Container.Resources.Requests upon successful pod admission
@@ -2817,6 +2819,7 @@ type PodCondition struct {
 	LastProbeTime metav1.Time `json:"lastProbeTime,omitempty" protobuf:"bytes,3,opt,name=lastProbeTime"`
 	// Last time the condition transitioned from one status to another.
 	// +optional
+	// 用于表明当前Condition状态转换的时间
 	LastTransitionTime metav1.Time `json:"lastTransitionTime,omitempty" protobuf:"bytes,4,opt,name=lastTransitionTime"`
 	// Unique, one-word, CamelCase reason for the condition's last transition.
 	// +optional
@@ -2827,6 +2830,7 @@ type PodCondition struct {
 }
 
 // PodResizeStatus shows status of desired resize of a pod's containers.
+// 指的是Pod重新分配资源状态
 type PodResizeStatus string
 
 const (
@@ -4158,6 +4162,7 @@ type PodStatus struct {
 	// RFC 3339 date and time at which the object was acknowledged by the Kubelet.
 	// This is before the Kubelet pulled the container image(s) for the pod.
 	// +optional
+	// TODO 启动时间是什么时间？
 	StartTime *metav1.Time `json:"startTime,omitempty" protobuf:"bytes,7,opt,name=startTime"`
 
 	// The list has one entry per init container in the manifest. The most recent successful

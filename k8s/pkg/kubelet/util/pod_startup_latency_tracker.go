@@ -67,16 +67,19 @@ func (p *basicPodStartupLatencyTracker) ObservedPodOnWatch(pod *v1.Pod, when tim
 	defer p.lock.Unlock()
 
 	// if the pod is terminal, we do not have to track it anymore for startup
+	// 如果Pod已经结束执行，那么直接删除Pod的启动记录
 	if pod.Status.Phase == v1.PodFailed || pod.Status.Phase == v1.PodSucceeded {
 		delete(p.pods, pod.UID)
 		return
 	}
 
+	// 获取Pod的状态
 	state := p.pods[pod.UID]
 	if state == nil {
 		// create a new record for pod, only if it was not yet acknowledged by the Kubelet
 		// this is required, as we want to log metric only for those pods, that where scheduled
 		// after Kubelet started
+		// 如果当前没有缓存过Pod的状态，那么实例化一个空的
 		if pod.Status.StartTime.IsZero() {
 			p.pods[pod.UID] = &perPodState{}
 		}
@@ -168,6 +171,7 @@ func (p *basicPodStartupLatencyTracker) RecordStatusUpdated(pod *v1.Pod) {
 //
 // This should reflect "Pod startup latency SLI" definition
 // ref: https://github.com/kubernetes/community/blob/master/sig-scalability/slos/pod_startup_latency.md
+// Pod所有的容器都已经启动
 func hasPodStartedSLO(pod *v1.Pod) bool {
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.State.Running == nil || cs.State.Running.StartedAt.IsZero() {

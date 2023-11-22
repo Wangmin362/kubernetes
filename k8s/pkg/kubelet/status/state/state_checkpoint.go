@@ -30,13 +30,15 @@ import (
 var _ State = &stateCheckpoint{}
 
 type stateCheckpoint struct {
-	mux               sync.RWMutex
+	mux sync.RWMutex
+	// 实际持有Pod资源分配大小的组件，同时也持有Pod资源分配状态的大小
 	cache             State
 	checkpointManager checkpointmanager.CheckpointManager
 	checkpointName    string
 }
 
 // NewStateCheckpoint creates new State for keeping track of pod resource allocations with checkpoint backend
+// stateDir为checkpoint持久化目录
 func NewStateCheckpoint(stateDir, checkpointName string) (State, error) {
 	checkpointManager, err := checkpointmanager.NewCheckpointManager(stateDir)
 	if err != nil {
@@ -62,8 +64,10 @@ func (sc *stateCheckpoint) restoreState() error {
 	defer sc.mux.Unlock()
 	var err error
 
+	// 实例化一个checkpoint
 	checkpoint := NewPodResourceAllocationCheckpoint()
 
+	// 从持久化的文件中恢复数据
 	if err = sc.checkpointManager.GetCheckpoint(sc.checkpointName, checkpoint); err != nil {
 		if err == errors.ErrCheckpointNotFound {
 			return sc.storeState()
@@ -81,6 +85,7 @@ func (sc *stateCheckpoint) restoreState() error {
 func (sc *stateCheckpoint) storeState() error {
 	checkpoint := NewPodResourceAllocationCheckpoint()
 
+	// 获取缓存中的Pod资源分配大小
 	podAllocation := sc.cache.GetPodResourceAllocation()
 	for pod := range podAllocation {
 		checkpoint.AllocationEntries[pod] = make(map[string]v1.ResourceList)
@@ -89,12 +94,14 @@ func (sc *stateCheckpoint) storeState() error {
 		}
 	}
 
+	// 获取缓存中的Pod资源分装状态
 	podResizeStatus := sc.cache.GetResizeStatus()
 	checkpoint.ResizeStatusEntries = make(map[string]v1.PodResizeStatus)
 	for pUID, rStatus := range podResizeStatus {
 		checkpoint.ResizeStatusEntries[pUID] = rStatus
 	}
 
+	// 持久化
 	err := sc.checkpointManager.CreateCheckpoint(sc.checkpointName, checkpoint)
 	if err != nil {
 		klog.ErrorS(err, "Failed to save pod allocation checkpoint")

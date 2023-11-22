@@ -21,9 +21,12 @@ import (
 )
 
 // PodResourceAllocation type is used in tracking resources allocated to pod's containers
+// 1、第一级key为Pod UID, 第二级Key为容器名（之所以不使用容器 ID，是因为容器可能会被重启，ID会发生改变）
+// 2、Value为容器的各种资源分配的大小，目前有：cpu, memory, storage, ephemeral-storage
 type PodResourceAllocation map[string]map[string]v1.ResourceList
 
 // PodResizeStatus type is used in tracking the last resize decision for pod
+// Key为Pod UID
 type PodResizeStatus map[string]v1.PodResizeStatus
 
 // Clone returns a copy of PodResourceAllocation
@@ -40,18 +43,28 @@ func (pr PodResourceAllocation) Clone() PodResourceAllocation {
 
 // Reader interface used to read current pod resource allocation state
 type Reader interface {
+	// GetContainerResourceAllocation 获取Pod中某个容器的资源分配情况
 	GetContainerResourceAllocation(podUID string, containerName string) (v1.ResourceList, bool)
+	// GetPodResourceAllocation 获取所有Pod的资源分配情况
 	GetPodResourceAllocation() PodResourceAllocation
+	// GetPodResizeStatus 获取Pod容器资源分配状态
 	GetPodResizeStatus(podUID string) (v1.PodResizeStatus, bool)
+	// GetResizeStatus 获取所有容器资源分配状态
 	GetResizeStatus() PodResizeStatus
 }
 
 type writer interface {
+	// SetContainerResourceAllocation 设置Pod中某个容器的资源分配情况
 	SetContainerResourceAllocation(podUID string, containerName string, alloc v1.ResourceList) error
+	// SetPodResourceAllocation 替换Pod资源分配情况
 	SetPodResourceAllocation(PodResourceAllocation) error
+	// SetPodResizeStatus 设置Pod资源分配状态，如果状态为空，会清空缓存中记录的Pod资源分配状态
 	SetPodResizeStatus(podUID string, resizeStatus v1.PodResizeStatus) error
+	// SetResizeStatus 更新所有Pod重新分配资源的状态
 	SetResizeStatus(PodResizeStatus) error
+	// Delete 删除键Pod容器资源分配情况以及分配状态，如果容器名为空，那么清除整个Pod所有容器的资源分配情况分配状态
 	Delete(podUID string, containerName string) error
+	// ClearState 清空Pod资源分配情况，以及分配状态
 	ClearState() error
 }
 

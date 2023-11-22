@@ -74,7 +74,7 @@ type Manager interface {
 	GetPodsAndMirrorPods() ([]*v1.Pod, []*v1.Pod)
 	// SetPods replaces the internal pods with the new pods.
 	// It is currently only used for testing.
-	// 仅仅用于测试
+	// 仅仅用于测试， SetPods会清空缓存中所有的记录，然后在存储这里需要保存的pod
 	SetPods(pods []*v1.Pod)
 	// AddPod adds the given pod to the manager.
 	AddPod(pod *v1.Pod)
@@ -103,6 +103,7 @@ type Manager interface {
 	GetUIDTranslations() (podToMirror map[kubetypes.ResolvedPodUID]kubetypes.MirrorPodUID, mirrorToPod map[kubetypes.MirrorPodUID]kubetypes.ResolvedPodUID)
 	// IsMirrorPodOf returns true if mirrorPod is a correct representation of
 	// pod; false otherwise.
+	// 判断mirrorPod是否真的是Pod的Mirror
 	IsMirrorPodOf(mirrorPod, pod *v1.Pod) bool
 
 	MirrorClient
@@ -122,7 +123,8 @@ type basicManager struct {
 	mirrorPodByUID map[kubetypes.MirrorPodUID]*v1.Pod
 
 	// Pods indexed by full name for easy access.
-	podByFullName       map[string]*v1.Pod
+	podByFullName map[string]*v1.Pod
+	// 用于保存MirrorPod
 	mirrorPodByFullName map[string]*v1.Pod
 
 	// Mirror pod UID to pod UID map.
@@ -196,6 +198,7 @@ func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 			pm.mirrorPodByUID[mirrorPodUID] = pod
 			pm.mirrorPodByFullName[podFullName] = pod
 			// 如果MirrorPod出现在了常规Pod缓存当中，需要更新MirrorPod PodUID以及Pod UID之间的映射关系
+			// TODO 什么时候一个Pod既是普通Pod又是MirrorPod?
 			if p, ok := pm.podByFullName[podFullName]; ok {
 				pm.translationByUID[mirrorPodUID] = kubetypes.ResolvedPodUID(p.UID)
 			}
@@ -205,6 +208,7 @@ func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 			updateMetrics(pm.podByUID[resolvedPodUID], pod)
 			pm.podByUID[resolvedPodUID] = pod
 			pm.podByFullName[podFullName] = pod
+			// TODO 什么时候一个Pod既是普通Pod又是MirrorPod?
 			if mirror, ok := pm.mirrorPodByFullName[podFullName]; ok {
 				pm.translationByUID[kubetypes.MirrorPodUID(mirror.UID)] = resolvedPodUID
 			}
@@ -286,6 +290,7 @@ func (pm *basicManager) GetUIDTranslations() (
 	podToMirror = make(map[kubetypes.ResolvedPodUID]kubetypes.MirrorPodUID, len(pm.translationByUID))
 	mirrorToPod = make(map[kubetypes.MirrorPodUID]kubetypes.ResolvedPodUID, len(pm.translationByUID))
 	// Insert empty translation mapping for all static pods.
+	// 初始化所有的静态Pod的映射
 	for uid, pod := range pm.podByUID {
 		if !kubetypes.IsStaticPod(pod) {
 			continue
@@ -296,6 +301,7 @@ func (pm *basicManager) GetUIDTranslations() (
 	// static pod, its uid will be translated into empty string "". This
 	// is WAI, from the caller side we can know that the static pod doesn't
 	// have a corresponding mirror pod instead of using static pod uid directly.
+	// TODO 一个静态Pod是否可能不存在MirrorPod？ 难道是还没有来得及创建的时候？
 	for k, v := range pm.translationByUID {
 		mirrorToPod[k] = v
 		podToMirror[v] = k
@@ -303,6 +309,7 @@ func (pm *basicManager) GetUIDTranslations() (
 	return podToMirror, mirrorToPod
 }
 
+// GetOrphanedMirrorPodNames 返回是MirrorPod但不是普通Pod
 func (pm *basicManager) GetOrphanedMirrorPodNames() []string {
 	pm.lock.RLock()
 	defer pm.lock.RUnlock()

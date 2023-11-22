@@ -53,6 +53,8 @@ type ReasonItem struct {
 const maxReasonCacheEntries = 1000
 
 // NewReasonCache creates an instance of 'ReasonCache'.
+// 1、ReasonCache最多保存1000条记录，并且这个缓存为LRU缓存，不常用的原因会被清除。
+// 2、ReasonCache用于保存容器启动失败的原因（容器其它时刻的原因并不保存）。缓存的key为<pod-uid>_<name>
 func NewReasonCache() *ReasonCache {
 	return &ReasonCache{cache: lru.New(maxReasonCacheEntries)}
 }
@@ -72,19 +74,23 @@ func (c *ReasonCache) add(uid types.UID, name string, reason error, message stri
 // StartContainer action will change the cache.
 func (c *ReasonCache) Update(uid types.UID, result kubecontainer.PodSyncResult) {
 	for _, r := range result.SyncResults {
+		// ReasonCache只保存容器启动失败的原因，其它时候失败的原因不保存
 		if r.Action != kubecontainer.StartContainer {
 			continue
 		}
 		name := r.Target.(string)
 		if r.Error != nil {
+			// 如果容器启动失败，记录下来
 			c.add(uid, name, r.Error, r.Message)
 		} else {
+			// 如果容器启动成功，移除容器启动失败
 			c.Remove(uid, name)
 		}
 	}
 }
 
 // Remove removes error reason from the cache
+// 移除容器失败原因
 func (c *ReasonCache) Remove(uid types.UID, name string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -94,6 +100,7 @@ func (c *ReasonCache) Remove(uid types.UID, name string) {
 // Get gets error reason from the cache. The return values are error reason, error message and
 // whether an error reason is found in the cache. If no error reason is found, empty string will
 // be returned for error reason and error message.
+// 获取容器失败的原因
 func (c *ReasonCache) Get(uid types.UID, name string) (*ReasonItem, bool) {
 	c.lock.Lock()
 	defer c.lock.Unlock()

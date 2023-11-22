@@ -70,8 +70,9 @@ const (
 // NewPluginManager returns a new concrete instance implementing the
 // PluginManager interface.
 func NewPluginManager(
-	sockDir string,
-	recorder record.EventRecorder) PluginManager {
+	sockDir string, // 默认为：/var/lib/kubelet/plugins_registry
+	recorder record.EventRecorder, // 事件记录器
+) PluginManager {
 	asw := cache.NewActualStateOfWorld()
 	dsw := cache.NewDesiredStateOfWorld()
 	reconciler := reconciler.NewReconciler(

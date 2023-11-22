@@ -25,19 +25,19 @@ import (
 )
 
 // GCPolicy specifies a policy for garbage collecting containers.
-// TODO 垃圾收集策略
+// 容器垃圾收集策略
 type GCPolicy struct {
 	// Minimum age at which a container can be garbage collected, zero for no limit.
-	// 一个容器创建出来之后，最小生存时间，如果为零，表示没有限制。
+	// 一个容器创建出来之后，最小生存时间，如果为零，表示没有限制，即一个容器创建出来可以立即被回收
 	MinAge time.Duration
 
 	// Max number of dead containers any single pod (UID, container name) pair is
 	// allowed to have, less than zero for no limit.
-	// 每个Pod中限制的容器数量，0表示不限制
+	// 每个Pod中最多死亡的容器，默认为一，0表示不限制
 	MaxPerPodContainer int
 
 	// Max number of total dead containers, less than zero for no limit.
-	// 最多容许多少个已经删除的容器
+	// 一个Node最多运行的容器死亡数量，小于零表示没有限制
 	MaxContainers int
 }
 
@@ -47,7 +47,7 @@ type GCPolicy struct {
 type GC interface {
 	// GarbageCollect Garbage collect containers.
 	GarbageCollect(ctx context.Context) error
-	// Deletes all unused containers, including containers belonging to pods that are terminated but not deleted
+	// DeleteAllUnusedContainers Deletes all unused containers, including containers belonging to pods that are terminated but not deleted
 	DeleteAllUnusedContainers(ctx context.Context) error
 }
 
@@ -70,7 +70,11 @@ type realContainerGC struct {
 }
 
 // NewContainerGC creates a new instance of GC with the specified policy.
-func NewContainerGC(runtime Runtime, policy GCPolicy, sourcesReadyProvider SourcesReadyProvider) (GC, error) {
+func NewContainerGC(
+	runtime Runtime, // CRI接口
+	policy GCPolicy, // 容器回收策略
+	sourcesReadyProvider SourcesReadyProvider, // HTTP, Static, APIServer三种方式源是否同步完成
+) (GC, error) {
 	if policy.MinAge < 0 {
 		return nil, fmt.Errorf("invalid minimum garbage collection age: %v", policy.MinAge)
 	}
@@ -82,10 +86,18 @@ func NewContainerGC(runtime Runtime, policy GCPolicy, sourcesReadyProvider Sourc
 	}, nil
 }
 
+// GarbageCollect
+// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+// 3、容器删除之后，容器的日志也就没有保留的必要了
 func (cgc *realContainerGC) GarbageCollect(ctx context.Context) error {
 	return cgc.runtime.GarbageCollect(ctx, cgc.policy, cgc.sourcesReadyProvider.AllReady(), false)
 }
 
+// DeleteAllUnusedContainers
+// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+// 3、容器删除之后，容器的日志也就没有保留的必要了
 func (cgc *realContainerGC) DeleteAllUnusedContainers(ctx context.Context) error {
 	klog.InfoS("Attempting to delete unused containers")
 	return cgc.runtime.GarbageCollect(ctx, cgc.policy, cgc.sourcesReadyProvider.AllReady(), true)

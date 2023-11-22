@@ -43,10 +43,12 @@ const (
 )
 
 // NewManager returns a new token manager.
+// 缓存token，如果token或者缓存中没有需要的token，就像APIServer请求。并且每隔一分钟清理过期的token
 func NewManager(c clientset.Interface) *Manager {
 	// check whether the server supports token requests so we can give a more helpful error message
 	supported := false
 	once := &sync.Once{}
+	// 判断当前是否支持令牌请求
 	tokenRequestsSupported := func() bool {
 		once.Do(func() {
 			resources, err := c.Discovery().ServerResourcesForGroupVersion("v1")
@@ -68,6 +70,7 @@ func NewManager(c clientset.Interface) *Manager {
 			if c == nil {
 				return nil, errors.New("cannot use TokenManager when kubelet is in standalone mode")
 			}
+			// 查询APIServer
 			tokenRequest, err := c.CoreV1().ServiceAccounts(namespace).CreateToken(context.TODO(), name, tr, metav1.CreateOptions{})
 			if apierrors.IsNotFound(err) && !tokenRequestsSupported() {
 				return nil, fmt.Errorf("the API server does not have TokenRequest endpoints enabled")
@@ -77,6 +80,8 @@ func NewManager(c clientset.Interface) *Manager {
 		cache: make(map[string]*authenticationv1.TokenRequest),
 		clock: clock.RealClock{},
 	}
+
+	// 每隔一分钟清理所有过期的token
 	go wait.Forever(m.cleanup, gcPeriod)
 	return m
 }
@@ -86,7 +91,8 @@ type Manager struct {
 
 	// cacheMutex guards the cache
 	cacheMutex sync.RWMutex
-	cache      map[string]*authenticationv1.TokenRequest
+	// key为：<name>/<namespace>/<audiences>/<ExpirationTime>/<ref>
+	cache map[string]*authenticationv1.TokenRequest
 
 	// mocked for testing
 	getToken func(name, namespace string, tr *authenticationv1.TokenRequest) (*authenticationv1.TokenRequest, error)
@@ -102,14 +108,18 @@ type Manager struct {
 // * If refresh fails and the old token is still valid, log an error and return the old token.
 // * If refresh fails and the old token is no longer valid, return an error
 func (m *Manager) GetServiceAccountToken(namespace, name string, tr *authenticationv1.TokenRequest) (*authenticationv1.TokenRequest, error) {
+	// <name>/<namespace>/<audiences>/<ExpirationTime>/<ref>
 	key := keyFunc(name, namespace, tr)
 
+	// 从缓存获取Token
 	ctr, ok := m.get(key)
 
+	// 如果从缓存中获取到token，并且此token没有过期，那么这个token是可以使用的
 	if ok && !m.requiresRefresh(ctr) {
 		return ctr, nil
 	}
 
+	// 否则，如果缓存中有token，或者已经过期，那么重新获取token
 	tr, err := m.getToken(name, namespace, tr)
 	if err != nil {
 		switch {
@@ -123,6 +133,7 @@ func (m *Manager) GetServiceAccountToken(namespace, name string, tr *authenticat
 		}
 	}
 
+	// 花村token
 	m.set(key, tr)
 	return tr, nil
 }
@@ -139,6 +150,7 @@ func (m *Manager) DeleteServiceAccountToken(podUID types.UID) {
 	}
 }
 
+// 清理所有过期的token
 func (m *Manager) cleanup() {
 	m.cacheMutex.Lock()
 	defer m.cacheMutex.Unlock()
@@ -202,5 +214,6 @@ func keyFunc(name, namespace string, tr *authenticationv1.TokenRequest) string {
 		ref = *tr.Spec.BoundObjectRef
 	}
 
+	// <name>/<namespace>/<audiences>/<ExpirationTime>/<ref>
 	return fmt.Sprintf("%q/%q/%#v/%#v/%#v", name, namespace, tr.Spec.Audiences, exp, ref)
 }

@@ -29,9 +29,9 @@ type runtimeState struct {
 	sync.RWMutex
 	lastBaseRuntimeSync      time.Time
 	baseRuntimeSyncThreshold time.Duration
-	networkError             error
-	runtimeError             error
-	storageError             error
+	networkError             error // 网络错误
+	runtimeError             error // 运行时错误
+	storageError             error // 存储错误
 	cidr                     string
 	healthChecks             []*healthCheck
 }
@@ -40,6 +40,7 @@ type runtimeState struct {
 // components (e.g., container runtime).
 type healthCheckFnType func() (bool, error)
 
+// 健康检测返回的错误认为是运行时错误
 type healthCheck struct {
 	name string
 	fn   healthCheckFnType
@@ -90,7 +91,7 @@ func (s *runtimeState) podCIDR() string {
 func (s *runtimeState) runtimeErrors() error {
 	s.RLock()
 	defer s.RUnlock()
-	errs := []error{}
+	var errs []error
 	if s.lastBaseRuntimeSync.IsZero() {
 		errs = append(errs, errors.New("container runtime status check may not have completed yet"))
 	} else if !s.lastBaseRuntimeSync.Add(s.baseRuntimeSyncThreshold).After(time.Now()) {
@@ -111,7 +112,7 @@ func (s *runtimeState) runtimeErrors() error {
 func (s *runtimeState) networkErrors() error {
 	s.RLock()
 	defer s.RUnlock()
-	errs := []error{}
+	var errs []error
 	if s.networkError != nil {
 		errs = append(errs, s.networkError)
 	}
@@ -121,13 +122,14 @@ func (s *runtimeState) networkErrors() error {
 func (s *runtimeState) storageErrors() error {
 	s.RLock()
 	defer s.RUnlock()
-	errs := []error{}
+	var errs []error
 	if s.storageError != nil {
 		errs = append(errs, s.storageError)
 	}
 	return utilerrors.NewAggregate(errs)
 }
 
+// 用于保存运行时、网络、存储错误
 func newRuntimeState(runtimeSyncThreshold time.Duration) *runtimeState {
 	return &runtimeState{
 		lastBaseRuntimeSync:      time.Time{},

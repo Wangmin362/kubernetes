@@ -45,6 +45,7 @@ var _ Watcher = &realWatcher{}
 
 // NewWatcher creates and initializes a OOMWatcher backed by Cadvisor as
 // the oom streamer.
+// 通过监听/dev/kmsg日志，发现OOM的容器
 func NewWatcher(recorder record.EventRecorder) (Watcher, error) {
 	// for test purpose
 	_, ok := recorder.(*record.FakeRecorder)
@@ -73,7 +74,7 @@ const (
 // Start watches for system oom's and records an event for every system oom encountered.
 func (ow *realWatcher) Start(ref *v1.ObjectReference) error {
 	outStream := make(chan *oomparser.OomInstance, 10)
-	// 通过监听/dev/kmsg日志，发现OOM的Pod
+	// 通过监听/dev/kmsg日志，发现OOM的容器
 	go ow.oomStreamer.StreamOoms(outStream)
 
 	go func() {

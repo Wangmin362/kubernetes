@@ -45,7 +45,7 @@ import (
 // that may need to know where to write data without getting a whole kubelet
 // instance.
 func (kl *Kubelet) getRootDir() string {
-	return kl.rootDirectory
+	return kl.rootDirectory // 默认为 /var/lib/kubelet
 }
 
 // getPodsDir returns the full path to the directory under which pod
@@ -67,6 +67,7 @@ func (kl *Kubelet) getPluginsDir() string {
 // More information is available about plugin registration in the pluginwatcher
 // module
 func (kl *Kubelet) getPluginsRegistrationDir() string {
+	// 默认为：/var/lib/kubelet/plugins_registry
 	return filepath.Join(kl.getRootDir(), config.DefaultKubeletPluginsRegistrationDirName)
 }
 

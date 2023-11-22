@@ -536,7 +536,7 @@ func NewMainKubelet(
 		Namespace: "",
 	}
 
-	// TODO 实例化OOMWatcher
+	// 通过监听/dev/kmsg日志，发现OOM的容器
 	oomWatcher, err := oomwatcher.NewWatcher(kubeDeps.Recorder)
 	if err != nil {
 		if libcontaineruserns.RunningInUserNS() {
@@ -637,6 +637,7 @@ func NewMainKubelet(
 	}
 
 	if klet.cloud != nil {
+		// TODO 仔细分析
 		klet.cloudResourceSyncManager = cloudresource.NewSyncManager(klet.cloud, nodeName, klet.nodeStatusUpdateFrequency)
 	}
 
@@ -696,13 +697,13 @@ func NewMainKubelet(
 	// TODO StatusManager
 	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet, kubeDeps.PodStartupLatencyTracker, klet.getRootDir())
 
-	// TODO ResourceAnalyzer
+	// TODO ResourceAnalyzer 用于分析Node， Pod消耗的资源
 	klet.resourceAnalyzer = serverstats.NewResourceAnalyzer(klet, kubeCfg.VolumeStatsAggPeriod.Duration, kubeDeps.Recorder)
 
 	klet.runtimeService = kubeDeps.RemoteRuntimeService
 
 	if kubeDeps.KubeClient != nil {
-		// 用于获取底层的容器运行时  TODO K8S调用不同的容器运行时
+		// 用于获取底层的容器运行时  TODO K8S如何调用不同的容器运行时
 		klet.runtimeClassManager = runtimeclass.NewManager(kubeDeps.KubeClient)
 	}
 
@@ -719,9 +720,10 @@ func NewMainKubelet(
 	}
 	klet.containerLogManager = containerLogManager
 
-	// TODO 实例化ReasonCache
+	// 1、ReasonCache最多保存1000条记录，并且这个缓存为LRU缓存，不常用的原因会被清除。
+	// 2、ReasonCache用于保存容器启动失败的原因（容器其它时刻的原因并不保存）。缓存的key为<pod-uid>_<name>
 	klet.reasonCache = NewReasonCache()
-	// TODO 实例化BasicWorkQueue
+	// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
 	klet.workQueue = queue.NewBasicWorkQueue(klet.clock)
 	// TODO 实例化PodWorker
 	klet.podWorkers = newPodWorkers(
@@ -840,25 +842,30 @@ func NewMainKubelet(
 		klet.pleg = pleg.NewGenericPLEG(klet.containerRuntime, eventChannel, genericRelistDuration, klet.podCache, clock.RealClock{})
 	}
 
+	// 用于保存运行时、网络、存储错误
 	klet.runtimeState = newRuntimeState(maxWaitForContainerRuntime)
+	// 检测PLEG是否健康
 	klet.runtimeState.addHealthCheck("PLEG", klet.pleg.Healthy)
 	if utilfeature.DefaultFeatureGate.Enabled(features.EventedPLEG) {
+		// 检测EventedPLEG是否健康
 		klet.runtimeState.addHealthCheck("EventedPLEG", klet.eventedPleg.Healthy)
 	}
 	if _, err := klet.updatePodCIDR(ctx, kubeCfg.PodCIDR); err != nil {
 		klog.ErrorS(err, "Pod CIDR update failed")
 	}
 
-	// TODO 实例化ContainerGC
+	// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+	// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+	// 3、容器删除之后，容器的日志也就没有保留的必要了
 	containerGC, err := kubecontainer.NewContainerGC(klet.containerRuntime, containerGCPolicy, klet.sourcesReady)
 	if err != nil {
 		return nil, err
 	}
 	klet.containerGC = containerGC
-	// TODO 实例化PodContainerDeletor
+	// 用于删除Pod
 	klet.containerDeletor = newPodContainerDeletor(klet.containerRuntime, integer.IntMax(containerGCPolicy.MaxPerPodContainer, minDeadContainerInPod))
 
-	// TODO 实例化ImageGCManager
+	// 删除我用的镜像
 	imageManager, err := images.NewImageGCManager(klet.containerRuntime, klet.StatsProvider, kubeDeps.Recorder, nodeRef, imageGCPolicy, crOptions.PodSandboxImage, kubeDeps.TracerProvider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize image manager: %v", err)
@@ -884,7 +891,9 @@ func NewMainKubelet(
 	if kubeDeps.ProbeManager != nil {
 		klet.probeManager = kubeDeps.ProbeManager
 	} else {
-		// TODO 实例化ProbeManager
+		// 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程，同时此协程会定时
+		// 通过探针的配置检查状态，譬如执行HTTP请求，或者执行Exec命令，或者是看端口是否处于监听状态
+		// 2、于此同时，每个容器的每种类型的探针结果都会被存入到ResultManager，从而触发PLEG的syncLoop更新Pod状态
 		klet.probeManager = prober.NewManager(
 			klet.statusManager,
 			klet.livenessManager,
@@ -894,7 +903,7 @@ func NewMainKubelet(
 			kubeDeps.Recorder)
 	}
 
-	// TODO 实例化TokenManager
+	// 缓存token，如果token或者缓存中没有需要的token，就像APIServer请求。并且每隔一分钟清理过期的token
 	tokenManager := token.NewManager(kubeDeps.KubeClient)
 
 	// NewInitializedVolumePluginMgr initializes some storageErrors on the Kubelet runtimeState (in csi_plugin.go init)
@@ -991,7 +1000,8 @@ func NewMainKubelet(
 		renewInterval,
 		string(klet.nodeName),
 		v1.NamespaceNodeLease,
-		util.SetNodeOwnerFunc(klet.heartbeatClient, string(klet.nodeName)))
+		util.SetNodeOwnerFunc(klet.heartbeatClient, string(klet.nodeName)),
+	)
 
 	// setup node shutdown manager
 	// TODO 实例化ShutdownManager
@@ -1194,6 +1204,7 @@ type Kubelet struct {
 	// 2. nodeStatusUpdateFrequency needs to be large enough for kubelet to generate node
 	//    status. Kubelet may fail to update node status reliably if the value is too small,
 	//    as it takes time to gather all necessary node information.
+	// TODO 如果不设置，默认为多久？
 	nodeStatusUpdateFrequency time.Duration
 
 	// nodeStatusReportFrequency is the frequency that kubelet posts node
@@ -1470,11 +1481,15 @@ func (kl *Kubelet) setupDataDirs() error {
 }
 
 // StartGarbageCollection starts garbage collection threads.
+// 1、每分钟清理一次处于非运行状态的容器
+// 2、每五分钟清理一次无用的镜像
 func (kl *Kubelet) StartGarbageCollection() {
 	loggedContainerGCFailure := false
 	go wait.Until(func() {
 		ctx := context.Background()
-		// 1、每分钟收集一次，那么哪些容器可以收集呢？
+		// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+		// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+		// 3、容器删除之后，容器的日志也就没有保留的必要了
 		if err := kl.containerGC.GarbageCollect(ctx); err != nil {
 			klog.ErrorS(err, "Container garbage collection failed")
 			kl.recorder.Eventf(kl.nodeRef, v1.EventTypeWarning, events.ContainerGCFailed, err.Error())
@@ -1719,7 +1734,7 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 	kl.statusManager.Start()
 
 	// Start syncing RuntimeClasses if enabled.
-	// TODO 启动RuntimeClassManager
+	// 启动RuntimeClassManager
 	if kl.runtimeClassManager != nil {
 		kl.runtimeClassManager.Start(wait.NeverStop)
 	}

@@ -1225,7 +1225,7 @@ func RunKubelet(kubeServer *options.KubeletServer, kubeDeps *kubelet.Dependencie
 		kubeDeps.OSInterface = kubecontainer.RealOS{}
 	}
 
-	// TODO 实例化Kubelet
+	// TODO 实例化Kubelet并初始化必要的属性
 	k, err := createAndInitKubelet(
 		kubeServer,
 		kubeDeps,
@@ -1358,11 +1358,11 @@ func createAndInitKubelet(
 		return nil, err
 	}
 
-	// 发送StartingKubelet事件
+	// 生成StartingKubelet事件
 	k.BirthCry()
 
-	// TODO 1、收集容器
-	// TODO 2、收集镜像
+	// 1、每分钟清理一次处于非运行状态的容器
+	// 2、每五分钟清理一次无用的镜像
 	k.StartGarbageCollection()
 
 	return k, nil

@@ -116,7 +116,7 @@ type NodeResizeOptions struct {
 type DynamicPluginProber interface {
 	Init() error
 
-	// aggregates events for successful drivers and errors for failed drivers
+	// Probe aggregates events for successful drivers and errors for failed drivers
 	Probe() (events []ProbeEvent, err error)
 }
 

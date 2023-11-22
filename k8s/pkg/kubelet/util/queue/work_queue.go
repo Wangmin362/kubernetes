@@ -42,6 +42,7 @@ type basicWorkQueue struct {
 var _ WorkQueue = &basicWorkQueue{}
 
 // NewBasicWorkQueue returns a new basic WorkQueue with the provided clock
+// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
 func NewBasicWorkQueue(clock clock.Clock) WorkQueue {
 	queue := make(map[types.UID]time.Time)
 	return &basicWorkQueue{queue: queue, clock: clock}

@@ -170,6 +170,7 @@ type TokenRequestSpec struct {
 	// BoundObjectRef, but other audiences may not. Keep ExpirationSeconds
 	// small if you want prompt revocation.
 	// +optional
+	// TODO 这玩意干嘛的？
 	BoundObjectRef *BoundObjectReference `json:"boundObjectRef" protobuf:"bytes,3,opt,name=boundObjectRef"`
 }
 

@@ -58,7 +58,11 @@ type basicMirrorClient struct {
 }
 
 // NewBasicMirrorClient returns a new MirrorClient.
-func NewBasicMirrorClient(apiserverClient clientset.Interface, nodeName string, nodeGetter nodeGetter) MirrorClient {
+func NewBasicMirrorClient(
+	apiserverClient clientset.Interface,
+	nodeName string,
+	nodeGetter nodeGetter,
+) MirrorClient {
 	return &basicMirrorClient{
 		apiserverClient: apiserverClient,
 		nodeName:        nodeName,
@@ -130,7 +134,8 @@ func (mc *basicMirrorClient) DeleteMirrorPod(podFullName string, uid *types.UID)
 	klog.V(2).InfoS("Deleting a mirror pod", "pod", klog.KRef(namespace, name), "podUID", uidValue)
 
 	var GracePeriodSeconds int64
-	if err := mc.apiserverClient.CoreV1().Pods(namespace).Delete(context.TODO(), name, metav1.DeleteOptions{GracePeriodSeconds: &GracePeriodSeconds, Preconditions: &metav1.Preconditions{UID: uid}}); err != nil {
+	if err := mc.apiserverClient.CoreV1().Pods(namespace).Delete(context.TODO(), name,
+		metav1.DeleteOptions{GracePeriodSeconds: &GracePeriodSeconds, Preconditions: &metav1.Preconditions{UID: uid}}); err != nil {
 		// Unfortunately, there's no generic error for failing a precondition
 		if !(apierrors.IsNotFound(err) || apierrors.IsConflict(err)) {
 			// We should return the error here, but historically this routine does

@@ -140,7 +140,7 @@ func NewBasicPodManager(client MirrorClient) Manager {
 	return pm
 }
 
-// Set the internal pods based on the new pods.
+// SetPods Set the internal pods based on the new pods.
 func (pm *basicManager) SetPods(newPods []*v1.Pod) {
 	pm.lock.Lock()
 	defer pm.lock.Unlock()
@@ -200,6 +200,7 @@ func (pm *basicManager) updatePodsInternal(pods ...*v1.Pod) {
 				pm.translationByUID[mirrorPodUID] = kubetypes.ResolvedPodUID(p.UID)
 			}
 		} else {
+			// 如果不是mirrorPod，那么就是普通的常规Pod
 			resolvedPodUID := kubetypes.ResolvedPodUID(pod.UID)
 			updateMetrics(pm.podByUID[resolvedPodUID], pod)
 			pm.podByUID[resolvedPodUID] = pod
@@ -275,8 +276,10 @@ func (pm *basicManager) TranslatePodUID(uid types.UID) kubetypes.ResolvedPodUID 
 	return kubetypes.ResolvedPodUID(uid)
 }
 
-func (pm *basicManager) GetUIDTranslations() (podToMirror map[kubetypes.ResolvedPodUID]kubetypes.MirrorPodUID,
-	mirrorToPod map[kubetypes.MirrorPodUID]kubetypes.ResolvedPodUID) {
+func (pm *basicManager) GetUIDTranslations() (
+	podToMirror map[kubetypes.ResolvedPodUID]kubetypes.MirrorPodUID,
+	mirrorToPod map[kubetypes.MirrorPodUID]kubetypes.ResolvedPodUID,
+) {
 	pm.lock.RLock()
 	defer pm.lock.RUnlock()
 

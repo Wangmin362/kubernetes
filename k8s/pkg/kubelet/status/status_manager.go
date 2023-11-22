@@ -217,7 +217,13 @@ type Manager interface {
 const syncPeriod = 10 * time.Second
 
 // NewManager returns a functional Manager.
-func NewManager(kubeClient clientset.Interface, podManager kubepod.Manager, podDeletionSafety PodDeletionSafetyProvider, podStartupLatencyHelper PodStartupLatencyStateHelper, stateFileDirectory string) Manager {
+func NewManager(
+	kubeClient clientset.Interface,
+	podManager kubepod.Manager,
+	podDeletionSafety PodDeletionSafetyProvider,
+	podStartupLatencyHelper PodStartupLatencyStateHelper,
+	stateFileDirectory string,
+) Manager {
 	return &manager{
 		kubeClient:              kubeClient,
 		podManager:              podManager,

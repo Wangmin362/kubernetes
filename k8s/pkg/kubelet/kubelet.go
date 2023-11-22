@@ -688,9 +688,9 @@ func NewMainKubelet(
 	klet.podCache = kubecontainer.NewCache()
 
 	// podManager is also responsible for keeping secretManager and configMapManager contents up-to-date.
-	// TODO BasicMirrorClient用来干嘛的？
+	// 用于创建MirrorPod、删除MirrorPod
 	mirrorPodClient := kubepod.NewBasicMirrorClient(klet.kubeClient, string(nodeName), nodeLister)
-	// TODO PodManager
+	// 缓存Pod并记录MirrorPod和StaticPod之间的映射关系
 	klet.podManager = kubepod.NewBasicPodManager(mirrorPodClient)
 
 	// TODO StatusManager

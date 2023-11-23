@@ -83,6 +83,7 @@ func (s *sourceURL) applyDefaults(pod *api.Pod) error {
 }
 
 func (s *sourceURL) extractFromURL() error {
+	// 构造HTTP请求
 	req, err := http.NewRequest("GET", s.url, nil)
 	if err != nil {
 		return err
@@ -93,6 +94,7 @@ func (s *sourceURL) extractFromURL() error {
 		return err
 	}
 	defer resp.Body.Close()
+	// 读取请求
 	data, err := utilio.ReadAtMost(resp.Body, maxConfigLength)
 	if err != nil {
 		return err
@@ -102,6 +104,7 @@ func (s *sourceURL) extractFromURL() error {
 	}
 	if len(data) == 0 {
 		// Emit an update with an empty PodList to allow HTTPSource to be marked as seen
+		// 用于通知PodConfig，说明当前已经通不过HTTP源的数据了，即便没有拿到任何数据
 		s.updates <- kubetypes.PodUpdate{Pods: []*v1.Pod{}, Op: kubetypes.SET, Source: kubetypes.HTTPSource}
 		return fmt.Errorf("zero-length data received from %v", s.url)
 	}
@@ -133,6 +136,7 @@ func (s *sourceURL) extractFromURL() error {
 		for i := range podList.Items {
 			pods = append(pods, &podList.Items[i])
 		}
+		// 每次获取的都是全量的HTTP数据，因此使用的SET动作
 		s.updates <- kubetypes.PodUpdate{Pods: pods, Op: kubetypes.SET, Source: kubetypes.HTTPSource}
 		return nil
 	}

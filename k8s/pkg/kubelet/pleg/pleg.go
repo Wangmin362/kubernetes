@@ -27,11 +27,12 @@ import (
 type PodLifeCycleEventType string
 
 type RelistDuration struct {
-	// The period for relisting.
+	// The period for relisting.  默认为300秒
 	RelistPeriod time.Duration
 	// The relisting threshold needs to be greater than the relisting period +
 	// the relisting time, which can vary significantly. Set a conservative
 	// threshold to avoid flipping between healthy and unhealthy.
+	// 用于判断PLEG是否正常工作，如果正常工作，那么PLEG不可能两次relist执行相差大于这个阈值，默认为10分钟
 	RelistThreshold time.Duration
 }
 

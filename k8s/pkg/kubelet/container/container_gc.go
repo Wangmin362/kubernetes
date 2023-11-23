@@ -44,6 +44,7 @@ type GCPolicy struct {
 // GC manages garbage collection of dead containers.
 //
 // Implementation is thread-compatible.
+// 按照容器清理策略清理处于非运行中的容器
 type GC interface {
 	// GarbageCollect Garbage collect containers.
 	GarbageCollect(ctx context.Context) error

@@ -60,7 +60,12 @@ type sourceFile struct {
 }
 
 // NewSourceFile watches a config file for changes.
-func NewSourceFile(path string, nodeName types.NodeName, period time.Duration, updates chan<- interface{}) {
+func NewSourceFile(
+	path string, // 静态Pod文件路ing
+	nodeName types.NodeName, // 当前Node的名字
+	period time.Duration,
+	updates chan<- interface{},
+) {
 	// "github.com/sigma/go-inotify" requires a path without trailing "/"
 	// 去掉路径最后的斜杠
 	path = strings.TrimRight(path, string(os.PathSeparator))
@@ -70,7 +75,12 @@ func NewSourceFile(path string, nodeName types.NodeName, period time.Duration, u
 	config.run()
 }
 
-func newSourceFile(path string, nodeName types.NodeName, period time.Duration, updates chan<- interface{}) *sourceFile {
+func newSourceFile(
+	path string, // 静态Pod文件路ing
+	nodeName types.NodeName, // 当前Node的名字
+	period time.Duration, //
+	updates chan<- interface{},
+) *sourceFile {
 	// 把Pod数组放入到updates channel通道当中
 	send := func(objs []interface{}) {
 		var pods []*v1.Pod
@@ -99,6 +109,7 @@ func (s *sourceFile) run() {
 
 	go func() {
 		// Read path immediately to speed up startup.
+		// 加载静态Pod
 		if err := s.listConfig(); err != nil {
 			klog.ErrorS(err, "Unable to read config path", "path", s.path)
 		}
@@ -136,6 +147,7 @@ func (s *sourceFile) listConfig() error {
 		return fmt.Errorf("path does not exist, ignoring")
 	}
 
+	// 当前配置的路径要么是一个文件，要么是一个目录
 	switch {
 	case statInfo.Mode().IsDir():
 		// 如果当前路径是一个目录，那么从目录中的所有文件抽取定义的Pod
@@ -250,7 +262,7 @@ func (s *sourceFile) extractFromFile(filename string) (pod *v1.Pod, err error) {
 }
 
 func (s *sourceFile) replaceStore(pods ...*v1.Pod) (err error) {
-	objs := []interface{}{}
+	var objs []interface{}
 	for _, pod := range pods {
 		objs = append(objs, pod)
 	}

@@ -39,7 +39,7 @@ type PodOperation int
 // These constants identify the PodOperations that can be made on a pod configuration.
 const (
 	// SET is the current pod configuration.
-	// set用于更新某个源的Pod缓存，并清理已经不存在的Pod
+	// SET用于清空某个源在PodStorage中缓存的Pod，然后缓存当前变更的所有Pod；SET的目标主要对比前后两个时刻的Pod变化从而发现已经被删除的Pod
 	SET PodOperation = iota
 	// ADD signifies pods that are new to this source.
 	ADD
@@ -84,7 +84,7 @@ type PodUpdate struct {
 	// 一次可以针对多个Pod做相同的操作
 	Pods []*v1.Pod
 	Op   PodOperation
-	// Pod的产生源头有HTTP，StaticPod还是APIServer
+	// Pod的产生源头有HTTP、File、APIServer
 	Source string
 }
 

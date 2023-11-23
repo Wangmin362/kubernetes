@@ -74,18 +74,19 @@ type PodConfig struct {
 	// the channel of denormalized changes passed to listeners
 	// 1、这里应该也是采用了异步接收Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
 	// 2、updates的数据来源有：1、StaticPod, 2、HTTP  3、APIServer
+	// 3、外部的组件通过这个channel获取Pod的变更
 	updates chan kubetypes.PodUpdate
 
 	// contains the list of all configured sources
 	sourcesLock sync.Mutex
-	// 当前支持的Pod来源有哪些？目前只有HTTP, StaticPod, APIServer这三种来源
+	// K8S目前支持HTTP, File, APIServer这三种来源
 	sources sets.String
 }
 
 // NewPodConfig creates an object that can merge many configuration sources into a stream
 // of normalized updates to a pod configuration.
 func NewPodConfig(
-	mode PodConfigNotificationMode,
+	mode PodConfigNotificationMode, // 默认为PodConfigNotificationIncremental类型
 	recorder record.EventRecorder,
 	startupSLIObserver podStartupSLIObserver,
 ) *PodConfig {
@@ -105,6 +106,10 @@ func NewPodConfig(
 
 // Channel creates or returns a config source channel.  The channel
 // only accepts PodUpdates
+// 1、添加某个来源的Pod数据，PodConfig将会持续监听这个来源的数据
+// 2、监听当前指定的源，并返回一个零缓冲channel，当外部的组件发现这个源的Pod发生了变更，应该向这个channel写入变更数据。于此同时，这里会启动一个
+// 协程监听这个channel，当外部的组件向这这个channel写入Pod变更数据时，Mux会把这个源的缓存Pod数据与变更的Pod数据做合并，对比出每个Pod应该执行
+// ADD, DELETE, REMOVE, UPDATE, RECONCILE当作当中的其中一个，还是当前Pod没有发生任何改变
 func (c *PodConfig) Channel(ctx context.Context, source string) chan<- interface{} {
 	c.sourcesLock.Lock()
 	defer c.sourcesLock.Unlock()
@@ -115,6 +120,7 @@ func (c *PodConfig) Channel(ctx context.Context, source string) chan<- interface
 
 // SeenAllSources returns true if seenSources contains all sources in the
 // config, and also this config has received a SET message from each source.
+// PodConfig是否已经看到过所有的源
 func (c *PodConfig) SeenAllSources(seenSources sets.String) bool {
 	if c.pods == nil {
 		return false
@@ -126,11 +132,13 @@ func (c *PodConfig) SeenAllSources(seenSources sets.String) bool {
 }
 
 // Updates returns a channel of updates to the configuration, properly denormalized.
+// 对外暴露Pod的变更，外部组件可以监听当前Pod的变更
 func (c *PodConfig) Updates() <-chan kubetypes.PodUpdate {
 	return c.updates
 }
 
 // Sync requests the full configuration be delivered to the update channel.
+// 用于重置当前所有的Pod
 func (c *PodConfig) Sync() {
 	c.pods.Sync()
 }
@@ -150,7 +158,7 @@ type podStorage struct {
 	// ensures that updates are delivered in strict order
 	// on the updates channel
 	updateLock sync.Mutex
-	// 来自于HTTP, PodStaticPod以及APIServer的Pod变更会被放入到这个channel当中
+	// 来自于HTTP, File, APIServer的Pod变更会被放入到这个channel当中
 	updates chan<- kubetypes.PodUpdate
 
 	// contains the set of all sources that have sent at least one SET
@@ -545,13 +553,15 @@ func checkAndUpdatePod(existing, ref *v1.Pod) (needUpdate, needReconcile, needGr
 }
 
 // Sync sends a copy of the current state through the update channel.
+// 用于重置当前所有的Pod
 func (s *podStorage) Sync() {
 	s.updateLock.Lock()
 	defer s.updateLock.Unlock()
 	s.updates <- kubetypes.PodUpdate{Pods: s.MergedState().([]*v1.Pod), Op: kubetypes.SET, Source: kubetypes.AllSource}
 }
 
-// Object implements config.Accessor
+// MergedState Object implements config.Accessor
+// 获取PodStorage当前缓存的所有源的所有Pod
 func (s *podStorage) MergedState() interface{} {
 	s.podLock.RLock()
 	defer s.podLock.RUnlock()
@@ -565,7 +575,7 @@ func (s *podStorage) MergedState() interface{} {
 }
 
 func copyPods(sourcePods []*v1.Pod) []*v1.Pod {
-	pods := []*v1.Pod{}
+	var pods []*v1.Pod
 	for _, source := range sourcePods {
 		// Use a deep copy here just in case
 		pods = append(pods, source.DeepCopy())

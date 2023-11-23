@@ -25,6 +25,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 )
 
+// 用于保存运行时、网络、存储错误
 type runtimeState struct {
 	sync.RWMutex
 	lastBaseRuntimeSync      time.Time

@@ -57,6 +57,7 @@ type GenericPLEG struct {
 	// The channel from which the subscriber listens events.
 	// 1、eventChannel当中存放的数据是每个Pod的容器的生命周期事件，而data属性为ContainerID
 	// 2、channel深度为1000
+	// 3、外部组件通过调用GenericPLEG.Watch()获取到这个channel，并监听这个channel，从而获取Pod生命周期事件
 	eventChannel chan *PodLifecycleEvent
 	// 1、用于记录K8S Pod前后两个时间点的状态， 从而可以通过对比前后两个时间点之间的变化得出Pod的状态
 	// 2、这里缓存的是当前运行Kubelet进程节点的所有容器
@@ -66,7 +67,7 @@ type GenericPLEG struct {
 	// 2、PLEG的健康阈值为10分钟，如果每隔10分钟PLEG都没有重新relist，说明PLEG处于非健康的工作状态
 	relistTime atomic.Value
 	// Cache for storing the runtime states required for syncing pods.
-	// TODO 这个属性有何用？
+	// 缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
 	cache kubecontainer.Cache
 	// For testability.
 	clock clock.Clock
@@ -75,14 +76,17 @@ type GenericPLEG struct {
 	// TODO 分析此属性作用？
 	podsToReinspect map[types.UID]*kubecontainer.Pod
 	// Stop the Generic PLEG by closing the channel.
+	// 用于停止运行PLEG
 	stopCh chan struct{}
 	// Locks the relisting of the Generic PLEG
 	relistLock sync.Mutex
 	// Indicates if the Generic PLEG is running or not
+	// 用于标识当前PLEG是否处于运行当汇总
 	isRunning bool
 	// Locks the start/stop operation of Generic PLEG
 	runningMu sync.Mutex
 	// Indicates relisting related parameters
+	// 用于设置PLEG的relist周期以及relist阈值
 	relistDuration *RelistDuration
 	// Mutex to serialize updateCache called by relist vs UpdateCache interface
 	podCacheMutex sync.Mutex
@@ -126,9 +130,13 @@ type podRecord struct {
 type podRecords map[types.UID]*podRecord
 
 // NewGenericPLEG instantiates a new GenericPLEG object and return it.
-func NewGenericPLEG(runtime kubecontainer.Runtime, eventChannel chan *PodLifecycleEvent,
-	relistDuration *RelistDuration, cache kubecontainer.Cache,
-	clock clock.Clock) PodLifecycleEventGenerator {
+func NewGenericPLEG(
+	runtime kubecontainer.Runtime, // CRI运行时接口
+	eventChannel chan *PodLifecycleEvent, // 事件channel
+	relistDuration *RelistDuration,
+	cache kubecontainer.Cache,
+	clock clock.Clock,
+) PodLifecycleEventGenerator {
 	return &GenericPLEG{
 		relistDuration: relistDuration,
 		runtime:        runtime,
@@ -151,9 +159,10 @@ func (g *GenericPLEG) Watch() chan *PodLifecycleEvent {
 func (g *GenericPLEG) Start() {
 	g.runningMu.Lock()
 	defer g.runningMu.Unlock()
+	// PLEG只需要启动一次即可
 	if !g.isRunning {
 		g.isRunning = true
-		// 初始停止Channel
+		// 初始化停止Channel
 		g.stopCh = make(chan struct{})
 		// 每300秒执行一次
 		go wait.Until(g.Relist, g.relistDuration.RelistPeriod, g.stopCh)
@@ -183,7 +192,7 @@ func (g *GenericPLEG) Healthy() (bool, error) {
 	// Expose as metric so you can alert on `time()-pleg_last_seen_seconds > nn`
 	metrics.PLEGLastSeen.Set(float64(relistTime.Unix()))
 	elapsed := g.clock.Since(relistTime)
-	// 如果PLEG启动后的每隔10分钟都没有重新relist，说明PLEG的运行除了问题
+	// 如果PLEG启动后的每隔10分钟都没有重新relist，说明PLEG的运行出了问题
 	if elapsed > g.relistDuration.RelistThreshold {
 		return false, fmt.Errorf("pleg was last seen active %v ago; threshold is %v", elapsed, g.relistDuration.RelistThreshold)
 	}
@@ -231,6 +240,7 @@ func (g *GenericPLEG) updateRelistTime(timestamp time.Time) {
 
 // Relist queries the container runtime for list of pods/containers, compare
 // with the internal pods/containers, and generates events accordingly.
+// 1、默认每300秒执行一次
 func (g *GenericPLEG) Relist() {
 	g.relistLock.Lock()
 	defer g.relistLock.Unlock()
@@ -238,6 +248,7 @@ func (g *GenericPLEG) Relist() {
 	ctx := context.Background()
 	klog.V(5).InfoS("GenericPLEG: Relisting")
 
+	// 获取上一次重新扫描的时间
 	if lastRelistTime := g.getRelistTime(); !lastRelistTime.IsZero() {
 		metrics.PLEGRelistInterval.Observe(metrics.SinceInSeconds(lastRelistTime))
 	}
@@ -565,6 +576,7 @@ func updateRunningPodAndContainerMetrics(pods []*kubecontainer.Pod) {
 
 		for _, sandbox := range sandboxes {
 			if sandbox.State == kubecontainer.ContainerStateRunning {
+				// 一个Pod虽然可能有多个Sandbox，但是只可能有一个正在运行的Sandbox
 				runningSandboxNum++
 				// every pod should only have one running sandbox
 				break

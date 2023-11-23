@@ -35,6 +35,7 @@ const WaitForAPIServerSyncPeriod = 1 * time.Second
 
 // NewSourceApiserver creates a config source that watches and pulls from the apiserver.
 func NewSourceApiserver(c clientset.Interface, nodeName types.NodeName, nodeHasSynced func() bool, updates chan<- interface{}) {
+	// 监听所有名称空间的所有Pod，但是只获取当前Node的Pod
 	lw := cache.NewListWatchFromClient(c.CoreV1().RESTClient(), "pods", metav1.NamespaceAll, fields.OneTermEqualSelector("spec.nodeName", string(nodeName)))
 
 	// The Reflector responsible for watching pods at the apiserver should be run only after
@@ -42,6 +43,7 @@ func NewSourceApiserver(c clientset.Interface, nodeName types.NodeName, nodeHasS
 	klog.InfoS("Waiting for node sync before watching apiserver pods")
 	go func() {
 		for {
+			// 等待node同步完成
 			if nodeHasSynced() {
 				klog.V(4).InfoS("node sync completed")
 				break
@@ -61,6 +63,7 @@ func newSourceApiserverFromLW(lw cache.ListerWatcher, updates chan<- interface{}
 		for _, o := range objs {
 			pods = append(pods, o.(*v1.Pod))
 		}
+		// 每次从APIServer中获取到的都是全量的Pod，因此这里时SET操作，SET操作主要用来删除某些前一个时刻存在后一个时刻不存在的Pod
 		updates <- kubetypes.PodUpdate{Pods: pods, Op: kubetypes.SET, Source: kubetypes.ApiserverSource}
 	}
 	r := cache.NewReflector(lw, &v1.Pod{}, cache.NewUndeltaStore(send, cache.MetaNamespaceKeyFunc), 0)

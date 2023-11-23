@@ -64,6 +64,9 @@ func NewMux(merger Merger) *Mux {
 // source will return the same channel. This allows change and state based sources
 // to use the same channel. Different source names however will be treated as a
 // union.
+// 监听当前指定的源，并返回一个零缓冲channel，当外部的组件发现这个源的Pod发生了变更，应该向这个channel写入变更数据。于此同时，这里会启动一个
+// 协程监听这个channel，当外部的组件向这这个channel写入Pod变更数据时，Mux会把这个源的缓存Pod数据与变更的Pod数据做合并，对比出每个Pod应该执行
+// ADD, DELETE, REMOVE, UPDATE, RECONCILE当作当中的其中一个，还是当前Pod没有发生任何改变
 func (m *Mux) ChannelWithContext(ctx context.Context, source string) chan interface{} {
 	if len(source) == 0 {
 		panic("Channel given an empty name")
@@ -85,7 +88,7 @@ func (m *Mux) ChannelWithContext(ctx context.Context, source string) chan interf
 
 func (m *Mux) listen(source string, listenChannel <-chan interface{}) {
 	for update := range listenChannel {
-		// 合并某个源的Pod变更
+		// 合并某个源缓存的Pod数据与当前变的Pod数据
 		m.merger.Merge(source, update)
 	}
 }

@@ -287,6 +287,8 @@ type Dependencies struct {
 
 // makePodSourceConfig creates a config.PodConfig from the given
 // KubeletConfiguration or returns an error.
+// 1、实例化PodConfig，然后添加File, HTTP, APIServer源，并监听File, HTTP, APIServer三个源的变化，并把这三个源的变更合并为PodUpdate结构
+// 2、外部组件通过调用PodConfig.Update()方法获取channel，PodConfig会把Pod的变更写入到这个channel当中
 func makePodSourceConfig(
 	kubeCfg *kubeletconfiginternal.KubeletConfiguration, // kubelet配置
 	kubeDeps *Dependencies, // kubelet需要的依赖
@@ -303,14 +305,15 @@ func makePodSourceConfig(
 		}
 	}
 
-	// 实例化PodConfig，然后添加StaticPoc, HTTP, APIServer源
+	// 1、实例化PodConfig，然后添加File, HTTP, APIServer源，并监听File, HTTP, APIServer三个源的变化，并把这三个源的变更合并为PodUpdate结构
+	// 2、外部组件通过调用PodConfig.Update()方法获取channel，PodConfig会把Pod的变更写入到这个channel当中
 	cfg := config.NewPodConfig(config.PodConfigNotificationIncremental, kubeDeps.Recorder, kubeDeps.PodStartupLatencyTracker)
 
 	// TODO:  it needs to be replaced by a proper context in the future
 	ctx := context.TODO()
 
 	// define file config source
-	// TODO 添加StaticPod来源
+	// PodConfig添加File源，并监听静态文件（也有可能是目录）的变更，并将Pod的变更写入到PocConfig当中
 	if kubeCfg.StaticPodPath != "" {
 		klog.InfoS("Adding static pod path", "path", kubeCfg.StaticPodPath)
 		// 定期扫描StaticPod，处理Pod的增删改查并发送到PodConfig当中
@@ -318,13 +321,13 @@ func makePodSourceConfig(
 	}
 
 	// define url config source
-	// TODO 添加HTTP来源
+	// PodConfig添加HTTP源，定期请求这个URL，并将获取到的Pod以SET的方式写入PodConfig
 	if kubeCfg.StaticPodURL != "" {
 		klog.InfoS("Adding pod URL with HTTP header", "URL", kubeCfg.StaticPodURL, "header", manifestURLHeader)
 		config.NewSourceURL(kubeCfg.StaticPodURL, manifestURLHeader, nodeName, kubeCfg.HTTPCheckFrequency.Duration, cfg.Channel(ctx, kubetypes.HTTPSource))
 	}
 
-	// 添加APIServer来源
+	// 添加APIServer来源，监听当前Node上所有Pod的变更，并将变更通知给PodConfig
 	if kubeDeps.KubeClient != nil {
 		klog.InfoS("Adding apiserver pod source")
 		config.NewSourceApiserver(kubeDeps.KubeClient, nodeName, nodeHasSynced, cfg.Channel(ctx, kubetypes.ApiserverSource))
@@ -474,8 +477,8 @@ func NewMainKubelet(
 
 	if kubeDeps.PodConfig == nil {
 		var err error
-		// 实例化PodConfig，实际上就是在监听HTTP, StaticPod, APIServer三个来源，一旦返现有数据变化就把数据发送到PodConfig
-		// 最终PLEG消费PodConfig中的数据
+		// 1、实例化PodConfig，然后添加File, HTTP, APIServer源，并监听File, HTTP, APIServer三个源的变化，并把这三个源的变更合并为PodUpdate结构
+		// 2、外部组件通过调用PodConfig.Update()方法获取channel，PodConfig会把Pod的变更写入到这个channel当中
 		kubeDeps.PodConfig, err = makePodSourceConfig(kubeCfg, kubeDeps, nodeName, nodeHasSynced)
 		if err != nil {
 			return nil, err
@@ -588,18 +591,19 @@ func NewMainKubelet(
 
 	// TODO 实例化Kubelet
 	klet := &Kubelet{
-		hostname:                                hostname,
-		hostnameOverridden:                      hostnameOverridden,
-		nodeName:                                nodeName,
-		kubeClient:                              kubeDeps.KubeClient,
-		heartbeatClient:                         kubeDeps.HeartbeatClient,
-		onRepeatedHeartbeatFailure:              kubeDeps.OnHeartbeatFailure,
-		rootDirectory:                           filepath.Clean(rootDirectory),
-		resyncInterval:                          kubeCfg.SyncFrequency.Duration,
-		sourcesReady:                            config.NewSourcesReady(kubeDeps.PodConfig.SeenAllSources),
-		registerNode:                            registerNode,
-		registerWithTaints:                      registerWithTaints,
-		registerSchedulable:                     registerSchedulable,
+		hostname:                   hostname,
+		hostnameOverridden:         hostnameOverridden,
+		nodeName:                   nodeName,
+		kubeClient:                 kubeDeps.KubeClient,
+		heartbeatClient:            kubeDeps.HeartbeatClient,
+		onRepeatedHeartbeatFailure: kubeDeps.OnHeartbeatFailure,
+		rootDirectory:              filepath.Clean(rootDirectory),
+		resyncInterval:             kubeCfg.SyncFrequency.Duration,
+		sourcesReady:               config.NewSourcesReady(kubeDeps.PodConfig.SeenAllSources),
+		registerNode:               registerNode,
+		registerWithTaints:         registerWithTaints,
+		registerSchedulable:        registerSchedulable,
+		// TODO 分析
 		dnsConfigurer:                           dns.NewConfigurer(kubeDeps.Recorder, nodeRef, nodeIPs, clusterDNS, kubeCfg.ClusterDomain, kubeCfg.ResolverConfig),
 		serviceLister:                           serviceLister,
 		serviceHasSynced:                        serviceHasSynced,
@@ -1046,22 +1050,30 @@ type serviceLister interface {
 
 // Kubelet is the main kubelet implementation.
 type Kubelet struct {
+	// kubelet配置文件
 	kubeletConfiguration kubeletconfiginternal.KubeletConfiguration
 
 	// hostname is the hostname the kubelet detected or was given via flag/config
+	// 主机名，此主机名时物理主机真实配置的主机名
 	hostname string
 	// hostnameOverridden indicates the hostname was overridden via flag/config
+	// 用户配置的主机名
 	hostnameOverridden bool
 
+	// node名字
 	nodeName types.NodeName
 	// 缓存一定时间内的Pod，默认缓存的有效时间为3秒
-	runtimeCache    kubecontainer.RuntimeCache
-	kubeClient      clientset.Interface
+	runtimeCache kubecontainer.RuntimeCache
+	// ClientSet，用于访问APIServer
+	kubeClient clientset.Interface
+	// TODO ClientSet，用于访问APIServer,不过增加了超时时间
 	heartbeatClient clientset.Interface
-	rootDirectory   string
+	// 默认为/var/lib/kubelet，一般不会修改这个配置
+	rootDirectory string
 
 	lastObservedNodeAddressesMux sync.RWMutex
-	lastObservedNodeAddresses    []v1.NodeAddress
+	// TODO 最近一次观察到的Node地址，之所以有多个是因为Node很有可能配置为双栈
+	lastObservedNodeAddresses []v1.NodeAddress
 
 	// onRepeatedHeartbeatFailure is called when a heartbeat operation fails more than once. optional.
 	onRepeatedHeartbeatFailure func()
@@ -1071,13 +1083,17 @@ type Kubelet struct {
 
 	// resyncInterval is the interval between periodic full reconciliations of
 	// pods on this node.
+	// TODO 重新同步的周期？ 用在何处？
 	resyncInterval time.Duration
 
 	// sourcesReady records the sources seen by the kubelet, it is thread-safe.
+	// 1、所有所有的源都已经同步过了，只要所有的源都同步过一次，那么这个源就认为是同步过了
+	// 2、目前K8S支持的源有HTTP, FILE, APIServer
 	sourcesReady config.SourcesReady
 
 	// podManager is a facade that abstracts away the various sources of pods
 	// this Kubelet services.
+	// 缓存Pod并记录MirrorPod和StaticPod之间的映射关系
 	podManager kubepod.Manager
 
 	// Needed to observe and respond to situations that could impact node stability
@@ -1104,28 +1120,37 @@ type Kubelet struct {
 	dnsConfigurer *dns.Configurer
 
 	// serviceLister knows how to list services
+	// Service查询
 	serviceLister serviceLister
 	// serviceHasSynced indicates whether services have been sync'd at least once.
 	// Check this before trusting a response from the lister.
+	// Service是否同步完成
 	serviceHasSynced cache.InformerSynced
 	// nodeLister knows how to list nodes
 	nodeLister corelisters.NodeLister
 	// nodeHasSynced indicates whether nodes have been sync'd at least once.
 	// Check this before trusting a response from the node lister.
+	// Node是否同步完成
 	nodeHasSynced cache.InformerSynced
 	// a list of node labels to register
 	nodeLabels map[string]string
 
 	// Last timestamp when runtime responded on ping.
 	// Mutex is used to protect this value.
+	// 用于保存运行时、网络、存储错误
 	runtimeState *runtimeState
 
 	// Volume plugins.
 	volumePluginMgr *volume.VolumePluginMgr
 
 	// Handles container probing.
+	// 1、用于管理Pod的探针，ProbeManager会针对Pod的需求，针对每个容器的readiness, liveness, startup探针分别启动一个协程，同时此协程会定时
+	// 通过探针的配置检查状态，譬如执行HTTP请求，或者执行Exec命令，或者是看端口是否处于监听状态
+	// 2、于此同时，每个容器的每种类型的探针结果都会被存入到ResultManager，从而触发PLEG的syncLoop更新Pod状态
 	probeManager prober.Manager
 	// Manages container health check results.
+	// 1、用于管理探针的结果，并且把结果通过Update channel传出
+	// 2、ResultManager的核心目的其实是为了在Pod的容器探针状态发生改变的时候触发PLEG的更新
 	livenessManager  proberesults.Manager
 	readinessManager proberesults.Manager
 	startupManager   proberesults.Manager
@@ -1138,9 +1163,11 @@ type Kubelet struct {
 	recorder record.EventRecorder
 
 	// Policy for handling garbage collection of dead containers.
+	// 按照容器清理策略清理处于非运行中的容器
 	containerGC kubecontainer.GC
 
 	// Manager for image garbage collection.
+	// 按照镜像清理策略清理无用的容器
 	imageManager images.ImageGCManager
 
 	// Manager for container logs.
@@ -1188,6 +1215,8 @@ type Kubelet struct {
 
 	// reasonCache caches the failure reason of the last creation of all containers, which is
 	// used for generating ContainerStatus.
+	// 1、ReasonCache最多保存1000条记录，并且这个缓存为LRU缓存，不常用的原因会被清除。
+	// 2、ReasonCache用于保存容器启动失败的原因（容器其它时刻的原因并不保存）。缓存的key为<pod-uid>_<name>
 	reasonCache *ReasonCache
 
 	// containerRuntimeReadyExpected indicates whether container runtime being ready is expected
@@ -1240,12 +1269,14 @@ type Kubelet struct {
 	eventedPleg pleg.PodLifecycleEventGenerator
 
 	// Store kubecontainer.PodStatus for all pods.
+	// 缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
 	podCache kubecontainer.Cache
 
 	// os is a facade for various syscalls that need to be mocked during testing.
 	os kubecontainer.OSInterface
 
 	// Watcher of out of memory events.
+	// 通过监听/dev/kmsg内核日志，如果发现了系统OOM，那就发送OOM事件
 	oomWatcher oomwatcher.Watcher
 
 	// Monitor resource usage
@@ -1283,10 +1314,11 @@ type Kubelet struct {
 	daemonEndpoints *v1.NodeDaemonEndpoints
 
 	// A queue used to trigger pod workers.
-	// 一个简单的队列，实现原理为: map， key为PodUID, value为delay时间
+	// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
 	workQueue queue.WorkQueue
 
 	// oneTimeInitializer is used to initialize modules that are dependent on the runtime to be up.
+	// 用于Kubelet启动时进行一次初始化，找我
 	oneTimeInitializer sync.Once
 
 	// If set, use this IP address or addresses for the node

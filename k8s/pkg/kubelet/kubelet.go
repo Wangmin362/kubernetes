@@ -238,7 +238,7 @@ type SyncHandler interface {
 type Option func(*Kubelet)
 
 // Bootstrap is a bootstrapping interface for kubelet, targets the initialization protocol
-// TODO 如何理解这里的抽象接口
+// 抽象kubelet接口
 type Bootstrap interface {
 	// GetConfiguration 获取kubelet配置
 	GetConfiguration() kubeletconfiginternal.KubeletConfiguration
@@ -287,8 +287,12 @@ type Dependencies struct {
 
 // makePodSourceConfig creates a config.PodConfig from the given
 // KubeletConfiguration or returns an error.
-func makePodSourceConfig(kubeCfg *kubeletconfiginternal.KubeletConfiguration, kubeDeps *Dependencies, nodeName types.NodeName,
-	nodeHasSynced func() bool) (*config.PodConfig, error) {
+func makePodSourceConfig(
+	kubeCfg *kubeletconfiginternal.KubeletConfiguration, // kubelet配置
+	kubeDeps *Dependencies, // kubelet需要的依赖
+	nodeName types.NodeName, // 当前Node名字
+	nodeHasSynced func() bool, // node资源是否已经同步完成
+) (*config.PodConfig, error) {
 	manifestURLHeader := make(http.Header)
 	// 如果配置了Kubelet可以通过URL获取Pod,那么可以通过配置StaticPodURLHeader让Kubelet携带请求头
 	if len(kubeCfg.StaticPodURLHeader) > 0 {
@@ -478,7 +482,7 @@ func NewMainKubelet(
 		}
 	}
 
-	// 容器垃圾回收策略
+	// 容器回收策略，回收的容器为非运行状态的容器，处于运行状态的容器不会被回收
 	containerGCPolicy := kubecontainer.GCPolicy{
 		MinAge:             minimumGCAge.Duration,
 		MaxPerPodContainer: int(maxPerPodContainerCount),
@@ -489,7 +493,7 @@ func NewMainKubelet(
 		KubeletEndpoint: v1.DaemonEndpoint{Port: kubeCfg.Port},
 	}
 
-	// 镜像垃圾回收策略
+	// 镜像回收策略
 	imageGCPolicy := images.ImageGCPolicy{
 		MinAge:               kubeCfg.ImageMinimumGCAge.Duration,
 		HighThresholdPercent: int(kubeCfg.ImageGCHighThresholdPercent),

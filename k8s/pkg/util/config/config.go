@@ -85,6 +85,7 @@ func (m *Mux) ChannelWithContext(ctx context.Context, source string) chan interf
 
 func (m *Mux) listen(source string, listenChannel <-chan interface{}) {
 	for update := range listenChannel {
+		// 合并某个源的Pod变更
 		m.merger.Merge(source, update)
 	}
 }

@@ -26,8 +26,9 @@ import (
 
 // Annotation keys for annotations used in this package.
 const (
-	ConfigSourceAnnotationKey    = "kubernetes.io/config.source"
-	ConfigMirrorAnnotationKey    = v1.MirrorPodAnnotationKey
+	ConfigSourceAnnotationKey = "kubernetes.io/config.source"
+	ConfigMirrorAnnotationKey = v1.MirrorPodAnnotationKey
+	// ConfigFirstSeenAnnotationKey 保存Pod第一次被Kubelet观测到的事件
 	ConfigFirstSeenAnnotationKey = "kubernetes.io/config.seen"
 	ConfigHashAnnotationKey      = "kubernetes.io/config.hash"
 )
@@ -38,6 +39,7 @@ type PodOperation int
 // These constants identify the PodOperations that can be made on a pod configuration.
 const (
 	// SET is the current pod configuration.
+	// set用于更新某个源的Pod缓存，并清理已经不存在的Pod
 	SET PodOperation = iota
 	// ADD signifies pods that are new to this source.
 	ADD
@@ -82,7 +84,7 @@ type PodUpdate struct {
 	// 一次可以针对多个Pod做相同的操作
 	Pods []*v1.Pod
 	Op   PodOperation
-	// Pod的产生源头是啥？HTTP，StaticPod还是APIServer?
+	// Pod的产生源头有HTTP，StaticPod还是APIServer
 	Source string
 }
 

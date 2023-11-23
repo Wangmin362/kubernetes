@@ -100,6 +100,7 @@ type KubeletConfiguration struct {
 	// httpCheckFrequency is the duration between checking http for new data
 	HTTPCheckFrequency metav1.Duration
 	// staticPodURL is the URL for accessing static pods to run
+	// 获取静态Pod的URL
 	StaticPodURL string
 	// staticPodURLHeader is a map of slices with HTTP headers to use when accessing the podURL
 	// 当通过HTTP的方式获取Pod的时候，Kubelet如果需要访问这个URL，需要使用的请求头在这里设置

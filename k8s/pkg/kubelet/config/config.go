@@ -64,7 +64,7 @@ type podStartupSLIObserver interface {
 // PodConfig is a configuration mux that merges many sources of pod configuration into a single
 // consistent structure, and then delivers incremental change notifications to listeners
 // in order.
-// TODO 为什么需要PodConfig? K8S用PodConfig干了啥？
+// 1、PodConfig用于抽象Pod变更的变更，并合并了URL, Static, APIServer这三个源的变更，同时会把这些变更派送给监听者
 type PodConfig struct {
 	// Pod存储，存储了来自于不同来源的Pod
 	pods *podStorage
@@ -72,7 +72,7 @@ type PodConfig struct {
 	mux *config.Mux
 
 	// the channel of denormalized changes passed to listeners
-	// 1、这里应该也是采用了异步接受Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
+	// 1、这里应该也是采用了异步接收Pod的模式，通过channel可以实现一个简单且高效的消息中间件，从而解耦PodUpdate事件的生产端和消费端
 	// 2、updates的数据来源有：1、StaticPod, 2、HTTP  3、APIServer
 	updates chan kubetypes.PodUpdate
 
@@ -84,7 +84,11 @@ type PodConfig struct {
 
 // NewPodConfig creates an object that can merge many configuration sources into a stream
 // of normalized updates to a pod configuration.
-func NewPodConfig(mode PodConfigNotificationMode, recorder record.EventRecorder, startupSLIObserver podStartupSLIObserver) *PodConfig {
+func NewPodConfig(
+	mode PodConfigNotificationMode,
+	recorder record.EventRecorder,
+	startupSLIObserver podStartupSLIObserver,
+) *PodConfig {
 	// 消息队列的长度为50个
 	updates := make(chan kubetypes.PodUpdate, 50)
 	// 1、实例化PodStorage，实际上就是一个二级map，第一级Key为Source，第二级Key为Pod.UID
@@ -163,7 +167,12 @@ type podStorage struct {
 // TODO: PodConfigNotificationMode could be handled by a listener to the updates channel
 // in the future, especially with multiple listeners.
 // TODO: allow initialization of the current state of the store with snapshotted version.
-func newPodStorage(updates chan<- kubetypes.PodUpdate, mode PodConfigNotificationMode, recorder record.EventRecorder, startupSLIObserver podStartupSLIObserver) *podStorage {
+func newPodStorage(
+	updates chan<- kubetypes.PodUpdate,
+	mode PodConfigNotificationMode,
+	recorder record.EventRecorder,
+	startupSLIObserver podStartupSLIObserver,
+) *podStorage {
 	return &podStorage{
 		pods:               make(map[string]map[types.UID]*v1.Pod),
 		mode:               mode,
@@ -183,9 +192,9 @@ func (s *podStorage) Merge(source string, change interface{}) error {
 	s.updateLock.Lock()
 	defer s.updateLock.Unlock()
 
-	// 之前是否处理过这个来源的Pod变更？
+	// 判断之前是否看见过这个来源
 	seenBefore := s.sourcesSeen.Has(source)
-	// TODO 从change当中把pod分门别类整理出来
+	// 主要目的是为了对比当前源已经存在的pod和当前变更的pod，从而得出需要对Pod进行的操作
 	adds, updates, deletes, removes, reconciles := s.merge(source, change)
 	// 如果之前没有处理过，并且经过merger以后，就处理过这个来源的Pod变更，说明是第一次处理这个来源的Pod变更
 	firstSet := !seenBefore && s.sourcesSeen.Has(source)
@@ -241,15 +250,18 @@ func (s *podStorage) Merge(source string, change interface{}) error {
 	return nil
 }
 
+// 1、source为Pod不同的来源，目前支持HTTP, File, APIServer
+// 2、change的数据类型为PodUpdate
+// 3、主要目的是为了对比当前源已经存在的pod和当前变更的pod，从而得出需要对Pod进行的操作
 func (s *podStorage) merge(source string, change interface{}) (adds, updates, deletes, removes, reconciles *kubetypes.PodUpdate) {
 	s.podLock.Lock()
 	defer s.podLock.Unlock()
 
-	addPods := []*v1.Pod{}       // 当前Pod变更有哪些Pod是新增？
-	updatePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是更新？
-	deletePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是删除？
-	removePods := []*v1.Pod{}    // 当前Pod变更有哪些Pod是删除？ 和DeletePod有啥区别？
-	reconcilePods := []*v1.Pod{} // 当前Pod变更有哪些Pod是新增？
+	var addPods []*v1.Pod       // 当前Pod变更有哪些Pod是新增？
+	var updatePods []*v1.Pod    // 当前Pod变更有哪些Pod是更新？
+	var deletePods []*v1.Pod    // 当前Pod变更有哪些Pod是删除？
+	var removePods []*v1.Pod    // 当前Pod变更有哪些Pod是删除？ 和DeletePod有啥区别？
+	var reconcilePods []*v1.Pod // 当前Pod变更有哪些Pod是新增？
 
 	// 获取当前来源的所有Pod
 	pods := s.pods[source]
@@ -260,24 +272,35 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 	// updatePodFunc is the local function which updates the pod cache *oldPods* with new pods *newPods*.
 	// After updated, new pod will be stored in the pod cache *pods*.
 	// Notice that *pods* and *oldPods* could be the same cache.
-	// 第一个参数为新变更的Pod,第二个参数为以前的pod，第三个参数为pod缓存
+	// 第一个参数为新变更的Pod,第二个参数为以前的pod，第三个参数为某个来源的所有pod缓存
 	updatePodsFunc := func(newPods []*v1.Pod, oldPods, pods map[types.UID]*v1.Pod) {
-		// 去除掉所有新变更的Pod的重复Pod, 所谓的重复Pod指的是名称相同的Pod
+		// 过滤掉重复的pod，所谓重复的Pod指的是FullName相同的Pod，FullName=<name>_<namespace>
 		filtered := filterInvalidPods(newPods, source, s.recorder)
 		for _, ref := range filtered {
 			// Annotate the pod with the source before any comparison.
 			if ref.Annotations == nil {
 				ref.Annotations = make(map[string]string)
 			}
-			// 给Pod新增kubernetes.io/config.source=source的注解
+			// 给Pod新增kubernetes.io/config.source=source的注解，标记当前Pod来自于哪里
 			ref.Annotations[kubetypes.ConfigSourceAnnotationKey] = source
 			// ignore static pods
-			// 只有来自于APIServer的Pod才认为是非StaticPod，给这种类型的Pod增加一个时间，后便后续统计Pod的启动时间
+			// 1、来自于File, HTTP源的Pod被称之为StaticPod，来自于APIServer的Pod被称之为非StaticPod
+			// 2、给这种类型的Pod增加一个时间，后便后续统计Pod的启动时间
 			if !kubetypes.IsStaticPod(ref) {
+				// TODO 分析这里
 				s.startupSLIObserver.ObservedPodOnWatch(ref, time.Now())
 			}
+
+			// 如果当前缓存中已经存在这个pod
 			if existing, found := oldPods[ref.UID]; found {
+				// 更新缓存
 				pods[ref.UID] = existing
+				// 1、判断两个Pod是否在语义上相同，所谓语义相同，即pod的spec, label, deletionTimestamp, deletionGracePeriodSeconds, annotation相同，
+				// 其余字段不需要关心，只要其中的任意一个字段不同，我们就认为这两个Pod不同
+				// 2、如果Pod在语义上是相同的，并且状态也一样，说明Pod没有发生任何变化，不需要做任何操作。
+				// 3、如果Pod在语义上是相同的，但是状态不一样，那么这个Pod需要做reconcile
+				// 4、如果Pod在语义上是不同的，并且DeletionTimestamp为非空，说明Pod需要删除
+				// 5、如果Pod在语义上是不同的，并且DeletionTimestamp为空，说明Pod需要更新
 				needUpdate, needReconcile, needGracefulDelete := checkAndUpdatePod(existing, ref)
 				if needUpdate {
 					updatePods = append(updatePods, existing)
@@ -288,7 +311,9 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 				}
 				continue
 			}
+			// 如果当前pod是第一次被kubelet观测到，那么需要记录第一次被kubelet观测到的时间
 			recordFirstSeenTime(ref)
+			// 缓存记录这个pod
 			pods[ref.UID] = ref
 			addPods = append(addPods, ref)
 		}
@@ -309,6 +334,7 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 	case kubetypes.REMOVE:
 		klog.V(4).InfoS("Removing pods from source", "source", source, "pods", klog.KObjSlice(update.Pods))
 		for _, value := range update.Pods {
+			// 从缓存中移除这个pod
 			if existing, found := pods[value.UID]; found {
 				// this is a delete
 				delete(pods, value.UID)
@@ -337,6 +363,7 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 
 	}
 
+	// 更新当前source的pod缓存
 	s.pods[source] = pods
 
 	adds = &kubetypes.PodUpdate{Op: kubetypes.ADD, Pods: copyPods(addPods), Source: source}
@@ -360,12 +387,13 @@ func (s *podStorage) seenSources(sources ...string) bool {
 	return s.sourcesSeen.HasAll(sources...)
 }
 
-// 所谓的过滤出无效的Pod指的是把哪些重复的Pod过滤掉
+// 过滤掉重复的pod，所谓重复的Pod指的是FullName相同的Pod，FullName=<name>_<namespace>
 func filterInvalidPods(pods []*v1.Pod, source string, recorder record.EventRecorder) (filtered []*v1.Pod) {
 	names := sets.String{}
 	for i, pod := range pods {
 		// Pods from each source are assumed to have passed validation individually.
 		// This function only checks if there is any naming conflict.
+		// TODO 这里是否需要考虑对于Pod按照事件排序，最新的Pod应该在前面，这样我们保留的就是最新的Pod，如果不排序可能保存的不是最新的Pod
 		name := kubecontainer.GetPodFullName(pod)
 		if names.Has(name) {
 			klog.InfoS("Pod failed validation due to duplicate pod name, ignoring", "index", i, "pod", klog.KObj(pod), "source", source)
@@ -444,6 +472,8 @@ func updateAnnotations(existing, ref *v1.Pod) {
 	existing.Annotations = annotations
 }
 
+// 判断两个Pod是否在语义上相同，所谓语义相同，即pod的spec, label, deletionTimestamp, deletionGracePeriodSeconds, annotation相同，其余字段不需要关心
+// 只要其中的任意一个字段不同，我们就认为这两个Pod不同
 func podsDifferSemantically(existing, ref *v1.Pod) bool {
 	if reflect.DeepEqual(existing.Spec, ref.Spec) &&
 		reflect.DeepEqual(existing.Labels, ref.Labels) &&
@@ -461,15 +491,25 @@ func podsDifferSemantically(existing, ref *v1.Pod) bool {
 //   - if ref makes no meaningful change, but changes the pod status, returns needReconcile=true
 //   - else return all false
 //     Now, needUpdate, needGracefulDelete and needReconcile should never be both true
+//
+// 1、判断两个Pod是否在语义上相同，所谓语义相同，即pod的spec, label, deletionTimestamp, deletionGracePeriodSeconds, annotation相同，
+// 其余字段不需要关心，只要其中的任意一个字段不同，我们就认为这两个Pod不同
+// 2、如果Pod在语义上是相同的，并且状态也一样，说明Pod没有发生任何变化，不需要做任何操作。
+// 3、如果Pod在语义上是相同的，但是状态不一样，那么这个Pod需要做reconcile
+// 4、如果Pod在语义上是不同的，并且DeletionTimestamp为非空，说明Pod需要删除
+// 5、如果Pod在语义上是不同的，并且DeletionTimestamp为空，说明Pod需要更新
 func checkAndUpdatePod(existing, ref *v1.Pod) (needUpdate, needReconcile, needGracefulDelete bool) {
 
 	// 1. this is a reconcile
 	// TODO: it would be better to update the whole object and only preserve certain things
 	//       like the source annotation or the UID (to ensure safety)
+	// 判断两个Pod是否在语义上相同，所谓语义相同，即pod的spec, label, deletionTimestamp, deletionGracePeriodSeconds, annotation相同，其余字段不需要关心
+	// 只要其中的任意一个字段不同，我们就认为这两个Pod不同
 	if !podsDifferSemantically(existing, ref) {
 		// this is not an update
 		// Only check reconcile when it is not an update, because if the pod is going to
 		// be updated, an extra reconcile is unnecessary
+		// 如果两个Pod语义相同，那么我们需要判断这两个Pod的状态是相同，如果状态不同，那么这个Pod需要Reconcile
 		if !reflect.DeepEqual(existing.Status, ref.Status) {
 			// Pod with changed pod status needs reconcile, because kubelet should
 			// be the source of truth of pod status.
@@ -481,8 +521,10 @@ func checkAndUpdatePod(existing, ref *v1.Pod) (needUpdate, needReconcile, needGr
 
 	// Overwrite the first-seen time with the existing one. This is our own
 	// internal annotation, there is no need to update.
+	// 保存当前Pod第一次被看到的时间
 	ref.Annotations[kubetypes.ConfigFirstSeenAnnotationKey] = existing.Annotations[kubetypes.ConfigFirstSeenAnnotationKey]
 
+	// 由于Pod在语义上已经不等了，那么这个Pod一定发生了改变
 	existing.Spec = ref.Spec
 	existing.Labels = ref.Labels
 	existing.DeletionTimestamp = ref.DeletionTimestamp
@@ -492,6 +534,7 @@ func checkAndUpdatePod(existing, ref *v1.Pod) (needUpdate, needReconcile, needGr
 
 	// 2. this is an graceful delete
 	if ref.DeletionTimestamp != nil {
+		// 说明Pod被删除了
 		needGracefulDelete = true
 	} else {
 		// 3. this is an update

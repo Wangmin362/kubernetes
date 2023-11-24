@@ -39,6 +39,7 @@ type PodAdmitResult struct {
 }
 
 // PodAdmitHandler is notified during pod admission.
+// TODO 如何理解这个接口？
 type PodAdmitHandler interface {
 	// Admit evaluates if a pod can be admitted.
 	Admit(attrs *PodAdmitAttributes) PodAdmitResult

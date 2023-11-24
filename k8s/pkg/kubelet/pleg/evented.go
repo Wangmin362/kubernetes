@@ -68,7 +68,7 @@ type EventedPLEG struct {
 	// 容量默认是1000
 	eventChannel chan *PodLifecycleEvent
 	// Cache for storing the runtime states required for syncing pods.
-	// 缓存Pod
+	// 缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
 	cache kubecontainer.Cache
 	// For testability.
 	clock clock.Clock
@@ -90,9 +90,16 @@ type EventedPLEG struct {
 
 // NewEventedPLEG instantiates a new EventedPLEG object and return it.
 // TODO 通过获取容器事件，并向plegCh中发送事件
-func NewEventedPLEG(runtime kubecontainer.Runtime, runtimeService internalapi.RuntimeService, eventChannel chan *PodLifecycleEvent,
-	cache kubecontainer.Cache, genericPleg PodLifecycleEventGenerator, eventedPlegMaxStreamRetries int,
-	relistDuration *RelistDuration, clock clock.Clock) PodLifecycleEventGenerator {
+func NewEventedPLEG(
+	runtime kubecontainer.Runtime,
+	runtimeService internalapi.RuntimeService,
+	eventChannel chan *PodLifecycleEvent,
+	cache kubecontainer.Cache,
+	genericPleg PodLifecycleEventGenerator,
+	eventedPlegMaxStreamRetries int, // 默认为5次
+	relistDuration *RelistDuration,
+	clock clock.Clock,
+) PodLifecycleEventGenerator {
 	return &EventedPLEG{
 		runtime:                     runtime,
 		runtimeService:              runtimeService,
@@ -196,7 +203,7 @@ func (e *EventedPLEG) watchEventsChannel() {
 				}
 			}
 
-			// 获取容器的事件，并吧事件写入到containerEventsResponseCh通道当中
+			// 获取容器的事件，并把事件写入到containerEventsResponseCh通道当中
 			err := e.runtimeService.GetContainerEvents(containerEventsResponseCh)
 			if err != nil {
 				metrics.EventedPLEGConnErr.Inc()

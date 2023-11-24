@@ -42,6 +42,7 @@ import (
 // Once the operation is started, since it is executed asynchronously,
 // errors are simply logged and the goroutine is terminated without updating
 // actualStateOfWorld.
+// 1、用于完成插件的注册与注销
 type OperationExecutor interface {
 	// RegisterPlugin registers the given plugin using the a handler in the plugin handler map.
 	// It then updates the actual state of the world to reflect that.
@@ -53,8 +54,7 @@ type OperationExecutor interface {
 }
 
 // NewOperationExecutor returns a new instance of OperationExecutor.
-func NewOperationExecutor(
-	operationGenerator OperationGenerator) OperationExecutor {
+func NewOperationExecutor(operationGenerator OperationGenerator) OperationExecutor {
 
 	return &operationExecutor{
 		pendingOperations:  goroutinemap.NewGoRoutineMap(true /* exponentialBackOffOnError */),
@@ -94,15 +94,15 @@ func (oe *operationExecutor) IsOperationPending(socketPath string) bool {
 
 func (oe *operationExecutor) RegisterPlugin(
 	socketPath string, // socket的路径，譬如/var/lib/kubelet/plugins_registry/<socket>
-	timestamp time.Time,
+	timestamp time.Time, // 插件注册时间
 	pluginHandlers map[string]cache.PluginHandler, // 不同类型插件的注册函数，目前支持CSIPlugin, DRAPlugin, DevicePlugin
-	actualStateOfWorld ActualStateOfWorldUpdater) error {
-	generatedOperation :=
+	actualStateOfWorld ActualStateOfWorldUpdater, // 真实插件的状态
+) error {
+	RegisterPluginFunc :=
 		oe.operationGenerator.GenerateRegisterPluginFunc(socketPath, timestamp, pluginHandlers, actualStateOfWorld)
 
 	// 开启一个协程注册插件
-	return oe.pendingOperations.Run(
-		socketPath, generatedOperation)
+	return oe.pendingOperations.Run(socketPath, RegisterPluginFunc)
 }
 
 func (oe *operationExecutor) UnregisterPlugin(

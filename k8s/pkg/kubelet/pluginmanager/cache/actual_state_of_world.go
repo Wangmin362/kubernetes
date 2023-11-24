@@ -36,6 +36,7 @@ type ActualStateOfWorld interface {
 
 	// GetRegisteredPlugins generates and returns a list of plugins
 	// that are successfully registered plugins in the current actual state of world.
+	// 获取当前插件管理器所有注册插件的信息
 	GetRegisteredPlugins() []PluginInfo
 
 	// AddPlugin add the given plugin in the cache.
@@ -53,8 +54,9 @@ type ActualStateOfWorld interface {
 	// If a plugin does not exist with the given socket path, this is a no-op.
 	RemovePlugin(socketPath string)
 
-	// PluginExists checks if the given plugin exists in the current actual
+	// PluginExistsWithCorrectTimestamp PluginExists checks if the given plugin exists in the current actual
 	// state of world cache with the correct timestamp
+	// 只有当查询存在且插件的时间相等时才认为是正确的
 	PluginExistsWithCorrectTimestamp(pluginInfo PluginInfo) bool
 }
 
@@ -69,7 +71,7 @@ type actualStateOfWorld struct {
 
 	// socketFileToInfo is a map containing the set of successfully registered plugins
 	// The keys are plugin socket file paths. The values are PluginInfo objects
-	// key为插件的注册socket路径
+	// key为插件的注册信息，主要包含了插件的socket监听路径以及回调
 	socketFileToInfo map[string]PluginInfo
 	sync.RWMutex
 }
@@ -80,7 +82,7 @@ var _ ActualStateOfWorld = &actualStateOfWorld{}
 // 1、kubelet插件机制，主要是通过Unix Domain Socket进行通信，因此kubelet需要直到注册插件的socket路径
 // 2、在kubelet插件机制这种模型下，kubelet是插件的客户端，而kubelet插件则是服务端
 type PluginInfo struct {
-	// 1、kubelet插件的注册socket监听文件路径，所谓注册socket，其实就是实现了插件注册接口的socket路径。之所以要这么说，是因为插件的核心能力
+	// 1、kubelet插件注册socket监听文件路径，所谓注册socket，其实就是实现了插件注册接口的socket路径。之所以要这么说，是因为插件的核心能力
 	// 是通过不同的插件接口实现的，不同类型的插件需要实现不同的插件服务接口。譬如DevicePlugin类型的插件需要实现设备插件相关的接口，而对于
 	// CSI类型的插件，需要实现CSI Spec的NodeService接口。对于DRA类型的插件是需要实现动态资源分配接口。
 	// 2、想要实现kubelet插件就需要实现这两类接口，一类是通用的注册接口，一类是不同类型的服务接口。一般来说，插件实现方会分开实现这两类接口，因此
@@ -100,6 +102,7 @@ func (asw *actualStateOfWorld) AddPlugin(pluginInfo PluginInfo) error {
 		return fmt.Errorf("socket path is empty")
 	}
 	if _, ok := asw.socketFileToInfo[pluginInfo.SocketPath]; ok {
+		// 说明这个插件之前已经注册过，此时将会覆盖此插件
 		klog.V(2).InfoS("Plugin exists in actual state cache", "path", pluginInfo.SocketPath)
 	}
 	asw.socketFileToInfo[pluginInfo.SocketPath] = pluginInfo
@@ -117,13 +120,15 @@ func (asw *actualStateOfWorld) GetRegisteredPlugins() []PluginInfo {
 	asw.RLock()
 	defer asw.RUnlock()
 
-	currentPlugins := []PluginInfo{}
+	var currentPlugins []PluginInfo
 	for _, pluginInfo := range asw.socketFileToInfo {
 		currentPlugins = append(currentPlugins, pluginInfo)
 	}
 	return currentPlugins
 }
 
+// PluginExistsWithCorrectTimestamp
+// 只有当查询存在且插件的时间相等时才认为是正确的
 func (asw *actualStateOfWorld) PluginExistsWithCorrectTimestamp(pluginInfo PluginInfo) bool {
 	asw.RLock()
 	defer asw.RUnlock()

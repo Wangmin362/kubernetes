@@ -272,21 +272,21 @@ type ActualStateOfWorldAttacherUpdater interface {
 
 // VolumeLogger defines a set of operations for generating volume-related logging and error msgs
 type VolumeLogger interface {
-	// Creates a detailed msg that can be used in logs
+	// GenerateMsgDetailed Creates a detailed msg that can be used in logs
 	// The msg format follows the pattern "<prefixMsg> <volume details> <suffixMsg>",
 	// where each implementation provides the volume details
 	GenerateMsgDetailed(prefixMsg, suffixMsg string) (detailedMsg string)
 
-	// Creates a detailed error that can be used in logs.
+	// GenerateErrorDetailed Creates a detailed error that can be used in logs.
 	// The msg format follows the pattern "<prefixMsg> <volume details>: <err> ",
 	GenerateErrorDetailed(prefixMsg string, err error) (detailedErr error)
 
-	// Creates a simple msg that is user friendly and a detailed msg that can be used in logs
+	// GenerateMsg Creates a simple msg that is user friendly and a detailed msg that can be used in logs
 	// The msg format follows the pattern "<prefixMsg> <volume details> <suffixMsg>",
 	// where each implementation provides the volume details
 	GenerateMsg(prefixMsg, suffixMsg string) (simpleMsg, detailedMsg string)
 
-	// Creates a simple error that is user friendly and a detailed error that can be used in logs.
+	// GenerateError Creates a simple error that is user friendly and a detailed error that can be used in logs.
 	// The msg format follows the pattern "<prefixMsg> <volume details>: <err> ",
 	GenerateError(prefixMsg string, err error) (simpleErr, detailedErr error)
 }

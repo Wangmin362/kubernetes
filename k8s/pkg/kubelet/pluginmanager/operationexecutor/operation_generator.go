@@ -59,24 +59,27 @@ func NewOperationGenerator(recorder record.EventRecorder) OperationGenerator {
 
 // OperationGenerator interface that extracts out the functions from operation_executor to make it dependency injectable
 type OperationGenerator interface {
-	// Generates the RegisterPlugin function needed to perform the registration of a plugin
+	// GenerateRegisterPluginFunc Generates the RegisterPlugin function needed to perform the registration of a plugin
 	GenerateRegisterPluginFunc(
-		socketPath string,
+		socketPath string, // 当前插件监听的socket路径
 		timestamp time.Time,
 		pluginHandlers map[string]cache.PluginHandler,
-		actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error
+		actualStateOfWorldUpdater ActualStateOfWorldUpdater,
+	) func() error
 
-	// Generates the UnregisterPlugin function needed to perform the unregistration of a plugin
+	// GenerateUnregisterPluginFunc Generates the UnregisterPlugin function needed to perform the unregistration of a plugin
 	GenerateUnregisterPluginFunc(
 		pluginInfo cache.PluginInfo,
-		actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error
+		actualStateOfWorldUpdater ActualStateOfWorldUpdater,
+	) func() error
 }
 
 func (og *operationGenerator) GenerateRegisterPluginFunc(
 	socketPath string,
 	timestamp time.Time,
 	pluginHandlers map[string]cache.PluginHandler,
-	actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error {
+	actualStateOfWorldUpdater ActualStateOfWorldUpdater,
+) func() error {
 
 	registerPluginFunc := func() error {
 		// 建立和kubelet插件的链接
@@ -98,7 +101,7 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		// 获取插件注册回调函数
 		handler, ok := pluginHandlers[infoResp.Type]
 		if !ok {
-			// 如果没有找到当前插件注册类型的回调函数，就要通知插件是现房，注册失败
+			// 如果没有找到当前插件注册类型的回调函数，就要通知插件注册失败
 			if err := og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- no handler registered for plugin type: %s at socket %s", infoResp.Type, socketPath)); err != nil {
 				return fmt.Errorf("RegisterPlugin error -- failed to send error at socket %s, err: %v", socketPath, err)
 			}

@@ -59,7 +59,7 @@ message InfoRequest {
 }
 
 // Registration is the service advertised by the Plugins.
-// 每个插件都需要实现这个接口，与此同时需要通过监听Unix Domain Socket的方式启动服务，此服务监听的socket需要放在
+// 1、每个插件都需要实现这个接口，与此同时需要通过监听Unix Domain Socket的方式启动服务，此服务监听的socket需要放在
 // /var/lib/kubelet/plugins_registry路径下面，kubelet会自动发现这个socket
 service Registration {
 	rpc GetInfo(InfoRequest) returns (PluginInfo) {}

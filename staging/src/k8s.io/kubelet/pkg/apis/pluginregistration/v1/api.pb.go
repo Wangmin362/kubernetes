@@ -61,7 +61,9 @@ type PluginInfo struct {
 	// This allows the plugin to register using one endpoint and possibly use
 	// a different socket for control operations. CSI uses this model to delegate
 	// its registration external from the plugin.
-	// 当前插件的
+	// 当前插件的服务socket，不同类型的插件所提供的服务是不同的，一个插件除了必须要实现注册接口，还应该实现提供相关能力的接口。而提供相关能力的
+	// 接口所监听的socket就是在这里指定的。当然，一个插件可以同时把注册接口和服务接口都通过注册socket暴露出去。当endpoint为空的时候，kubelet
+	// 就认为注册socket还提供了服务相关的能力。
 	Endpoint string `protobuf:"bytes,3,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	// Plugin service API versions the plugin supports.
 	// For DevicePlugin, this maps to the deviceplugin API versions the

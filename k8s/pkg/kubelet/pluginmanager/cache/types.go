@@ -46,14 +46,15 @@ package cache
 // DeRegistration: When ReRegistration happens only the deletion of the new socket will trigger a DeRegister call
 // TODO 如何理解这个接口的定义？
 type PluginHandler interface {
-	// Validate returns an error if the information provided by
+	// ValidatePlugin Validate returns an error if the information provided by
 	// the potential plugin is erroneous (unsupported version, ...)
 	ValidatePlugin(pluginName string, endpoint string, versions []string) error
 	// RegisterPlugin is called so that the plugin can be register by any
 	// plugin consumer
 	// Error encountered here can still be Notified to the plugin.
 	RegisterPlugin(pluginName, endpoint string, versions []string) error
-	// DeRegister is called once the pluginwatcher observes that the socket has
+	// DeRegisterPlugin is called once the pluginwatcher observes that the socket has
 	// been deleted.
+	// 当插件所监听的socket文件被移除时，该插件就会被注销
 	DeRegisterPlugin(pluginName string)
 }

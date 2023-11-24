@@ -155,7 +155,7 @@ func (dsw *desiredStateOfWorld) GetPluginsToRegister() []PluginInfo {
 	dsw.RLock()
 	defer dsw.RUnlock()
 
-	pluginsToRegister := []PluginInfo{}
+	var pluginsToRegister []PluginInfo
 	for _, pluginInfo := range dsw.socketFileToInfo {
 		pluginsToRegister = append(pluginsToRegister, pluginInfo)
 	}

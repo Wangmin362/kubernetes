@@ -42,6 +42,7 @@ import (
 	schedulerframework "k8s.io/kubernetes/pkg/scheduler/framework"
 )
 
+// ActivePodsFunc 用于获取当前活动的Pod
 type ActivePodsFunc func() []*v1.Pod
 
 // ContainerManager Manages the containers running on a machine.

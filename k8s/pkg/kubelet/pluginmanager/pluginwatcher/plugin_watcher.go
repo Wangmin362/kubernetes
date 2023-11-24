@@ -44,14 +44,15 @@ type Watcher struct {
 func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld) *Watcher {
 	return &Watcher{
 		path:                sockDir,             // /var/lib/kubelet/plugins_registry
-		fs:                  &utilfs.DefaultFs{}, // 初始化时，文件是空的，init回初始化为/var/lib/kubelet/plugins_registry
+		fs:                  &utilfs.DefaultFs{}, // 初始化时，文件是空的，init会创建/var/lib/kubelet/plugins_registry目录
 		desiredStateOfWorld: desiredStateOfWorld,
 	}
 }
 
 // Start watches for the creation and deletion of plugin sockets at the path
 // 1、遍历/var/lib/kubelet/plugins_registry目录,把/var/lib/kubelet/plugins_registry目录下的所有socket文件遍历出来，保存到缓存当中
-// 2、监听/var/lib/kubelet/plugins_registry目录，如果有socket文件被删除了，那么从desiredStateOfWorld缓存中移除
+// 2、监听/var/lib/kubelet/plugins_registry目录，如果有socket文件被删除了，那么从desiredStateOfWorld缓存中移除；如果有新的socket文件
+// 被创建，这个socket文件路径会被保存到DesiredStateOfWorld
 func (w *Watcher) Start(stopCh <-chan struct{}) error {
 	klog.V(2).InfoS("Plugin Watcher Start", "path", w.path)
 
@@ -82,6 +83,7 @@ func (w *Watcher) Start(stopCh <-chan struct{}) error {
 			case event := <-fsWatcher.Events:
 				//TODO: Handle errors by taking corrective measures
 				if event.Has(fsnotify.Create) {
+					// 说明有插件创建了socket文件，那么把当前发现的socket文件保存到desiredStateOfWorld，也就是期望状态当中
 					err := w.handleCreateEvent(event)
 					if err != nil {
 						klog.ErrorS(err, "Error when handling create event", "event", event)
@@ -187,6 +189,7 @@ func (w *Watcher) handleCreateEvent(event fsnotify.Event) error {
 		return nil
 	}
 
+	// 说明当前路径是一个普通文件
 	if !fi.IsDir() {
 		// 判断当前文件/var/lib/kubelet/plugins_registry/<socket-file>文件是否是socket文件
 		isSocket, err := util.IsUnixDomainSocket(util.NormalizePath(event.Name))
@@ -204,6 +207,7 @@ func (w *Watcher) handleCreateEvent(event fsnotify.Event) error {
 		return w.handlePluginRegistration(event.Name)
 	}
 
+	// 说明当前目录是目录
 	return w.traversePluginDir(event.Name)
 }
 

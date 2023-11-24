@@ -55,8 +55,7 @@ func IsPrefixedNativeResource(name v1.ResourceName) bool {
 // *kubernetes.io/ namespace. Partially-qualified (unprefixed) names are
 // implicitly in the kubernetes.io/ namespace.
 func IsNativeResource(name v1.ResourceName) bool {
-	return !strings.Contains(string(name), "/") ||
-		IsPrefixedNativeResource(name)
+	return !strings.Contains(string(name), "/") || IsPrefixedNativeResource(name)
 }
 
 // IsHugePageResourceName returns true if the resource name has the huge page

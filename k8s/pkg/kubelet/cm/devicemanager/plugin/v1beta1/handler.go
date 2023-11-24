@@ -53,6 +53,7 @@ func (s *server) DeRegisterPlugin(pluginName string) {
 func (s *server) ValidatePlugin(pluginName string, endpoint string, versions []string) error {
 	klog.V(2).InfoS("Got plugin at endpoint with versions", "plugin", pluginName, "endpoint", endpoint, "versions", versions)
 
+	// 检测是否由版本兼容性问题
 	if !s.isVersionCompatibleWithPlugin(versions...) {
 		return fmt.Errorf("manager version, %s, is not among plugin supported versions %v", api.Version, versions)
 	}

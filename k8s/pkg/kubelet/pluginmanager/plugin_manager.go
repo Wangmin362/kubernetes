@@ -73,8 +73,11 @@ func NewPluginManager(
 	sockDir string, // 默认为：/var/lib/kubelet/plugins_registry
 	recorder record.EventRecorder, // 事件记录器
 ) PluginManager {
+	// 插件的实际状态
 	asw := cache.NewActualStateOfWorld()
+	// 插件的真实状态
 	dsw := cache.NewDesiredStateOfWorld()
+	// TODO 干嘛用的？
 	reconciler := reconciler.NewReconciler(
 		operationexecutor.NewOperationExecutor(
 			operationexecutor.NewOperationGenerator(
@@ -87,6 +90,12 @@ func NewPluginManager(
 	)
 
 	pm := &pluginManager{
+		// 1、遍历/var/lib/kubelet/plugins_registry目录,把/var/lib/kubelet/plugins_registry目录下的所有socket文件遍历出来，保存到缓存当中
+		// 2、监听/var/lib/kubelet/plugins_registry目录，如果有socket文件被删除了，那么从desiredStateOfWorld缓存中移除；如果有新的socket文件
+		// 被创建，这个socket文件路径会被保存到DesiredStateOfWorld
+		// 3、pluginwatcher的核心目标就是通过监听文件发现查询注册与插件注销；只要有新的socket文件被创建，就说明这个插件需要被注册；只要
+		// 有socket文件被删除，那么这个插件需要被注销；当然，插件的注册与注销并不是由pluginwatcher来完成的，pluginwatcher仅仅是做一个记录。
+		// 指针执行插件的注册与注销是由reconciler完成的
 		desiredStateOfWorldPopulator: pluginwatcher.NewWatcher(
 			sockDir,
 			dsw,
@@ -102,6 +111,7 @@ func NewPluginManager(
 type pluginManager struct {
 	// desiredStateOfWorldPopulator (the plugin watcher) runs an asynchronous
 	// periodic loop to populate the desiredStateOfWorld.
+	// 插件的期望状态
 	desiredStateOfWorldPopulator *pluginwatcher.Watcher
 
 	// reconciler runs an asynchronous periodic loop to reconcile the

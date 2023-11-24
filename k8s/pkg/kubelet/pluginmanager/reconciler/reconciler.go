@@ -64,7 +64,8 @@ func NewReconciler(
 	operationExecutor operationexecutor.OperationExecutor,
 	loopSleepDuration time.Duration,
 	desiredStateOfWorld cache.DesiredStateOfWorld,
-	actualStateOfWorld cache.ActualStateOfWorld) Reconciler {
+	actualStateOfWorld cache.ActualStateOfWorld,
+) Reconciler {
 	return &reconciler{
 		operationExecutor:   operationExecutor,
 		loopSleepDuration:   loopSleepDuration,

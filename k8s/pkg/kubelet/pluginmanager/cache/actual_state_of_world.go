@@ -79,7 +79,7 @@ type actualStateOfWorld struct {
 var _ ActualStateOfWorld = &actualStateOfWorld{}
 
 // PluginInfo holds information of a plugin
-// 1、kubelet插件机制，主要是通过Unix Domain Socket进行通信，因此kubelet需要直到注册插件的socket路径
+// 1、kubelet插件机制，主要是通过Unix Domain Socket进行通信，因此kubelet需要知道注册插件的socket路径
 // 2、在kubelet插件机制这种模型下，kubelet是插件的客户端，而kubelet插件则是服务端
 type PluginInfo struct {
 	// 1、kubelet插件注册socket监听文件路径，所谓注册socket，其实就是实现了插件注册接口的socket路径。之所以要这么说，是因为插件的核心能力

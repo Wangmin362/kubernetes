@@ -22,6 +22,7 @@ import (
 
 // RegistrationHandler is an interface for handling device plugin registration
 // and plugin directory cleanup.
+// 用于kubelet启动时清理上一次设备插件监听的socket文件，所有设备插件在kubelet启动之后需要重新注册一遍
 type RegistrationHandler interface {
 	CleanupPluginDirectory(string) error
 }

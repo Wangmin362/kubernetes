@@ -44,7 +44,7 @@ type Reconciler interface {
 	// AddHandler adds the given plugin handler for a specific plugin type,
 	// which will be added to the actual state of world cache.
 	// 1、这里的pluginType实际上只有DevicePlugin, DRAPlugin, CSIPlugin
-	// 2、而插件的Handler，实际上就是不同类型插件的注册、注销回调方法
+	// 2、而插件的Handler，实际上就是不同类型插件的注册、注销回调方法，这里的注册实际上是向插件管理器注册
 	AddHandler(pluginType string, pluginHandler cache.PluginHandler)
 }
 
@@ -60,11 +60,13 @@ type Reconciler interface {
 // desiredStateOfWorld - cache containing the desired state of the world
 //
 // actualStateOfWorld - cache containing the actual state of the world
+// 1、Reconciler用于完成插件真正的注册、注销动作。主要就是通过对比DesiredStateOfWorld以及ActualStateOfWorld缓存，从而判断插件需要
+// 注册还是注销
 func NewReconciler(
-	operationExecutor operationexecutor.OperationExecutor,
-	loopSleepDuration time.Duration,
-	desiredStateOfWorld cache.DesiredStateOfWorld,
-	actualStateOfWorld cache.ActualStateOfWorld,
+	operationExecutor operationexecutor.OperationExecutor, // 用于完成插件的注册、注销动作
+	loopSleepDuration time.Duration, // 多久重新reconcile一次
+	desiredStateOfWorld cache.DesiredStateOfWorld, // 插件期望状态
+	actualStateOfWorld cache.ActualStateOfWorld, // 插件实际状态
 ) Reconciler {
 	return &reconciler{
 		operationExecutor:   operationExecutor,
@@ -87,9 +89,7 @@ type reconciler struct {
 var _ Reconciler = &reconciler{}
 
 func (rc *reconciler) Run(stopCh <-chan struct{}) {
-	wait.Until(func() {
-		rc.reconcile()
-	},
+	wait.Until(func() { rc.reconcile() },
 		rc.loopSleepDuration, // 一秒钟执行一次reconcile
 		stopCh)
 }
@@ -122,14 +122,14 @@ func (rc *reconciler) reconcile() {
 		unregisterPlugin := false
 		// 判断期望缓存中是否还存在
 		if !rc.desiredStateOfWorld.PluginExists(registeredPlugin.SocketPath) {
-			// 如果不存在了，说明当前缓存需要注销
+			// 如果不存在了，说明当前插件需要注销
 			unregisterPlugin = true
 		} else {
 			// We also need to unregister the plugins that exist in both actual state of world
 			// and desired state of world cache, but the timestamps don't match.
 			// Iterate through desired state of world plugins and see if there's any plugin
 			// with the same socket path but different timestamp.
-			// 如果实际状态缓存和期望状态缓存的时间不一样，那么需要注销此插件，因为很有可能是被删除了重新创建的，所以需要注销插件，让插件自己
+			// 1、如果实际状态缓存和期望状态缓存的时间不一样，那么需要注销此插件，因为很有可能是被删除了重新创建的，所以需要注销插件，让插件自己
 			// 重新注册
 			for _, dswPlugin := range rc.desiredStateOfWorld.GetPluginsToRegister() {
 				if dswPlugin.SocketPath == registeredPlugin.SocketPath && dswPlugin.Timestamp != registeredPlugin.Timestamp {

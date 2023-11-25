@@ -29,6 +29,7 @@ import (
 // endpoint maps to a single registered device plugin. It is responsible
 // for managing gRPC communications with the device plugin and caching
 // device states reported by the device plugin.
+// 1、endpoint用于插件进行gRPC通信
 type endpoint interface {
 	getPreferredAllocation(available, mustInclude []string, size int) (*pluginapi.PreferredAllocationResponse, error)
 	allocate(devs []string) (*pluginapi.AllocateResponse, error)
@@ -70,6 +71,7 @@ func (e *endpointImpl) isStopped() bool {
 	return !e.stopTime.IsZero()
 }
 
+// 当前设备是否已经停止超过了五分钟
 func (e *endpointImpl) stopGracePeriodExpired() bool {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()

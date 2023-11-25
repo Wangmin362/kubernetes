@@ -27,6 +27,7 @@ import (
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 )
 
+// 设备分配信息
 type deviceAllocateInfo struct {
 	// deviceIds contains device Ids allocated to this container for the given resourceName.
 	deviceIds checkpoint.DevicesPerNUMA
@@ -71,7 +72,13 @@ func (pdev *podDevices) hasPod(podUID string) bool {
 	return podExists
 }
 
-func (pdev *podDevices) insert(podUID, contName, resource string, devices checkpoint.DevicesPerNUMA, resp *pluginapi.ContainerAllocateResponse) {
+func (pdev *podDevices) insert(
+	podUID, // 当前pod
+	contName, // pod中的容器
+	resource string, // 容器申请的资源名
+	devices checkpoint.DevicesPerNUMA, // 分配的设备（也就是资源）
+	resp *pluginapi.ContainerAllocateResponse, // kubelet设备插件给的响应
+) {
 	pdev.Lock()
 	defer pdev.Unlock()
 	if _, podExists := pdev.devs[podUID]; !podExists {
@@ -109,6 +116,7 @@ func (pdev *podDevices) podDevices(podUID, resource string) sets.String {
 
 // Returns list of device Ids allocated to the given container for the given resource.
 // Returns nil if we don't have cached state for the given <podUID, contName, resource>.
+// 返回当前容器已经分配的设备
 func (pdev *podDevices) containerDevices(podUID, contName, resource string) sets.String {
 	pdev.RLock()
 	defer pdev.RUnlock()
@@ -160,6 +168,7 @@ func (pdev *podDevices) removeContainerAllocatedResources(podUID, contName strin
 }
 
 // Returns all of devices allocated to the pods being tracked, keyed by resourceName.
+// 返回当前节点已经分配的资源
 func (pdev *podDevices) devices() map[string]sets.String {
 	ret := make(map[string]sets.String)
 	pdev.RLock()
@@ -210,17 +219,21 @@ func (pdev *podDevices) toCheckpointData() []checkpoint.PodDevicesEntry {
 }
 
 // Populates podDevices from the passed in checkpointData.
+// 缓存各个Pod之前分配的设备信息
 func (pdev *podDevices) fromCheckpointData(data []checkpoint.PodDevicesEntry) {
+	// 遍历每一个pod分配的device
 	for _, entry := range data {
 		klog.V(2).InfoS("Get checkpoint entry",
 			"podUID", entry.PodUID, "containerName", entry.ContainerName,
 			"resourceName", entry.ResourceName, "deviceIDs", entry.DeviceIDs, "allocated", entry.AllocResp)
 		allocResp := &pluginapi.ContainerAllocateResponse{}
+		// 反序列化
 		err := allocResp.Unmarshal(entry.AllocResp)
 		if err != nil {
 			klog.ErrorS(err, "Can't unmarshal allocResp", "podUID", entry.PodUID, "containerName", entry.ContainerName, "resourceName", entry.ResourceName)
 			continue
 		}
+		// 缓存当前Pod分配的设备
 		pdev.insert(entry.PodUID, entry.ContainerName, entry.ResourceName, entry.DeviceIDs, allocResp)
 	}
 }
@@ -367,9 +380,11 @@ func (pdev *podDevices) getContainerDevices(podUID, contName string) ResourceDev
 }
 
 // DeviceInstances is a mapping device name -> plugin device data
+// key为设备名
 type DeviceInstances map[string]pluginapi.Device
 
 // ResourceDeviceInstances is a mapping resource name -> DeviceInstances
+// key为资源名
 type ResourceDeviceInstances map[string]DeviceInstances
 
 // NewResourceDeviceInstances returns a new ResourceDeviceInstances

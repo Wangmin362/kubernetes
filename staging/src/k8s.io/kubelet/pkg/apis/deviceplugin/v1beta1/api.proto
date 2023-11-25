@@ -56,6 +56,7 @@ service DevicePlugin {
 	// ListAndWatch returns a stream of List of Devices
 	// Whenever a Device state change or a Device disappears, ListAndWatch
 	// returns the new list
+	// 用于持续监听设备的变化情况。每一次变化，设备插件都应该返回所有管理的设备。
 	rpc ListAndWatch(Empty) returns (stream ListAndWatchResponse) {}
 
 	// GetPreferredAllocation returns a preferred set of devices to allocate

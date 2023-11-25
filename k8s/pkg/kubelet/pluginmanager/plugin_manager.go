@@ -77,7 +77,8 @@ func NewPluginManager(
 	asw := cache.NewActualStateOfWorld()
 	// 插件的真实状态
 	dsw := cache.NewDesiredStateOfWorld()
-	// TODO 干嘛用的？
+	// 1、Reconciler用于完成插件真正的注册、注销动作。主要就是通过对比DesiredStateOfWorld以及ActualStateOfWorld缓存，从而判断插件需要
+	// 注册还是注销
 	reconciler := reconciler.NewReconciler(
 		operationexecutor.NewOperationExecutor(
 			operationexecutor.NewOperationGenerator(

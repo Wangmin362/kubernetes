@@ -45,4 +45,5 @@ const (
 )
 
 // SupportedVersions provides a list of supported version
+// 用于标识当前DeviceManager支持哪些版本的设备插件，按照目前的设备插件的GRPC接口定义，目前设备插件有v1alpha1, v1beta1
 var SupportedVersions = [...]string{"v1beta1"}

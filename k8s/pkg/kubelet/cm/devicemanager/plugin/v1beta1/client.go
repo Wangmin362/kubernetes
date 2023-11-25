@@ -31,23 +31,24 @@ import (
 )
 
 // DevicePlugin interface provides methods for accessing Device Plugin resources, API and unix socket.
+// 用于抽象一个设备插件，核心就是API接口，通过此接口我们可以获取到此设备插件提供的能力
 type DevicePlugin interface {
-	API() api.DevicePluginClient
-	Resource() string
-	SocketPath() string
+	API() api.DevicePluginClient // 访问kubelet设备插件的客户端
+	Resource() string            // 当前设备插件注册的资源名
+	SocketPath() string          // 当前设备插件监听的socket路径，一般为：/var/lib/kubelet/device-plugins/<endpoint>
 }
 
 // Client interface provides methods for establishing/closing gRPC connection and running the device plugin gRPC client.
 type Client interface {
-	Connect() error
-	Run()
-	Disconnect() error
+	Connect() error    // 连接kubelet设备插件
+	Run()              // ListWatch设备插件
+	Disconnect() error // 断开和设备插件之间的连接
 }
 
 type client struct {
 	mutex    sync.Mutex
-	resource string
-	socket   string
+	resource string // 当前设备注册的资源名
+	socket   string // /var/lib/kubelet/device-plugins/<endpoint>
 	grpc     *grpc.ClientConn
 	handler  ClientHandler
 	client   api.DevicePluginClient
@@ -64,6 +65,7 @@ func NewPluginClient(r string, socketPath string, h ClientHandler) Client {
 
 // Connect is for establishing a gRPC connection between device manager and device plugin.
 func (c *client) Connect() error {
+	// 通过当前设备插件监听的socket，实例化访问设备插件的客户端
 	client, conn, err := dial(c.socket)
 	if err != nil {
 		klog.ErrorS(err, "Unable to connect to device plugin client with socket path", "path", c.socket)
@@ -71,11 +73,13 @@ func (c *client) Connect() error {
 	}
 	c.grpc = conn
 	c.client = client
+	// 连接设备插件，并获取设备插件的参数选项，然后缓存起来
 	return c.handler.PluginConnected(c.resource, c)
 }
 
 // Run is for running the device plugin gRPC client.
 func (c *client) Run() {
+	// 监听设备插件
 	stream, err := c.client.ListAndWatch(context.Background(), &api.Empty{})
 	if err != nil {
 		klog.ErrorS(err, "ListAndWatch ended unexpectedly for device plugin", "resource", c.resource)
@@ -96,6 +100,7 @@ func (c *client) Run() {
 // Disconnect is for closing gRPC connection between device manager and device plugin.
 func (c *client) Disconnect() error {
 	c.mutex.Lock()
+	// 先关闭grpc连接
 	if c.grpc != nil {
 		if err := c.grpc.Close(); err != nil {
 			klog.V(2).ErrorS(err, "Failed to close grcp connection", "resource", c.Resource())
@@ -103,6 +108,7 @@ func (c *client) Disconnect() error {
 		c.grpc = nil
 	}
 	c.mutex.Unlock()
+	// 断开pluginManager和设备插件的grpc连接，然后把此插件设置为unhealthy，最后设置这个插件的停止时间
 	c.handler.PluginDisconnected(c.resource)
 	return nil
 }
@@ -120,6 +126,7 @@ func (c *client) SocketPath() string {
 }
 
 // dial establishes the gRPC communication with the registered device plugin. https://godoc.org/google.golang.org/grpc#Dial
+// 实例化访问设备插件的客户端
 func dial(unixSocketPath string) (api.DevicePluginClient, *grpc.ClientConn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()

@@ -43,6 +43,7 @@ type Checkpoint interface {
 type CheckpointManager interface {
 	// CreateCheckpoint persists checkpoint in CheckpointStore. checkpointKey is the key for utilstore to locate checkpoint.
 	// For file backed utilstore, checkpointKey is the file name to write the checkpoint data.
+	// checkpointKey为checkpoint的名字
 	CreateCheckpoint(checkpointKey string, checkpoint Checkpoint) error
 	// GetCheckpoint retrieves checkpoint from CheckpointStore.
 	GetCheckpoint(checkpointKey string, checkpoint Checkpoint) error

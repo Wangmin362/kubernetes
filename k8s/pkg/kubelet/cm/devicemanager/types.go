@@ -29,9 +29,11 @@ import (
 )
 
 // Manager manages all the Device Plugins running on a node.
-// 1、用于管理运行在一个节点上的设备插件
+// 1、用于管理运行在一个节点上的设备插件，主要是插件的分配、回收
 type Manager interface {
 	// Start starts device plugin registration service.
+	// 1、启动DeviceManager，开始监听/var/lib/kubelet/registry_plugins/kubelet.sock，所有通过PluginManager注册成功的插件，都应该
+	// 向DeviceManager注册自己，提供自己的服务。
 	Start(activePods ActivePodsFunc, sourcesReady config.SourcesReady) error
 
 	// Allocate configures and assigns devices to a container in a pod. From
@@ -39,6 +41,7 @@ type Manager interface {
 	// owning device plugin to allow setup procedures to take place, and for
 	// the device plugin to provide runtime settings to use the device
 	// (environment variables, mount points and device files).
+	// 用于给Pod中的某个容器分配设备
 	Allocate(pod *v1.Pod, container *v1.Container) error
 
 	// UpdatePluginResources updates node resources based on devices already
@@ -70,11 +73,11 @@ type Manager interface {
 	// the node has been recreated.
 	ShouldResetExtendedResourceCapacity() bool
 
-	// TopologyManager HintProvider provider indicates the Device Manager implements the Topology Manager Interface
+	// GetTopologyHints TopologyManager HintProvider provider indicates the Device Manager implements the Topology Manager Interface
 	// and is consulted to make Topology aware resource alignments
 	GetTopologyHints(pod *v1.Pod, container *v1.Container) map[string][]topologymanager.TopologyHint
 
-	// TopologyManager HintProvider provider indicates the Device Manager implements the Topology Manager Interface
+	// GetPodTopologyHints TopologyManager HintProvider provider indicates the Device Manager implements the Topology Manager Interface
 	// and is consulted to make Topology aware resource alignments per Pod
 	GetPodTopologyHints(pod *v1.Pod) map[string][]topologymanager.TopologyHint
 

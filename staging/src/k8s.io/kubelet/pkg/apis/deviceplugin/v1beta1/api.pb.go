@@ -108,6 +108,7 @@ type RegisterRequest struct {
 	// PATH = path.Join(DevicePluginPath, endpoint)
 	Endpoint string `protobuf:"bytes,2,opt,name=endpoint,proto3" json:"endpoint,omitempty"`
 	// Schedulable resource name. As of now it's expected to be a DNS Label
+	// 当前设备插件在K8S当中呈现的资源名
 	ResourceName string `protobuf:"bytes,3,opt,name=resource_name,json=resourceName,proto3" json:"resource_name,omitempty"`
 	// Options to be communicated with Device Manager
 	Options              *DevicePluginOptions `protobuf:"bytes,4,opt,name=options,proto3" json:"options,omitempty"`

@@ -36,10 +36,10 @@ type DevicesPerNUMA map[int64][]string
 // PodDevicesEntry connects pod information to devices
 type PodDevicesEntry struct {
 	PodUID        string
-	ContainerName string
-	ResourceName  string
-	DeviceIDs     DevicesPerNUMA
-	AllocResp     []byte
+	ContainerName string         // 之所不适用容器ID，是因为容器可能会被重启，重启容器ID发生变化，而容器名是不会发生变化的
+	ResourceName  string         // 当前容器请求的资源名
+	DeviceIDs     DevicesPerNUMA // 分配的deviceID
+	AllocResp     []byte         // TODO 分配响应是啥？ 是kubelet插件给的响应值？
 }
 
 // checkpointData struct is used to store pod to device allocation information

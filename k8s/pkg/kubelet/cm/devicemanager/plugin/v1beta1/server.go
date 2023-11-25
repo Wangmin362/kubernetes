@@ -45,22 +45,25 @@ type Server interface {
 }
 
 type server struct {
-	socketName string
-	socketDir  string
+	socketName string // kubelet.sock
+	socketDir  string // /var/lib/kubelet/device-plugins
 	mutex      sync.Mutex
 	wg         sync.WaitGroup
 	grpc       *grpc.Server
 	rhandler   RegistrationHandler
 	chandler   ClientHandler
-	clients    map[string]Client
+	// 所有注册上来的插件，都会缓存这个插件的客户端
+	clients map[string]Client
 }
 
 // NewServer returns an initialized device plugin registration server.
+// 1、socketPath默认为：/var/lib/kubelet/device-plugins/kubelet.sock
 func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Server, error) {
 	if socketPath == "" || !filepath.IsAbs(socketPath) {
 		return nil, fmt.Errorf(errBadSocket+" %s", socketPath)
 	}
 
+	// dir = /var/lib/kubelet/device-plugins  name=kubelet.sock
 	dir, name := filepath.Split(socketPath)
 
 	klog.V(2).InfoS("Creating device plugin registration server", "version", api.Version, "socket", socketPath)
@@ -78,11 +81,13 @@ func NewServer(socketPath string, rh RegistrationHandler, ch ClientHandler) (Ser
 func (s *server) Start() error {
 	klog.V(2).InfoS("Starting device plugin registration server")
 
+	// 如果/var/lib/kubelet/device-plugins目录不存在，就创建此目录
 	if err := os.MkdirAll(s.socketDir, 0750); err != nil {
 		klog.ErrorS(err, "Failed to create the device plugin socket directory", "directory", s.socketDir)
 		return err
 	}
 
+	// 判断SELinux是否启动，如果启动了SELinux，但是没有给够此目录设置特殊的标签，就需要报错。
 	if selinux.GetEnabled() {
 		if err := selinux.SetFileLabel(s.socketDir, config.KubeletPluginsDirSELinuxLabel); err != nil {
 			klog.InfoS("Unprivileged containerized plugins might not work. Could not set selinux context on socket dir", "path", s.socketDir, "err", err)
@@ -92,11 +97,14 @@ func (s *server) Start() error {
 	// For now we leave cleanup of the *entire* directory up to the Handler
 	// (even though we should in theory be able to just wipe the whole directory)
 	// because the Handler stores its checkpoint file (amongst others) in here.
+	// 移除所有的设备插件监听的socket文件，因为PluginManager刚刚被启动，不可能有插件注册过来。唯一的可能是当前kubelet被重启，
+	// 之前注册过的kubelet设备插件再此目录残留一些socket文件。现在把这些socket文件清理了，一会儿这些插件会重新注册上来
 	if err := s.rhandler.CleanupPluginDirectory(s.socketDir); err != nil {
 		klog.ErrorS(err, "Failed to cleanup the device plugin directory", "directory", s.socketDir)
 		return err
 	}
 
+	// 监听/var/lib/kubelet/device-plugins/kubelet.sock
 	ln, err := net.Listen("unix", s.SocketPath())
 	if err != nil {
 		klog.ErrorS(err, "Failed to listen to socket while starting device plugin registry")
@@ -106,6 +114,7 @@ func (s *server) Start() error {
 	s.wg.Add(1)
 	s.grpc = grpc.NewServer([]grpc.ServerOption{}...)
 
+	// 注册Register接口
 	api.RegisterRegistrationServer(s.grpc, s)
 	go func() {
 		defer s.wg.Done()
@@ -140,22 +149,32 @@ func (s *server) SocketPath() string {
 	return filepath.Join(s.socketDir, s.socketName)
 }
 
+// Register
+// TODO 设备插件什么时候应该调用这个接口？  我猜测是在kubelet的PluginManger成功注册这个插件之后，设备插件接收到PluginManager注册成功的消息
+// 此时这个插件就需要注册到DeviceManager当中。
 func (s *server) Register(ctx context.Context, r *api.RegisterRequest) (*api.Empty, error) {
 	klog.InfoS("Got registration request from device plugin with resource", "resourceName", r.ResourceName)
 	metrics.DevicePluginRegistrationCount.WithLabelValues(r.ResourceName).Inc()
 
+	// 当前Server，其实可以理解为DeviceManager,也可以直接理解为kubelet。随着持续演进，DeviceManager可能支持多个不同版本的设备插件，譬如
+	// v1alpha1, v1alpha2, v1beta1, v1, v2beta2, v2等等。但是一个kubelet设备插件通常只会实现其中一个版本的设备插件。因此我们需要判断
+	// 当前DeviceManager是否支持设备插件的版本。可能K8S的版本很老，只支持v1alpha1，但是用户实现的kubelet设备插件版本为v1beta2，那么此时肯定
+	// 无法注册成功。反过来也是一样的。所以我们这里需要判断版本的兼容性
 	if !s.isVersionCompatibleWithPlugin(r.Version) {
 		err := fmt.Errorf(errUnsupportedVersion, r.Version, api.SupportedVersions)
 		klog.InfoS("Bad registration request from device plugin with resource", "resourceName", r.ResourceName, "err", err)
 		return &api.Empty{}, err
 	}
 
+	// 资源名必须不是扩展资源名
 	if !v1helper.IsExtendedResourceName(core.ResourceName(r.ResourceName)) {
 		err := fmt.Errorf(errInvalidResourceName, r.ResourceName)
 		klog.InfoS("Bad registration request from device plugin", "err", err)
 		return &api.Empty{}, err
 	}
 
+	// 1、socketPath = /var/lib/kubelet/device-plugins/<endpoint>
+	// 2、连接一下这个插件，看看能不能连接上
 	if err := s.connectClient(r.ResourceName, filepath.Join(s.socketDir, r.Endpoint)); err != nil {
 		klog.InfoS("Error connecting to device plugin client", "err", err)
 		return &api.Empty{}, err

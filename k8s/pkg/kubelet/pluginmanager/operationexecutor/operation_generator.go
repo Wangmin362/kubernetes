@@ -50,6 +50,7 @@ type operationGenerator struct {
 }
 
 // NewOperationGenerator is returns instance of operationGenerator
+// 用于生成插件的注册、注销方法
 func NewOperationGenerator(recorder record.EventRecorder) OperationGenerator {
 
 	return &operationGenerator{
@@ -75,10 +76,10 @@ type OperationGenerator interface {
 }
 
 func (og *operationGenerator) GenerateRegisterPluginFunc(
-	socketPath string,
-	timestamp time.Time,
-	pluginHandlers map[string]cache.PluginHandler,
-	actualStateOfWorldUpdater ActualStateOfWorldUpdater,
+	socketPath string, // 当前插件监听的注册socket路径
+	timestamp time.Time, // kubelet第一次发现这个插件注册socket的时间，说白了就是第一次监听到这个文件的时间
+	pluginHandlers map[string]cache.PluginHandler, // 不同类型的插件需要执行不同类型的插件校验、注册、注销
+	actualStateOfWorldUpdater ActualStateOfWorldUpdater, // 实际插件的状态
 ) func() error {
 
 	registerPluginFunc := func() error {
@@ -116,7 +117,7 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		if infoResp.Endpoint == "" {
 			infoResp.Endpoint = socketPath
 		}
-		// 校验插件，DevicePlugin, DraPlugin, CSIPlugin插件的校验路径是不一样的
+		// 校验插件，DevicePlugin, DraPlugin, CSIPlugin插件的校验逻辑是不一样的
 		if err := handler.ValidatePlugin(infoResp.Name, infoResp.Endpoint, infoResp.SupportedVersions); err != nil {
 			if err = og.notifyPlugin(client, false, fmt.Sprintf("RegisterPlugin error -- plugin validation failed with err: %v", err)); err != nil {
 				return fmt.Errorf("RegisterPlugin error -- failed to send error at socket %s, err: %v", socketPath, err)
@@ -125,7 +126,9 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 		}
 		// We add the plugin to the actual state of world cache before calling a plugin consumer's Register handle
 		// so that if we receive a delete event during Register Plugin, we can process it as a DeRegister call.
-		// 向实际状态插件状态注册当前插件，只要没有想同路径的socket，就认为注册成功
+		// 1、向实际状态插件状态注册当前插件，只要没有想同路径的socket，就认为注册成功
+		// 2、actualStateOfWorldUpdater用于更新插件的注册信息，实际上是为了把把插件注册信息记录到ActualStateOfWorld当中，ActualStateOfWorld是
+		// 一个缓存，缓存了当前节点所有注册的插件。
 		err = actualStateOfWorldUpdater.AddPlugin(cache.PluginInfo{
 			SocketPath: socketPath, // 这里的socket路径还是注册socket，因为只要知道了这个socket，我们就可以调用接口获取服务socket的位置
 			Timestamp:  timestamp,
@@ -152,8 +155,9 @@ func (og *operationGenerator) GenerateRegisterPluginFunc(
 }
 
 func (og *operationGenerator) GenerateUnregisterPluginFunc(
-	pluginInfo cache.PluginInfo,
-	actualStateOfWorldUpdater ActualStateOfWorldUpdater) func() error {
+	pluginInfo cache.PluginInfo, // 插件的注册信息
+	actualStateOfWorldUpdater ActualStateOfWorldUpdater, // 用于更新ActualStateOfWorld缓存
+) func() error {
 
 	unregisterPluginFunc := func() error {
 		// 如果handler不存在，那么无法完成注销动作

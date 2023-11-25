@@ -52,6 +52,7 @@ type PluginHandler interface {
 	// RegisterPlugin is called so that the plugin can be register by any
 	// plugin consumer
 	// Error encountered here can still be Notified to the plugin.
+	// 1、pluginName为插件的名字，endpoint为插件的服务socket监听路径， version为当前插件支持的版本
 	RegisterPlugin(pluginName, endpoint string, versions []string) error
 	// DeRegisterPlugin is called once the pluginwatcher observes that the socket has
 	// been deleted.

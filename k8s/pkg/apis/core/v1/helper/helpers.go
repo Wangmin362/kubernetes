@@ -47,6 +47,7 @@ func IsExtendedResourceName(name v1.ResourceName) bool {
 
 // IsPrefixedNativeResource returns true if the resource name is in the
 // *kubernetes.io/ namespace.
+// 当前资源名是否包含：kubernetes.io/
 func IsPrefixedNativeResource(name v1.ResourceName) bool {
 	return strings.Contains(string(name), v1.ResourceDefaultNamespacePrefix)
 }
@@ -54,6 +55,7 @@ func IsPrefixedNativeResource(name v1.ResourceName) bool {
 // IsNativeResource returns true if the resource name is in the
 // *kubernetes.io/ namespace. Partially-qualified (unprefixed) names are
 // implicitly in the kubernetes.io/ namespace.
+// 所谓原生资源，主要有两类：1、资源名不好含/   2、资源名包含/，并且是包含：kubernetes.io/
 func IsNativeResource(name v1.ResourceName) bool {
 	return !strings.Contains(string(name), "/") || IsPrefixedNativeResource(name)
 }

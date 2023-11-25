@@ -31,16 +31,20 @@ import (
 
 // Watcher is the plugin watcher
 type Watcher struct {
-	// /var/lib/kubelet/plugins_registry目录
+	// 插件注册目录/var/lib/kubelet/plugins_registry目录
 	path string
 	fs   utilfs.Filesystem
 	// 文件监听器，当然也可以监听目录，这里监听的是/var/lib/kubelet/plugins_registry目录
 	fsWatcher *fsnotify.Watcher
-	// 1、本质上就是一个map，key为插件名，value为PluginInfo
+	// 本质上就是一个map，key为插件名，value为PluginInfo
 	desiredStateOfWorld cache.DesiredStateOfWorld
 }
 
 // NewWatcher provides a new watcher for socket registration
+// 1、sockDir为插件的注册目录，默认目录为/var/lib/kubelet/plugins_registry
+// 2、DesiredStateOfWorld为插件的期望状态缓存
+// 3、PluginWatcher用于监听插件注册目录中的所有socket文件，此目录默认为/var/lib/kubelet/plugins_registry。当发现有新的socket被创建
+// 时就把这个插件的信息保存到DesiredStateOfWorld缓存当中。当发现现有的socket文件被删除时，就从DesiredStateOfWorld缓存当中移除这个插件
 func NewWatcher(sockDir string, desiredStateOfWorld cache.DesiredStateOfWorld) *Watcher {
 	return &Watcher{
 		path:                sockDir,             // /var/lib/kubelet/plugins_registry

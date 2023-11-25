@@ -64,6 +64,7 @@ func NewOperationExecutor(operationGenerator OperationGenerator) OperationExecut
 
 // ActualStateOfWorldUpdater defines a set of operations updating the actual
 // state of the world cache after successful registration/deregistration.
+// 用于向ActualStateOfWorld中注册、注销插件
 type ActualStateOfWorldUpdater interface {
 	// AddPlugin add the given plugin in the cache if no existing plugin
 	// in the cache has the same socket path.
@@ -96,8 +97,9 @@ func (oe *operationExecutor) RegisterPlugin(
 	socketPath string, // socket的路径，譬如/var/lib/kubelet/plugins_registry/<socket>
 	timestamp time.Time, // 插件注册时间
 	pluginHandlers map[string]cache.PluginHandler, // 不同类型插件的注册函数，目前支持CSIPlugin, DRAPlugin, DevicePlugin
-	actualStateOfWorld ActualStateOfWorldUpdater, // 真实插件的状态
+	actualStateOfWorld ActualStateOfWorldUpdater, // 用于修改ActualStateOfWorld缓存的插件注册、注销
 ) error {
+	// 生成插件的注册方法
 	RegisterPluginFunc :=
 		oe.operationGenerator.GenerateRegisterPluginFunc(socketPath, timestamp, pluginHandlers, actualStateOfWorld)
 
@@ -106,11 +108,13 @@ func (oe *operationExecutor) RegisterPlugin(
 }
 
 func (oe *operationExecutor) UnregisterPlugin(
-	pluginInfo cache.PluginInfo,
-	actualStateOfWorld ActualStateOfWorldUpdater) error {
-	generatedOperation :=
+	pluginInfo cache.PluginInfo, // 插件注册信息
+	actualStateOfWorld ActualStateOfWorldUpdater, // 用于修改ActualStateOfWorld缓存的插件注册、注销
+) error {
+	// 生成插件的注销方法
+	UnregisterPluginFunc :=
 		oe.operationGenerator.GenerateUnregisterPluginFunc(pluginInfo, actualStateOfWorld)
 
 	return oe.pendingOperations.Run(
-		pluginInfo.SocketPath, generatedOperation)
+		pluginInfo.SocketPath, UnregisterPluginFunc)
 }

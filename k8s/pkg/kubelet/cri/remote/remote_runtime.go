@@ -72,7 +72,11 @@ const (
 )
 
 // NewRemoteRuntimeService creates a new internalapi.RuntimeService.
-func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration, tp trace.TracerProvider) (internalapi.RuntimeService, error) {
+func NewRemoteRuntimeService(
+	endpoint string, // 容器运行时的监听的socket路径，譬如'unix:///run/containerd/containerd.sock', 'npipe:////./pipe/runtime'
+	connectionTimeout time.Duration, // 连接超时时间
+	tp trace.TracerProvider, // 链路追踪
+) (internalapi.RuntimeService, error) {
 	klog.V(3).InfoS("Connecting to runtime service", "endpoint", endpoint)
 	addr, dialer, err := util.GetAddressAndDialer(endpoint)
 	if err != nil {
@@ -81,7 +85,7 @@ func NewRemoteRuntimeService(endpoint string, connectionTimeout time.Duration, t
 	ctx, cancel := context.WithTimeout(context.Background(), connectionTimeout)
 	defer cancel()
 
-	dialOpts := []grpc.DialOption{}
+	var dialOpts []grpc.DialOption
 	dialOpts = append(dialOpts,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithContextDialer(dialer),

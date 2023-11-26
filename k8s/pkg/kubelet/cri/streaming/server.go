@@ -44,7 +44,7 @@ import (
 type Server interface {
 	http.Handler
 
-	// Get the serving URL for the requests.
+	// GetExec Get the serving URL for the requests.
 	// Requests must not be nil. Responses may be nil iff an error is returned.
 	GetExec(*runtimeapi.ExecRequest) (*runtimeapi.ExecResponse, error)
 	GetAttach(req *runtimeapi.AttachRequest) (*runtimeapi.AttachResponse, error)

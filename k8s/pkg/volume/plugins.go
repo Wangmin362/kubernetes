@@ -129,7 +129,7 @@ type VolumePlugin interface {
 	// depend on this.
 	Init(host VolumeHost) error
 
-	// Name returns the plugin's name.  Plugins must use namespaced names
+	// GetPluginName Name returns the plugin's name.  Plugins must use namespaced names
 	// such as "example.com/volume" and contain exactly one '/' character.
 	// The "kubernetes.io" namespace is reserved for plugins which are
 	// bundled with kubernetes.

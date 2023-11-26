@@ -45,12 +45,14 @@ import (
 // attach/detach controller. They both keep track of different objects. This
 // contains kubelet volume manager specific state.
 type ActualStateOfWorld interface {
-	// ActualStateOfWorld must implement the methods required to allow
+	// ActualStateOfWorldMounterUpdater ActualStateOfWorld must implement the methods required to allow
 	// operationexecutor to interact with it.
+	// TODO Mount用于完成挂载一个卷到Pod
 	operationexecutor.ActualStateOfWorldMounterUpdater
 
-	// ActualStateOfWorld must implement the methods required to allow
+	// ActualStateOfWorldAttacherUpdater ActualStateOfWorld must implement the methods required to allow
 	// operationexecutor to interact with it.
+	// TODO 用于完成把一个存储插入到节点之上
 	operationexecutor.ActualStateOfWorldAttacherUpdater
 
 	// AddPodToVolume adds the given pod to the given volume in the cache
@@ -60,6 +62,7 @@ type ActualStateOfWorld interface {
 	// volume, reset the pod's remountRequired value.
 	// If a volume with the name volumeName does not exist in the list of
 	// attached volumes, an error is returned.
+	// 1、把Pod添加到卷的缓存中，用于标记当前Pod成功挂载了这个卷。
 	AddPodToVolume(operationexecutor.MarkVolumeOpts) error
 
 	// MarkRemountRequired marks each volume that is successfully attached and
@@ -254,6 +257,7 @@ type actualStateOfWorld struct {
 // attachedVolume represents a volume the kubelet volume manager believes to be
 // successfully attached to a node it is managing. Volume types that do not
 // implement an attacher are assumed to be in this state.
+// TODO 什么叫做attachVolume?
 type attachedVolume struct {
 	// volumeName contains the unique identifier for this volume.
 	volumeName v1.UniqueVolumeName

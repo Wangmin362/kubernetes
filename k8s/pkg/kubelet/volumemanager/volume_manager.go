@@ -89,7 +89,7 @@ const (
 // need to be attached/mounted/unmounted/detached based on the pods scheduled on
 // this node and makes it so.
 type VolumeManager interface {
-	// Starts the volume manager and all the asynchronous loops that it controls
+	// Run Starts the volume manager and all the asynchronous loops that it controls
 	Run(sourcesReady config.SourcesReady, stopCh <-chan struct{})
 
 	// WaitForAttachAndMount processes the volumes referenced in the specified
@@ -144,7 +144,7 @@ type VolumeManager interface {
 	// node.
 	VolumeIsAttached(volumeName v1.UniqueVolumeName) bool
 
-	// Marks the specified volume as having successfully been reported as "in
+	// MarkVolumesAsReportedInUse Marks the specified volume as having successfully been reported as "in
 	// use" in the nodes's volume status.
 	MarkVolumesAsReportedInUse(volumesReportedAsInUse []v1.UniqueVolumeName)
 }

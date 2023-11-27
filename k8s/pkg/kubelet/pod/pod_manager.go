@@ -48,8 +48,13 @@ import (
 // 每一个StaticPod创建了一个MirrorPod。并且StaticPod的状态会影响MirrorPod。如果StaticPod被删除了，那么也需要删除MirrorPod
 // 4、PodManager的实现非常简单，就是一个map缓存，缓存了常规Pod以及MirrorPod
 // 5、PodManager的数据来源就是syncLoop,syncLoop对于感知到的所有Pod的增删改查都会维护PodManager
-// 6、TODO 非StaticPod也会创建与之对应的MirrorPod?  MirrorPod到底在K8S中扮演了什么角色？ 什么地方使用MirrorPod，什么地方使用StaticPod?
-// TODO 谁回来更新PodManager中的数据？
+// 6、对于用户通过File, HTTP方式创建的Pod，我们都称之为StaticPod，StaticPod并不会真正的存储在ETCD当中，仅仅是一个YAML清单，以File, HTTP Body
+// 的方式存在在系统当中。StaticPod仅仅存在于kubelet所在节点的内存当中，并不会真正的持久化。PodWorker会为每一个StaticPod都创建一个MirrorPod
+// 与之对应。这个MirrorPod其实就是通过ClientSet API提交给APIServer的，这个时候APIServer收到的MirrorPod和普通Pod基本没有多大的区别。K8S
+// 仅仅是对于MirrorPod增加了一个kubernetes.io/config.mirror=<hash>的注解。在K8S整个运行当中，真正使用的即使MirrorPod，当StaticPod发生
+// 改变时，K8S会修改与之对于的MirrorPod。
+// TODO 谁会来更新PodManager中的数据？
+// 7、会更新PodManager中的数据有如下组件：SyncHandler
 type Manager interface {
 	// GetPods returns the regular pods bound to the kubelet and their spec.
 	GetPods() []*v1.Pod
@@ -107,6 +112,7 @@ type Manager interface {
 	// 判断mirrorPod是否真的是Pod的Mirror
 	IsMirrorPodOf(mirrorPod, pod *v1.Pod) bool
 
+	// MirrorClient 用于维护StaticPod的MirrorPod
 	MirrorClient
 }
 
@@ -129,6 +135,7 @@ type basicManager struct {
 	mirrorPodByFullName map[string]*v1.Pod
 
 	// Mirror pod UID to pod UID map.
+	// 每个MirrorPod一定有一个StaticPod与之对应
 	translationByUID map[kubetypes.MirrorPodUID]kubetypes.ResolvedPodUID
 
 	// A mirror pod client to create/delete mirror pods.

@@ -256,6 +256,7 @@ type HostInterface interface {
 	ServeLogs(w http.ResponseWriter, req *http.Request)
 	ResyncInterval() time.Duration
 	GetHostname() string
+	// LatestLoopEntryTime 用于获取最近的同步时间
 	LatestLoopEntryTime() time.Time
 	GetExec(ctx context.Context, podFullName string, podUID types.UID, containerName string, cmd []string, streamOpts remotecommandserver.Options) (*url.URL, error)
 	GetAttach(ctx context.Context, podFullName string, podUID types.UID, containerName string, streamOpts remotecommandserver.Options) (*url.URL, error)

@@ -218,6 +218,8 @@ func getContainerEtcHostsPath() string {
 
 // SyncHandler is an interface implemented by Kubelet, for testability
 // TODO 如何理解这个接口定义？
+// 1、这里所谓的同步，其实指的是同步APIServer中用户的期望到kubelet，说白了就是给kubelet的PodWorker派发任务，让PodWorker把用户真实的期望
+// 落地实现。
 type SyncHandler interface {
 	// HandlePodAdditions 处理Pod增加
 	HandlePodAdditions(pods []*v1.Pod)
@@ -1306,7 +1308,7 @@ type Kubelet struct {
 	maxPods int
 
 	// Monitor Kubelet's sync loop
-	// TODO 这个属性有啥用？
+	// 用于记录kubelet最近的同步时间
 	syncLoopMonitor atomic.Value
 
 	// Container restart Backoff
@@ -2016,6 +2018,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// Create Mirror Pod for Static Pod if it doesn't already exist
+	// 为每一个StaticPod创建一个与之对应的MirrorPod
 	if kubetypes.IsStaticPod(pod) {
 		deleted := false
 		if mirrorPod != nil {
@@ -2036,6 +2039,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 		if mirrorPod == nil || deleted {
 			node, err := kl.GetNode()
 			if err != nil || node.DeletionTimestamp != nil {
+				// 说明MirrorPod所在的Node已经被移除
 				klog.V(4).InfoS("No need to create a mirror pod, since node has been removed from the cluster", "node", klog.KRef("", string(kl.nodeName)))
 			} else {
 				klog.V(4).InfoS("Creating a mirror pod for static pod", "pod", klog.KObj(pod))
@@ -2492,13 +2496,14 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 		// reset backoff if we have a success
 		duration = base
 
-		// TODO syncLoopMonitor有啥用？
+		// 记录kubelet同步开始时间
 		kl.syncLoopMonitor.Store(kl.clock.Now())
 		// TODO 启动SyncLoop
 		// 1、处理PodConfig的变更，PodConfig的所有变更来自于APIServer, File, HTTP，简单来说就是来资源用户的变更
 		if !kl.syncLoopIteration(ctx, updates, handler, syncTicker.C, housekeepingTicker.C, plegCh) {
 			break
 		}
+		// 记录kubelet同步结束时间
 		kl.syncLoopMonitor.Store(kl.clock.Now())
 	}
 }
@@ -2566,7 +2571,7 @@ func (kl *Kubelet) syncLoopIteration(
 			// After restarting, kubelet will get all existing pods through
 			// ADD as if they are new pods. These pods will then go through the
 			// admission process and *may* be rejected. This can be resolved
-			// once we have checkpointing.
+			// once we have checkpointing.  TODO 这里似乎在说Pod的checkpoint的作用
 			// TODO  这里干了啥？
 			handler.HandlePodAdditions(u.Pods)
 		case kubetypes.UPDATE:
@@ -2698,6 +2703,7 @@ func (kl *Kubelet) handleMirrorPod(mirrorPod *v1.Pod, start time.Time) {
 	// Mirror pod ADD/UPDATE/DELETE operations are considered an UPDATE to the
 	// corresponding static pod. Send update to the pod worker if the static
 	// pod exists.
+	// 获取MirrorPod与之对应的StaticPod，如果找到了与之对应的StaticPod，那么更新这个StaticPod的状态
 	if pod, ok := kl.podManager.GetPodByMirrorPod(mirrorPod); ok {
 		kl.dispatchWork(pod, kubetypes.SyncPodUpdate, mirrorPod, start)
 	}
@@ -2728,6 +2734,8 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 		kl.podManager.AddPod(pod)
 
 		if kubetypes.IsMirrorPod(pod) {
+			// TODO 获取MirrorPod与之对应的StaticPod，如果找到了与之对应的StaticPod，那么更新这个StaticPod的状态
+			// TODO 为什么是更新MirrorPod，而不是StaticPod?
 			kl.handleMirrorPod(pod, start)
 			continue
 		}
@@ -2738,11 +2746,14 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 		// shutting it down. If the pod hasn't started yet, we know that when
 		// the pod worker is invoked it will also avoid setting up the pod, so
 		// we simply avoid doing any work.
+		// 当前Pod是否处于Terminating状态
 		if !kl.podWorkers.IsPodTerminationRequested(pod.UID) {
 			// We failed pods that we rejected, so activePods include all admitted
 			// pods that are alive.
+			// 过滤出还处于活动状态的Pod，即没有处于Terminating的Pod
 			activePods := kl.filterOutInactivePods(existingPods)
 
+			// TODO 仔细分析
 			if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 				// To handle kubelet restarts, test pod admissibility using AllocatedResources values
 				// (for cpu & memory) from checkpoint store. If found, that is the source of truth.
@@ -2772,6 +2783,7 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 				}
 			}
 		}
+		// 获取当前Pod的MirrorPod
 		mirrorPod, _ := kl.podManager.GetMirrorPodByPod(pod)
 		kl.dispatchWork(pod, kubetypes.SyncPodCreate, mirrorPod, start)
 	}
@@ -2782,6 +2794,7 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 func (kl *Kubelet) HandlePodUpdates(pods []*v1.Pod) {
 	start := kl.clock.Now()
 	for _, pod := range pods {
+		// 第一时间必须要更新PodManager，让PodManager中缓存的Pod必须是最新的
 		kl.podManager.UpdatePod(pod)
 		if kubetypes.IsMirrorPod(pod) {
 			kl.handleMirrorPod(pod, start)

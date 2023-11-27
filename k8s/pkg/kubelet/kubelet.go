@@ -2072,6 +2072,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	pullSecrets := kl.getPullSecretsForPod(pod)
 
 	// Ensure the pod is being probed
+	// 给当前Pod添加探针
 	kl.probeManager.AddPod(pod)
 
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {

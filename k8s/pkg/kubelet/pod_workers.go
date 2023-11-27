@@ -78,7 +78,8 @@ type UpdatePodOptions struct {
 	Pod *v1.Pod
 	// MirrorPod is the mirror pod if Pod is a static pod. Optional when UpdateType
 	// is kill or terminated.
-	// 如果当前Pod是一个StaticPod，那么必然会有一个MirrorPod与之对应
+	// 1、如果当前Pod是一个StaticPod，那么必然会有一个MirrorPod与之对应
+	// 2、如果MirrorPod非空，那么Pod属性一定是StaticPod
 	MirrorPod *v1.Pod
 	// RunningPod is a runtime pod that is no longer present in config. Required
 	// if Pod is nil, ignored if Pod is set.
@@ -165,6 +166,7 @@ type PodWorkers interface {
 	// UpdatePod() calls will be ignored for that pod until it has been forgotten
 	// due to significant time passing. A pod that is terminated will never be
 	// restarted.
+	// TODO 核心中的核心，难的扣脚
 	// 1、此函数用于通知PodWorker关于一个Pod的变更，PodWorker会
 	UpdatePod(options UpdatePodOptions)
 	// SyncKnownPods removes workers for pods that are not in the desiredPods set
@@ -429,6 +431,7 @@ type podSyncStatus struct {
 	// SyncTerminatingRuntimePod or SyncTerminatingPod. Otherwise, we can avoid
 	// invoking the terminating methods if the pod is deleted or orphaned before
 	// it has been started.
+	// TODO 这个状态Pod似乎处于被删除的状态
 	observedRuntime bool
 }
 
@@ -629,7 +632,9 @@ type podWorkers struct {
 	resyncInterval time.Duration
 
 	// podCache stores kubecontainer.PodStatus for all pods.
-	// 缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
+	// 1、缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
+	// TODO 2、PodCache缓存的是底层CRI返回的Pod的状态，而PodManager缓存的是APIServer中的状态。PodCache缓存可以理解为Pod的实际状态，
+	// 而PodManager缓存的则是用户的期望状态
 	podCache kubecontainer.Cache
 
 	// clock is used for testing timing
@@ -774,6 +779,8 @@ func isPodStatusCacheTerminal(status *kubecontainer.PodStatus) bool {
 // UpdatePod carries a configuration change or termination state to a pod. A pod is either runnable,
 // terminating, or terminated, and will transition to terminating if: deleted on the apiserver,
 // discovered to have a terminal phase (Succeeded or Failed), or evicted by the kubelet.
+// 1、一个Pod只可能处于runnable, terminating, terminated三个状态。并且只有当Pod被APIServer删除之后，或者Pod运行完成，处于Succeeded/Failed
+// 状态，这个时候Pod就会从runnable状态转变为terminating状态
 func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// Handle when the pod is an orphan (no config) and we only have runtime status by running only
 	// the terminating part of the lifecycle. A running pod contains only a minimal set of information
@@ -781,6 +788,8 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	var isRuntimePod bool
 	var uid types.UID   // PodUID
 	var name, ns string // PodName以及Pod所在的名称空间
+	// 1、如果RunningPod非空，但是Pod为空，说明当前Pod一定是处于被删除的状态，因此更新类型一定是PodKill，否则一定是状态更新有问题。
+	// 2、如果RunningPod非空，并且Pod非空，那么RunningPod将会被忽略
 	if runningPod := options.RunningPod; runningPod != nil {
 		if options.Pod == nil {
 			// the sythetic pod created here is used only as a placeholder and not tracked
@@ -825,7 +834,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			// Check to see if the pod is not running and the pod is terminal; if this succeeds then record in the podWorker that it is terminated.
 			// This is needed because after a kubelet restart, we need to ensure terminal pods will NOT be considered active in Pod Admission. See http://issues.k8s.io/105523
 			// However, `filterOutInactivePods`, considers pods that are actively terminating as active. As a result, `IsPodKnownTerminated()` needs to return true and thus `terminatedAt` needs to be set.
-			// 获取Pod的状态，err为空，说明这个Pod之前通过CRI运行时获取状态没有错误
+			// 1、获取Pod的实际状态，err为空，说明这个Pod之前通过CRI运行时获取状态没有错误
 			if statusCache, err := p.podCache.Get(uid); err == nil {
 				// 1、如果当前Pod没有任何一个容器再运行，同时也没有任何一个沙箱正在运行，我们就认为Pod已经停止
 				// 2、如果PodWorker观测到Pod已经停止，这也意味着这个容器之前一定被调用过SyncTerminatingPod方法，这种情况下一般是由于
@@ -833,8 +842,8 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 				// kubelet处理过。所以这种情况下，只能是kubelet被重启。
 				if isPodStatusCacheTerminal(statusCache) {
 					// At this point we know:
-					// (1) The pod is terminal based on the config source. TODO 什么叫做config source?
-					// (2) The pod is terminal based on the runtime cache.
+					// (1) The pod is terminal based on the config source. TODO 什么叫做config source? 我猜测ConfigSource指的是PodConfig，也就是用户期望状态
+					// (2) The pod is terminal based on the runtime cache. TODO 而RuntimeCache则是Pod的实际状态
 					// This implies that this pod had already completed `SyncTerminatingPod` sometime in the past. The pod is likely being synced for the first time due to a kubelet restart.
 					// These pods need to complete SyncTerminatedPod to ensure that all resources are cleaned and that the status manager makes the final status updates for the pod.
 					// As a result, set finished: false, to ensure a Terminated event will be sent and `SyncTerminatedPod` will run.
@@ -861,6 +870,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// once we observe a runtime pod we must drive it to completion, even if we weren't the
 	// ones who started it.
 	pod := options.Pod
+	// 说明RunningPod非空，并且Pod为空
 	if isRuntimePod {
 		status.observedRuntime = true
 		switch {
@@ -921,7 +931,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			becameTerminating = true
 		case options.UpdateType == kubetypes.SyncPodKill:
 			if options.KillPodOptions != nil && options.KillPodOptions.Evict {
-				// 说明当前Pod正在被驱逐，一般是因为当前节点的资源不充足，并且这个Pod的优先级比较低造成的
+				// 说明当前Pod正在被驱逐，一般是因为当前节点的资源不充足，并且这个Pod的优先级比较低造成的。
 				klog.V(4).InfoS("Pod is being evicted by the kubelet, begin teardown", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)
 				status.evicted = true
 			} else {
@@ -958,6 +968,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			options.KillPodOptions = &KillPodOptions{}
 		}
 
+		// TODO 这里在干嘛?
 		if ch := options.KillPodOptions.CompletedCh; ch != nil {
 			status.notifyPostTerminating = append(status.notifyPostTerminating, ch)
 		}

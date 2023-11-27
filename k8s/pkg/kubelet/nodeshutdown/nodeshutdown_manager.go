@@ -38,17 +38,18 @@ type Manager interface {
 
 // Config represents Manager configuration
 type Config struct {
-	Logger                           klog.Logger
-	ProbeManager                     prober.Manager          // 探针管理器
-	Recorder                         record.EventRecorder    // 事件记录器
-	NodeRef                          *v1.ObjectReference     // 节点
-	GetPodsFunc                      eviction.ActivePodsFunc // 激活Pod
-	KillPodFunc                      eviction.KillPodFunc    // Kill Pod
-	SyncNodeStatusFunc               func()
-	ShutdownGracePeriodRequested     time.Duration
-	ShutdownGracePeriodCriticalPods  time.Duration
+	Logger                          klog.Logger
+	ProbeManager                    prober.Manager          // 探针管理器
+	Recorder                        record.EventRecorder    // 事件记录器
+	NodeRef                         *v1.ObjectReference     // 节点
+	GetPodsFunc                     eviction.ActivePodsFunc // 激活Pod
+	KillPodFunc                     eviction.KillPodFunc    // Kill Pod
+	SyncNodeStatusFunc              func()
+	ShutdownGracePeriodRequested    time.Duration
+	ShutdownGracePeriodCriticalPods time.Duration
+	// 不同优先级的Pod优雅关机时间
 	ShutdownGracePeriodByPodPriority []kubeletconfig.ShutdownGracePeriodByPodPriority
-	StateDirectory                   string
+	StateDirectory                   string // 默认为/var/lib/kubelet
 	Clock                            clock.Clock
 }
 

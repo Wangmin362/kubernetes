@@ -30,7 +30,7 @@ type storage interface {
 }
 
 type localStorage struct {
-	Path string
+	Path string // 文件存储路径
 }
 
 func (l localStorage) Store(data interface{}) (err error) {
@@ -41,6 +41,7 @@ func (l localStorage) Store(data interface{}) (err error) {
 	return atomicWrite(l.Path, b, 0644)
 }
 
+// Load 之所以需要data，是因为需要知道数据的结构，进行反序列化
 func (l localStorage) Load(data interface{}) (err error) {
 	b, err := os.ReadFile(l.Path)
 	if err != nil {

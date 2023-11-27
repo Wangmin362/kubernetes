@@ -81,7 +81,9 @@ const NamespaceDefault = metav1.NamespaceDefault
 // functionally similar, this helps our unit tests properly check that the correct PodUpdates
 // are generated.
 type PodUpdate struct {
-	// 一次可以针对多个Pod做相同的操作
+	// 1、一次可以针对多个Pod做相同的操作
+	// 2、在这里我们不需要知道Pod究竟发生了什么样的变更。我们只需要记录用户希望这个Pod最终是什么样子。kubelet自己会记录变更之前的状态，
+	// 因此kubelet必须知道如何把一个pod从之前的状态调整为用户期望的状态。
 	Pods []*v1.Pod
 	Op   PodOperation
 	// Pod的产生源头有HTTP、File、APIServer

@@ -43,7 +43,13 @@ type sourceURL struct {
 }
 
 // NewSourceURL specifies the URL where to read the Pod configuration from, then watches it for changes.
-func NewSourceURL(url string, header http.Header, nodeName types.NodeName, period time.Duration, updates chan<- interface{}) {
+func NewSourceURL(
+	url string, // 请求Pod资源的URL
+	header http.Header, // 请求头
+	nodeName types.NodeName, // 当前node名字
+	period time.Duration, // 重新扫描URL Pod的事件
+	updates chan<- interface{}, // 所有Pod的变更需要放入到这个通道当中
+) {
 	config := &sourceURL{
 		url:      url,
 		header:   header,
@@ -59,6 +65,7 @@ func NewSourceURL(url string, header http.Header, nodeName types.NodeName, perio
 }
 
 func (s *sourceURL) run() {
+	// 从请求当中获取Pod
 	if err := s.extractFromURL(); err != nil {
 		// Don't log this multiple times per minute. The first few entries should be
 		// enough to get the point across.
@@ -104,7 +111,7 @@ func (s *sourceURL) extractFromURL() error {
 	}
 	if len(data) == 0 {
 		// Emit an update with an empty PodList to allow HTTPSource to be marked as seen
-		// 用于通知PodConfig，说明当前已经通不过HTTP源的数据了，即便没有拿到任何数据
+		// 用于通知PodConfig，说明当前已经同步过HTTP源的数据了，即便没有拿到任何数据
 		s.updates <- kubetypes.PodUpdate{Pods: []*v1.Pod{}, Op: kubetypes.SET, Source: kubetypes.HTTPSource}
 		return fmt.Errorf("zero-length data received from %v", s.url)
 	}
@@ -121,6 +128,7 @@ func (s *sourceURL) extractFromURL() error {
 			// It parsed but could not be used.
 			return singlePodErr
 		}
+		// 每次获取的都是全量的HTTP数据，因此使用的SET动作
 		s.updates <- kubetypes.PodUpdate{Pods: []*v1.Pod{pod}, Op: kubetypes.SET, Source: kubetypes.HTTPSource}
 		return nil
 	}

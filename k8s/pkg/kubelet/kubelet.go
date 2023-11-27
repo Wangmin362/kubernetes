@@ -400,7 +400,7 @@ func NewMainKubelet(
 	providerID string,
 	cloudProvider string,
 	certDirectory string,
-	rootDirectory string,
+	rootDirectory string, // 默认为/var/lib/kubelet
 	imageCredentialProviderConfigFile string,
 	imageCredentialProviderBinDir string,
 	registerNode bool,
@@ -730,6 +730,8 @@ func NewMainKubelet(
 
 	// 1、ReasonCache最多保存1000条记录，并且这个缓存为LRU缓存，不常用的原因会被清除。
 	// 2、ReasonCache用于保存容器启动失败的原因（容器其它时刻的原因并不保存）。缓存的key为<pod-uid>_<name>
+	// 3、GenericPLEG, EventedPLEG会通过CRI接口查询底层容器运行时，并把Pod的状态保存在缓存当中
+	// TODO 谁会使用缓存中的数据？
 	klet.reasonCache = NewReasonCache()
 	// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
 	klet.workQueue = queue.NewBasicWorkQueue(klet.clock)
@@ -1024,7 +1026,7 @@ func NewMainKubelet(
 		ShutdownGracePeriodRequested:     kubeCfg.ShutdownGracePeriod.Duration,
 		ShutdownGracePeriodCriticalPods:  kubeCfg.ShutdownGracePeriodCriticalPods.Duration,
 		ShutdownGracePeriodByPodPriority: kubeCfg.ShutdownGracePeriodByPodPriority,
-		StateDirectory:                   rootDirectory,
+		StateDirectory:                   rootDirectory, // 默认为/var/lib/kubelet
 	})
 	klet.shutdownManager = shutdownManager
 	klet.usernsManager, err = userns.MakeUserNsManager(klet)
@@ -2252,6 +2254,8 @@ func (kl *Kubelet) SyncTerminatingRuntimePod(_ context.Context, runningPod *kube
 // on-disk state must be reentrant and be garbage collected by HandlePodCleanups or a separate loop.
 // This typically occurs when a pod is force deleted from configuration (local disk or API) and the
 // kubelet restarts in the middle of the action.
+// 1、同步Pod的Terminated状态到APIServer。由于此操作执行后，Pod资源就已经处于Terminated状态了，此时就需要把Pod占用的资源回收。主要有
+// 卷、ConfigMap, Secret, Cgroup, userNamespace
 func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus) error {
 	_, otelSpan := kl.tracer.Start(context.Background(), "syncTerminatedPod", trace.WithAttributes(
 		attribute.String("k8s.pod.uid", string(pod.UID)),
@@ -2265,12 +2269,15 @@ func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus
 
 	// generate the final status of the pod
 	// TODO: should we simply fold this into TerminatePod? that would give a single pod update
+	// TODO 生成容器的状态
 	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, true)
 
+	// 更新Pod状态
 	kl.statusManager.SetPodStatus(pod, apiPodStatus)
 
 	// volumes are unmounted after the pod worker reports ShouldPodRuntimeBeRemoved (which is satisfied
 	// before syncTerminatedPod is invoked)
+	// TODO 卸载卷
 	if err := kl.volumeManager.WaitForUnmount(pod); err != nil {
 		return err
 	}
@@ -2293,6 +2300,7 @@ func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus
 
 	// After volume unmount is complete, let the secret and configmap managers know we're done with this pod
 	if kl.secretManager != nil {
+		// TODO 这里干啥了？
 		kl.secretManager.UnregisterPod(pod)
 	}
 	if kl.configMapManager != nil {
@@ -2361,6 +2369,7 @@ func (kl *Kubelet) deletePod(pod *v1.Pod) error {
 	if pod == nil {
 		return fmt.Errorf("deletePod does not allow nil pod")
 	}
+	// TODO 如果直接跳过，会有什么影响么？ 我猜测这玩意会重新进来
 	if !kl.sourcesReady.AllReady() {
 		// If the sources aren't ready, skip deletion, as we may accidentally delete pods
 		// for sources that haven't reported yet.
@@ -2486,6 +2495,7 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 		// TODO syncLoopMonitor有啥用？
 		kl.syncLoopMonitor.Store(kl.clock.Now())
 		// TODO 启动SyncLoop
+		// 1、处理PodConfig的变更，PodConfig的所有变更来自于APIServer, File, HTTP，简单来说就是来资源用户的变更
 		if !kl.syncLoopIteration(ctx, updates, handler, syncTicker.C, housekeepingTicker.C, plegCh) {
 			break
 		}
@@ -2533,10 +2543,16 @@ func (kl *Kubelet) syncLoop(ctx context.Context, updates <-chan kubetypes.PodUpd
 // 2.3、定时同步（每秒钟一次）
 // 2.4、livenessManager, readinessManager, startupManager
 // 2.5、housekeeping (每两秒钟一次)
-func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubetypes.PodUpdate, handler SyncHandler,
-	syncCh <-chan time.Time, housekeepingCh <-chan time.Time, plegCh <-chan *pleg.PodLifecycleEvent) bool {
+func (kl *Kubelet) syncLoopIteration(
+	ctx context.Context,
+	configCh <-chan kubetypes.PodUpdate, // Pod的更新来源，主要来自于HTTP, File, APIServer
+	handler SyncHandler, // 处理Pod的变更
+	syncCh <-chan time.Time,
+	housekeepingCh <-chan time.Time,
+	plegCh <-chan *pleg.PodLifecycleEvent, // PLEG生命周期事件来源
+) bool {
 	select {
-	case u, open := <-configCh: // 数据来源于PodConfig,也就是HTTP, File, APIServer
+	case u, open := <-configCh: // 数据来源于PodConfig, 也就是HTTP, File, APIServer，这里的变更源自于用户，是用户期望的变更。所以kubelet需要负责把Pod调整为用户期望的状态
 		// Update from a config source; dispatch it to the right handler
 		// callback.
 		if !open {
@@ -2603,12 +2619,12 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 		klog.V(4).InfoS("SyncLoop (SYNC) pods", "total", len(podsToSync), "pods", klog.KObjSlice(podsToSync))
 		handler.HandlePodSyncs(podsToSync)
 	case update := <-kl.livenessManager.Updates():
-		// TODO ?
+		// TODO 说明有Pod的存活状态发生了改变。可能有的Pod从存活变为了死亡，有的Pod则从死亡状态恢复到了存活。
 		if update.Result == proberesults.Failure {
 			handleProbeSync(kl, update, handler, "liveness", "unhealthy")
 		}
 	case update := <-kl.readinessManager.Updates():
-		// TODO ?
+		// TODO 说明有Pod的就绪状态发生了改变
 		ready := update.Result == proberesults.Success
 		kl.statusManager.SetContainerReadiness(update.PodUID, update.ContainerID, ready)
 
@@ -2618,6 +2634,7 @@ func (kl *Kubelet) syncLoopIteration(ctx context.Context, configCh <-chan kubety
 		}
 		handleProbeSync(kl, update, handler, "readiness", status)
 	case update := <-kl.startupManager.Updates():
+		// TODO 说明有Pod的启动状态发生了改变
 		started := update.Result == proberesults.Success
 		kl.statusManager.SetContainerStartup(update.PodUID, update.ContainerID, started)
 
@@ -2691,16 +2708,23 @@ func (kl *Kubelet) handleMirrorPod(mirrorPod *v1.Pod, start time.Time) {
 func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 	start := kl.clock.Now()
 	sort.Sort(sliceutils.PodsByCreationTime(pods))
+	// TODO 原地扩缩容特性
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
 		kl.podResizeMutex.Lock()
 		defer kl.podResizeMutex.Unlock()
 	}
+
+	// 遍历所有的Pod，处理Pod的新增事件
 	for _, pod := range pods {
+		// 获取PodManager管理的所有的Pod
 		existingPods := kl.podManager.GetPods()
 		// Always add the pod to the pod manager. Kubelet relies on the pod
 		// manager as the source of truth for the desired state. If a pod does
 		// not exist in the pod manager, it means that it has been deleted in
 		// the apiserver and no action (other than cleanup) is required.
+		// 1、不管任何时候，只要Pod发生变动了，都应该直接更新PodManager, 因为kubelet其余的组件都是直接通过PodManager获取的数据，因此PodManager
+		// 中的数据必须是最新的数据
+		// 2、TODO 如果此前PodManager中不存在当前Pod, 说明当前Pod在APIServer中被删除了，因此APIServer中不需要任何操作
 		kl.podManager.AddPod(pod)
 
 		if kubetypes.IsMirrorPod(pod) {

@@ -39,6 +39,7 @@ func (f MergeFunc) Merge(source string, update interface{}) error {
 
 // Mux is a class for merging configuration from multiple sources.  Changes are
 // pushed via channels and sent to the merge function.
+// 1、Mux的主要职责就是合并某个源的缓存数据与当前变更数据，从而得出Pod的变更事件
 type Mux struct {
 	// Invoked when an update is sent to a source.
 	merger Merger
@@ -81,7 +82,7 @@ func (m *Mux) ChannelWithContext(ctx context.Context, source string) chan interf
 	newChannel := make(chan interface{})
 	m.sources[source] = newChannel
 
-	// 会启动一个协程一直堆区channel,显然，外面某个协程肯定会往里面写入数据
+	// 会启动一个协程一直监听channel,显然，外面某个协程肯定会往里面写入数据
 	go wait.Until(func() { m.listen(source, newChannel) }, 0, ctx.Done())
 	return newChannel
 }

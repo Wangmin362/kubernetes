@@ -64,11 +64,18 @@ type podStartupSLIObserver interface {
 // PodConfig is a configuration mux that merges many sources of pod configuration into a single
 // consistent structure, and then delivers incremental change notifications to listeners
 // in order.
-// 1、PodConfig用于抽象Pod变更的变更，并合并了URL, Static, APIServer这三个源的变更，同时会把这些变更派送给监听者
+// 1、PodConfig用于抽象Pod变更的变更，并合并了URL, FILE, APIServer这三个源的变更，同时会把这些变更派送给监听者
+// 2、URL, File, APIServer这三个来源的变更来自于用户，APIServer会把这些数据更新到ETCD同时，这些变更需要让底层真正干活的组件知道，也就是
+// kubelet。kubelet会监听updates通道，一旦发现有Pod变更了就需要把底层真正运行的Pod reconcile 为用户期望的状态。同时，pod reconcile
+// 过程中的状态转换也需要上报上来，让用户知道底层的pod变更事件。
+// 3、TODO 目前看来所有源的变更都是SET事件，并没有其它事件
 type PodConfig struct {
-	// Pod存储，存储了来自于不同来源的Pod
+	// 1、Pod存储，存储了来自于不同来源的Pod
+	// 2、这里的缓存相当重要，对于APIServer, HTTP, File, 这里缓存的数据就是上一个时刻的数据，也就是说我们可以对比缓存中的数据以及当前
+	// 变更数据，从而知道当前Pod发生了什么变化，是更新、删除还是创建
 	pods *podStorage
-	// 这个Mux比较有意思，这个Mux不是普通HTTP的路由，而是不同来源的Pod的路由
+	// 1、这个Mux比较有意思，这个Mux不是普通HTTP的路由，而是不同来源的Pod的路由
+	// 2、Mux的主要职责就是合并某个源的缓存数据与当前变更数据，从而得出Pod的变更事件
 	mux *config.Mux
 
 	// the channel of denormalized changes passed to listeners
@@ -282,7 +289,8 @@ func (s *podStorage) merge(source string, change interface{}) (adds, updates, de
 	// Notice that *pods* and *oldPods* could be the same cache.
 	// 第一个参数为新变更的Pod,第二个参数为以前的pod，第三个参数为某个来源的所有pod缓存
 	updatePodsFunc := func(newPods []*v1.Pod, oldPods, pods map[types.UID]*v1.Pod) {
-		// 过滤掉重复的pod，所谓重复的Pod指的是FullName相同的Pod，FullName=<name>_<namespace>
+		// 1、过滤掉重复的pod，所谓重复的Pod指的是FullName相同的Pod，FullName=<name>_<namespace>
+		// 2、因为是Pod的变更，所以对于同一个Pod多次变更，我们只需要保留一个Pod变更记录即可
 		filtered := filterInvalidPods(newPods, source, s.recorder)
 		for _, ref := range filtered {
 			// Annotate the pod with the source before any comparison.

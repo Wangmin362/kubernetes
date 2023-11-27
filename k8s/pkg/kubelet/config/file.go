@@ -63,8 +63,8 @@ type sourceFile struct {
 func NewSourceFile(
 	path string, // 静态Pod文件路ing
 	nodeName types.NodeName, // 当前Node的名字
-	period time.Duration,
-	updates chan<- interface{},
+	period time.Duration, // 重新扫描文件的周期
+	updates chan<- interface{}, // 变更的pod将会被放到这个channel当中
 ) {
 	// "github.com/sigma/go-inotify" requires a path without trailing "/"
 	// 去掉路径最后的斜杠

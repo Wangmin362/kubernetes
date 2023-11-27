@@ -318,7 +318,8 @@ type PodStatus struct {
 	ContainerStatuses []*Status
 	// Status of the pod sandbox.
 	// Only for kuberuntime now, other runtime may keep it nil.
-	// 沙箱状态  TODO 什么时候一个Pod会存在多个沙箱？
+	// 1、Pod的沙箱状态，一个Pod可能有多个沙箱，但是在同一时刻只可能有一个沙箱正在运行
+	// TODO 2、之所以一个Pod可能有多个沙箱，我猜测可能是沙箱也有可能会被重启。
 	SandboxStatuses []*runtimeapi.PodSandboxStatus
 	// Timestamp at which container and pod statuses were recorded
 	TimeStamp time.Time

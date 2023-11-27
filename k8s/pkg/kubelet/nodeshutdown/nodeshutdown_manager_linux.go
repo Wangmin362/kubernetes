@@ -53,6 +53,7 @@ const (
 	localStorageStateFile          = "graceful_node_shutdown_state"
 )
 
+// 实例化SystemDBus
 var systemDbus = func() (dbusInhibiter, error) {
 	return systemd.NewDBusCon()
 }
@@ -90,7 +91,8 @@ type managerImpl struct {
 	clock clock.Clock
 
 	enableMetrics bool
-	storage       storage
+	// 本地的文件存储
+	storage storage
 }
 
 // NewManager returns a new node shutdown manager.
@@ -105,6 +107,7 @@ func NewManager(conf *Config) (Manager, lifecycle.PodAdmitHandler) {
 	// Migration from the original configuration
 	if !utilfeature.DefaultFeatureGate.Enabled(features.GracefulNodeShutdownBasedOnPodPriority) ||
 		len(shutdownGracePeriodByPodPriority) == 0 {
+		// 计算不同优先级默认Pod默认的关闭时间
 		shutdownGracePeriodByPodPriority = migrateConfig(conf.ShutdownGracePeriodRequested, conf.ShutdownGracePeriodCriticalPods)
 	}
 
@@ -134,6 +137,7 @@ func NewManager(conf *Config) (Manager, lifecycle.PodAdmitHandler) {
 		clock:                            conf.Clock,
 		enableMetrics:                    utilfeature.DefaultFeatureGate.Enabled(features.GracefulNodeShutdownBasedOnPodPriority),
 		storage: localStorage{
+			// 默认为/var/lib/kubelet/graceful_node_shutdown_state
 			Path: filepath.Join(conf.StateDirectory, localStorageStateFile),
 		},
 	}
@@ -204,6 +208,7 @@ func (m *managerImpl) Start() error {
 }
 
 func (m *managerImpl) start() (chan struct{}, error) {
+	// 实例化dbus
 	systemBus, err := systemDbus()
 	if err != nil {
 		return nil, err

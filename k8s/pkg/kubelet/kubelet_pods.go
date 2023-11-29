@@ -1524,15 +1524,21 @@ func (kl *Kubelet) determinePodResizeStatus(pod *v1.Pod, podStatus *v1.PodStatus
 
 // generateAPIPodStatus creates the final API pod status for a pod, given the
 // internal pod status. This method should only be called from within sync*Pod methods.
-func (kl *Kubelet) generateAPIPodStatus(pod *v1.Pod, podStatus *kubecontainer.PodStatus, podIsTerminal bool) v1.PodStatus {
+func (kl *Kubelet) generateAPIPodStatus(
+	pod *v1.Pod, // pod的期望状态
+	podStatus *kubecontainer.PodStatus, // Pod的实际状态
+	podIsTerminal bool, // 当前Pod是否已经处于Terminated状态
+) v1.PodStatus {
 	klog.V(3).InfoS("Generating pod status", "podIsTerminal", podIsTerminal, "pod", klog.KObj(pod))
 	// use the previous pod status, or the api status, as the basis for this pod
 	oldPodStatus, found := kl.statusManager.GetPodStatus(pod.UID)
 	if !found {
 		oldPodStatus = pod.Status
 	}
+	// TODO 通过Pod当前的期望状态、Pod实际的运行状态、Pod之前的状态计算出Pod状态
 	s := kl.convertStatusToAPIStatus(pod, podStatus, oldPodStatus)
 	if utilfeature.DefaultFeatureGate.Enabled(features.InPlacePodVerticalScaling) {
+		// TODO 计算PodResize状态
 		s.Resize = kl.determinePodResizeStatus(pod, s)
 	}
 	// calculate the next phase and preserve reason
@@ -1678,7 +1684,11 @@ func (kl *Kubelet) sortPodIPs(podIPs []string) []string {
 // convertStatusToAPIStatus initialize an api PodStatus for the given pod from
 // the given internal pod status and the previous state of the pod from the API.
 // It is purely transformative and does not alter the kubelet state at all.
-func (kl *Kubelet) convertStatusToAPIStatus(pod *v1.Pod, podStatus *kubecontainer.PodStatus, oldPodStatus v1.PodStatus) *v1.PodStatus {
+func (kl *Kubelet) convertStatusToAPIStatus(
+	pod *v1.Pod, // 用户期望的pod状态
+	podStatus *kubecontainer.PodStatus, // 底层CRI实际运行的Pod状态
+	oldPodStatus v1.PodStatus, // Pod之前的状态
+) *v1.PodStatus {
 	var apiPodStatus v1.PodStatus
 
 	// copy pod status IPs to avoid race conditions with PodStatus #102806

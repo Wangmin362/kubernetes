@@ -64,13 +64,14 @@ type KillPodOptions struct {
 }
 
 // UpdatePodOptions is an options struct to pass to a UpdatePod operation.
+// 1、用于表示当前Pod的变更
 type UpdatePodOptions struct {
 	// Pod的更新类型，有四种更新类型，分别是：create, update, sync, kill
 	UpdateType kubetypes.SyncPodType
 	// StartTime is an optional timestamp for when this update was created. If set,
 	// when this update is fully realized by the pod worker it will be recorded in
 	// the PodWorkerDuration metric.
-	// 当前更新动作创建的时间，通过这个开始时间可以用来排序，也可以用来做阈值检测
+	// 1、SyncHandler执行这个动作（UpdateType）的开始时间
 	StartTime time.Time
 	// Pod to update. Required.
 	// 1、用于表示当前变更的Pod，来自于File, HTTP, APIServer这三个源
@@ -271,6 +272,7 @@ type podSyncer interface {
 	// pod has reached a terminal state and the presence of the error indicates succeeded or failed.
 	// If an error is returned, the sync was not successful and should be rerun in the future. This
 	// is a long running method and should exit early with context.Canceled if the context is canceled.
+	// 1、pod参数为用户期望状态，podStatus为pod的实际状态, mirrorPod如果非空，说明pod是StaticPod
 	SyncPod(ctx context.Context, updateType kubetypes.SyncPodType, pod *v1.Pod, mirrorPod *v1.Pod, podStatus *kubecontainer.PodStatus) (bool, error)
 	// SyncTerminatingPod attempts to ensure the pod's containers are no longer running and to collect
 	// any final status. This method is repeatedly invoked with diminishing grace periods until it exits
@@ -278,14 +280,17 @@ type podSyncer interface {
 	// supporting resources like volumes and devices. If the context is canceled, the method should
 	// return context.Canceled unless it has successfully finished, which may occur when a shorter
 	// grace period is detected.
+
 	SyncTerminatingPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, gracePeriod *int64, podStatusFn func(*v1.PodStatus)) error
 	// SyncTerminatingRuntimePod is invoked when running containers are found that correspond to
 	// a pod that is no longer known to the kubelet to terminate those containers. It should not
 	// exit without error unless all containers are known to be stopped.
+	// 1、podStatus为pod的实际状态
 	SyncTerminatingRuntimePod(ctx context.Context, runningPod *kubecontainer.Pod) error
 	// SyncTerminatedPod is invoked after all running containers are stopped and is responsible
 	// for releasing resources that should be executed right away rather than in the background.
 	// Once it exits without error the pod is considered finished on the node.
+	// 1、pod参数为用户期望状态，podStatus为pod的实际状态
 	SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus) error
 }
 
@@ -379,15 +384,19 @@ type podSyncStatus struct {
 	// PodWorker第一次看到这个Pod的时间
 	syncedAt time.Time
 	// startedAt is the time at which the pod worker allowed the pod to start.
+	// Pod启动的时间
 	startedAt time.Time
 	// terminatingAt is set once the pod is requested to be killed - note that
 	// this can be set before the pod worker starts terminating the pod, see
 	// terminating.
+	// Pod执行结束开始的时间
 	terminatingAt time.Time
 	// terminatedAt is set once the pod worker has completed a successful
 	// syncTerminatingPod call and means all running containers are stopped.
+	// Pod执行结束完成的时间
 	terminatedAt time.Time
 	// gracePeriod is the requested gracePeriod once terminatingAt is nonzero.
+	// 等待Pod执行结束的时间
 	gracePeriod int64
 	// notifyPostTerminating will be closed once the pod transitions to
 	// terminated. After the pod is in terminated state, nothing should be
@@ -432,6 +441,7 @@ type podSyncStatus struct {
 	// invoking the terminating methods if the pod is deleted or orphaned before
 	// it has been started.
 	// TODO 这个状态Pod似乎处于被删除的状态
+	// 1、APIServer中不存在这个Pod，但是底层的CRI容器还在运行的Pod
 	observedRuntime bool
 }
 
@@ -461,6 +471,7 @@ func (s *podSyncStatus) WorkType() PodWorkerState {
 // the pod worker may be responsible for terminating a pod from a previous run of the
 // kubelet where no config state is visible). The contents of activeUpdate are used as the
 // source of truth for components downstream of the pod workers.
+// activeUpdate的数据也是来源于pendingUpdate
 func (s *podSyncStatus) mergeLastUpdate(other UpdatePodOptions) {
 	opts := s.activeUpdate
 	if opts == nil {
@@ -602,13 +613,16 @@ type podWorkers struct {
 	podSyncStatuses map[types.UID]*podSyncStatus
 
 	// Tracks all uids for started static pods by full name
-	// TODO ?
+	// 记录已经启动的StaticPod, Key为：<podName>_<namespace>
 	startedStaticPodsByFullname map[string]types.UID
 	// Tracks all uids for static pods that are waiting to start by full name
-	// TODO 当某个Pod是StaticPod的时候，就会更新这个属性，Key为：<podName>_<namespace>，value为PodUID
+	// 1、记录等待启动的StaticPod，Key为：<podName>_<namespace>，value为PodUID
+	// 2、一个Pod可能会被重启，重启之后Pod UID可能会发生变化，所以这里的Value为一个数组
 	waitingToStartStaticPodsByFullname map[string][]types.UID
 
-	// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
+	// 1、很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
+	// TODO 2、什么时候会放入元素？
+	// TODO 3、什么时候会取出元素？
 	workQueue queue.WorkQueue
 
 	// This function is run to sync the desired state of pod.
@@ -633,7 +647,7 @@ type podWorkers struct {
 
 	// podCache stores kubecontainer.PodStatus for all pods.
 	// 1、缓存Pod状态，用于获取Pod的状态，或者获取比指定时间更新的Pod状态
-	// TODO 2、PodCache缓存的是底层CRI返回的Pod的状态，而PodManager缓存的是APIServer中的状态。PodCache缓存可以理解为Pod的实际状态，
+	// 2、PodCache缓存的是底层CRI返回的Pod的状态，而PodManager缓存的是APIServer中的状态。PodCache缓存可以理解为Pod的实际状态，
 	// 而PodManager缓存的则是用户的期望状态
 	podCache kubecontainer.Cache
 
@@ -785,11 +799,12 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 	// Handle when the pod is an orphan (no config) and we only have runtime status by running only
 	// the terminating part of the lifecycle. A running pod contains only a minimal set of information
 	// about the pod
-	var isRuntimePod bool
-	var uid types.UID   // PodUID
-	var name, ns string // PodName以及Pod所在的名称空间
+	var isRuntimePod bool // 所谓RuntimePod，其实指的是APIServer中已经删除，但是底层CRI还没有删除的Pod
+	var uid types.UID     // PodUID
+	var name, ns string   // PodName以及Pod所在的名称空间
 	// 1、如果RunningPod非空，但是Pod为空，说明当前Pod一定是处于被删除的状态，因此更新类型一定是PodKill，否则一定是状态更新有问题。
-	// 2、如果RunningPod非空，并且Pod非空，那么RunningPod将会被忽略
+	// 2、如果RunningPod非空，并且Pod非空，那么RunningPod将会被忽略，只使用Pod属性。Pod非空意味着这个Pod肯定没有被删除，那么可能是更新了
+	// 当前的Pod
 	if runningPod := options.RunningPod; runningPod != nil {
 		if options.Pod == nil {
 			// the sythetic pod created here is used only as a placeholder and not tracked
@@ -912,10 +927,10 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 	// check for a transition to terminating
 	var becameTerminating bool
-	// 如果当前Pod没有处于Terminating状态，那么更新podSyncStatuses属性
+	// 如果当前Pod没有处于Terminating状态，说明当前Pod正在运行
 	if !status.IsTerminationRequested() {
 		switch {
-		case isRuntimePod: // 说明当前Pod需要被删除
+		case isRuntimePod: // 所谓RuntimePod其实就是在APIServer中不存在，但是在底层的CRI容器运行时中存在的Pod，因此这类的Pod应当要删除
 			klog.V(4).InfoS("Pod is orphaned and must be torn down", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)
 			status.deleted = true
 			status.terminatingAt = now
@@ -927,6 +942,8 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 			becameTerminating = true
 		case pod.Status.Phase == v1.PodFailed, pod.Status.Phase == v1.PodSucceeded: // 说明当前Pod已经运行结束
 			klog.V(4).InfoS("Pod is in a terminal phase (success/failed), begin teardown", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)
+			// TODO  这里并没有设置terminatedAt时间，我猜测是因为Pod虽然已经运行完成，但是Pod在运行之前申请的某些在原还需要释放，等这些动作
+			// 都执行完成之后，我猜测最后应该会设置terminatedAt时间
 			status.terminatingAt = now
 			becameTerminating = true
 		case options.UpdateType == kubetypes.SyncPodKill:
@@ -950,6 +967,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 		// A terminated pod may still be waiting for cleanup - if we receive a runtime pod kill request
 		// due to housekeeping seeing an older cached version of the runtime pod simply ignore it until
 		// after the pod worker completes.
+		// 如果当前Pod已经处于Terminated状态，并且当前Pod是RunningPod，此时无需在做任何事情，因为我们本来就需要删除这个RunningPod
 		if isRuntimePod {
 			klog.V(3).InfoS("Pod is waiting for termination, ignoring runtime-only kill until after pod worker is fully terminated", "pod", klog.KRef(ns, name), "podUID", uid, "updateType", options.UpdateType)
 			return
@@ -1030,7 +1048,7 @@ func (p *podWorkers) UpdatePod(options UpdatePodOptions) {
 
 	// measure the maximum latency between a call to UpdatePod and when the pod worker reacts to it
 	// by preserving the oldest StartTime
-	// TODO 这里在干嘛？
+	// 更新开始时间
 	if status.pendingUpdate != nil && !status.pendingUpdate.StartTime.IsZero() && status.pendingUpdate.StartTime.Before(options.StartTime) {
 		options.StartTime = status.pendingUpdate.StartTime
 	}
@@ -1090,16 +1108,21 @@ func calculateEffectiveGracePeriod(status *podSyncStatus, pod *v1.Pod, options *
 // because data is missing, or the pod was terminated before start, canEverStart
 // is false. This method can only be called while holding the pod lock.
 func (p *podWorkers) allowPodStart(pod *v1.Pod) (canStart bool, canEverStart bool) {
+	// 如果当前Pod不是StaticPod，那么允许启动
 	if !kubetypes.IsStaticPod(pod) {
 		// TODO: Do we want to allow non-static pods with the same full name?
 		// Note that it may disable the force deletion of pods.
 		return true, true
 	}
+
+	// 说明当前Pod是StaticPod
+
 	status, ok := p.podSyncStatuses[pod.UID]
 	if !ok {
 		klog.ErrorS(nil, "Pod sync status does not exist, the worker should not be running", "pod", klog.KObj(pod), "podUID", pod.UID)
 		return false, false
 	}
+	// 如果当前Pod正处于Terminating状态，说明当前StaticPod已经被干掉，因此这个Pod肯定再次启动
 	if status.IsTerminationRequested() {
 		return false, false
 	}
@@ -1114,6 +1137,7 @@ func (p *podWorkers) allowPodStart(pod *v1.Pod) (canStart bool, canEverStart boo
 // 1. there are no other started static pods with the same fullname
 // 2. the uid matches that of the first valid static pod waiting to start
 func (p *podWorkers) allowStaticPodStart(fullname string, uid types.UID) bool {
+	// 如果存在这个StaticPod，说明当前Static
 	startedUID, started := p.startedStaticPodsByFullname[fullname]
 	if started {
 		return startedUID == uid
@@ -1125,10 +1149,12 @@ func (p *podWorkers) allowStaticPodStart(fullname string, uid types.UID) bool {
 	for i, waitingUID := range waitingPods {
 		// has pod already terminated or been deleted?
 		status, ok := p.podSyncStatuses[waitingUID]
+		// 如果当前没有找到这个Pod或者是这个Pod处于Terminating，或者是已经Terminated状态，那么直接忽略这个Pod
 		if !ok || status.IsTerminationRequested() || status.IsTerminated() {
 			continue
 		}
 		// another pod is next in line
+		// TODO 这里在干嘛？ 完全看不懂
 		if waitingUID != uid {
 			p.waitingToStartStaticPodsByFullname[fullname] = waitingPods[i:]
 			return false
@@ -1180,6 +1206,7 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 	defer p.podLock.Unlock()
 
 	// verify we are known to the pod worker still
+	// 获取Pod同步状态
 	status, ok := p.podSyncStatuses[podUID]
 
 	if !ok {
@@ -1193,6 +1220,7 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 		// working is used by unit tests to observe whether a worker is currently acting on this pod
 		klog.V(4).InfoS("Pod should be marked as working by the pod worker, programmer error", "podUID", podUID)
 	}
+	// 这里肯定不会为空
 	if status.pendingUpdate == nil {
 		// no update available, this means we were queued without work being added or there is a
 		// race condition, both of which are unexpected
@@ -1218,6 +1246,7 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 	ctx = status.ctx
 
 	// if we are already started, make our state visible to downstream components
+	// 如果PodWorker已经开始处理Pod，更新一下activeUpdate
 	if status.IsStarted() {
 		status.mergeLastUpdate(update.Options)
 		return ctx, update, true, true, true
@@ -1225,6 +1254,7 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 
 	// if we are already terminating and we only have a running pod, allow the worker
 	// to "start" since we are immediately moving to terminating
+	// 如果PodWorker已经开始处理Pod，更新一下activeUpdate
 	if update.Options.RunningPod != nil && update.WorkType == TerminatingPod {
 		status.mergeLastUpdate(update.Options)
 		return ctx, update, true, true, true
@@ -1240,6 +1270,7 @@ func (p *podWorkers) startPodSync(podUID types.UID) (ctx context.Context, update
 	}
 
 	// verify we can start
+	// TODO 如何校验是否允许一个Pod启动？
 	canStart, canEverStart = p.allowPodStart(update.Options.Pod)
 	switch {
 	case !canEverStart:

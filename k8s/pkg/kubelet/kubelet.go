@@ -1097,7 +1097,10 @@ type Kubelet struct {
 
 	// podManager is a facade that abstracts away the various sources of pods
 	// this Kubelet services.
-	// 缓存Pod并记录MirrorPod和StaticPod之间的映射关系
+	// 1、PodManager中缓存了APIServer中的所有Pod, 也就是说说PodManager缓存的是用户期望的Pod状态。
+	// 2、于此同时，PodManager还会缓存StaticPod与MirrorPod之间的映射关系。所谓的StaticPod其实就是来资源File, HTTP源的Pod.
+	// 3、与PodCache不同时的，PodCache缓存的是Pod的实际状态，而PodManager缓存的是用户期望状态。因此，PodWorker的职责就是把Pod从实际状态
+	// reconciler为用户期望的状态。
 	podManager kubepod.Manager
 
 	// Needed to observe and respond to situations that could impact node stability
@@ -2261,7 +2264,11 @@ func (kl *Kubelet) SyncTerminatingRuntimePod(_ context.Context, runningPod *kube
 // kubelet restarts in the middle of the action.
 // 1、同步Pod的Terminated状态到APIServer。由于此操作执行后，Pod资源就已经处于Terminated状态了，此时就需要把Pod占用的资源回收。主要有
 // 卷、ConfigMap, Secret, Cgroup, userNamespace
-func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus) error {
+func (kl *Kubelet) SyncTerminatedPod(
+	ctx context.Context,
+	pod *v1.Pod, // pod的期望状态
+	podStatus *kubecontainer.PodStatus, // pod的实际状态
+) error {
 	_, otelSpan := kl.tracer.Start(context.Background(), "syncTerminatedPod", trace.WithAttributes(
 		attribute.String("k8s.pod.uid", string(pod.UID)),
 		attribute.String("k8s.pod", klog.KObj(pod).String()),
@@ -2274,7 +2281,7 @@ func (kl *Kubelet) SyncTerminatedPod(ctx context.Context, pod *v1.Pod, podStatus
 
 	// generate the final status of the pod
 	// TODO: should we simply fold this into TerminatePod? that would give a single pod update
-	// TODO 生成容器的状态
+	// TODO 根据Pod的期望状态以及Pod的实际状态生成容器的状态 相当的复杂， TNND，这些人的脑子咋长的
 	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, true)
 
 	// 更新Pod状态
@@ -2685,7 +2692,12 @@ func handleProbeSync(kl *Kubelet, update proberesults.Update, handler SyncHandle
 
 // dispatchWork starts the asynchronous sync of the pod in a pod worker.
 // If the pod has completed termination, dispatchWork will perform no action.
-func (kl *Kubelet) dispatchWork(pod *v1.Pod, syncType kubetypes.SyncPodType, mirrorPod *v1.Pod, start time.Time) {
+func (kl *Kubelet) dispatchWork(
+	pod *v1.Pod, // 当前变化的Pod
+	syncType kubetypes.SyncPodType, // 同步类型，有Sync, Update, Create, Kill
+	mirrorPod *v1.Pod, // 当前Pod的MirrorPod
+	start time.Time, // SyncHandler处理这个变更的开始时间
+) {
 	// Run the sync in an async worker.
 	kl.podWorkers.UpdatePod(UpdatePodOptions{
 		Pod:        pod,
@@ -2704,7 +2716,8 @@ func (kl *Kubelet) handleMirrorPod(mirrorPod *v1.Pod, start time.Time) {
 	// Mirror pod ADD/UPDATE/DELETE operations are considered an UPDATE to the
 	// corresponding static pod. Send update to the pod worker if the static
 	// pod exists.
-	// 获取MirrorPod与之对应的StaticPod，如果找到了与之对应的StaticPod，那么更新这个StaticPod的状态
+	// 1、获取MirrorPod与之对应的StaticPod，如果找到了与之对应的StaticPod，然后更新这个Pod
+	// 2、一般来说，如果一个Pod是MirrorPod，那么一定可以找到这个Pod的StaticPod
 	if pod, ok := kl.podManager.GetPodByMirrorPod(mirrorPod); ok {
 		kl.dispatchWork(pod, kubetypes.SyncPodUpdate, mirrorPod, start)
 	}
@@ -2731,12 +2744,12 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 		// the apiserver and no action (other than cleanup) is required.
 		// 1、不管任何时候，只要Pod发生变动了，都应该直接更新PodManager, 因为kubelet其余的组件都是直接通过PodManager获取的数据，因此PodManager
 		// 中的数据必须是最新的数据
-		// 2、TODO 如果此前PodManager中不存在当前Pod, 说明当前Pod在APIServer中被删除了，因此APIServer中不需要任何操作
+		// 2、如果一个Pod在PodManager中不存在，说明这个Pod在APIServer中已经删除。
 		kl.podManager.AddPod(pod)
 
+		// 1、如果当前是一个StaticPod，那么这里不可能判断为true，因为MirrorPod和StaticPod是两个定义，一定是先有StaticPod才会有MirrorPod
 		if kubetypes.IsMirrorPod(pod) {
-			// TODO 获取MirrorPod与之对应的StaticPod，如果找到了与之对应的StaticPod，那么更新这个StaticPod的状态
-			// TODO 为什么是更新MirrorPod，而不是StaticPod?
+			// TODO 更新Pod，只不过指定了这个Pod的MirrorPod
 			kl.handleMirrorPod(pod, start)
 			continue
 		}
@@ -2767,6 +2780,7 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 					}
 				}
 				// Check if we can admit the pod; if not, reject it.
+				// TODO 准入分析
 				if ok, reason, message := kl.canAdmitPod(activePods, podCopy); !ok {
 					kl.rejectPod(pod, reason, message)
 					continue
@@ -2778,6 +2792,7 @@ func (kl *Kubelet) HandlePodAdditions(pods []*v1.Pod) {
 				}
 			} else {
 				// Check if we can admit the pod; if not, reject it.
+				// TODO 准入分析
 				if ok, reason, message := kl.canAdmitPod(activePods, pod); !ok {
 					kl.rejectPod(pod, reason, message)
 					continue

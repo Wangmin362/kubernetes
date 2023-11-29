@@ -1864,6 +1864,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	// Latency measurements for the main workflow are relative to the
 	// first time the pod was seen by kubelet.
 	var firstSeenTime time.Time
+	// 获取当前Pod第一次看见的时间
 	if firstSeenTimeStr, ok := pod.Annotations[kubetypes.ConfigFirstSeenAnnotationKey]; ok {
 		firstSeenTime = kubetypes.ConvertToTimestamp(firstSeenTimeStr).Get()
 	}
@@ -1876,6 +1877,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 			// since kubelet first saw the pod if firstSeenTime is set.
 			metrics.PodWorkerStartDuration.Observe(metrics.SinceInSeconds(firstSeenTime))
 		} else {
+			// 如果当前Pod似乎创建，但是没有设置第一次看见的时间，说明有点问题，这里只是简单的打印了一下日志
 			klog.V(3).InfoS("First seen time not recorded for pod",
 				"podUID", pod.UID,
 				"pod", klog.KObj(pod))
@@ -1883,6 +1885,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// Generate final API pod status with pod and status manager status
+	// 通过Pod的期望状态、Pod的容器运行时状态生成Pod的状态
 	apiPodStatus := kl.generateAPIPodStatus(pod, podStatus, false)
 	// The pod IP may be changed in generateAPIPodStatus if the pod is using host network. (See #24576)
 	// TODO(random-liu): After writing pod spec into container labels, check whether pod is using host network, and
@@ -1896,6 +1899,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// If the pod is terminal, we don't need to continue to setup the pod
+	// 如果Pod已经运行完成，直接更新状态管理的，不需要启动Pod
 	if apiPodStatus.Phase == v1.PodSucceeded || apiPodStatus.Phase == v1.PodFailed {
 		kl.statusManager.SetPodStatus(pod, apiPodStatus)
 		isTerminal = true

@@ -2142,6 +2142,7 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	if podStatusFn != nil {
 		podStatusFn(&apiPodStatus)
 	}
+	// 更新PodManager状态
 	kl.statusManager.SetPodStatus(pod, apiPodStatus)
 
 	if gracePeriod != nil {
@@ -2150,9 +2151,11 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 		klog.V(4).InfoS("Pod terminating with grace period", "pod", klog.KObj(pod), "podUID", pod.UID, "gracePeriod", nil)
 	}
 
+	// 停止Pod的Liveness探针以及Startup探针
 	kl.probeManager.StopLivenessAndStartup(pod)
 
 	p := kubecontainer.ConvertPodStatusToRunningPod(kl.getRuntime().Type(), podStatus)
+	// TODO 删除Pod，更新Pod所在的cGroup
 	if err := kl.killPod(ctx, pod, p, gracePeriod); err != nil {
 		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToKillPod, "error killing pod: %v", err)
 		// there was an error killing the pod, so we return that error directly
@@ -2164,6 +2167,7 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	// TODO: once a pod is terminal, certain probes (liveness exec) could be stopped immediately after
 	//   the detection of a container shutdown or (for readiness) after the first failure. Tracked as
 	//   https://github.com/kubernetes/kubernetes/issues/107894 although may not be worth optimizing.
+	// TODO 这里为什么会触发Pod Probe探针停止
 	kl.probeManager.RemovePod(pod)
 
 	// Guard against consistency issues in KillPod implementations by checking that there are no
@@ -2171,6 +2175,7 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	// catch race conditions introduced by callers updating pod status out of order.
 	// TODO: have KillPod return the terminal status of stopped containers and write that into the
 	//  cache immediately
+	// 通过CRI接口查询底层的容器运行时Pod的具体状态
 	podStatus, err := kl.containerRuntime.GetPodStatus(ctx, pod.UID, pod.Name, pod.Namespace)
 	if err != nil {
 		klog.ErrorS(err, "Unable to read pod status prior to final pod termination", "pod", klog.KObj(pod), "podUID", pod.UID)
@@ -2216,6 +2221,7 @@ func (kl *Kubelet) SyncTerminatingPod(_ context.Context, pod *v1.Pod, podStatus 
 	// information about the container end states (including exit codes) - when
 	// SyncTerminatedPod is called the containers may already be removed.
 	apiPodStatus = kl.generateAPIPodStatus(pod, podStatus, true)
+	// 更新StatusManager状态
 	kl.statusManager.SetPodStatus(pod, apiPodStatus)
 
 	// we have successfully stopped all containers, the pod is terminating, our status is "done"

@@ -1374,7 +1374,9 @@ func (p *podWorkers) podWorkerLoop(podUID types.UID, podUpdates <-chan struct{})
 			// Take the appropriate action (illegal phases are prevented by UpdatePod)
 			switch {
 			case update.WorkType == TerminatedPod:
-				// TODO 同步Pod的状态到APIServer
+				// 1、同步Pod的Terminated状态到APIServer。由于此操作执行后，Pod资源就已经处于Terminated状态了，此时就需要把Pod占用的资源回收。主要有
+				// 卷、ConfigMap, Secret, Cgroup, userNamespace
+				// TODO 具体分析
 				err = p.podSyncer.SyncTerminatedPod(ctx, update.Options.Pod, status)
 
 			case update.WorkType == TerminatingPod:
@@ -1386,14 +1388,15 @@ func (p *podWorkers) podWorkerLoop(podUID types.UID, podUpdates <-chan struct{})
 
 				// if we only have a running pod, terminate it directly
 				if update.Options.RunningPod != nil {
+					// 直接通过CRI接口干掉Pod
 					err = p.podSyncer.SyncTerminatingRuntimePod(ctx, update.Options.RunningPod)
 				} else {
-					// TODO
+					// TODO 通过底层的容器运行时删除Pod，同时更新cGroup以及StatusManager
 					err = p.podSyncer.SyncTerminatingPod(ctx, update.Options.Pod, status, gracePeriod, podStatusFn)
 				}
 
 			default:
-				// TODO
+				// TODO 最难的其实是这里
 				isTerminal, err = p.podSyncer.SyncPod(ctx, update.Options.UpdateType, update.Options.Pod, update.Options.MirrorPod, status)
 			}
 

@@ -143,10 +143,10 @@ type NodeConfig struct {
 	KubeletCgroupsName                       string                            // TODO 分析
 	KubeletOOMScoreAdj                       int32                             // TODO 分析
 	ContainerRuntime                         string                            // 选择的容器运行时，目前应该只支持remote,实际上kubelet内部使用的是CRI接口，只要实现了这个接口就可以作为Kubernetes的容器运行时
-	CgroupsPerQOS                            bool                              // TODO 分析
-	CgroupRoot                               string                            // TODO 分析, 一般默认设置为 /
-	CgroupDriver                             string                            // TODO 分析
-	KubeletRootDir                           string                            // TODO 分析
+	CgroupsPerQOS                            bool                              // 一般会打开CgroupPerQOS
+	CgroupRoot                               string                            // 一般默认设置为 /
+	CgroupDriver                             string                            // 一般会设置为 systemd
+	KubeletRootDir                           string                            // 默认为/var/lib/kubelet
 	ProtectKernelDefaults                    bool                              // TODO 分析
 	NodeAllocatableConfig                                                      // 用于配置当前节点可以分配的资源
 	QOSReserved                              map[v1.ResourceName]int64         // TODO 分析

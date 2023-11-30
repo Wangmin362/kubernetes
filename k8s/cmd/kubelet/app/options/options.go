@@ -103,6 +103,7 @@ type KubeletFlags struct {
 
 	// rootDirectory is the directory path to place kubelet files (volume
 	// mounts,etc).
+	// 默认为/var/lib/kubelet
 	RootDirectory string
 
 	// The Kubelet will load its initial configuration from this file.

@@ -73,6 +73,7 @@ func (m *podContainerManagerImpl) Exists(pod *v1.Pod) bool {
 // EnsureExists takes a pod as argument and makes sure that
 // pod cgroup exists if qos cgroup hierarchy flag is enabled.
 // If the pod level container doesn't already exist it is created.
+// 判断当前Pod的cgroup是否存在，如果不存在，那么创建cgroup
 func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 	// check if container already exist
 	alreadyExists := m.Exists(pod)
@@ -102,6 +103,7 @@ func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 }
 
 // GetPodContainerName returns the CgroupName identifier, and its literal cgroupfs form on the host.
+// 获取Pod的cgroup
 func (m *podContainerManagerImpl) GetPodContainerName(pod *v1.Pod) (CgroupName, string) {
 	// 1、计算出当前Pod的QOS等级，一共有三个等级，分别如下：
 	// 1.1、guaranteed意味着Pod的所有容器均设置了request, limit，并且request=limit
@@ -118,11 +120,14 @@ func (m *podContainerManagerImpl) GetPodContainerName(pod *v1.Pod) (CgroupName, 
 	case v1.PodQOSBestEffort:
 		parentContainer = m.qosContainersInfo.BestEffort
 	}
+	// pod<Pod UID>
 	podContainer := GetPodCgroupNameSuffix(pod.UID)
 
 	// Get the absolute path of the cgroup
+	// 计算cgroup路径
 	cgroupName := NewCgroupName(parentContainer, podContainer)
 	// Get the literal cgroupfs name
+	// 创建cgroup
 	cgroupfsName := m.cgroupManager.Name(cgroupName)
 
 	return cgroupName, cgroupfsName
@@ -202,8 +207,10 @@ func (m *podContainerManagerImpl) tryKillingCgroupProcesses(podCgroup CgroupName
 }
 
 // Destroy destroys the pod container cgroup paths
+// 删除Pod的cgroup，同时kill所有在这个cgroup中的所有进程
 func (m *podContainerManagerImpl) Destroy(podCgroup CgroupName) error {
 	// Try killing all the processes attached to the pod cgroup
+	// 杀掉cgroup中的所有进程
 	if err := m.tryKillingCgroupProcesses(podCgroup); err != nil {
 		klog.InfoS("Failed to kill all the processes attached to cgroup", "cgroupName", podCgroup, "err", err)
 		return fmt.Errorf("failed to kill all the processes attached to the %v cgroups : %v", podCgroup, err)

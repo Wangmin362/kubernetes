@@ -65,8 +65,10 @@ type CgroupManager interface {
 	// Create creates and applies the cgroup configurations on the cgroup.
 	// It just creates the leaf cgroups.
 	// It expects the parent cgroup to already exist.
+	// 创建cgroup
 	Create(*CgroupConfig) error
 	// Destroy the cgroup.
+	// 销毁cgroup
 	Destroy(*CgroupConfig) error
 	// Update cgroup configuration.
 	Update(*CgroupConfig) error
@@ -107,19 +109,24 @@ type QOSContainersInfo struct {
 // PodContainerManager stores and manages pod level containers
 // The Pod workers interact with the PodContainerManager to create and destroy
 // containers for the pod.
+// 主要用于管理Pod的cgroup
 type PodContainerManager interface {
 	// GetPodContainerName returns the CgroupName identifier, and its literal cgroupfs form on the host.
+	// 获取Pod的cgroup
 	GetPodContainerName(*v1.Pod) (CgroupName, string)
 
 	// EnsureExists takes a pod as argument and makes sure that
 	// pod cgroup exists if qos cgroup hierarchy flag is enabled.
 	// If the pod cgroup doesn't already exist this method creates it.
+	// 判断当前Pod的cgroup是否存在，如果不存在，那么创建cgroup
 	EnsureExists(*v1.Pod) error
 
 	// Exists returns true if the pod cgroup exists.
+	// 判断当前Pod的cgroup是否存在
 	Exists(*v1.Pod) bool
 
 	// Destroy takes a pod Cgroup name as argument and destroys the pod's container.
+	// 删除Pod的cgroup，同时kill所有在这个cgroup中的所有进程
 	Destroy(name CgroupName) error
 
 	// ReduceCPULimits reduces the CPU CFS values to the minimum amount of shares.

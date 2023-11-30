@@ -257,6 +257,7 @@ func NewContainerManager(
 	}
 
 	// Turn CgroupRoot from a string (in cgroupfs path format) to internal CgroupName
+	// 默认为 /
 	cgroupRoot := ParseCgroupfsToCgroupName(nodeConfig.CgroupRoot)
 	// TODO 分析CGroupManager
 	cgroupManager := NewCgroupManager(subsystems, nodeConfig.CgroupDriver)

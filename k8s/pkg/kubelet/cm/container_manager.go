@@ -144,7 +144,7 @@ type NodeConfig struct {
 	KubeletOOMScoreAdj                       int32                             // TODO 分析
 	ContainerRuntime                         string                            // 选择的容器运行时，目前应该只支持remote,实际上kubelet内部使用的是CRI接口，只要实现了这个接口就可以作为Kubernetes的容器运行时
 	CgroupsPerQOS                            bool                              // TODO 分析
-	CgroupRoot                               string                            // TODO 分析
+	CgroupRoot                               string                            // TODO 分析, 一般默认设置为 /
 	CgroupDriver                             string                            // TODO 分析
 	KubeletRootDir                           string                            // TODO 分析
 	ProtectKernelDefaults                    bool                              // TODO 分析

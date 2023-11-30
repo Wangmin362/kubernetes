@@ -282,6 +282,7 @@ func NewContainerManager(
 	klog.InfoS("Creating Container Manager object based on Node Config", "nodeConfig", nodeConfig)
 
 	// TODO 分析QOSContainerManager
+	// 1、一般cgroupRoot默认设置为 /
 	qosContainerManager, err := NewQOSContainerManager(subsystems, cgroupRoot, nodeConfig, cgroupManager)
 	if err != nil {
 		return nil, err

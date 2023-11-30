@@ -228,10 +228,12 @@ type KubeletConfiguration struct {
 	SystemCgroups string
 	// CgroupRoot is the root cgroup to use for pods.
 	// If CgroupsPerQOS is enabled, this is the root of the QoS cgroup hierarchy.
+	// 如果启用了CgroupPerQOS，如果这个值不设置，那么默认设置为 /
 	CgroupRoot string
 	// Enable QoS based Cgroup hierarchy: top level cgroups for QoS Classes
 	// And all Burstable and BestEffort pods are brought up under their
 	// specific top level QoS cgroup.
+	// 一般会开启这个选项，也就是CgroupsPerQOS = true
 	CgroupsPerQOS bool
 	// driver that the kubelet uses to manipulate cgroups on the host (cgroupfs or systemd)
 	CgroupDriver string

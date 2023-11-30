@@ -1965,6 +1965,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// ensure the kubelet knows about referenced secrets or configmaps used by the pod
+	// 当前Pod没有处于Terminating状态
 	if !kl.podWorkers.IsPodTerminationRequested(pod.UID) {
 		if kl.secretManager != nil {
 			kl.secretManager.RegisterPod(pod)

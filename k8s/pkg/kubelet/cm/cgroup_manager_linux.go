@@ -77,21 +77,28 @@ func unescapeSystemdCgroupName(part string) string {
 	return strings.Replace(part, "_", "-", -1)
 }
 
-// cgroupName.ToSystemd converts the internal cgroup name to a systemd name.
+// ToSystemd converts the internal cgroup name to a systemd name.
 // For example, the name {"kubepods", "burstable", "pod1234-abcd-5678-efgh"} becomes
 // "/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice"
 // This function always expands the systemd name into the cgroupfs form. If only
 // the last part is needed, use path.Base(...) on it to discard the rest.
+// 如果cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}, 那么此函数的返回值为：
+// /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
 func (cgroupName CgroupName) ToSystemd() string {
 	if len(cgroupName) == 0 || (len(cgroupName) == 1 && cgroupName[0] == "") {
 		return "/"
 	}
-	newparts := []string{}
+	var newparts []string
 	for _, part := range cgroupName {
+		// 把所有的中划线转为下划线
 		part = escapeSystemdCgroupName(part)
 		newparts = append(newparts, part)
 	}
 
+	// 如果cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
+	// 那么strings.Join(newparts, "-") = kubepods-burstable-pod1234_abcd_5678_efgh
+	// 那么strings.Join(newparts, "-") + systemdSuffix = kubepods-burstable-pod1234_abcd_5678_efgh.slice
+	// 那么返回值为：/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
 	result, err := cgroupsystemd.ExpandSlice(strings.Join(newparts, "-") + systemdSuffix)
 	if err != nil {
 		// Should never happen...
@@ -100,17 +107,25 @@ func (cgroupName CgroupName) ToSystemd() string {
 	return result
 }
 
+// ParseSystemdToCgroupName
+// 如果name为/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
+// 那么返回值为：cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
 func ParseSystemdToCgroupName(name string) CgroupName {
+	// 返回name路径的最后一个元素
 	driverName := path.Base(name)
+	// 去除.slice后缀
 	driverName = strings.TrimSuffix(driverName, systemdSuffix)
 	parts := strings.Split(driverName, "-")
-	result := []string{}
+	var result []string
 	for _, part := range parts {
 		result = append(result, unescapeSystemdCgroupName(part))
 	}
 	return CgroupName(result)
 }
 
+// ToCgroupfs
+// 如果cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}, 那么此函数的返回值为：
+// /kubepods/burstable/pod1234-abcd-5678-efgh
 func (cgroupName CgroupName) ToCgroupfs() string {
 	return "/" + path.Join(cgroupName...)
 }
@@ -128,13 +143,15 @@ func IsSystemdStyleName(name string) bool {
 }
 
 // CgroupSubsystems holds information about the mounted cgroup subsystems
+// TODO 这里说的cgroup子系统，似乎就是不同资源的控制
 type CgroupSubsystems struct {
 	// Cgroup subsystem mounts.
 	// e.g.: "/sys/fs/cgroup/cpu" -> ["cpu", "cpuacct"]
-	Mounts []libcontainercgroups.Mount
 
+	Mounts []libcontainercgroups.Mount
 	// Cgroup subsystem to their mount location.
 	// e.g.: "cpu" -> "/sys/fs/cgroup/cpu"
+	// 每种资源的挂载点
 	MountPoints map[string]string
 }
 
@@ -148,6 +165,7 @@ type cgroupManagerImpl struct {
 	subsystems *CgroupSubsystems
 
 	// useSystemd tells if systemd cgroup manager should be used.
+	// TODO 这玩意干嘛的？
 	useSystemd bool
 }
 
@@ -155,6 +173,7 @@ type cgroupManagerImpl struct {
 var _ CgroupManager = &cgroupManagerImpl{}
 
 // NewCgroupManager is a factory method that returns a CgroupManager
+// TODO cgroupDriver是什么意思？
 func NewCgroupManager(cs *CgroupSubsystems, cgroupDriver string) CgroupManager {
 	return &cgroupManagerImpl{
 		subsystems: cs,
@@ -164,25 +183,42 @@ func NewCgroupManager(cs *CgroupSubsystems, cgroupDriver string) CgroupManager {
 
 // Name converts the cgroup to the driver specific value in cgroupfs form.
 // This always returns a valid cgroupfs path even when systemd driver is in use!
+// 以cGroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}为例，如果cgroupDriver指定为了systemd，那么返回值为
+// /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice，如果没有指定systemd，那么
+// 返回值为/kubepods/burstable/pod1234-abcd-5678-efgh
 func (m *cgroupManagerImpl) Name(name CgroupName) string {
 	if m.useSystemd {
+		// 如果cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}, 那么此函数的返回值为：
+		// /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
 		return name.ToSystemd()
 	}
+
+	// 如果cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}, 那么此函数的返回值为：
+	// /kubepods/burstable/pod1234-abcd-5678-efgh
 	return name.ToCgroupfs()
 }
 
 // CgroupName converts the literal cgroupfs name on the host to an internal identifier.
+// 把一个cgroup路径合法的CgroupName
 func (m *cgroupManagerImpl) CgroupName(name string) CgroupName {
 	if m.useSystemd {
+		// 如果name为/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
+		// 那么返回值为：cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
 		return ParseSystemdToCgroupName(name)
 	}
+
+	// 如果name = /kubepods/burstable/pod1234-abcd-5678-efgh
+	// 那么返回值为：cgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
 	return ParseCgroupfsToCgroupName(name)
 }
 
 // buildCgroupPaths builds a path to each cgroup subsystem for the specified name.
 func (m *cgroupManagerImpl) buildCgroupPaths(name CgroupName) map[string]string {
+	// 把CgroupName解析为路径
 	cgroupFsAdaptedName := m.Name(name)
 	cgroupPaths := make(map[string]string, len(m.subsystems.MountPoints))
+	// 1、key为不同的cgroup子系统，譬如cpu, memeory, hugepage, cpuacct等等
+	// 2、这里主要是在为不同的资源拼接出cgroup资源限制路径
 	for key, val := range m.subsystems.MountPoints {
 		cgroupPaths[key] = path.Join(val, cgroupFsAdaptedName)
 	}
@@ -235,22 +271,35 @@ func (m *cgroupManagerImpl) libctCgroupConfig(in *CgroupConfig, needResources bo
 }
 
 // Validate checks if all subsystem cgroups already exist
+// 1、譬如CgroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
+// 2、用于校验当前cgroup是否支持限制某些资源
 func (m *cgroupManagerImpl) Validate(name CgroupName) error {
+	// 判断是否是cgroup v2模式
 	if libcontainercgroups.IsCgroup2UnifiedMode() {
+		// 如果使用了systemd管理，那么cgroupPath = /sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice
+		// 如果没有使用systemd管理，那么cgroupPath = /sys/fs/cgroup/kubepods/burstable/pod1234-abcd-5678-efgh
 		cgroupPath := m.buildCgroupUnifiedPath(name)
+		// 获取支持的资源子系统，一般来说对于cgroup v2版本来说，cpu, cpuset, memeory, hugetlb, pids都支持
 		neededControllers := getSupportedUnifiedControllers()
+		// 查看/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice/cgroup.controllers
+		// 文件中支持的资源子系统
 		enabledControllers, err := readUnifiedControllers(cgroupPath)
 		if err != nil {
 			return fmt.Errorf("could not read controllers for cgroup %q: %w", name, err)
 		}
+		// 获取当前pod需要的子系统，但是当前cgroup不支持的资源子系统
 		difference := neededControllers.Difference(enabledControllers)
+		// 但凡长度大于零，就表明至少有一种以上的子系统不支持
 		if difference.Len() > 0 {
 			return fmt.Errorf("cgroup %q has some missing controllers: %v", name, strings.Join(difference.List(), ", "))
 		}
 		return nil // valid V2 cgroup
 	}
 
+	// 说明当前使用的是cgroup v1
+
 	// Get map of all cgroup paths on the system for the particular cgroup
+	// 获取每种资源的cgroup路径
 	cgroupPaths := m.buildCgroupPaths(name)
 
 	// the presence of alternative control groups not known to runc confuses
@@ -284,6 +333,7 @@ func (m *cgroupManagerImpl) Validate(name CgroupName) error {
 }
 
 // Exists checks if all subsystem cgroups already exist
+// 判断cgroup子系统是否存在
 func (m *cgroupManagerImpl) Exists(name CgroupName) bool {
 	return m.Validate(name) == nil
 }
@@ -321,7 +371,10 @@ func getCPUWeight(cpuShares *uint64) uint64 {
 }
 
 // readUnifiedControllers reads the controllers available at the specified cgroup
+// 返回当前支持哪些资源的子系统控制，譬如返回值为：cpuset cpu io memory hugetlb pids rdma misc
 func readUnifiedControllers(path string) (sets.String, error) {
+	// 文件路径为：/sys/fs/cgroup/cgroup.controllers
+	// 目前，从我自己的搭建的1.27.2版本的虚拟机读取出来的数据为：cpuset cpu io memory hugetlb pids rdma misc
 	controllersFileContent, err := os.ReadFile(filepath.Join(path, "cgroup.controllers"))
 	if err != nil {
 		return nil, err
@@ -336,12 +389,14 @@ var (
 )
 
 // getSupportedUnifiedControllers returns a set of supported controllers when running on cgroup v2
+// 获取支持的资源子系统，一般来说对于cgroup v2版本来说，cpu, cpuset, memeory, hugetlb, pids都支持
 func getSupportedUnifiedControllers() sets.String {
 	// This is the set of controllers used by the Kubelet
 	supportedControllers := sets.NewString("cpu", "cpuset", "memory", "hugetlb", "pids")
 	// Memoize the set of controllers that are present in the root cgroup
 	availableRootControllersOnce.Do(func() {
 		var err error
+		// 返回当前支持哪些资源的子系统控制，譬如返回值为：cpuset cpu io memory hugetlb pids rdma misc
 		availableRootControllers, err = readUnifiedControllers(cmutil.CgroupRoot)
 		if err != nil {
 			panic(fmt.Errorf("cannot read cgroup controllers at %s", cmutil.CgroupRoot))
@@ -646,7 +701,7 @@ func getCgroupMemoryConfig(cgroupPath string) (*ResourceConfig, error) {
 
 }
 
-// Get the resource config values applied to the cgroup for specified resource type
+// GetCgroupConfig Get the resource config values applied to the cgroup for specified resource type
 func (m *cgroupManagerImpl) GetCgroupConfig(name CgroupName, resource v1.ResourceName) (*ResourceConfig, error) {
 	cgroupPaths := m.buildCgroupPaths(name)
 	cgroupResourcePath, found := cgroupPaths[string(resource)]
@@ -731,7 +786,7 @@ func setCgroupMemoryConfig(cgroupPath string, resourceConfig *ResourceConfig) er
 	return nil
 }
 
-// Set resource config for the specified resource type on the cgroup
+// SetCgroupConfig Set resource config for the specified resource type on the cgroup
 func (m *cgroupManagerImpl) SetCgroupConfig(name CgroupName, resource v1.ResourceName, resourceConfig *ResourceConfig) error {
 	cgroupPaths := m.buildCgroupPaths(name)
 	cgroupResourcePath, found := cgroupPaths[string(resource)]

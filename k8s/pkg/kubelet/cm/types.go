@@ -28,6 +28,7 @@ type ResourceConfig struct {
 	// CPU shares (relative weight vs. other containers).
 	CPUShares *uint64
 	// CPU hardcap limit (in usecs). Allowed cpu time in a given period.
+	// 用于控制CPU的上限
 	CPUQuota *int64
 	// CPU quota period.
 	CPUPeriod *uint64
@@ -50,13 +51,16 @@ type CgroupName []string
 // implementation of the Cgroup Manager interface.
 type CgroupConfig struct {
 	// Fully qualified name prior to any driver specific conversions.
+	// 类似于：{"kubepods", "burstable", "pod1234-abcd-5678-efgh"}
 	Name CgroupName
 	// ResourceParameters contains various cgroups settings to apply.
+	// 资源限制
 	ResourceParameters *ResourceConfig
 }
 
 // CgroupManager allows for cgroup management.
 // Supports Cgroup Creation ,Deletion and Updates.
+// 1、CgroupManager用于Cgroup的创建、管理、更新
 type CgroupManager interface {
 	// Create creates and applies the cgroup configurations on the cgroup.
 	// It just creates the leaf cgroups.
@@ -75,6 +79,9 @@ type CgroupManager interface {
 	// For example, if we pass {"foo", "bar"}
 	// then systemd should convert the name to something like
 	// foo.slice/foo-bar.slice
+	// 以cGroupName = {"kubepods", "burstable", "pod1234-abcd-5678-efgh"}为例，如果cgroupDriver指定为了systemd，那么返回值为
+	// /kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod1234_abcd_5678_efgh.slice，如果没有指定systemd，那么
+	// 返回值为/kubepods/burstable/pod1234-abcd-5678-efgh
 	Name(name CgroupName) string
 	// CgroupName converts the literal cgroupfs name on the host to an internal identifier.
 	CgroupName(name string) CgroupName
@@ -84,9 +91,9 @@ type CgroupManager interface {
 	ReduceCPULimits(cgroupName CgroupName) error
 	// MemoryUsage returns current memory usage of the specified cgroup, as read from the cgroupfs.
 	MemoryUsage(name CgroupName) (int64, error)
-	// Get the resource config values applied to the cgroup for specified resource type
+	// GetCgroupConfig Get the resource config values applied to the cgroup for specified resource type
 	GetCgroupConfig(name CgroupName, resource v1.ResourceName) (*ResourceConfig, error)
-	// Set resource config for the specified resource type on the cgroup
+	// SetCgroupConfig Set resource config for the specified resource type on the cgroup
 	SetCgroupConfig(name CgroupName, resource v1.ResourceName, resourceConfig *ResourceConfig) error
 }
 
@@ -124,12 +131,12 @@ type PodContainerManager interface {
 	// IsPodCgroup returns true if the literal cgroupfs name corresponds to a pod
 	IsPodCgroup(cgroupfs string) (bool, types.UID)
 
-	// Get value of memory usage for the pod Cgroup
+	// GetPodCgroupMemoryUsage Get value of memory usage for the pod Cgroup
 	GetPodCgroupMemoryUsage(pod *v1.Pod) (uint64, error)
 
-	// Get the resource config values applied to the pod cgroup for specified resource type
+	// GetPodCgroupConfig Get the resource config values applied to the pod cgroup for specified resource type
 	GetPodCgroupConfig(pod *v1.Pod, resource v1.ResourceName) (*ResourceConfig, error)
 
-	// Set resource config values for the specified resource type on the pod cgroup
+	// SetPodCgroupConfig Set resource config values for the specified resource type on the pod cgroup
 	SetPodCgroupConfig(pod *v1.Pod, resource v1.ResourceName, resourceConfig *ResourceConfig) error
 }

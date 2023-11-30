@@ -47,13 +47,17 @@ type podContainerManagerImpl struct {
 	subsystems *CgroupSubsystems
 	// cgroupManager is the cgroup Manager Object responsible for managing all
 	// pod cgroups.
+	// 用于管理Pod的cgroup
 	cgroupManager CgroupManager
 	// Maximum number of pids in a pod
+	// 一个Pod中最多允许的Pid数量，也就是限制Pod中的进程数量
 	podPidsLimit int64
 	// enforceCPULimits controls whether cfs quota is enforced or not
+	// TODO ?
 	enforceCPULimits bool
 	// cpuCFSQuotaPeriod is the cfs period value, cfs_period_us, setting per
 	// node for all containers in usec
+	// TODO ?
 	cpuCFSQuotaPeriod uint64
 }
 
@@ -99,6 +103,10 @@ func (m *podContainerManagerImpl) EnsureExists(pod *v1.Pod) error {
 
 // GetPodContainerName returns the CgroupName identifier, and its literal cgroupfs form on the host.
 func (m *podContainerManagerImpl) GetPodContainerName(pod *v1.Pod) (CgroupName, string) {
+	// 1、计算出当前Pod的QOS等级，一共有三个等级，分别如下：
+	// 1.1、guaranteed意味着Pod的所有容器均设置了request, limit，并且request=limit
+	// 1.2、besteffort意味着Pod的所有容器都没有设置request, limit
+	// 1.3、burstable，除了前面两种情况，剩下的所有情况就属于burstable
 	podQOS := v1qos.GetPodQOS(pod)
 	// Get the parent QOS container name
 	var parentContainer CgroupName

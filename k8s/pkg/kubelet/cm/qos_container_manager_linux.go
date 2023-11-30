@@ -56,11 +56,18 @@ type qosContainerManagerImpl struct {
 	cgroupManager      CgroupManager
 	activePods         ActivePodsFunc
 	getNodeAllocatable func() v1.ResourceList
-	cgroupRoot         CgroupName
-	qosReserved        map[v1.ResourceName]int64
+	// 一般默认设置为 /
+	cgroupRoot  CgroupName
+	qosReserved map[v1.ResourceName]int64
 }
 
-func NewQOSContainerManager(subsystems *CgroupSubsystems, cgroupRoot CgroupName, nodeConfig NodeConfig, cgroupManager CgroupManager) (QOSContainerManager, error) {
+func NewQOSContainerManager(
+	subsystems *CgroupSubsystems,
+	cgroupRoot CgroupName, // 一般默认设置为 /
+	nodeConfig NodeConfig,
+	cgroupManager CgroupManager,
+) (QOSContainerManager, error) {
+	// CgroupsPerQOS 一般默认是开启的
 	if !nodeConfig.CgroupsPerQOS {
 		return &qosContainerManagerNoop{
 			cgroupRoot: cgroupRoot,

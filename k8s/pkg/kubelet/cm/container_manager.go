@@ -65,12 +65,14 @@ type ContainerManager interface {
 
 	// NewPodContainerManager is a factory method which returns a podContainerManager object
 	// Returns a noop implementation if qos cgroup hierarchy is not enabled
+	// 用于管理Pod中每个容器的cgroup
 	NewPodContainerManager() PodContainerManager
 
 	// GetMountedSubsystems returns the mounted cgroup subsystems on the node
 	GetMountedSubsystems() *CgroupSubsystems
 
 	// GetQOSContainersInfo returns the names of top level QoS containers
+	// 用于支持QOS cgroup
 	GetQOSContainersInfo() QOSContainersInfo
 
 	// GetNodeAllocatableReservation returns the amount of compute resources that have to be reserved from scheduling.

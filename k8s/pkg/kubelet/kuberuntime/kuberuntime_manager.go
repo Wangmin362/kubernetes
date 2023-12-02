@@ -1027,14 +1027,20 @@ func (m *kubeGenericRuntimeManager) computePodActions(ctx context.Context, pod *
 // SyncPod syncs the running pod into the desired pod by executing following steps:
 //
 //  1. Compute sandbox and container changes.
-//  2. Kill pod sandbox if necessary.
+//  2. Kill pod sandbox if necessary.  TODO 什么时候干掉沙箱？
 //  3. Kill any containers that should not be running.
 //  4. Create sandbox if necessary.
 //  5. Create ephemeral containers.
 //  6. Create init containers.
 //  7. Resize running containers (if InPlacePodVerticalScaling==true)
 //  8. Create normal containers.
-func (m *kubeGenericRuntimeManager) SyncPod(ctx context.Context, pod *v1.Pod, podStatus *kubecontainer.PodStatus, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff) (result kubecontainer.PodSyncResult) {
+func (m *kubeGenericRuntimeManager) SyncPod(
+	ctx context.Context,
+	pod *v1.Pod,
+	podStatus *kubecontainer.PodStatus,
+	pullSecrets []v1.Secret,
+	backOff *flowcontrol.Backoff,
+) (result kubecontainer.PodSyncResult) {
 	// Step 1: Compute sandbox and container changes.
 	podContainerChanges := m.computePodActions(ctx, pod, podStatus)
 	klog.V(3).InfoS("computePodActions got for pod", "podActions", podContainerChanges, "pod", klog.KObj(pod))

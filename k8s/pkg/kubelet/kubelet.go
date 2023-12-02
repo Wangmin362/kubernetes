@@ -1356,6 +1356,7 @@ type Kubelet struct {
 	// run. A pod rejected by a softAdmitHandler will be left in a Pending state indefinitely. If a
 	// rejected pod should not be recreated, or the scheduler is not aware of the rejection rule, the
 	// admission rule should be applied by a softAdmitHandler.
+	// TODO 这玩意如何定制开发？
 	softAdmitHandlers lifecycle.PodAdmitHandlers
 
 	// the list of handlers to call during pod sync loop.
@@ -1845,7 +1846,13 @@ func (kl *Kubelet) Run(updates <-chan kubetypes.PodUpdate) {
 // This operation writes all events that are dispatched in order to provide
 // the most accurate information possible about an error situation to aid debugging.
 // Callers should not write an event if this operation returns an error.
-func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, pod, mirrorPod *v1.Pod, podStatus *kubecontainer.PodStatus) (isTerminal bool, err error) {
+func (kl *Kubelet) SyncPod(
+	_ context.Context,
+	updateType kubetypes.SyncPodType,
+	pod,
+	mirrorPod *v1.Pod,
+	podStatus *kubecontainer.PodStatus,
+) (isTerminal bool, err error) {
 	// TODO(#113606): connect this with the incoming context parameter, which comes from the pod worker.
 	// Currently, using that context causes test failures.
 	ctx, otelSpan := kl.tracer.Start(context.TODO(), "syncPod", trace.WithAttributes(
@@ -1909,6 +1916,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	// If the pod should not be running, we request the pod's containers be stopped. This is not the same
 	// as termination (we want to stop the pod, but potentially restart it later if soft admission allows
 	// it later). Set the status and phase appropriately
+	// TODO 判断当前Pod是否准入
 	runnable := kl.canRunPod(pod)
 	if !runnable.Admit {
 		// Pod is not runnable; and update the Pod and Container statuses to why.
@@ -1933,9 +1941,9 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 
 	// Record the time it takes for the pod to become running
 	// since kubelet first saw the pod if firstSeenTime is set.
+	// 从StatusManager中获取Pod的状态
 	existingStatus, ok := kl.statusManager.GetPodStatus(pod.UID)
-	if !ok || existingStatus.Phase == v1.PodPending && apiPodStatus.Phase == v1.PodRunning &&
-		!firstSeenTime.IsZero() {
+	if !ok || existingStatus.Phase == v1.PodPending && apiPodStatus.Phase == v1.PodRunning && !firstSeenTime.IsZero() {
 		metrics.PodStartDuration.Observe(metrics.SinceInSeconds(firstSeenTime))
 	}
 
@@ -1959,6 +1967,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// If the network plugin is not ready, only start the pod if it uses the host network
+	// 如果当前节点的网络插件还没有就绪，并且如果当前Pod使用的是主机网络，那么当前Pod允许启动，否则不允许启动
 	if err := kl.runtimeState.networkErrors(); err != nil && !kubecontainer.IsHostNetworkPod(pod) {
 		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.NetworkNotReady, "%s: %v", NetworkNotReadyErrorMsg, err)
 		return false, fmt.Errorf("%s: %v", NetworkNotReadyErrorMsg, err)
@@ -1977,6 +1986,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 
 	// Create Cgroups for the pod and apply resource parameters
 	// to them if cgroups-per-qos flag is enabled.
+	// PodContainerManager用于管理容器的cgroup
 	pcm := kl.containerManager.NewPodContainerManager()
 	// If pod has already been terminated then we need not create
 	// or update the pod's cgroup
@@ -2059,6 +2069,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// Make data directories for the pod
+	// 创建Pod需要的目录
 	if err := kl.makePodDataDirs(pod); err != nil {
 		kl.recorder.Eventf(pod, v1.EventTypeWarning, events.FailedToMakePodDataDirectories, "error making pod data directories: %v", err)
 		klog.ErrorS(err, "Unable to make pod data directories for pod", "pod", klog.KObj(pod))
@@ -2094,6 +2105,7 @@ func (kl *Kubelet) SyncPod(_ context.Context, updateType kubetypes.SyncPodType, 
 	}
 
 	// Call the container runtime's SyncPod callback
+	// TODO 更新Pod
 	result := kl.containerRuntime.SyncPod(ctx, pod, podStatus, pullSecrets, kl.backOff)
 	kl.reasonCache.Update(pod.UID, result)
 	if err := result.Error(); err != nil {

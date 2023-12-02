@@ -904,6 +904,7 @@ func (kl *Kubelet) getPullSecretsForPod(pod *v1.Pod) []v1.Secret {
 // PodCouldHaveRunningContainers returns true if the pod with the given UID could still have running
 // containers. This returns false if the pod has not yet been started or the pod is unknown.
 func (kl *Kubelet) PodCouldHaveRunningContainers(pod *v1.Pod) bool {
+	// 只要Pod没有处于Terminated状态，那么这个Pod就认为有容器正在运行
 	if kl.podWorkers.CouldHaveRunningContainers(pod.UID) {
 		return true
 	}
@@ -1684,6 +1685,7 @@ func (kl *Kubelet) sortPodIPs(podIPs []string) []string {
 // convertStatusToAPIStatus initialize an api PodStatus for the given pod from
 // the given internal pod status and the previous state of the pod from the API.
 // It is purely transformative and does not alter the kubelet state at all.
+// TODO 这玩意是者的复杂
 func (kl *Kubelet) convertStatusToAPIStatus(
 	pod *v1.Pod, // 用户期望的pod状态
 	podStatus *kubecontainer.PodStatus, // 底层CRI实际运行的Pod状态

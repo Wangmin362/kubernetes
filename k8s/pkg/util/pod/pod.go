@@ -40,6 +40,7 @@ func PatchPodStatus(ctx context.Context, c clientset.Interface, namespace, name 
 		return nil, patchBytes, true, nil
 	}
 
+	// 上报APIServer Pod最新的状态
 	updatedPod, err := c.CoreV1().Pods(namespace).Patch(ctx, name, types.StrategicMergePatchType, patchBytes, metav1.PatchOptions{}, "status")
 	if err != nil {
 		return nil, nil, false, fmt.Errorf("failed to patch status %q for pod %q/%q: %v", patchBytes, namespace, name, err)

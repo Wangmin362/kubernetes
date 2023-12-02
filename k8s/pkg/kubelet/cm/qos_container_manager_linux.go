@@ -88,6 +88,7 @@ func (m *qosContainerManagerImpl) GetQOSContainersInfo() QOSContainersInfo {
 
 func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceList, activePods ActivePodsFunc) error {
 	cm := m.cgroupManager
+	// cgroupRoot = []string{"/"}
 	rootContainer := m.cgroupRoot
 	if !cm.Exists(rootContainer) {
 		return fmt.Errorf("root container %v doesn't exist", rootContainer)
@@ -96,7 +97,9 @@ func (m *qosContainerManagerImpl) Start(getNodeAllocatable func() v1.ResourceLis
 	// Top level for Qos containers are created only for Burstable
 	// and Best Effort classes
 	qosClasses := map[v1.PodQOSClass]CgroupName{
-		v1.PodQOSBurstable:  NewCgroupName(rootContainer, strings.ToLower(string(v1.PodQOSBurstable))),
+		// /burstable
+		v1.PodQOSBurstable: NewCgroupName(rootContainer, strings.ToLower(string(v1.PodQOSBurstable))),
+		// /besteffort
 		v1.PodQOSBestEffort: NewCgroupName(rootContainer, strings.ToLower(string(v1.PodQOSBestEffort))),
 	}
 

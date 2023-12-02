@@ -24,6 +24,8 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 )
 
+// InternalContainerLifecycle
+// TODO 这玩意干嘛的？
 type InternalContainerLifecycle interface {
 	PreCreateContainer(pod *v1.Pod, container *v1.Container, containerConfig *runtimeapi.ContainerConfig) error
 	PreStartContainer(pod *v1.Pod, container *v1.Container, containerID string) error

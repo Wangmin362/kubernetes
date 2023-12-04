@@ -24,6 +24,7 @@ import (
 )
 
 // RuntimeCache is in interface for obtaining cached Pods.
+// 缓存APIServer最新的Pod，同时指定TTL，在TTL时间内，缓存的Pod都认为是最新的；如果过了这个时间，就需要重新请求Pod
 type RuntimeCache interface {
 	GetPods(context.Context) ([]*Pod, error)
 	ForceUpdateIfOlder(context.Context, time.Time) error

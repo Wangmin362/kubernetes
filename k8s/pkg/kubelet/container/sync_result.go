@@ -120,7 +120,7 @@ func (p *PodSyncResult) Fail(err error) {
 
 // Error returns an error summarizing all the errors in PodSyncResult
 func (p *PodSyncResult) Error() error {
-	errlist := []error{}
+	var errlist []error
 	if p.SyncError != nil {
 		errlist = append(errlist, fmt.Errorf("failed to SyncPod: %v", p.SyncError))
 	}

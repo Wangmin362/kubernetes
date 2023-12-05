@@ -113,6 +113,7 @@ type NodeResizeOptions struct {
 }
 
 // DynamicPluginProber TODO 这玩意是用来干嘛的？
+// TODO 什么叫做动态插件？
 type DynamicPluginProber interface {
 	Init() error
 
@@ -127,12 +128,14 @@ type VolumePlugin interface {
 	// Init initializes the plugin.  This will be called exactly once
 	// before any New* calls are made - implementations of plugins may
 	// depend on this.
+	// 1、初始化插件，注入VolumeHost依赖
 	Init(host VolumeHost) error
 
 	// GetPluginName Name returns the plugin's name.  Plugins must use namespaced names
 	// such as "example.com/volume" and contain exactly one '/' character.
 	// The "kubernetes.io" namespace is reserved for plugins which are
 	// bundled with kubernetes.
+	// 获取当前卷插件的名字，譬如kubernetes.io/nfs
 	GetPluginName() string
 
 	// GetVolumeName returns the name/ID to uniquely identifying the actual
@@ -146,6 +149,7 @@ type VolumePlugin interface {
 	// CanSupport tests whether the plugin supports a given volume
 	// specification from the API.  The spec pointer should be considered
 	// const.
+	// 1、对于NFS插件来说，只要指定的NFS地址不为空即可
 	CanSupport(spec *Spec) bool
 
 	// RequiresRemount returns true if this plugin requires mount calls to be
@@ -157,27 +161,32 @@ type VolumePlugin interface {
 	// Ownership of the spec pointer in *not* transferred.
 	// - spec: The v1.Volume spec
 	// - pod: The enclosing pod
+	// 1、用于挂载指定的卷
 	NewMounter(spec *Spec, podRef *v1.Pod, opts VolumeOptions) (Mounter, error)
 
 	// NewUnmounter creates a new volume.Unmounter from recoverable state.
 	// - name: The volume name, as per the v1.Volume spec.
 	// - podUID: The UID of the enclosing pod
+	// 用于卸载指定卷
 	NewUnmounter(name string, podUID types.UID) (Unmounter, error)
 
 	// ConstructVolumeSpec constructs a volume spec based on the given volume name
 	// and volumePath. The spec may have incomplete information due to limited
 	// information from input. This function is used by volume manager to reconstruct
 	// volume spec by reading the volume directories from disk
+	// TODO 这玩意有啥用？
 	ConstructVolumeSpec(volumeName, volumePath string) (ReconstructedVolume, error)
 
 	// SupportsMountOption returns true if volume plugins supports Mount options
 	// Specifying mount options in a volume plugin that doesn't support
 	// user specified mount options will result in error creating persistent volumes
+	// TODO 这个参数有何用？
 	SupportsMountOption() bool
 
 	// SupportsBulkVolumeVerification checks if volume plugin type is capable
 	// of enabling bulk polling of all nodes. This can speed up verification of
 	// attached volumes by quite a bit, but underlying pluging must support it.
+	// 是否支持批量卷的校验
 	SupportsBulkVolumeVerification() bool
 
 	// SupportsSELinuxContextMount returns true if volume plugins supports
@@ -355,33 +364,38 @@ type AttachDetachVolumeHost interface {
 }
 
 // VolumeHost is an interface that plugins can use to access the kubelet.
-// TODO 如何理解这个接口的抽象？
+// 此接口用于访问kubelet
 type VolumeHost interface {
 	// GetPluginDir returns the absolute path to a directory under which
 	// a given plugin may store data.  This directory might not actually
 	// exist on disk yet.  For plugin data that is per-pod, see
 	// GetPodPluginDir().
+	// 默认为 /var/lib/kubelet/plugins/<plugin-name>
 	GetPluginDir(pluginName string) string
 
 	// GetVolumeDevicePluginDir returns the absolute path to a directory
 	// under which a given plugin may store data.
 	// ex. plugins/kubernetes.io/{PluginName}/{DefaultKubeletVolumeDevicesDirName}/{volumePluginDependentPath}/
+	// 默认为 /var/lib/kubelet/plugins/<plugin-name>/volumeDevices
 	GetVolumeDevicePluginDir(pluginName string) string
 
 	// GetPodsDir returns the absolute path to a directory where all the pods
 	// information is stored
+	// 默认为 /var/lib/kubelet/pods
 	GetPodsDir() string
 
 	// GetPodVolumeDir returns the absolute path a directory which
 	// represents the named volume under the named plugin for the given
 	// pod.  If the specified pod does not exist, the result of this call
 	// might not exist.
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/volumes/<plugin-name>/<volume-name>
 	GetPodVolumeDir(podUID types.UID, pluginName string, volumeName string) string
 
 	// GetPodPluginDir returns the absolute path to a directory under which
 	// a given plugin may store data for a given pod.  If the specified pod
 	// does not exist, the result of this call might not exist.  This
 	// directory might not actually exist on disk yet.
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/plugins/<plugin-name>
 	GetPodPluginDir(podUID types.UID, pluginName string) string
 
 	// GetPodVolumeDeviceDir returns the absolute path a directory which
@@ -389,9 +403,11 @@ type VolumeHost interface {
 	// If the specified pod does not exist, the result of this call
 	// might not exist.
 	// ex. pods/{podUid}/{DefaultKubeletVolumeDevicesDirName}/{escapeQualifiedPluginName}/
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/volumeDevices/<plugin-name>
 	GetPodVolumeDeviceDir(podUID types.UID, pluginName string) string
 
 	// GetKubeClient returns a client interface
+	// 用于获取ClientSet客户端
 	GetKubeClient() clientset.Interface
 
 	// NewWrapperMounter finds an appropriate plugin with which to handle
@@ -405,55 +421,64 @@ type VolumeHost interface {
 	// context.
 	NewWrapperUnmounter(volName string, spec Spec, podUID types.UID) (Unmounter, error)
 
-	// Get cloud provider from kubelet.
+	// GetCloudProvider Get cloud provider from kubelet.
 	GetCloudProvider() cloudprovider.Interface
 
-	// Get mounter interface.
+	// GetMounter Get mounter interface.
 	GetMounter(pluginName string) mount.Interface
 
-	// Returns the hostname of the host kubelet is running on
+	// GetHostName Returns the hostname of the host kubelet is running on
+	// 获取kubelet所在节点的主机名字
 	GetHostName() string
 
-	// Returns host IP or nil in the case of error.
+	// GetHostIP Returns host IP or nil in the case of error.
+	// 获取kubelet所在节点的主机IP地址
 	GetHostIP() (net.IP, error)
 
-	// Returns node allocatable.
+	// GetNodeAllocatable Returns node allocatable.
+	// 获取kubelet所在节点可分配资源的大小
 	GetNodeAllocatable() (v1.ResourceList, error)
 
-	// Returns a function that returns a secret.
+	// GetSecretFunc zReturns a function that returns a secret.
+	// 获取某个Secret
 	GetSecretFunc() func(namespace, name string) (*v1.Secret, error)
 
-	// Returns a function that returns a configmap.
+	// GetConfigMapFunc Returns a function that returns a configmap.
+	// 获取某个configmap
 	GetConfigMapFunc() func(namespace, name string) (*v1.ConfigMap, error)
 
+	// GetServiceAccountTokenFunc 获取Token
 	GetServiceAccountTokenFunc() func(namespace, name string, tr *authenticationv1.TokenRequest) (*authenticationv1.TokenRequest, error)
 
 	DeleteServiceAccountTokenFunc() func(podUID types.UID)
 
-	// Returns an interface that should be used to execute any utilities in volume plugins
+	// GetExec Returns an interface that should be used to execute any utilities in volume plugins
+	// TODO 暂时不知道这玩意干嘛的
 	GetExec(pluginName string) exec.Interface
 
-	// Returns the labels on the node
+	// GetNodeLabels Returns the labels on the node
 	GetNodeLabels() (map[string]string, error)
 
-	// Returns the name of the node
+	// GetNodeName Returns the name of the node
 	GetNodeName() types.NodeName
 
 	GetAttachedVolumesFromNodeStatus() (map[v1.UniqueVolumeName]string, error)
 
-	// Returns the event recorder of kubelet.
+	// GetEventRecorder Returns the event recorder of kubelet.
 	GetEventRecorder() record.EventRecorder
 
-	// Returns an interface that should be used to execute subpath operations
+	// GetSubpather Returns an interface that should be used to execute subpath operations
 	GetSubpather() subpath.Interface
 
-	// Returns options to pass for proxyutil filtered dialers.
+	// GetFilteredDialOptions Returns options to pass for proxyutil filtered dialers.
 	GetFilteredDialOptions() *proxyutil.FilteredDialOptions
 }
 
 // VolumePluginMgr tracks registered plugins.
+// 1、卷管理器用于追踪注册的插件
 type VolumePluginMgr struct {
-	mutex                     sync.RWMutex
+	mutex sync.RWMutex
+	// key为插件名, value为卷插件
 	plugins                   map[string]VolumePlugin
 	prober                    DynamicPluginProber
 	probedPlugins             map[string]VolumePlugin
@@ -463,11 +488,11 @@ type VolumePluginMgr struct {
 
 // Spec is an internal representation of a volume.  All API volume types translate to Spec.
 type Spec struct {
-	Volume                          *v1.Volume
-	PersistentVolume                *v1.PersistentVolume
-	ReadOnly                        bool
-	InlineVolumeSpecForCSIMigration bool
-	Migrated                        bool
+	Volume                          *v1.Volume           // 用于表示一个挂载卷
+	PersistentVolume                *v1.PersistentVolume // TODO 为什么需要这么一个东西？
+	ReadOnly                        bool                 // 当前卷是否只读
+	InlineVolumeSpecForCSIMigration bool                 // TODO 表示什么含义？
+	Migrated                        bool                 // TODO 表示什么含义？
 }
 
 // Name returns the name of either Volume or PersistentVolume, one of which must not be nil.
@@ -533,6 +558,7 @@ func (spec *Spec) KubeletExpandablePluginName() string {
 // used for truly one-off configuration. The binary should still use strong
 // typing for this value when binding CLI values before they are passed as
 // strings in OtherAttributes.
+// 1、TODO 如何理解这里的配置？
 type VolumeConfig struct {
 	// RecyclerPodTemplate is pod template that understands how to scrub clean
 	// a persistent volume after its release. The template is used by plugins

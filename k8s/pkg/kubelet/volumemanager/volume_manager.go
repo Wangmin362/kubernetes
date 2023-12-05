@@ -88,6 +88,8 @@ const (
 // VolumeManager runs a set of asynchronous loops that figure out which volumes
 // need to be attached/mounted/unmounted/detached based on the pods scheduled on
 // this node and makes it so.
+// TODO 卷管理器是如何抽象管理挂在卷的呢？ 卷管理器需要支持不同类型的卷的挂载，大多数类型的卷还需要支持attach/detach操作
+// TODO 卷管理器需要支持磁盘的插入/拔出, 挂载/卸载操作
 type VolumeManager interface {
 	// Run Starts the volume manager and all the asynchronous loops that it controls
 	Run(sourcesReady config.SourcesReady, stopCh <-chan struct{})
@@ -176,7 +178,8 @@ func NewVolumeManager(
 	kubeletPodsDir string,
 	recorder record.EventRecorder,
 	keepTerminatedPodVolumes bool,
-	blockVolumePathHandler volumepathhandler.BlockVolumePathHandler) VolumeManager {
+	blockVolumePathHandler volumepathhandler.BlockVolumePathHandler,
+) VolumeManager {
 
 	seLinuxTranslator := util.NewSELinuxLabelTranslator()
 	vm := &volumeManager{
@@ -241,6 +244,7 @@ type volumeManager struct {
 	// attached and which pods are referencing the volumes).
 	// The data structure is populated by the desired state of the world
 	// populator using the kubelet pod manager.
+	// 卷的期望状态，用户的期望就是把某个卷挂载到某个目录
 	desiredStateOfWorld cache.DesiredStateOfWorld
 
 	// actualStateOfWorld is a data structure containing the actual state of
@@ -248,6 +252,7 @@ type volumeManager struct {
 	// this node and what pods the volumes are mounted to.
 	// The data structure is populated upon successful completion of attach,
 	// detach, mount, and unmount actions triggered by the reconciler.
+	// 卷的实际状态
 	actualStateOfWorld cache.ActualStateOfWorld
 
 	// operationExecutor is used to start asynchronous attach, detach, mount,

@@ -38,7 +38,7 @@ import (
 )
 
 // length for the user namespace to create (65536).
-const userNsLength = (1 << 16)
+const userNsLength = 1 << 16
 
 // Limit the total number of pods using userns in this node to this value.
 // This is an alpha limitation that will probably be lifted later.

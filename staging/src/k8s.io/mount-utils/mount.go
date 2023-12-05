@@ -36,6 +36,7 @@ const (
 )
 
 // Interface defines the set of methods to allow for mount operations on a system.
+// TODO 暂时当成一个黑盒，直接使用API即可
 type Interface interface {
 	// Mount mounts source to target as fstype with given options.
 	// options MUST not contain sensitive material (like passwords).

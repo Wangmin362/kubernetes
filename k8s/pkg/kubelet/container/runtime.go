@@ -517,6 +517,7 @@ type VolumeInfo struct {
 }
 
 // VolumeMap represents the map of volumes.
+// TODO key保存的是啥？
 type VolumeMap map[string]VolumeInfo
 
 // RuntimeConditionType is the types of required runtime conditions.

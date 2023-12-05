@@ -33,6 +33,7 @@ const (
 )
 
 // Volume represents a named volume in a pod that may be accessed by any container in the pod.
+// 1、用于表示一个卷的必要信息，通过必要信息我们可以正常使用一个卷；譬如对于NFS卷来说，必要的信息就是NFS地址、端口、目录
 type Volume struct {
 	// name of the volume.
 	// Must be a DNS_LABEL and unique within the pod.
@@ -44,8 +45,9 @@ type Volume struct {
 	VolumeSource `json:",inline" protobuf:"bytes,2,opt,name=volumeSource"`
 }
 
-// Represents the source of a volume to mount.
+// VolumeSource Represents the source of a volume to mount.
 // Only one of its members may be specified.
+// 1、用于抽象不同方式的卷
 type VolumeSource struct {
 	// hostPath represents a pre-existing file or directory on the host
 	// machine that is directly exposed to the container. This is generally
@@ -106,6 +108,7 @@ type VolumeSource struct {
 	// flexVolume represents a generic volume resource that is
 	// provisioned/attached using an exec based plugin.
 	// +optional
+	// TODO 需要知道FlexVolume的原理
 	FlexVolume *FlexVolumeSource `json:"flexVolume,omitempty" protobuf:"bytes,12,opt,name=flexVolume"`
 	// cinder represents a cinder volume attached and mounted on kubelets host machine.
 	// More info: https://examples.k8s.io/mysql-cinder-pd/README.md
@@ -153,6 +156,7 @@ type VolumeSource struct {
 	StorageOS *StorageOSVolumeSource `json:"storageos,omitempty" protobuf:"bytes,27,opt,name=storageos"`
 	// csi (Container Storage Interface) represents ephemeral storage that is handled by certain external CSI drivers (Beta feature).
 	// +optional
+	// TODO 最重要的就是CSI插件
 	CSI *CSIVolumeSource `json:"csi,omitempty" protobuf:"bytes,28,opt,name=csi"`
 	// ephemeral represents a volume that is handled by a cluster storage driver.
 	// The volume's lifecycle is tied to the pod that defines it - it will be created before the pod starts,

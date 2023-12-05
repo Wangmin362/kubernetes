@@ -56,8 +56,8 @@ func NewInitializedVolumePluginMgr(
 	secretManager secret.Manager,
 	configMapManager configmap.Manager,
 	tokenManager *token.Manager,
-	plugins []volume.VolumePlugin,
-	prober volume.DynamicPluginProber,
+	plugins []volume.VolumePlugin, // TODO 重点分析
+	prober volume.DynamicPluginProber, // TODO 重点分析
 ) (*volume.VolumePluginMgr, error) {
 
 	// Initialize csiDriverLister before calling InitPlugins
@@ -101,35 +101,41 @@ func NewInitializedVolumePluginMgr(
 var _ volume.VolumeHost = &kubeletVolumeHost{}
 var _ volume.KubeletVolumeHost = &kubeletVolumeHost{}
 
+// GetPluginDir 默认为 /var/lib/kubelet/plugins/<plugin-name>
 func (kvh *kubeletVolumeHost) GetPluginDir(pluginName string) string {
+	// 默认为 /var/lib/kubelet/plugins/<plugin-name>
 	return kvh.kubelet.getPluginDir(pluginName)
 }
 
 type kubeletVolumeHost struct {
-	kubelet          *Kubelet
+	kubelet          *Kubelet // 这玩意居然依赖kubelet实例
 	volumePluginMgr  volume.VolumePluginMgr
 	secretManager    secret.Manager
 	tokenManager     *token.Manager
 	configMapManager configmap.Manager
 	informerFactory  informers.SharedInformerFactory
-	csiDriverLister  storagelisters.CSIDriverLister
-	csiDriversSynced cache.InformerSynced
-	exec             utilexec.Interface
+	csiDriverLister  storagelisters.CSIDriverLister // 用于查询CSI Driver
+	csiDriversSynced cache.InformerSynced           // 用于判断CSI Driver是否同步完成
+	exec             utilexec.Interface             // TODO 似乎是用来测试使用的
 }
 
+// SetKubeletError 用于设置kubelet错误
 func (kvh *kubeletVolumeHost) SetKubeletError(err error) {
 	kvh.kubelet.runtimeState.setStorageState(err)
 }
 
+// GetVolumeDevicePluginDir 默认为 /var/lib/kubelet/plugins/<plugin-name>/volumeDevices
 func (kvh *kubeletVolumeHost) GetVolumeDevicePluginDir(pluginName string) string {
 	return kvh.kubelet.getVolumeDevicePluginDir(pluginName)
 }
 
+// GetPodsDir 默认为 /var/lib/kubelet/pods
 func (kvh *kubeletVolumeHost) GetPodsDir() string {
 	return kvh.kubelet.getPodsDir()
 }
 
 func (kvh *kubeletVolumeHost) GetPodVolumeDir(podUID types.UID, pluginName string, volumeName string) string {
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/volumes/<plugin-name>/<volume-name>
 	dir := kvh.kubelet.getPodVolumeDir(podUID, pluginName, volumeName)
 	if runtime.GOOS == "windows" {
 		dir = util.GetWindowsPath(dir)
@@ -137,11 +143,15 @@ func (kvh *kubeletVolumeHost) GetPodVolumeDir(podUID types.UID, pluginName strin
 	return dir
 }
 
+// GetPodVolumeDeviceDir 默认为 /var/lib/kubelet/pods/<pod-uid>/volumeDevices/<plugin-name>
 func (kvh *kubeletVolumeHost) GetPodVolumeDeviceDir(podUID types.UID, pluginName string) string {
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/volumeDevices/<plugin-name>
 	return kvh.kubelet.getPodVolumeDeviceDir(podUID, pluginName)
 }
 
+// GetPodPluginDir 默认为 /var/lib/kubelet/pods/<pod-uid>/plugins/<plugin-name>
 func (kvh *kubeletVolumeHost) GetPodPluginDir(podUID types.UID, pluginName string) string {
+	// 默认为 /var/lib/kubelet/pods/<pod-uid>/plugins/<plugin-name>
 	return kvh.kubelet.getPodPluginDir(podUID, pluginName)
 }
 

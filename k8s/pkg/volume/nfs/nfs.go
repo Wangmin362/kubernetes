@@ -93,6 +93,8 @@ func (plugin *nfsPlugin) CanSupport(spec *volume.Spec) bool {
 		(spec.Volume != nil && spec.Volume.NFS != nil)
 }
 
+// RequiresRemount
+// TODO 为什么NFS这种存储类型不需要重新挂载？
 func (plugin *nfsPlugin) RequiresRemount(spec *volume.Spec) bool {
 	return false
 }

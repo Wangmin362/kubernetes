@@ -71,6 +71,7 @@ func (s *runtimeState) setRuntimeState(err error) {
 	s.runtimeError = err
 }
 
+// 用于设置存储错误
 func (s *runtimeState) setStorageState(err error) {
 	s.Lock()
 	defer s.Unlock()

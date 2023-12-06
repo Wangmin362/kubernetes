@@ -35,6 +35,7 @@ var (
 // object, or an error if the object doesn't follow the conventions
 // that would allow this.
 // TODO: should take a meta.Interface see https://issue.k8s.io/7127
+// 1、获取对象的引用，实际上没干个啥，其实就是获取当前对象的APIVersion, Kind, UID, 名称、名称空间等等信息。方便其它资源对象引用
 func GetReference(scheme *runtime.Scheme, obj runtime.Object) (*v1.ObjectReference, error) {
 	if obj == nil {
 		return nil, ErrNilObject
@@ -100,6 +101,7 @@ func GetReference(scheme *runtime.Scheme, obj runtime.Object) (*v1.ObjectReferen
 
 // GetPartialReference is exactly like GetReference, but allows you to set the FieldPath.
 func GetPartialReference(scheme *runtime.Scheme, obj runtime.Object, fieldPath string) (*v1.ObjectReference, error) {
+	// 获取当前资源的对象引用信息，并指定路径
 	ref, err := GetReference(scheme, obj)
 	if err != nil {
 		return nil, err

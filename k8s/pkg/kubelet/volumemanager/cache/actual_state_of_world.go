@@ -209,8 +209,9 @@ func (av AttachedVolume) DeviceMayBeMounted() bool {
 
 // NewActualStateOfWorld returns a new instance of ActualStateOfWorld.
 func NewActualStateOfWorld(
-	nodeName types.NodeName,
-	volumePluginMgr *volume.VolumePluginMgr) ActualStateOfWorld {
+	nodeName types.NodeName, // 当前节点的node名字
+	volumePluginMgr *volume.VolumePluginMgr,
+) ActualStateOfWorld {
 	return &actualStateOfWorld{
 		nodeName:                  nodeName,
 		attachedVolumes:           make(map[v1.UniqueVolumeName]attachedVolume),
@@ -246,10 +247,12 @@ type actualStateOfWorld struct {
 	attachedVolumes map[v1.UniqueVolumeName]attachedVolume
 	// foundDuringReconstruction is a map of volumes which were discovered
 	// from kubelet root directory when kubelet was restarted.
+	// TODO 如何理解这个属性
 	foundDuringReconstruction map[v1.UniqueVolumeName]map[volumetypes.UniquePodName]types.UID
 
 	// volumePluginMgr is the volume plugin manager used to create volume
 	// plugin objects.
+	// 卷管理器用于追踪、管理注册的卷插件。实际上就是一个Map, key为插件名，value为插件
 	volumePluginMgr *volume.VolumePluginMgr
 	sync.RWMutex
 }
@@ -266,6 +269,7 @@ type attachedVolume struct {
 	// successfully mounted to. The key in this map is the name of the pod and
 	// the value is a mountedPod object containing more information about the
 	// pod.
+	// 用于记录Pod挂载的卷
 	mountedPods map[volumetypes.UniquePodName]mountedPod
 
 	// spec is the volume spec containing the specification for this volume.
@@ -280,10 +284,12 @@ type attachedVolume struct {
 	// volume spec (everything except the name) can not be reconstructed for a
 	// volume that should be unmounted (which would be the case for a mount path
 	// read from disk without a full volume spec).
+	// 支持关在当前卷名的卷插件名字
 	pluginName string
 
 	// pluginIsAttachable indicates the volume plugin used to attach and mount
 	// this volume implements the volume.Attacher interface
+	// 支持关在当前卷名的卷插件是否支持Attach/Detach操作
 	pluginIsAttachable bool
 
 	// deviceMountState stores information that tells us if device is mounted
@@ -292,6 +298,7 @@ type attachedVolume struct {
 
 	// devicePath contains the path on the node where the volume is attached for
 	// attachable volumes
+	// TODO 这个参数干吗用的？
 	devicePath string
 
 	// deviceMountPath contains the path on the node where the device should
@@ -362,9 +369,14 @@ type mountedPod struct {
 	seLinuxMountContext string
 }
 
+// MarkVolumeAsAttached 用于标记当前卷是否支持Attach/Detach操作
 func (asw *actualStateOfWorld) MarkVolumeAsAttached(
 	logger klog.Logger,
-	volumeName v1.UniqueVolumeName, volumeSpec *volume.Spec, _ types.NodeName, devicePath string) error {
+	volumeName v1.UniqueVolumeName, // 卷名
+	volumeSpec *volume.Spec, // 卷规格，可以理解为期望状态
+	_ types.NodeName,
+	devicePath string, // TODO 如何理解设备路径？
+) error {
 	return asw.addVolume(volumeName, volumeSpec, devicePath)
 }
 
@@ -595,44 +607,41 @@ func (asw *actualStateOfWorld) IsVolumeMountedElsewhere(volumeName v1.UniqueVolu
 // volume with the same generated name already exists, this is a noop. If no
 // volume plugin can support the given volumeSpec or more than one plugin can
 // support it, an error is returned.
-func (asw *actualStateOfWorld) addVolume(
-	volumeName v1.UniqueVolumeName, volumeSpec *volume.Spec, devicePath string) error {
+func (asw *actualStateOfWorld) addVolume(volumeName v1.UniqueVolumeName, volumeSpec *volume.Spec, devicePath string) error {
 	asw.Lock()
 	defer asw.Unlock()
 
+	// 查找当前卷请求的卷插件
 	volumePlugin, err := asw.volumePluginMgr.FindPluginBySpec(volumeSpec)
 	if err != nil || volumePlugin == nil {
-		return fmt.Errorf(
-			"failed to get Plugin from volumeSpec for volume %q err=%v",
-			volumeSpec.Name(),
-			err)
+		return fmt.Errorf("failed to get Plugin from volumeSpec for volume %q err=%v", volumeSpec.Name(), err)
 	}
 
 	if len(volumeName) == 0 {
+		// 如果没有指定卷名，那么使用卷插件以及卷规格信息生成卷的唯一名字
 		volumeName, err = util.GetUniqueVolumeNameFromSpec(volumePlugin, volumeSpec)
 		if err != nil {
-			return fmt.Errorf(
-				"failed to GetUniqueVolumeNameFromSpec for volumeSpec %q using volume plugin %q err=%v",
-				volumeSpec.Name(),
-				volumePlugin.GetPluginName(),
-				err)
+			return fmt.Errorf("failed to GetUniqueVolumeNameFromSpec for volumeSpec %q using volume plugin %q err=%v",
+				volumeSpec.Name(), volumePlugin.GetPluginName(), err)
 		}
 	}
 
 	pluginIsAttachable := false
+	// 判断当前插件是否可以支持attach/detach
 	if attachablePlugin, err := asw.volumePluginMgr.FindAttachablePluginBySpec(volumeSpec); err == nil && attachablePlugin != nil {
 		pluginIsAttachable = true
 	}
 
 	volumeObj, volumeExists := asw.attachedVolumes[volumeName]
 	if !volumeExists {
+		// 说明之前没有保存过
 		volumeObj = attachedVolume{
 			volumeName:         volumeName,
 			spec:               volumeSpec,
 			mountedPods:        make(map[volumetypes.UniquePodName]mountedPod),
-			pluginName:         volumePlugin.GetPluginName(),
+			pluginName:         volumePlugin.GetPluginName(), // 直接保存插件名即可
 			pluginIsAttachable: pluginIsAttachable,
-			deviceMountState:   operationexecutor.DeviceNotMounted,
+			deviceMountState:   operationexecutor.DeviceNotMounted, // 刚开始任务
 			devicePath:         devicePath,
 		}
 	} else {
@@ -659,9 +668,7 @@ func (asw *actualStateOfWorld) AddPodToVolume(markVolumeOpts operationexecutor.M
 
 	volumeObj, volumeExists := asw.attachedVolumes[volumeName]
 	if !volumeExists {
-		return fmt.Errorf(
-			"no volume with the name %q exists in the list of attached volumes",
-			volumeName)
+		return fmt.Errorf("no volume with the name %q exists in the list of attached volumes", volumeName)
 	}
 
 	podObj, podExists := volumeObj.mountedPods[podName]
@@ -671,7 +678,8 @@ func (asw *actualStateOfWorld) AddPodToVolume(markVolumeOpts operationexecutor.M
 		// Update uncertain volumes - the new markVolumeOpts may have updated information.
 		// Especially reconstructed volumes (marked as uncertain during reconstruction) need
 		// an update.
-		updateUncertainVolume = utilfeature.DefaultFeatureGate.Enabled(features.SELinuxMountReadWriteOncePod) && podObj.volumeMountStateForPod == operationexecutor.VolumeMountUncertain
+		updateUncertainVolume = utilfeature.DefaultFeatureGate.Enabled(features.SELinuxMountReadWriteOncePod) &&
+			podObj.volumeMountStateForPod == operationexecutor.VolumeMountUncertain
 	}
 	if !podExists || updateUncertainVolume {
 		// Add new mountedPod or update existing one.

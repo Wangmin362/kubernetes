@@ -76,7 +76,9 @@ var (
 // in particular, it ensures that a containerID never appears in an event message as that
 // is prone to causing a lot of distinct events that do not count well.
 // it replaces any reference to a containerID with the containerName which is stable, and is what users know.
+// 记录容器的事件
 func (m *kubeGenericRuntimeManager) recordContainerEvent(pod *v1.Pod, container *v1.Container, containerID, eventType, reason, message string, args ...interface{}) {
+	// 获取Pod资源对象的引用信息，并指定引用路径为具体的container
 	ref, err := kubecontainer.GenerateContainerRef(pod, container)
 	if err != nil {
 		klog.ErrorS(err, "Can't make a container ref", "pod", klog.KObj(pod), "podUID", pod.UID, "containerName", container.Name)
@@ -99,8 +101,8 @@ func (m *kubeGenericRuntimeManager) recordContainerEvent(pod *v1.Pod, container 
 // or an ephemeral container. Ephemeral containers contain all the fields of regular/init
 // containers, plus some additional fields. In both cases startSpec.container will be set.
 type startSpec struct {
-	container          *v1.Container
-	ephemeralContainer *v1.EphemeralContainer
+	container          *v1.Container          // 普通容器
+	ephemeralContainer *v1.EphemeralContainer // 临时容器  TODO 普通容器和临时容器的区别是啥？
 }
 
 func containerStartSpec(c *v1.Container) *startSpec {
@@ -173,10 +175,21 @@ func calcRestartCountByLogDir(path string) (int, error) {
 // * create the container
 // * start the container
 // * run the post start lifecycle hooks (if applicable)
-func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandboxID string, podSandboxConfig *runtimeapi.PodSandboxConfig, spec *startSpec, pod *v1.Pod, podStatus *kubecontainer.PodStatus, pullSecrets []v1.Secret, podIP string, podIPs []string) (string, error) {
+func (m *kubeGenericRuntimeManager) startContainer(
+	ctx context.Context,
+	podSandboxID string, // 当前容器的沙箱ID
+	podSandboxConfig *runtimeapi.PodSandboxConfig, // TODO 沙箱配置
+	spec *startSpec, // 容器规格（用户的请求）
+	pod *v1.Pod, // 当前Pod
+	podStatus *kubecontainer.PodStatus, // Pod状态
+	pullSecrets []v1.Secret, // 镜像仓库很有可能是私仓，可能需要会配置一些镜像拉取密钥
+	podIP string,
+	podIPs []string,
+) (string, error) {
 	container := spec.container
 
 	// Step 1: pull the image.
+	// 第一步：拉取镜像，确保容器使用的镜像出现在当前节点上
 	imageRef, msg, err := m.imagePuller.EnsureImageExists(ctx, pod, container, pullSecrets, podSandboxConfig)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
@@ -187,8 +200,10 @@ func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandb
 	// Step 2: create the container.
 	// For a new container, the RestartCount should be 0
 	restartCount := 0
+	// 获取容器的状态
 	containerStatus := podStatus.FindContainerStatusByName(container.Name)
 	if containerStatus != nil {
+		// TODO 如果容器状态存在，说明之前就已经尝试启动过容器，但是没有启动成功，所以后续才会尝试启动容器
 		restartCount = containerStatus.RestartCount + 1
 	} else {
 		// The container runtime keeps state on container statuses and
@@ -201,7 +216,9 @@ func (m *kubeGenericRuntimeManager) startContainer(ctx context.Context, podSandb
 		// We are checking to see if the log directory exists, and find
 		// the latest restartCount by checking the log name -
 		// {restartCount}.log - and adding 1 to it.
+		// /var/log/pods/<pod-namespace>-<pod-name>-<pod-uid>/<container-name>
 		logDir := BuildContainerLogsDirectory(pod.Namespace, pod.Name, pod.UID, container.Name)
+		// 通过日志文件的数量，来判断重启次数
 		restartCount, err = calcRestartCountByLogDir(logDir)
 		if err != nil {
 			klog.InfoS("Cannot calculate restartCount from the log directory", "logDir", logDir, "err", err)

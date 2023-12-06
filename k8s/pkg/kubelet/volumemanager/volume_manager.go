@@ -280,6 +280,7 @@ func (vm *volumeManager) Run(sourcesReady config.SourcesReady, stopCh <-chan str
 
 	if vm.kubeClient != nil {
 		// start informer for CSIDriver
+		// 启动Informer
 		go vm.volumePluginMgr.Run(stopCh)
 	}
 

@@ -73,6 +73,7 @@ type VolumeOptions struct {
 	// Reclamation policy for a persistent volume
 	PersistentVolumeReclaimPolicy v1.PersistentVolumeReclaimPolicy
 	// Mount options for a persistent volume
+	// TODO 1、挂载参数是如何使用的？
 	MountOptions []string
 	// Suggested PV.Name of the PersistentVolume to provision.
 	// This is a generated name guaranteed to be unique in Kubernetes cluster.
@@ -112,7 +113,8 @@ type NodeResizeOptions struct {
 	OldSize resource.Quantity
 }
 
-// DynamicPluginProber TODO 这玩意是用来干嘛的？
+// DynamicPluginProber
+// TODO 这玩意是用来干嘛的？
 // TODO 什么叫做动态插件？
 type DynamicPluginProber interface {
 	Init() error
@@ -199,6 +201,7 @@ type VolumePlugin interface {
 type PersistentVolumePlugin interface {
 	VolumePlugin
 	// GetAccessModes describes the ways a given volume can be accessed/mounted.
+	// 获取持久卷的访问模式
 	GetAccessModes() []v1.PersistentVolumeAccessMode
 }
 
@@ -213,12 +216,14 @@ type RecyclableVolumePlugin interface {
 	// Recycle will use the provided recorder to write any events that might be
 	// interesting to user. It's expected that caller will pass these events to
 	// the PV being recycled.
+	// TODO 一个存储卷如何循环使用？
 	Recycle(pvName string, spec *Spec, eventRecorder recyclerclient.RecycleEventRecorder) error
 }
 
 // DeletableVolumePlugin is an extended interface of VolumePlugin and is used
 // by persistent volumes that want to be deleted from the cluster after their
 // release from a PersistentVolumeClaim.
+// 1、删除一个持久卷
 type DeletableVolumePlugin interface {
 	VolumePlugin
 	// NewDeleter creates a new volume.Deleter which knows how to delete this
@@ -229,6 +234,7 @@ type DeletableVolumePlugin interface {
 
 // ProvisionableVolumePlugin is an extended interface of VolumePlugin and is
 // used to create volumes for the cluster.
+// 1、创建一个持久卷
 type ProvisionableVolumePlugin interface {
 	VolumePlugin
 	// NewProvisioner creates a new volume.Provisioner which knows how to
@@ -239,6 +245,7 @@ type ProvisionableVolumePlugin interface {
 
 // AttachableVolumePlugin is an extended interface of VolumePlugin and is used for volumes that require attachment
 // to a node before mounting.
+// 1、支持卷的Attach/Detach操作
 type AttachableVolumePlugin interface {
 	DeviceMountableVolumePlugin
 	NewAttacher() (Attacher, error)
@@ -249,6 +256,7 @@ type AttachableVolumePlugin interface {
 
 // DeviceMountableVolumePlugin is an extended interface of VolumePlugin and is used
 // for volumes that requires mount device to a node before binding to volume to pod.
+// TODO 1、什么叫做MountDevice
 type DeviceMountableVolumePlugin interface {
 	VolumePlugin
 	NewDeviceMounter() (DeviceMounter, error)
@@ -260,6 +268,7 @@ type DeviceMountableVolumePlugin interface {
 
 // ExpandableVolumePlugin is an extended interface of VolumePlugin and is used for volumes that can be
 // expanded via control-plane ExpandVolumeDevice call.
+// 1、支持卷的扩容
 type ExpandableVolumePlugin interface {
 	VolumePlugin
 	ExpandVolumeDevice(spec *Spec, newSize resource.Quantity, oldSize resource.Quantity) (resource.Quantity, error)
@@ -279,7 +288,7 @@ type NodeExpandableVolumePlugin interface {
 // volumes that can be attached to a node.
 type VolumePluginWithAttachLimits interface {
 	VolumePlugin
-	// Return maximum number of volumes that can be attached to a node for this plugin.
+	// GetVolumeLimits Return maximum number of volumes that can be attached to a node for this plugin.
 	// The key must be same as string returned by VolumeLimitKey function. The returned
 	// map may look like:
 	//     - { "storage-limits-aws-ebs": 39 }
@@ -291,7 +300,7 @@ type VolumePluginWithAttachLimits interface {
 	// The returned values are stored in node allocatable property and will be used
 	// by scheduler to determine how many pods with volumes can be scheduled on given node.
 	GetVolumeLimits() (map[string]int64, error)
-	// Return volume limit key string to be used in node capacity constraints
+	// VolumeLimitKey Return volume limit key string to be used in node capacity constraints
 	// The key must start with prefix storage-limits-. For example:
 	//    - storage-limits-aws-ebs
 	//    - storage-limits-csi-cinder
@@ -302,6 +311,7 @@ type VolumePluginWithAttachLimits interface {
 }
 
 // BlockVolumePlugin is an extend interface of VolumePlugin and is used for block volumes support.
+// 1、似乎是对于块设备的支持
 type BlockVolumePlugin interface {
 	VolumePlugin
 	// NewBlockVolumeMapper creates a new volume.BlockVolumeMapper from an API specification.
@@ -475,13 +485,16 @@ type VolumeHost interface {
 }
 
 // VolumePluginMgr tracks registered plugins.
-// 1、卷管理器用于追踪注册的插件
+// 1、卷管理器用于追踪、管理注册的卷插件。实际上就是一个Map, key为插件名，value为插件
 type VolumePluginMgr struct {
 	mutex sync.RWMutex
 	// key为插件名, value为卷插件
-	plugins                   map[string]VolumePlugin
-	prober                    DynamicPluginProber
-	probedPlugins             map[string]VolumePlugin
+	plugins map[string]VolumePlugin
+	// TODO 分析这玩意
+	prober DynamicPluginProber
+	// TODO Probed插件和普通的卷插件有何不同
+	probedPlugins map[string]VolumePlugin
+	// 用于保存已经废弃API的警告信息
 	loggedDeprecationWarnings sets.String
 	Host                      VolumeHost
 }
@@ -620,6 +633,7 @@ func NewSpecFromPersistentVolume(pv *v1.PersistentVolume, readOnly bool) *Spec {
 // InitPlugins initializes each plugin.  All plugins must have unique names.
 // This must be called exactly once before any New* methods are called on any
 // plugins.
+// 1、遍历传入的卷插件，挨个注册，同时调用每个卷插件的Init(host)方法进行卷插件的初始化
 func (pm *VolumePluginMgr) InitPlugins(plugins []VolumePlugin, prober DynamicPluginProber, host VolumeHost) error {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
@@ -633,6 +647,7 @@ func (pm *VolumePluginMgr) InitPlugins(plugins []VolumePlugin, prober DynamicPlu
 	} else {
 		pm.prober = prober
 	}
+	// TODO 初始化卷探测器
 	if err := pm.prober.Init(); err != nil {
 		// Prober init failure should not affect the initialization of other plugins.
 		klog.ErrorS(err, "Error initializing dynamic plugin prober")
@@ -646,24 +661,30 @@ func (pm *VolumePluginMgr) InitPlugins(plugins []VolumePlugin, prober DynamicPlu
 		pm.probedPlugins = map[string]VolumePlugin{}
 	}
 
-	allErrs := []error{}
+	var allErrs []error
+	// 遍历所有的注册的卷插件
 	for _, plugin := range plugins {
 		name := plugin.GetPluginName()
+		// 校验卷插件的名字是否有效
 		if errs := validation.IsQualifiedName(name); len(errs) != 0 {
 			allErrs = append(allErrs, fmt.Errorf("volume plugin has invalid name: %q: %s", name, strings.Join(errs, ";")))
 			continue
 		}
 
+		// 已经注册过的卷不允许再注册
 		if _, found := pm.plugins[name]; found {
 			allErrs = append(allErrs, fmt.Errorf("volume plugin %q was registered more than once", name))
 			continue
 		}
+
+		// 初始化卷插件，注意VolumeHost依赖
 		err := plugin.Init(host)
 		if err != nil {
 			klog.ErrorS(err, "Failed to load volume plugin", "pluginName", name)
 			allErrs = append(allErrs, err)
 			continue
 		}
+		// 保存注册过的卷插件
 		pm.plugins[name] = plugin
 		klog.V(1).InfoS("Loaded volume plugin", "pluginName", name)
 	}
@@ -671,11 +692,14 @@ func (pm *VolumePluginMgr) InitPlugins(plugins []VolumePlugin, prober DynamicPlu
 }
 
 func (pm *VolumePluginMgr) initProbedPlugin(probedPlugin VolumePlugin) error {
+	// 获取卷的名字
 	name := probedPlugin.GetPluginName()
+	// 校验卷名是否符合规范
 	if errs := validation.IsQualifiedName(name); len(errs) != 0 {
 		return fmt.Errorf("volume plugin has invalid name: %q: %s", name, strings.Join(errs, ";"))
 	}
 
+	// 初始化ProbedVolumePlugin
 	err := probedPlugin.Init(pm.Host)
 	if err != nil {
 		return fmt.Errorf("failed to load volume plugin %s, error: %s", name, err.Error())
@@ -688,6 +712,7 @@ func (pm *VolumePluginMgr) initProbedPlugin(probedPlugin VolumePlugin) error {
 // FindPluginBySpec looks for a plugin that can support a given volume
 // specification.  If no plugins can support or more than one plugin can
 // support it, return error.
+// 1、根据调用方指定的卷，找到其对应的卷插件
 func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
@@ -697,14 +722,16 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 	}
 
 	var match VolumePlugin
-	matchedPluginNames := []string{}
+	var matchedPluginNames []string
 	for _, v := range pm.plugins {
 		if v.CanSupport(spec) {
 			match = v
+			// 保存支持当前卷的卷插件名字
 			matchedPluginNames = append(matchedPluginNames, v.GetPluginName())
 		}
 	}
 
+	// TODO 刷新Probed卷插件
 	pm.refreshProbedPlugins()
 	for _, plugin := range pm.probedPlugins {
 		if plugin.CanSupport(spec) {
@@ -716,6 +743,7 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 	if len(matchedPluginNames) == 0 {
 		return nil, fmt.Errorf("no volume plugin matched")
 	}
+	// 看来有多个卷插件支持，也不得行；显然，这会引起歧义
 	if len(matchedPluginNames) > 1 {
 		return nil, fmt.Errorf("multiple volume plugins matched: %s", strings.Join(matchedPluginNames, ","))
 	}
@@ -725,6 +753,7 @@ func (pm *VolumePluginMgr) FindPluginBySpec(spec *Spec) (VolumePlugin, error) {
 
 // FindPluginByName fetches a plugin by name or by legacy name.  If no plugin
 // is found, returns error.
+// 通过名字找到卷插件
 func (pm *VolumePluginMgr) FindPluginByName(name string) (VolumePlugin, error) {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
@@ -768,6 +797,7 @@ func (pm *VolumePluginMgr) refreshProbedPlugins() {
 					"pluginName", event.Plugin.GetPluginName())
 				continue
 			}
+			// 保存Probed卷插件
 			pm.probedPlugins[event.Plugin.GetPluginName()] = event.Plugin
 		} else if event.Op == ProbeRemove {
 			// Plugin is not available on ProbeRemove event, only PluginName
@@ -780,11 +810,12 @@ func (pm *VolumePluginMgr) refreshProbedPlugins() {
 }
 
 // ListVolumePluginWithLimits returns plugins that have volume limits on nodes
+// 获取支持VolumeLimit的卷插件
 func (pm *VolumePluginMgr) ListVolumePluginWithLimits() []VolumePluginWithAttachLimits {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
 
-	matchedPlugins := []VolumePluginWithAttachLimits{}
+	var matchedPlugins []VolumePluginWithAttachLimits
 	for _, v := range pm.plugins {
 		if plugin, ok := v.(VolumePluginWithAttachLimits); ok {
 			matchedPlugins = append(matchedPlugins, plugin)
@@ -796,6 +827,7 @@ func (pm *VolumePluginMgr) ListVolumePluginWithLimits() []VolumePluginWithAttach
 // FindPersistentPluginBySpec looks for a persistent volume plugin that can
 // support a given volume specification.  If no plugin is found, return an
 // error
+// 获取持久卷
 func (pm *VolumePluginMgr) FindPersistentPluginBySpec(spec *Spec) (PersistentVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginBySpec(spec)
 	if err != nil {
@@ -809,6 +841,7 @@ func (pm *VolumePluginMgr) FindPersistentPluginBySpec(spec *Spec) (PersistentVol
 
 // FindVolumePluginWithLimitsBySpec returns volume plugin that has a limit on how many
 // of them can be attached to a node
+// 获取卷的Limit
 func (pm *VolumePluginMgr) FindVolumePluginWithLimitsBySpec(spec *Spec) (VolumePluginWithAttachLimits, error) {
 	volumePlugin, err := pm.FindPluginBySpec(spec)
 	if err != nil {
@@ -823,6 +856,7 @@ func (pm *VolumePluginMgr) FindVolumePluginWithLimitsBySpec(spec *Spec) (VolumeP
 
 // FindPersistentPluginByName fetches a persistent volume plugin by name.  If
 // no plugin is found, returns error.
+// 获取持久卷
 func (pm *VolumePluginMgr) FindPersistentPluginByName(name string) (PersistentVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginByName(name)
 	if err != nil {
@@ -834,8 +868,9 @@ func (pm *VolumePluginMgr) FindPersistentPluginByName(name string) (PersistentVo
 	return nil, fmt.Errorf("no persistent volume plugin matched")
 }
 
-// FindRecyclablePluginByName fetches a persistent volume plugin by name.  If
+// FindRecyclablePluginBySpec fetches a persistent volume plugin by name.  If
 // no plugin is found, returns error.
+// 获取支持循环使用的卷
 func (pm *VolumePluginMgr) FindRecyclablePluginBySpec(spec *Spec) (RecyclableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginBySpec(spec)
 	if err != nil {
@@ -849,6 +884,7 @@ func (pm *VolumePluginMgr) FindRecyclablePluginBySpec(spec *Spec) (RecyclableVol
 
 // FindProvisionablePluginByName fetches  a persistent volume plugin by name.  If
 // no plugin is found, returns error.
+// 获取卷
 func (pm *VolumePluginMgr) FindProvisionablePluginByName(name string) (ProvisionableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginByName(name)
 	if err != nil {
@@ -981,7 +1017,7 @@ func (pm *VolumePluginMgr) FindExpandablePluginBySpec(spec *Spec) (ExpandableVol
 	return nil, nil
 }
 
-// FindExpandablePluginBySpec fetches a persistent volume plugin by name.
+// FindExpandablePluginByName fetches a persistent volume plugin by name.
 func (pm *VolumePluginMgr) FindExpandablePluginByName(name string) (ExpandableVolumePlugin, error) {
 	volumePlugin, err := pm.FindPluginByName(name)
 	if err != nil {
@@ -1108,6 +1144,7 @@ func NewPersistentVolumeRecyclerPodTemplate() *v1.Pod {
 	return pod
 }
 
+// ValidateRecyclerPodTemplate
 // Check validity of recycle pod template
 // List of checks:
 // - at least one volume is defined in the recycle pod template

@@ -1320,6 +1320,7 @@ type PodSandboxConfig struct {
 	// sandbox, and the runtime should leverage this to ensure correct
 	// operation. The runtime may also use this information to improve UX, such
 	// as by constructing a readable name.
+	// 沙箱的元数据信息，主要是名称、名称空间、ID
 	Metadata *PodSandboxMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Hostname of the sandbox. Hostname could only be empty when the pod
 	// network namespace is NODE.
@@ -1335,6 +1336,7 @@ type PodSandboxConfig struct {
 	//
 	//	PodSandboxConfig.LogDirectory = `/var/log/pods/<NAMESPACE>_<NAME>_<UID>/`
 	//	ContainerConfig.LogPath = `containerName/Instance#.log`
+	// 日志目录
 	LogDirectory string `protobuf:"bytes,3,opt,name=log_directory,json=logDirectory,proto3" json:"log_directory,omitempty"`
 	// DNS config for the sandbox.
 	DnsConfig *DNSConfig `protobuf:"bytes,4,opt,name=dns_config,json=dnsConfig,proto3" json:"dns_config,omitempty"`

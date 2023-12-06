@@ -336,27 +336,23 @@ func GetUniqueVolumeNameFromSpecWithPod(
 // This returned name can be used to uniquely reference the actual backing
 // device, directory, path, etc. referenced by the given volumeSpec.
 // If the given plugin does not support the volume spec, this returns an error.
+// 1、通过卷插件以及卷请求生成卷的唯一名字
 func GetUniqueVolumeNameFromSpec(
-	volumePlugin volume.VolumePlugin,
-	volumeSpec *volume.Spec) (v1.UniqueVolumeName, error) {
+	volumePlugin volume.VolumePlugin, // 卷插件
+	volumeSpec *volume.Spec, // 卷请求规格
+) (v1.UniqueVolumeName, error) {
 	if volumePlugin == nil {
-		return "", fmt.Errorf(
-			"volumePlugin should not be nil. volumeSpec.Name=%q",
-			volumeSpec.Name())
+		return "", fmt.Errorf("volumePlugin should not be nil. volumeSpec.Name=%q", volumeSpec.Name())
 	}
 
+	// 通过卷插件获取卷名
 	volumeName, err := volumePlugin.GetVolumeName(volumeSpec)
 	if err != nil || volumeName == "" {
-		return "", fmt.Errorf(
-			"failed to GetVolumeName from volumePlugin for volumeSpec %q err=%v",
-			volumeSpec.Name(),
-			err)
+		return "", fmt.Errorf("failed to GetVolumeName from volumePlugin for volumeSpec %q err=%v", volumeSpec.Name(), err)
 	}
 
-	return GetUniqueVolumeName(
-			volumePlugin.GetPluginName(),
-			volumeName),
-		nil
+	// 生成卷名
+	return GetUniqueVolumeName(volumePlugin.GetPluginName(), volumeName), nil
 }
 
 // IsPodTerminated checks if pod is terminated

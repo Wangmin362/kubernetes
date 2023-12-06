@@ -30,13 +30,16 @@ var ImplicitContainerPrefix = "implicitly required container "
 // GenerateContainerRef returns an *v1.ObjectReference which references the given container
 // within the given pod. Returns an error if the reference can't be constructed or the
 // container doesn't actually belong to the pod.
+// 获取Pod资源对象的引用信息，并指定引用路径为具体的container
 func GenerateContainerRef(pod *v1.Pod, container *v1.Container) (*v1.ObjectReference, error) {
+	// 返回字字段路径，即当前容器在Pod当中的第JSON路径
 	fieldPath, err := fieldPath(pod, container)
 	if err != nil {
 		// TODO: figure out intelligent way to refer to containers that we implicitly
 		// start (like the pod infra container). This is not a good way, ugh.
 		fieldPath = ImplicitContainerPrefix + container.Name
 	}
+	// 获取当前资源的对象引用信息，并指定路径
 	ref, err := ref.GetPartialReference(legacyscheme.Scheme, pod, fieldPath)
 	if err != nil {
 		return nil, err
@@ -46,6 +49,7 @@ func GenerateContainerRef(pod *v1.Pod, container *v1.Container) (*v1.ObjectRefer
 
 // fieldPath returns a fieldPath locating container within pod.
 // Returns an error if the container isn't part of the pod.
+// 返回字字段路径，即当前容器在Pod当中的第JSON路径
 func fieldPath(pod *v1.Pod, container *v1.Container) (string, error) {
 	for i := range pod.Spec.Containers {
 		here := &pod.Spec.Containers[i]

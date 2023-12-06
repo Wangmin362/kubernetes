@@ -173,7 +173,7 @@ type MarkVolumeOpts struct {
 	VolumeName          v1.UniqueVolumeName
 	Mounter             volume.Mounter
 	BlockVolumeMapper   volume.BlockVolumeMapper
-	OuterVolumeSpecName string
+	OuterVolumeSpecName string // TODO 啥玩意
 	VolumeGidVolume     string
 	VolumeSpec          *volume.Spec
 	VolumeMountState    VolumeMountState
@@ -238,13 +238,14 @@ type ActualStateOfWorldMounterUpdater interface {
 // ActualStateOfWorldAttacherUpdater defines a set of operations updating the
 // actual state of the world cache after successful attach/detach/mount/unmount.
 type ActualStateOfWorldAttacherUpdater interface {
-	// Marks the specified volume as attached to the specified node.  If the
+	// MarkVolumeAsAttached Marks the specified volume as attached to the specified node.  If the
 	// volume name is supplied, that volume name will be used.  If not, the
 	// volume name is computed using the result from querying the plugin.
 	//
 	// TODO: in the future, we should be able to remove the volumeName
 	// argument to this method -- since it is used only for attachable
 	// volumes.  See issue 29695.
+	// 用于标记当前卷是否支持Attach/Detach操作
 	MarkVolumeAsAttached(logger klog.Logger, volumeName v1.UniqueVolumeName, volumeSpec *volume.Spec, nodeName types.NodeName, devicePath string) error
 
 	// Marks the specified volume as *possibly* attached to the specified node.

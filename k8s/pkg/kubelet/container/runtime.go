@@ -314,12 +314,12 @@ type PodStatus struct {
 	// TODO 什么时候会给一个Pod分配多个IP地址？
 	IPs []string
 	// Status of containers in the pod.
-	// 容器的状态
+	// 每个容器的状态
 	ContainerStatuses []*Status
 	// Status of the pod sandbox.
 	// Only for kuberuntime now, other runtime may keep it nil.
 	// 1、Pod的沙箱状态，一个Pod可能有多个沙箱，但是在同一时刻只可能有一个沙箱正在运行
-	// TODO 2、之所以一个Pod可能有多个沙箱，我猜测可能是沙箱也有可能会被重启。
+	// 2、之所以一个Pod可能有多个沙箱，我猜测可能是沙箱也有可能会被重启。 这个时候就会存在多个沙箱。
 	SandboxStatuses []*runtimeapi.PodSandboxStatus
 	// Timestamp at which container and pod statuses were recorded
 	TimeStamp time.Time

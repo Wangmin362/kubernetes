@@ -27,6 +27,7 @@ import (
 
 // instrumentedRuntimeService wraps the RuntimeService and records the operations
 // and errors metrics.
+// 用于加入指标
 type instrumentedRuntimeService struct {
 	service internalapi.RuntimeService
 }

@@ -98,7 +98,8 @@ func NewDesiredStateOfWorldPopulator(
 	keepTerminatedPodVolumes bool,
 	csiMigratedPluginManager csimigration.PluginManager,
 	intreeToCSITranslator csimigration.InTreeToCSITranslator,
-	volumePluginMgr *volume.VolumePluginMgr) DesiredStateOfWorldPopulator {
+	volumePluginMgr *volume.VolumePluginMgr,
+) DesiredStateOfWorldPopulator {
 	return &desiredStateOfWorldPopulator{
 		kubeClient:          kubeClient,
 		loopSleepDuration:   loopSleepDuration,

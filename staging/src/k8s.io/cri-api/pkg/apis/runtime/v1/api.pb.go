@@ -4743,6 +4743,7 @@ func (m *CDIDevice) GetName() string {
 
 // ContainerConfig holds all the required and optional fields for creating a
 // container.
+// 用于抽象启动一个容器所需要的全部信息
 type ContainerConfig struct {
 	// Metadata of the container. This information will uniquely identify the
 	// container, and the runtime should leverage this to ensure correct

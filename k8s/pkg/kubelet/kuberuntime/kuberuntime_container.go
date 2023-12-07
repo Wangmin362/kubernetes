@@ -120,7 +120,9 @@ func ephemeralContainerStartSpec(ec *v1.EphemeralContainer) *startSpec {
 // targeting. The target is stored as EphemeralContainer.TargetContainerName, which must be
 // resolved to a ContainerID using podStatus. The target container must already exist, which
 // usually isn't a problem since ephemeral containers aren't allowed at pod creation time.
+// 获取临时容器所指向的目标容器的容器ID
 func (s *startSpec) getTargetID(podStatus *kubecontainer.PodStatus) (*kubecontainer.ContainerID, error) {
+	// 临时容器的本质是为了attach到另外一个容器上，方便排查问题。所以必须要指定目标容器
 	if s.ephemeralContainer == nil || s.ephemeralContainer.TargetContainerName == "" {
 		return nil, nil
 	}
@@ -226,6 +228,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 		}
 	}
 
+	// 获取临时容器所指向的目标容器的容器ID
 	target, err := spec.getTargetID(podStatus)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
@@ -233,6 +236,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 		return s.Message(), ErrCreateContainerConfig
 	}
 
+	// TODO 生成容器运行所需要的全部配置信息
 	containerConfig, cleanupAction, err := m.generateContainerConfig(ctx, container, pod, restartCount, podIP, imageRef, podIPs, target)
 	if cleanupAction != nil {
 		defer cleanupAction()
@@ -243,6 +247,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 		return s.Message(), ErrCreateContainerConfig
 	}
 
+	// TODO 处理CPU亲和以及内存的NUMA情况
 	err = m.internalLifecycle.PreCreateContainer(pod, container, containerConfig)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
@@ -250,21 +255,25 @@ func (m *kubeGenericRuntimeManager) startContainer(
 		return s.Message(), ErrPreCreateHook
 	}
 
+	// TODO 调用底层的CRI创建容器
 	containerID, err := m.runtimeService.CreateContainer(ctx, podSandboxID, containerConfig, podSandboxConfig)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
 		m.recordContainerEvent(pod, container, containerID, v1.EventTypeWarning, events.FailedToCreateContainer, "Error: %v", s.Message())
 		return s.Message(), ErrCreateContainer
 	}
+	// TODO cpuManager, memoryManager, TopologyManager加入容器
 	err = m.internalLifecycle.PreStartContainer(pod, container, containerID)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
 		m.recordContainerEvent(pod, container, containerID, v1.EventTypeWarning, events.FailedToStartContainer, "Internal PreStartContainer hook failed: %v", s.Message())
 		return s.Message(), ErrPreStartHook
 	}
+	// 生成事件
 	m.recordContainerEvent(pod, container, containerID, v1.EventTypeNormal, events.CreatedContainer, fmt.Sprintf("Created container %s", container.Name))
 
 	// Step 3: start the container.
+	// 启动容器
 	err = m.runtimeService.StartContainer(ctx, containerID)
 	if err != nil {
 		s, _ := grpcstatus.FromError(err)
@@ -278,6 +287,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 	// TODO(random-liu): Remove this after cluster logging supports CRI container log path.
 	containerMeta := containerConfig.GetMetadata()
 	sandboxMeta := podSandboxConfig.GetMetadata()
+	// /var/log/containers/<pod-name>_<pod-namespace>_<container-name>_<container-id>.log
 	legacySymlink := legacyLogSymlink(containerID, containerMeta.Name, sandboxMeta.Name,
 		sandboxMeta.Namespace)
 	containerLog := filepath.Join(podSandboxConfig.LogDirectory, containerConfig.LogPath)
@@ -286,6 +296,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 	// This dangling legacySymlink is later removed by container gc, so it does not make sense
 	// to create it in the first place. it happens when journald logging driver is used with docker.
 	if _, err := m.osInterface.Stat(containerLog); !os.IsNotExist(err) {
+		// TODO 创建符号链接目录
 		if err := m.osInterface.Symlink(containerLog, legacySymlink); err != nil {
 			klog.ErrorS(err, "Failed to create legacy symbolic link", "path", legacySymlink,
 				"containerID", containerID, "containerLogPath", containerLog)
@@ -298,6 +309,7 @@ func (m *kubeGenericRuntimeManager) startContainer(
 			Type: m.runtimeName,
 			ID:   containerID,
 		}
+		// 执行容器的postStartHook
 		msg, handlerErr := m.runner.Run(ctx, kubeContainerID, pod, container, container.Lifecycle.PostStart)
 		if handlerErr != nil {
 			klog.ErrorS(handlerErr, "Failed to execute PostStartHook", "pod", klog.KObj(pod),
@@ -316,7 +328,16 @@ func (m *kubeGenericRuntimeManager) startContainer(
 }
 
 // generateContainerConfig generates container config for kubelet runtime v1.
-func (m *kubeGenericRuntimeManager) generateContainerConfig(ctx context.Context, container *v1.Container, pod *v1.Pod, restartCount int, podIP, imageRef string, podIPs []string, nsTarget *kubecontainer.ContainerID) (*runtimeapi.ContainerConfig, func(), error) {
+func (m *kubeGenericRuntimeManager) generateContainerConfig(
+	ctx context.Context,
+	container *v1.Container, // 当前要启动的容器
+	pod *v1.Pod, // Pod
+	restartCount int, // 容器重启次数
+	podIP,
+	imageRef string, // 镜像
+	podIPs []string,
+	nsTarget *kubecontainer.ContainerID, // 临时容器的目标容器ID
+) (*runtimeapi.ContainerConfig, func(), error) {
 	opts, cleanupAction, err := m.runtimeHelper.GenerateRunContainerOptions(ctx, pod, container, podIP, podIPs)
 	if err != nil {
 		return nil, nil, err
@@ -480,7 +501,7 @@ func (m *kubeGenericRuntimeManager) makeMounts(opts *kubecontainer.RunContainerO
 // getKubeletContainers lists containers managed by kubelet.
 // The boolean parameter specifies whether returns all containers including
 // those already exited and dead containers (used for garbage collection).
-// 通过CRI接口查询当前节点运行的所有容器
+// 通过CRI接口查询当前节点运行的所有容器，如果allContainers=false，那么只查询处于Running状态的容器
 func (m *kubeGenericRuntimeManager) getKubeletContainers(ctx context.Context, allContainers bool) ([]*runtimeapi.Container, error) {
 	filter := &runtimeapi.ContainerFilter{}
 	if !allContainers {
@@ -930,7 +951,9 @@ func findNextInitContainerToRun(pod *v1.Pod, podStatus *kubecontainer.PodStatus)
 }
 
 // GetContainerLogs returns logs of a specific container.
+// 获取容器的日志
 func (m *kubeGenericRuntimeManager) GetContainerLogs(ctx context.Context, pod *v1.Pod, containerID kubecontainer.ContainerID, logOptions *v1.PodLogOptions, stdout, stderr io.Writer) (err error) {
+	// 查询容器的状态
 	resp, err := m.runtimeService.ContainerStatus(ctx, containerID.ID, false)
 	if err != nil {
 		klog.V(4).InfoS("Failed to get container status", "containerID", containerID.String(), "err", err)
@@ -1001,7 +1024,7 @@ func (m *kubeGenericRuntimeManager) removeContainer(ctx context.Context, contain
 	}
 
 	// Remove the container log.
-	// TODO: Separate log and container lifecycle management.
+	// TODO: Separate log and container lifecycle management.   如何隔离？ 我能否实现？
 	// 移除容器日志
 	if err := m.removeContainerLog(ctx, containerID); err != nil {
 		return err

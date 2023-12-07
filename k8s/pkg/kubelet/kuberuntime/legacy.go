@@ -41,6 +41,7 @@ const (
 // legacyLogSymlink composes the legacy container log path. It is only used for legacy cluster
 // logging support.
 func legacyLogSymlink(containerID string, containerName, podName, podNamespace string) string {
+	// /var/log/containers/<pod-name>_<pod-namespace>_<container-name>_<container-id>.log
 	return logSymlink(legacyContainerLogsDir, kubecontainer.BuildPodFullName(podName, podNamespace),
 		containerName, containerID)
 }
@@ -64,12 +65,16 @@ func getContainerIDFromLegacyLogSymlink(logSymlink string) (string, error) {
 	return containerIDWithoutSuffix, nil
 }
 
+// /var/log/containers/<pod-name>_<pod-namespace>_<container-name>_<container-id>.log
 func logSymlink(containerLogsDir, podFullName, containerName, containerID string) string {
 	suffix := fmt.Sprintf(".%s", legacyLogSuffix)
+	// <pod-name>_<pod-namespace>_<container-name>_<container-id>
 	logPath := fmt.Sprintf("%s_%s-%s", podFullName, containerName, containerID)
 	// Length of a filename cannot exceed 255 characters in ext4 on Linux.
 	if len(logPath) > ext4MaxFileNameLen-len(suffix) {
 		logPath = logPath[:ext4MaxFileNameLen-len(suffix)]
 	}
+
+	// /var/log/containers/<pod-name>_<pod-namespace>_<container-name>_<container-id>.log
 	return filepath.Join(containerLogsDir, logPath+suffix)
 }

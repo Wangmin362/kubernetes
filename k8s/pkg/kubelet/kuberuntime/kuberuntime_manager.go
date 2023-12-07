@@ -97,8 +97,11 @@ type podStateProvider interface {
 
 // kubeGenericRuntimeManager TODO 如何理解KubeGenericRuntimeManager的抽象？
 type kubeGenericRuntimeManager struct {
+	// 获取当前容器运行时的名字
+	// TODO K8S不是可以同时支持多个容器运行时么？
 	runtimeName string
-	recorder    record.EventRecorder
+	// 事件记录
+	recorder record.EventRecorder
 	// 对于目录，Pipe的常规操作抽象
 	osInterface kubecontainer.OSInterface
 
@@ -107,17 +110,19 @@ type kubeGenericRuntimeManager struct {
 	machineInfo *cadvisorapi.MachineInfo
 
 	// Container GC manager
-	// TODO 定期回收容器
+	// 定期回收容器
 	containerGC *containerGC
 
 	// Keyring for pulling images
-	// TODO 如何理解这玩意？
+	// 用于拉取需要认证的私仓
 	keyring credentialprovider.DockerKeyring
 
 	// Runner of lifecycle events.
+	// 用于执行容器的postStartHook
 	runner kubecontainer.HandlerRunner
 
 	// RuntimeHelper that wraps kubelet to generate runtime container options.
+	// TODO 干嘛用的
 	runtimeHelper kubecontainer.RuntimeHelper
 
 	// Health check results.
@@ -133,6 +138,7 @@ type kubeGenericRuntimeManager struct {
 	cpuCFSQuotaPeriod metav1.Duration
 
 	// wrapped image puller.
+	// 用于拉取镜像
 	imagePuller images.ImageManager
 
 	// gRPC service clients
@@ -151,6 +157,7 @@ type kubeGenericRuntimeManager struct {
 	containerManager cm.ContainerManager
 
 	// Internal lifecycle event handlers for container resource management.
+	// 从名字上可以看出来，这个容器生命周期函数主要是内部使用的，用于在容器的不同的生命周期阶段增加一些hook点
 	internalLifecycle cm.InternalContainerLifecycle
 
 	// Manage container logs.
@@ -220,7 +227,9 @@ func NewKubeGenericRuntimeManager(
 	tracerProvider trace.TracerProvider,
 ) (KubeGenericRuntime, error) {
 	ctx := context.Background()
+	// 给RuntimeService增加Metric指标
 	runtimeService = newInstrumentedRuntimeService(runtimeService)
+	// 给ImageService增加Metric指标
 	imageService = newInstrumentedImageManagerService(imageService)
 	tracer := tracerProvider.Tracer(instrumentationScope)
 	// TODO 这玩意干了啥？
@@ -248,6 +257,7 @@ func NewKubeGenericRuntimeManager(
 		memoryThrottlingFactor: memoryThrottlingFactor,
 	}
 
+	// 获取容器运行时的版本
 	typedVersion, err := kubeRuntimeManager.getTypedVersion(ctx)
 	if err != nil {
 		klog.ErrorS(err, "Get runtime version failed")
@@ -284,9 +294,11 @@ func NewKubeGenericRuntimeManager(
 			os.Exit(1)
 		}
 	}
+
+	// 用于拉取镜像是获取私仓密钥
 	kubeRuntimeManager.keyring = credentialprovider.NewDockerKeyring()
 
-	// TODO 实例化ImageManager
+	// 镜像管理器，其和核心目标是确保Pod需要使用的镜像存在
 	kubeRuntimeManager.imagePuller = images.NewImageManager(
 		kubecontainer.FilterEventRecorder(recorder),
 		kubeRuntimeManager,
@@ -297,7 +309,7 @@ func NewKubeGenericRuntimeManager(
 		imagePullBurst,
 		podPullingTimeRecorder)
 	kubeRuntimeManager.runner = lifecycle.NewHandlerRunner(insecureContainerLifecycleHTTPClient, kubeRuntimeManager, kubeRuntimeManager, recorder)
-	// TODO 实例化ContainerGC
+	// 实例化ContainerGC，用于回收没有处于Running状态的容器
 	kubeRuntimeManager.containerGC = newContainerGC(runtimeService, podStateProvider, kubeRuntimeManager, tracer)
 	kubeRuntimeManager.podStateProvider = podStateProvider
 
@@ -313,6 +325,7 @@ func NewKubeGenericRuntimeManager(
 }
 
 // Type returns the type of the container runtime.
+// 返回容器运行时的名字
 func (m *kubeGenericRuntimeManager) Type() string {
 	return m.runtimeName
 }
@@ -324,7 +337,9 @@ func newRuntimeVersion(version string) (*utilversion.Version, error) {
 	return utilversion.ParseGeneric(version)
 }
 
+// 获取容器运行时的版本信息，主要包含容器运行时的名字与容器运行时支持的CRI规范版本
 func (m *kubeGenericRuntimeManager) getTypedVersion(ctx context.Context) (*runtimeapi.VersionResponse, error) {
+	// 返回当前容器运行时的版本
 	typedVersion, err := m.runtimeService.Version(ctx, kubeRuntimeAPIVersion)
 	if err != nil {
 		return nil, fmt.Errorf("get remote runtime typed version failed: %v", err)
@@ -333,6 +348,7 @@ func (m *kubeGenericRuntimeManager) getTypedVersion(ctx context.Context) (*runti
 }
 
 // Version returns the version information of the container runtime.
+// 返回容器运行时支持的CRI版本
 func (m *kubeGenericRuntimeManager) Version(ctx context.Context) (kubecontainer.Version, error) {
 	typedVersion, err := m.getTypedVersion(ctx)
 	if err != nil {
@@ -345,7 +361,9 @@ func (m *kubeGenericRuntimeManager) Version(ctx context.Context) (kubecontainer.
 // APIVersion returns the cached API version information of the container
 // runtime. Implementation is expected to update this cache periodically.
 // This may be different from the runtime engine's version.
+// TODO 没看懂这个API的作用
 func (m *kubeGenericRuntimeManager) APIVersion() (kubecontainer.Version, error) {
+	// TODO versionCache是什么时候放入这个信息的？
 	versionObject, err := m.versionCache.Get(m.machineInfo.MachineID)
 	if err != nil {
 		return nil, err
@@ -357,7 +375,9 @@ func (m *kubeGenericRuntimeManager) APIVersion() (kubecontainer.Version, error) 
 
 // Status returns the status of the runtime. An error is returned if the Status
 // function itself fails, nil otherwise.
+// 查询容器运行时的状态
 func (m *kubeGenericRuntimeManager) Status(ctx context.Context) (*kubecontainer.RuntimeStatus, error) {
+	// 查询容器运行时的状态
 	resp, err := m.runtimeService.Status(ctx, false)
 	if err != nil {
 		return nil, err
@@ -371,9 +391,10 @@ func (m *kubeGenericRuntimeManager) Status(ctx context.Context) (*kubecontainer.
 // GetPods returns a list of containers grouped by pods. The boolean parameter
 // specifies whether the runtime returns all containers including those already
 // exited and dead containers (used for garbage collection).
+// 获取当前容器运行时运行的所有Pod  all=false表示仅仅查询处于Ready的Pod，以及查询处于Running的容器
 func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*kubecontainer.Pod, error) {
 	pods := make(map[kubetypes.UID]*kubecontainer.Pod)
-	// 通过CRI接口获取当前运行Kubelet节点的所有沙箱，需要知道的是，容器肯定是运行在沙箱当中
+	// 通过CRI接口获取当前运行Kubelet节点的所有沙箱，需要知道的是，容器肯定是运行在沙箱当中，如果all=false，那么只获取所有处于Ready状态的沙箱
 	sandboxes, err := m.getKubeletSandboxes(ctx, all)
 	if err != nil {
 		return nil, err
@@ -401,12 +422,13 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 			klog.V(4).InfoS("Convert sandbox of pod failed", "runtimeName", m.runtimeName, "sandbox", s, "podUID", podUID, "err", err)
 			continue
 		}
-		// TODO 对于一个Pod来说，沙箱应该只有一个才对，为什么这里K8S会考虑多个沙箱？
+		// 之所以个Pod会有多个沙箱，是因为沙箱也是一个容器；只要是个容器，就有可能是会被重启的，因此沙箱也存在被重启的情况；因此只要Pod的沙箱被
+		// 重启了，就会存在多个沙箱。但是，任何时刻，只可能存在一个正在运行的沙箱
 		p.Sandboxes = append(p.Sandboxes, converted)
 		p.CreatedAt = uint64(s.GetCreatedAt())
 	}
 
-	// 通过CRI接口查询当前运行Kubelet所在节点的所有容器
+	// 通过CRI接口查询当前节点运行的所有容器，如果allContainers=false，那么只查询处于Running状态的容器
 	containers, err := m.getKubeletContainers(ctx, all)
 	if err != nil {
 		return nil, err
@@ -439,7 +461,7 @@ func (m *kubeGenericRuntimeManager) GetPods(ctx context.Context, all bool) ([]*k
 			continue
 		}
 
-		// 这里的数据是可以理解的，因为一个通常一个Pod会存在多个容器
+		// 一个通常一个Pod会存在多个容器
 		pod.Containers = append(pod.Containers, converted)
 	}
 
@@ -1348,10 +1370,12 @@ func (m *kubeGenericRuntimeManager) killPodWithSyncResult(ctx context.Context, p
 	return
 }
 
+// GeneratePodStatus 根据容器的事件响应生成容器的状态
 func (m *kubeGenericRuntimeManager) GeneratePodStatus(event *runtimeapi.ContainerEventResponse) (*kubecontainer.PodStatus, error) {
+	// 获取沙箱IP地址
 	podIPs := m.determinePodSandboxIPs(event.PodSandboxStatus.Metadata.Namespace, event.PodSandboxStatus.Metadata.Name, event.PodSandboxStatus)
 
-	kubeContainerStatuses := []*kubecontainer.Status{}
+	var kubeContainerStatuses []*kubecontainer.Status
 	for _, status := range event.ContainersStatuses {
 		kubeContainerStatuses = append(kubeContainerStatuses, m.convertToKubeContainerStatus(status))
 	}
@@ -1480,6 +1504,10 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 }
 
 // GarbageCollect removes dead containers using the specified container gc policy.
+// 用于回收那些处于非Running状态的容器，主要步骤如下：
+// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+// 3、容器删除之后，容器的日志也就没有保留的必要了
 func (m *kubeGenericRuntimeManager) GarbageCollect(ctx context.Context, gcPolicy kubecontainer.GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error {
 	return m.containerGC.GarbageCollect(ctx, gcPolicy, allSourcesReady, evictNonDeletedPods)
 }
@@ -1498,6 +1526,7 @@ func (m *kubeGenericRuntimeManager) UpdatePodCIDR(ctx context.Context, podCIDR s
 		})
 }
 
+// TODO checkpoint应该适用于把运行时的容器进行持久化，方便后续迁移
 func (m *kubeGenericRuntimeManager) CheckpointContainer(ctx context.Context, options *runtimeapi.CheckpointContainerRequest) error {
 	return m.runtimeService.CheckpointContainer(ctx, options)
 }

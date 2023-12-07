@@ -61,6 +61,7 @@ type ContainerManager interface {
 	// TODO 如何理解这个接口定义？ 容器运行时干了啥？
 	ReopenContainerLog(ctx context.Context, ContainerID string) error
 	// CheckpointContainer checkpoints a container
+	// TODO checkpoint应该适用于把运行时的容器进行持久化，方便后续迁移
 	CheckpointContainer(ctx context.Context, options *runtimeapi.CheckpointContainerRequest) error
 	// GetContainerEvents gets container events from the CRI runtime
 	GetContainerEvents(containerEventsCh chan *runtimeapi.ContainerEventResponse) error

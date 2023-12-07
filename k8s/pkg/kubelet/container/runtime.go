@@ -69,22 +69,27 @@ type ImageStats struct {
 // TODO 这个接口和CRI接口定义有何联系？
 type Runtime interface {
 	// Type returns the type of the container runtime.
+	// 返回容器运行时的名字
 	Type() string
 
 	// Version returns the version information of the container runtime.
+	// 返回容器运行时支持的CRI版本
 	Version(ctx context.Context) (Version, error)
 
 	// APIVersion returns the cached API version information of the container
 	// runtime. Implementation is expected to update this cache periodically.
 	// This may be different from the runtime engine's version.
+	// TODO 这玩意有啥用？
 	// TODO(random-liu): We should fold this into Version()
 	APIVersion() (Version, error)
 	// Status returns the status of the runtime. An error is returned if the Status
 	// function itself fails, nil otherwise.
+	// 查询容器运行时的状态
 	Status(ctx context.Context) (*RuntimeStatus, error)
 	// GetPods returns a list of containers grouped by pods. The boolean parameter
 	// specifies whether the runtime returns all containers including those already
 	// exited and dead containers (used for garbage collection).
+	// 获取当前容器运行时运行的所有Pod  all=false表示仅仅查询处于Ready的Pod，以及查询处于Running的容器
 	GetPods(ctx context.Context, all bool) ([]*Pod, error)
 	// GarbageCollect removes dead containers using the specified container gc policy
 	// If allSourcesReady is not true, it means that kubelet doesn't have the
@@ -95,6 +100,10 @@ type Runtime interface {
 	// that are terminated, but not deleted will be evicted.  Otherwise, only deleted pods
 	// will be GC'd.
 	// TODO: Revisit this method and make it cleaner.
+	// 用于回收那些处于非Running状态的容器，主要步骤如下：
+	// 1、根据容器回收策略删除满足条件的并且已经死亡的容器
+	// 2、容器删除之后，遍历所有的沙箱，如果这个沙箱下已经没有任何容器在运行了，那么删除这个沙箱
+	// 3、容器删除之后，容器的日志也就没有保留的必要了
 	GarbageCollect(ctx context.Context, gcPolicy GCPolicy, allSourcesReady bool, evictNonDeletedPods bool) error
 	// SyncPod syncs the running pod into the desired pod.
 	SyncPod(ctx context.Context, pod *v1.Pod, podStatus *PodStatus, pullSecrets []v1.Secret, backOff *flowcontrol.Backoff) PodSyncResult
@@ -107,11 +116,12 @@ type Runtime interface {
 	// GetPodStatus retrieves the status of the pod, including the
 	// information of all containers in the pod that are visible in Runtime.
 	GetPodStatus(ctx context.Context, uid types.UID, name, namespace string) (*PodStatus, error)
-	// TODO(vmarmol): Unify pod and containerID args.
+	// GetContainerLogs TODO(vmarmol): Unify pod and containerID args.
 	// GetContainerLogs returns logs of a specific container. By
 	// default, it returns a snapshot of the container log. Set 'follow' to true to
 	// stream the log. Set 'follow' to false and specify the number of lines (e.g.
 	// "100" or "all") to tail the log.
+	// 获取容器的日志
 	GetContainerLogs(ctx context.Context, pod *v1.Pod, containerID ContainerID, logOptions *v1.PodLogOptions, stdout, stderr io.Writer) (err error)
 	// DeleteContainer deletes a container. If the container is still running, an error is returned.
 	DeleteContainer(ctx context.Context, containerID ContainerID) error
@@ -123,8 +133,10 @@ type Runtime interface {
 	UpdatePodCIDR(ctx context.Context, podCIDR string) error
 	// CheckpointContainer tells the runtime to checkpoint a container
 	// and store the resulting archive to the checkpoint directory.
+	// TODO checkpoint应该适用于把运行时的容器进行持久化，方便后续迁移
 	CheckpointContainer(ctx context.Context, options *runtimeapi.CheckpointContainerRequest) error
 	// GeneratePodStatus Generate pod status from the CRI event
+	// 根据容器的事件响应生成容器的状态
 	GeneratePodStatus(event *runtimeapi.ContainerEventResponse) (*PodStatus, error)
 	// ListMetricDescriptors gets the descriptors for the metrics that will be returned in ListPodSandboxMetrics.
 	// This list should be static at startup: either the client and server restart together when

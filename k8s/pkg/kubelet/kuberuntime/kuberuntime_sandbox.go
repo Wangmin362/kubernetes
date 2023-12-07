@@ -303,8 +303,10 @@ func (m *kubeGenericRuntimeManager) getKubeletSandboxes(ctx context.Context, all
 }
 
 // determinePodSandboxIP determines the IP addresses of the given pod sandbox.
+// 获取沙箱IP地址
 func (m *kubeGenericRuntimeManager) determinePodSandboxIPs(podNamespace, podName string, podSandbox *runtimeapi.PodSandboxStatus) []string {
 	podIPs := make([]string, 0)
+	// 如果容器没有网络信息，那么直接返回
 	if podSandbox.Network == nil {
 		klog.InfoS("Pod Sandbox status doesn't have network information, cannot report IPs", "pod", klog.KRef(podNamespace, podName))
 		return podIPs

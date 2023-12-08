@@ -347,6 +347,7 @@ func (m *kubeGenericRuntimeManager) getSandboxIDByPodUID(ctx context.Context, po
 			State: *state,
 		}
 	}
+	// 查询沙箱
 	sandboxes, err := m.runtimeService.ListPodSandbox(ctx, filter)
 	if err != nil {
 		klog.ErrorS(err, "Failed to list sandboxes for pod", "podUID", podUID)

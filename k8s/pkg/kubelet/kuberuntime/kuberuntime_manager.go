@@ -1408,6 +1408,7 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 	// Anyhow, we only promised "best-effort" restart count reporting, we can just ignore
 	// these limitations now.
 	// TODO: move this comment to SyncPod.
+	// 根据PodID查询沙箱ID
 	podSandboxIDs, err := m.getSandboxIDByPodUID(ctx, uid, nil)
 	if err != nil {
 		return nil, err
@@ -1425,12 +1426,13 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 
 	klog.V(4).InfoS("getSandboxIDByPodUID got sandbox IDs for pod", "podSandboxID", podSandboxIDs, "pod", klog.KObj(pod))
 
-	sandboxStatuses := []*runtimeapi.PodSandboxStatus{}
-	containerStatuses := []*kubecontainer.Status{}
+	var sandboxStatuses []*runtimeapi.PodSandboxStatus
+	var containerStatuses []*kubecontainer.Status
 	var timestamp time.Time
 
-	podIPs := []string{}
+	var podIPs []string
 	for idx, podSandboxID := range podSandboxIDs {
+		// 根据沙箱ID查询晒想的状态
 		resp, err := m.runtimeService.PodSandboxStatus(ctx, podSandboxID, false)
 		// Between List (getSandboxIDByPodUID) and check (PodSandboxStatus) another thread might remove a container, and that is normal.
 		// The previous call (getSandboxIDByPodUID) never fails due to a pod sandbox not existing.
@@ -1450,6 +1452,7 @@ func (m *kubeGenericRuntimeManager) GetPodStatus(ctx context.Context, uid kubety
 		sandboxStatuses = append(sandboxStatuses, resp.Status)
 		// Only get pod IP from latest sandbox
 		if idx == 0 && resp.Status.State == runtimeapi.PodSandboxState_SANDBOX_READY {
+			// 获取沙箱的IP
 			podIPs = m.determinePodSandboxIPs(namespace, name, resp.Status)
 		}
 

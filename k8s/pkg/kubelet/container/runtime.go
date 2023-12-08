@@ -164,6 +164,7 @@ type ImageService interface {
 	PullImage(ctx context.Context, image ImageSpec, pullSecrets []v1.Secret, podSandboxConfig *runtimeapi.PodSandboxConfig) (string, error)
 	// GetImageRef gets the reference (digest or ID) of the image which has already been in
 	// the local storage. It returns ("", nil) if the image isn't in the local storage.
+	// 查询本地镜像摘要
 	GetImageRef(ctx context.Context, image ImageSpec) (string, error)
 	// ListImages gets all images currently on the machine.
 	ListImages(ctx context.Context) ([]Image, error)

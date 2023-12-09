@@ -282,7 +282,7 @@ type Dependencies struct {
 	TLSOptions               *server.TLSOptions              // TLS相关配置
 	RemoteRuntimeService     internalapi.RuntimeService      // TODO 容器运行接口（相当重要）,可以理解为CRI的实现
 	RemoteImageService       internalapi.ImageManagerService // TODO 镜像管理接口
-	PodStartupLatencyTracker util.PodStartupLatencyTracker   // TODO 看起来是用来追踪Pod的启动延迟时间
+	PodStartupLatencyTracker util.PodStartupLatencyTracker   // // 用来追踪Pod启动延迟时间，容器的启动耗时等于容器创建总时间减去镜像拉取时间；通过metric指标记录
 	// remove it after cadvisor.UsingLegacyCadvisorStats dropped.
 	useLegacyCadvisorStats bool
 }
@@ -423,9 +423,10 @@ func NewMainKubelet(
 	ctx := context.Background()
 	logger := klog.TODO()
 
-	if rootDirectory == "" {
+	if rootDirectory == "" { // 默认为/var/lib/kubelet
 		return nil, fmt.Errorf("invalid root directory %q", rootDirectory)
 	}
+	// 默认为1分钟
 	if kubeCfg.SyncFrequency.Duration <= 0 {
 		return nil, fmt.Errorf("invalid sync frequency %d", kubeCfg.SyncFrequency.Duration)
 	}
@@ -457,8 +458,7 @@ func NewMainKubelet(
 	// If kubeClient == nil, we are running in standalone mode (i.e. no API servers)
 	// If not nil, we are running as part of a cluster and should sync w/API
 	if kubeDeps.KubeClient != nil {
-		// 同步APIServer的Node资源
-		// TODO 为什么Kubelet需要知道Node的变更？
+		// 同步APIServer的Node资源，只关心当前节点Node资源的变化，很有可能会被打上污点、或者被修改标签、注解
 		kubeInformers := informers.NewSharedInformerFactoryWithOptions(kubeDeps.KubeClient, 0, informers.WithTweakListOptions(func(options *metav1.ListOptions) {
 			options.FieldSelector = fields.Set{metav1.ObjectNameField: string(nodeName)}.String()
 		}))
@@ -481,6 +481,7 @@ func NewMainKubelet(
 		var err error
 		// 1、实例化PodConfig，然后添加File, HTTP, APIServer源，并监听File, HTTP, APIServer三个源的变化，并把这三个源的变更合并为PodUpdate结构
 		// 2、外部组件通过调用PodConfig.Update()方法获取channel，PodConfig会把Pod的变更写入到这个channel当中
+		// TODO 3、这里相当终于，kubelet监听到的Pod更新主要就是PodConfig
 		kubeDeps.PodConfig, err = makePodSourceConfig(kubeCfg, kubeDeps, nodeName, nodeHasSynced)
 		if err != nil {
 			return nil, err
@@ -510,8 +511,9 @@ func NewMainKubelet(
 		// Do not provide kubeCfg.EnforceNodeAllocatable to eviction threshold parsing if we are not enforcing Evictions
 		enforceNodeAllocatable = []string{}
 	}
-	// TODO 应该是和Pod驱逐相关测配置
-	thresholds, err := eviction.ParseThresholdConfig(enforceNodeAllocatable, kubeCfg.EvictionHard, kubeCfg.EvictionSoft, kubeCfg.EvictionSoftGracePeriod, kubeCfg.EvictionMinimumReclaim)
+	// TODO Pod驱逐相关测配置
+	thresholds, err := eviction.ParseThresholdConfig(enforceNodeAllocatable, kubeCfg.EvictionHard, kubeCfg.EvictionSoft,
+		kubeCfg.EvictionSoftGracePeriod, kubeCfg.EvictionMinimumReclaim)
 	if err != nil {
 		return nil, err
 	}
@@ -704,7 +706,8 @@ func NewMainKubelet(
 	// 缓存Pod并记录MirrorPod和StaticPod之间的映射关系
 	klet.podManager = kubepod.NewBasicPodManager(mirrorPodClient)
 
-	// TODO StatusManager
+	// 1、StatusManager的核心目标是把Pod的状态更新到APIServer，也就是说APIServer的Pod的状态来源就是StatusManager
+	// 2、StatusManager并不是主动监听Pod的状态变化，因为APIServer的Pod状态就是通过StatusManager修改的
 	klet.statusManager = status.NewManager(klet.kubeClient, klet.podManager, klet, kubeDeps.PodStartupLatencyTracker, klet.getRootDir())
 
 	// TODO ResourceAnalyzer 用于分析Node， Pod消耗的资源
@@ -737,7 +740,7 @@ func NewMainKubelet(
 	klet.reasonCache = NewReasonCache()
 	// 很简单的延迟队列，放入元素的时候可以指定元素的过期时间，只有当元素过期了才可以从队列当中取出来
 	klet.workQueue = queue.NewBasicWorkQueue(klet.clock)
-	// TODO 实例化PodWorker
+	// 用于监听Pod的变更，同时把用户期望的变更通知给容器运行时
 	klet.podWorkers = newPodWorkers(
 		klet,
 		kubeDeps.Recorder,
@@ -1088,6 +1091,8 @@ type Kubelet struct {
 	// resyncInterval is the interval between periodic full reconciliations of
 	// pods on this node.
 	// TODO 重新同步的周期？ 用在何处？
+	// 1、默认为1分钟
+	// 2、用于控制Config,Secret重新同步时间;
 	resyncInterval time.Duration
 
 	// sourcesReady records the sources seen by the kubelet, it is thread-safe.
@@ -1194,6 +1199,8 @@ type Kubelet struct {
 	serverCertificateManager certificate.Manager
 
 	// Syncs pods statuses with apiserver; also used as a cache of statuses.
+	// 1、StatusManager的核心目标是把Pod的状态更新到APIServer，也就是说APIServer的Pod的状态来源就是StatusManager
+	// 2、StatusManager并不是主动监听Pod的状态变化，因为APIServer的Pod状态就是通过StatusManager修改的
 	statusManager status.Manager
 
 	// VolumeManager runs a set of asynchronous loops that figure out which

@@ -139,6 +139,7 @@ type KubeletFlags struct {
 	// in "bootstrap" mode. This requires that 'LockFilePath' has been set.
 	// This will cause the kubelet to listen to inotify events on the lock file,
 	// releasing it and exiting when another process tries to open that file.
+	// TODO 这玩意干啥的？
 	ExitOnLockContention bool
 	// DEPRECATED FLAGS
 	// minimumGCAge is the minimum age for a finished container before it is
@@ -232,6 +233,7 @@ func NewKubeletConfiguration() (*kubeletconfig.KubeletConfiguration, error) {
 	}
 	versioned := &v1beta1.KubeletConfiguration{}
 	scheme.Default(versioned)
+	// versioned相当于VO对象，而config相当于BO对象，因此需要把VO对象转为BO对象
 	config := &kubeletconfig.KubeletConfiguration{}
 	if err := scheme.Convert(versioned, config, nil); err != nil {
 		return nil, err

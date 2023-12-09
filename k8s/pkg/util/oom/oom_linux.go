@@ -32,6 +32,7 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// NewOOMAdjuster TODO 这玩意干嘛的？
 func NewOOMAdjuster() *OOMAdjuster {
 	oomAdjuster := &OOMAdjuster{
 		pidLister:        getPids,

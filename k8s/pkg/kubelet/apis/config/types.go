@@ -92,6 +92,7 @@ type KubeletConfiguration struct {
 	// syncFrequency is the max period between synchronizing running
 	// containers and config
 	// TODO 如何理解这个配置？
+	// 默认为1分钟
 	SyncFrequency metav1.Duration
 	// fileCheckFrequency is the duration between checking config files for
 	// new data
@@ -141,6 +142,7 @@ type KubeletConfiguration struct {
 	// 1、RotateCertificates中文含义为轮换证书，其实就是指在必要的时候会使用新的证书替换老的证书。kubelet的新证书是通过APIServer给颁发的
 	// 2、证书轮换主要发生在以下几个场景：2.1 证书过期  2.2 更换了CA，因此需要更换集群的根证书  2.3 需要对证书增加更多的约束
 	// 2.4 当前使用的证书被泄露，或者发生了安全漏洞，证书链不再可信
+	// 3、一般都会开启证书轮换
 	RotateCertificates bool
 	// serverTLSBootstrap enables server certificate bootstrap. Instead of self
 	// signing a serving certificate, the Kubelet will request a certificate from
@@ -180,6 +182,7 @@ type KubeletConfiguration struct {
 	HealthzBindAddress string
 	// oomScoreAdj is The oom-score-adj value for kubelet process. Values
 	// must be within the range [-1000, 1000].
+	// TODO 这玩意有啥用？
 	OOMScoreAdj int32
 	// clusterDomain is the DNS domain for this cluster. If set, kubelet will
 	// configure all containers to search this domain in addition to the
@@ -236,6 +239,8 @@ type KubeletConfiguration struct {
 	// 一般会开启这个选项，也就是CgroupsPerQOS = true
 	CgroupsPerQOS bool
 	// driver that the kubelet uses to manipulate cgroups on the host (cgroupfs or systemd)
+	// 1、cgroupDriver只能是cgroupfs以及systemd其中的一种
+	// TODO cGroupFS和Systemd有啥区别？
 	CgroupDriver string
 	// CPUManagerPolicy is the name of the policy to use.
 	// Requires the CPUManager feature gate to be enabled.
@@ -265,6 +270,7 @@ type KubeletConfiguration struct {
 	TopologyManagerPolicyOptions map[string]string
 	// Map of QoS resource reservation percentages (memory only for now).
 	// Requires the QOSReserved feature gate to be enabled.
+	// TODO 这玩意干嘛的？
 	QOSReserved map[string]string
 	// runtimeRequestTimeout is the timeout for all runtime requests except long running
 	// requests - pull, logs, exec and attach.
@@ -406,7 +412,7 @@ type KubeletConfiguration struct {
 	// This option specifies the cpu list reserved for the host level system threads and kubernetes related threads.
 	// This provide a "static" CPU list rather than the "dynamic" list by system-reserved and kube-reserved.
 	// This option overwrites CPUs provided by system-reserved and kube-reserved.
-	// 给系统进程以及K8S相关进程预留的CPU资源
+	// 给系统进程预留的CPU资源
 	ReservedSystemCPUs string
 	// The previous version for which you want to show hidden metrics.
 	// Only the previous minor version is meaningful, other values will not be allowed.

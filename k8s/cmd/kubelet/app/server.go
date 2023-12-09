@@ -216,6 +216,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 				// We must enforce flag precedence by re-parsing the command line into the new object.
 				// This is necessary to preserve backwards-compatibility across binary upgrades.
 				// See issue #56171 for more details.
+				// TODO 这里应该是在合并kubelet配置文件于启动kubelet传参
 				if err := kubeletConfigFlagPrecedence(kubeletConfig, args); err != nil {
 					return fmt.Errorf("failed to precedence kubeletConfigFlag: %w", err)
 				}
@@ -228,6 +229,7 @@ is checked every 20 seconds (also configurable with a flag).`,
 			// Config and flags parsed, now we can initialize logging.
 			// 初始化日志
 			logs.InitLogs()
+			// 校验kubelet参数设置是否正确
 			if err := logsapi.ValidateAndApplyAsField(&kubeletConfig.Logging, utilfeature.DefaultFeatureGate, field.NewPath("logging")); err != nil {
 				return fmt.Errorf("initialize logging: %v", err)
 			}
@@ -260,15 +262,16 @@ is checked every 20 seconds (also configurable with a flag).`,
 				return fmt.Errorf("failed to construct kubelet dependencies: %w", err)
 			}
 
-			// kubelet必须以ROOT身份运行
+			// kubelet进程必须以ROOT身份运行
 			if err := checkPermissions(); err != nil {
 				klog.ErrorS(err, "kubelet running with insufficient permissions")
 			}
 
 			// make the kubelet's config safe for logging
 			config := kubeletServer.KubeletConfiguration.DeepCopy()
-			// TODO 初始化StaticPodURLHeader
+			// 初始化StaticPodURLHeader
 			for k := range config.StaticPodURLHeader {
+				// TODO 为啥value是一个非常奇怪的值？
 				config.StaticPodURLHeader[k] = []string{"<masked>"}
 			}
 			// log the kubelet's config for inspection
@@ -422,11 +425,12 @@ func UnsecuredDependencies(s *options.KubeletServer, featureGate featuregate.Fea
 		HostUtil:            hu,
 		Mounter:             mounter,
 		Subpather:           subpather,
-		OOMAdjuster:         oom.NewOOMAdjuster(),
+		OOMAdjuster:         oom.NewOOMAdjuster(), // TODO 有待分析
 		OSInterface:         kubecontainer.RealOS{},
 		VolumePlugins:       plugins,
-		DynamicPluginProber: GetDynamicPluginProber(s.VolumePluginDir, pluginRunner),
-		TLSOptions:          tlsOptions}, nil
+		DynamicPluginProber: GetDynamicPluginProber(s.VolumePluginDir, pluginRunner), // TODO 仔细分析
+		TLSOptions:          tlsOptions,
+	}, nil
 }
 
 // Run runs the specified KubeletServer with the given Dependencies. This should never exit.
@@ -563,7 +567,7 @@ func run(
 	}
 
 	// Register current configuration with /configz endpoint
-	// 可以通过/configz端点查询Kubelet配置参数
+	// 可以通过/configz端点查询kubelet配置参数
 	err = initConfigz(&s.KubeletConfiguration)
 	if err != nil {
 		klog.ErrorS(err, "Failed to register kubelet configuration with configz")
@@ -638,6 +642,7 @@ func run(
 		}
 		kubeDeps.OnHeartbeatFailure = onHeartbeatFailure
 
+		// 通过kubeconfig文件实例化ClientSet客户端，用于访问APIServer
 		kubeDeps.KubeClient, err = clientset.NewForConfig(clientConfig)
 		if err != nil {
 			return fmt.Errorf("failed to initialize kubelet client: %w", err)
@@ -707,7 +712,8 @@ func run(
 	// TODO 实例化cAdvisor
 	if kubeDeps.CAdvisorInterface == nil {
 		imageFsInfoProvider := cadvisor.NewImageFsInfoProvider(s.ContainerRuntimeEndpoint)
-		kubeDeps.CAdvisorInterface, err = cadvisor.New(imageFsInfoProvider, s.RootDirectory, cgroupRoots, cadvisor.UsingLegacyCadvisorStats(s.ContainerRuntimeEndpoint), s.LocalStorageCapacityIsolation)
+		kubeDeps.CAdvisorInterface, err = cadvisor.New(imageFsInfoProvider, s.RootDirectory, cgroupRoots,
+			cadvisor.UsingLegacyCadvisorStats(s.ContainerRuntimeEndpoint), s.LocalStorageCapacityIsolation)
 		if err != nil {
 			return err
 		}
@@ -729,7 +735,7 @@ func run(
 		if err != nil {
 			return err
 		}
-		// TODO 系统预留CPU资源
+		// 系统预留CPU资源
 		reservedSystemCPUs, err := getReservedCPUs(machineInfo, s.ReservedSystemCPUs)
 		if err != nil {
 			return err
@@ -776,6 +782,7 @@ func run(
 		if utilfeature.DefaultFeatureGate.Enabled(features.CPUManagerPolicyOptions) {
 			cpuManagerPolicyOptions = s.CPUManagerPolicyOptions
 		} else if s.CPUManagerPolicyOptions != nil {
+			// 如果CPUManagerPolicyOptions参数非空，但是你又没有开启CPUManagerPolicyOptions特性，这里直接选择报错
 			return fmt.Errorf("CPU Manager policy options %v require feature gates %q, %q enabled",
 				s.CPUManagerPolicyOptions, features.CPUManager, features.CPUManagerPolicyOptions)
 		}
@@ -785,6 +792,7 @@ func run(
 		if utilfeature.DefaultFeatureGate.Enabled(features.TopologyManagerPolicyOptions) {
 			topologyManagerPolicyOptions = s.TopologyManagerPolicyOptions
 		} else if s.TopologyManagerPolicyOptions != nil {
+			// 如果TopologyManagerPolicyOptions参数非空，但是你又没有开启TopologyManagerPolicyOptions特性，这里直接选择报错
 			return fmt.Errorf("topology manager policy options %v require feature gates %q enabled",
 				s.TopologyManagerPolicyOptions, features.TopologyManagerPolicyOptions)
 		}
@@ -838,7 +846,7 @@ func run(
 		}
 	}
 
-	// TODO 似乎是用来追踪Pod启动延迟时间
+	// 用来追踪Pod启动延迟时间，容器的启动耗时等于容器创建总时间减去镜像拉取时间；通过metric指标记录
 	if kubeDeps.PodStartupLatencyTracker == nil {
 		kubeDeps.PodStartupLatencyTracker = kubeletutil.NewPodStartupLatencyTracker()
 	}
@@ -1353,7 +1361,8 @@ func createAndInitKubelet(
 		kubeServer.KeepTerminatedPodVolumes,
 		kubeServer.NodeLabels,
 		kubeServer.NodeStatusMaxImages,
-		kubeServer.KubeletFlags.SeccompDefault || kubeServer.KubeletConfiguration.SeccompDefault)
+		kubeServer.KubeletFlags.SeccompDefault || kubeServer.KubeletConfiguration.SeccompDefault,
+	)
 	if err != nil {
 		return nil, err
 	}

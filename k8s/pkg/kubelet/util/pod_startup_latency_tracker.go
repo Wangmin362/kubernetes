@@ -30,10 +30,15 @@ import (
 // PodStartupLatencyTracker records key moments for startup latency calculation,
 // e.g. image pulling or pod observed running on watch.
 type PodStartupLatencyTracker interface {
+	// ObservedPodOnWatch 用于记录容器启动耗时，容器的启动耗时等于容器创建总时间减去镜像拉取时间；通过metric指标记录
 	ObservedPodOnWatch(pod *v1.Pod, when time.Time)
+	// RecordImageStartedPulling 记录容器镜像开始拉取时间
 	RecordImageStartedPulling(podUID types.UID)
+	// RecordImageFinishedPulling 记录容器镜像拉取完成时间
 	RecordImageFinishedPulling(podUID types.UID)
+	// RecordStatusUpdated 设置观察到容器启动完成的时间
 	RecordStatusUpdated(pod *v1.Pod)
+	// DeletePodStartupState 删除记录，释放不必要的内容
 	DeletePodStartupState(podUID types.UID)
 }
 
@@ -62,6 +67,8 @@ func NewPodStartupLatencyTracker() PodStartupLatencyTracker {
 	}
 }
 
+// ObservedPodOnWatch
+// 用于记录容器启动耗时，容器的启动耗时等于容器创建总时间减去镜像拉取时间
 func (p *basicPodStartupLatencyTracker) ObservedPodOnWatch(pod *v1.Pod, when time.Time) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -83,21 +90,28 @@ func (p *basicPodStartupLatencyTracker) ObservedPodOnWatch(pod *v1.Pod, when tim
 		if pod.Status.StartTime.IsZero() {
 			p.pods[pod.UID] = &perPodState{}
 		}
+		// TODO 如果pod.Status.StartTime非空，那么说明当前Pod已经启动了
 
 		return
 	}
 
+	// 说明当前Pod还未启动
 	if state.observedRunningTime.IsZero() {
 		// skip, pod didn't start yet
 		return
 	}
 
+	// 说明当前Pod已经启动了
+
+	// 如果指标已经记录了，那么直接返回
 	if state.metricRecorded {
 		// skip, pod's latency already recorded
 		return
 	}
 
+	// 检查Pod所有的容器都已经启动
 	if hasPodStartedSLO(pod) {
+		// 容器的启动耗时等于容器创建总时间减去镜像拉取时间
 		podStartingDuration := when.Sub(pod.CreationTimestamp.Time)
 		imagePullingDuration := state.lastFinishedPulling.Sub(state.firstStartedPulling)
 		podStartSLOduration := (podStartingDuration - imagePullingDuration).Seconds()
@@ -116,6 +130,8 @@ func (p *basicPodStartupLatencyTracker) ObservedPodOnWatch(pod *v1.Pod, when tim
 	}
 }
 
+// RecordImageStartedPulling
+// 记录Pod第一次拉取镜像的时间
 func (p *basicPodStartupLatencyTracker) RecordImageStartedPulling(podUID types.UID) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -130,6 +146,8 @@ func (p *basicPodStartupLatencyTracker) RecordImageStartedPulling(podUID types.U
 	}
 }
 
+// RecordImageFinishedPulling
+// 记录Pod完成拉取镜像的时间
 func (p *basicPodStartupLatencyTracker) RecordImageFinishedPulling(podUID types.UID) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -142,6 +160,8 @@ func (p *basicPodStartupLatencyTracker) RecordImageFinishedPulling(podUID types.
 	state.lastFinishedPulling = p.clock.Now() // Now is always grater than values from the past.
 }
 
+// RecordStatusUpdated
+// 用于设置观察到Pod的启动时间
 func (p *basicPodStartupLatencyTracker) RecordStatusUpdated(pod *v1.Pod) {
 	p.lock.Lock()
 	defer p.lock.Unlock()
@@ -151,6 +171,7 @@ func (p *basicPodStartupLatencyTracker) RecordStatusUpdated(pod *v1.Pod) {
 		return
 	}
 
+	// 如果当前Pod已经记录过了，那么就不再管了
 	if state.metricRecorded {
 		// skip, pod latency already recorded
 		return
@@ -161,6 +182,7 @@ func (p *basicPodStartupLatencyTracker) RecordStatusUpdated(pod *v1.Pod) {
 		return
 	}
 
+	// 检查Pod所有的容器都已经启动
 	if hasPodStartedSLO(pod) {
 		klog.V(3).InfoS("Mark when the pod was running for the first time", "pod", klog.KObj(pod), "rv", pod.ResourceVersion)
 		state.observedRunningTime = p.clock.Now()
@@ -171,7 +193,7 @@ func (p *basicPodStartupLatencyTracker) RecordStatusUpdated(pod *v1.Pod) {
 //
 // This should reflect "Pod startup latency SLI" definition
 // ref: https://github.com/kubernetes/community/blob/master/sig-scalability/slos/pod_startup_latency.md
-// Pod所有的容器都已经启动
+// 检查Pod所有的容器都已经启动
 func hasPodStartedSLO(pod *v1.Pod) bool {
 	for _, cs := range pod.Status.ContainerStatuses {
 		if cs.State.Running == nil || cs.State.Running.StartedAt.IsZero() {

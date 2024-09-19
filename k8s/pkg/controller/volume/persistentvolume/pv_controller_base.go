@@ -110,6 +110,7 @@ func NewController(ctx context.Context, p ControllerParameters) (*PersistentVolu
 		return nil, fmt.Errorf("could not initialize volume plugins for PersistentVolume Controller: %w", err)
 	}
 
+	// 监听PV资源的变化
 	p.VolumeInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { controller.enqueueWork(ctx, controller.volumeQueue, obj) },
@@ -120,6 +121,7 @@ func NewController(ctx context.Context, p ControllerParameters) (*PersistentVolu
 	controller.volumeLister = p.VolumeInformer.Lister()
 	controller.volumeListerSynced = p.VolumeInformer.Informer().HasSynced
 
+	// 监听PVC资源的变化
 	p.ClaimInformer.Informer().AddEventHandler(
 		cache.ResourceEventHandlerFuncs{
 			AddFunc:    func(obj interface{}) { controller.enqueueWork(ctx, controller.claimQueue, obj) },
@@ -130,11 +132,16 @@ func NewController(ctx context.Context, p ControllerParameters) (*PersistentVolu
 	controller.claimLister = p.ClaimInformer.Lister()
 	controller.claimListerSynced = p.ClaimInformer.Informer().HasSynced
 
+	// 监听StorageClass资源的变化
 	controller.classLister = p.ClassInformer.Lister()
 	controller.classListerSynced = p.ClassInformer.Informer().HasSynced
+
+	// 监听Pod资源的变化
 	controller.podLister = p.PodInformer.Lister()
 	controller.podIndexer = p.PodInformer.Informer().GetIndexer()
 	controller.podListerSynced = p.PodInformer.Informer().HasSynced
+
+	// 监听Node资源的变化
 	controller.NodeLister = p.NodeInformer.Lister()
 	controller.NodeListerSynced = p.NodeInformer.Informer().HasSynced
 
@@ -323,14 +330,22 @@ func (ctrl *PersistentVolumeController) Run(ctx context.Context) {
 	logger.Info("Starting persistent volume controller")
 	defer logger.Info("Shutting down persistent volume controller")
 
-	if !cache.WaitForNamedCacheSync("persistent volume", ctx.Done(), ctrl.volumeListerSynced, ctrl.claimListerSynced, ctrl.classListerSynced, ctrl.podListerSynced, ctrl.NodeListerSynced) {
+	// 等待PV, PVC, StorageClass, Pod, Node资源同步完成
+	if !cache.WaitForNamedCacheSync("persistent volume", ctx.Done(),
+		ctrl.volumeListerSynced, ctrl.claimListerSynced, ctrl.classListerSynced, ctrl.podListerSynced, ctrl.NodeListerSynced) {
 		return
 	}
 
+	// TODO 初始化缓存
 	ctrl.initializeCaches(logger, ctrl.volumeLister, ctrl.claimLister)
 
+	// TODO
 	go wait.Until(func() { ctrl.resync(ctx) }, ctrl.resyncPeriod, ctx.Done())
+
+	// 主要是更新PV Controller内部对于PV资源的缓存，以及处理PV资源需要删除的情况
 	go wait.UntilWithContext(ctx, ctrl.volumeWorker, time.Second)
+
+	// TODO
 	go wait.UntilWithContext(ctx, ctrl.claimWorker, time.Second)
 
 	metrics.Register(ctrl.volumes.store, ctrl.claims, &ctrl.volumePluginMgr)
@@ -502,19 +517,27 @@ func updateMigrationAnnotations(logger klog.Logger, cmpm CSIMigratedPluginManage
 func (ctrl *PersistentVolumeController) volumeWorker(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	workFunc := func(ctx context.Context) bool {
+		// 1、在CSI模式下，PV的创建、删除、修改都应该是ExternalProvisioner组件完成的。当用户提交一个PVC资源是，ExternalProvisioner就会
+		// 通过UDS调用CSI驱动的Controller服务的CreateVolume接口创建后端存储，并且在后端存储创建成功之后，会负责创建PV资源
+		// 2、这里监听到的PV事件有创建、删除、修改等事件
 		keyObj, quit := ctrl.volumeQueue.Get()
 		if quit {
 			return true
 		}
+
+		// 当前PV资源处理没有问题，此时认为这个PV资源已经处理完成
 		defer ctrl.volumeQueue.Done(keyObj)
 		key := keyObj.(string)
 		logger.V(5).Info("volumeWorker", "volumeKey", key)
 
+		// PV是全局资源，因此key就是名字，不存在名称空间
 		_, name, err := cache.SplitMetaNamespaceKey(key)
 		if err != nil {
 			logger.V(4).Info("Error getting name of volume to get volume from informer", "volumeKey", key, "err", err)
 			return false
 		}
+
+		// 通过ShardInformer获取PV资源
 		volume, err := ctrl.volumeLister.Get(name)
 		if err == nil {
 			// The volume still exists in informer cache, the event must have
@@ -522,6 +545,8 @@ func (ctrl *PersistentVolumeController) volumeWorker(ctx context.Context) {
 			ctrl.updateVolume(ctx, volume)
 			return false
 		}
+
+		// 如果报错了，并且不是不存在的错误，那么这里只能报错了
 		if !errors.IsNotFound(err) {
 			logger.V(2).Info("Error getting volume from informer", "volumeKey", key, "err", err)
 			return false
@@ -545,6 +570,7 @@ func (ctrl *PersistentVolumeController) volumeWorker(ctx context.Context) {
 			logger.Error(nil, "Expected volume, got", "obj", volumeObj)
 			return false
 		}
+		// 当前PV资源需要删除
 		ctrl.deleteVolume(ctx, volume)
 		return false
 	}
@@ -561,6 +587,7 @@ func (ctrl *PersistentVolumeController) volumeWorker(ctx context.Context) {
 func (ctrl *PersistentVolumeController) claimWorker(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	workFunc := func() bool {
+		// 1、PVC资源的创建、修改、删除都有由用户触发的
 		keyObj, quit := ctrl.claimQueue.Get()
 		if quit {
 			return true
@@ -574,10 +601,13 @@ func (ctrl *PersistentVolumeController) claimWorker(ctx context.Context) {
 			logger.V(4).Info("Error getting namespace & name of claim to get claim from informer", "claimKey", key, "err", err)
 			return false
 		}
+
+		// 查询ShardInformer
 		claim, err := ctrl.claimLister.PersistentVolumeClaims(namespace).Get(name)
 		if err == nil {
 			// The claim still exists in informer cache, the event must have
 			// been add/update/sync
+			// 更新缓存
 			ctrl.updateClaim(ctx, claim)
 			return false
 		}
@@ -603,6 +633,8 @@ func (ctrl *PersistentVolumeController) claimWorker(ctx context.Context) {
 			logger.Error(nil, "Expected claim, got", "obj", claimObj)
 			return false
 		}
+
+		// 处理PVC资源的删除
 		ctrl.deleteClaim(ctx, claim)
 		return false
 	}

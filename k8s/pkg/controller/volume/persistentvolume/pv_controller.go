@@ -335,7 +335,7 @@ func (ctrl *PersistentVolumeController) syncUnboundClaim(ctx context.Context, cl
 	// This is a new PVC that has not completed binding
 	// OBSERVATION: pvc is "Pending"
 	logger := klog.FromContext(ctx)
-	if claim.Spec.VolumeName == "" {
+	if claim.Spec.VolumeName == "" { // 说明PVC还没有绑定PV资源
 		// User did not care which PV they get.
 		delayBinding, err := storagehelpers.IsDelayBindingMode(claim, ctrl.classLister)
 		if err != nil {
@@ -343,12 +343,13 @@ func (ctrl *PersistentVolumeController) syncUnboundClaim(ctx context.Context, cl
 		}
 
 		// [Unit test set 1]
+		// TODO 这里是从一堆可用的PV资源当中找到一个最适合的PV资源
 		volume, err := ctrl.volumes.findBestMatchForClaim(claim, delayBinding)
 		if err != nil {
 			logger.V(2).Info("Synchronizing unbound PersistentVolumeClaim, Error finding PV for claim", "PVC", klog.KObj(claim), "err", err)
 			return fmt.Errorf("error finding PV for claim %q: %w", claimToClaimKey(claim), err)
 		}
-		if volume == nil {
+		if volume == nil { // 说明没有找到合适的PV资源，此时需要等待ExternalProvisioner调用CSI驱动的CreateVolume接口成功，并创建PV资源
 			logger.V(4).Info("Synchronizing unbound PersistentVolumeClaim, no volume found", "PVC", klog.KObj(claim))
 			// No PV could be found
 			// OBSERVATION: pvc is "Pending", will retry
@@ -392,6 +393,7 @@ func (ctrl *PersistentVolumeController) syncUnboundClaim(ctx context.Context, cl
 			// OBSERVATION: pvc is "Pending", pv is "Available"
 			claimKey := claimToClaimKey(claim)
 			logger.V(4).Info("Synchronizing unbound PersistentVolumeClaim, volume found", "PVC", klog.KObj(claim), "volumeName", volume.Name, "volumeStatus", getVolumeStatusForLogging(volume))
+			// 给PVC绑定一个PV资源，其实就是把PVC的spec.volumeName设置为PV资源的名字
 			if err = ctrl.bind(ctx, volume, claim); err != nil {
 				// On any error saving the volume or the claim, subsequent
 				// syncClaim will finish the binding.
@@ -407,10 +409,11 @@ func (ctrl *PersistentVolumeController) syncUnboundClaim(ctx context.Context, cl
 			metrics.RecordMetric(claimKey, &ctrl.operationTimestamps, nil)
 			return nil
 		}
-	} else /* pvc.Spec.VolumeName != nil */ {
+	} else /* pvc.Spec.VolumeName != nil */ { // 说明当前PVC已经绑定了PV资源
 		// [Unit test set 2]
 		// User asked for a specific PV.
 		logger.V(4).Info("Synchronizing unbound PersistentVolumeClaim, volume requested", "PVC", klog.KObj(claim), "volumeName", claim.Spec.VolumeName)
+		// 找到PV资源
 		obj, found, err := ctrl.volumes.store.GetByKey(claim.Spec.VolumeName)
 		if err != nil {
 			return err
@@ -1622,6 +1625,7 @@ func (ctrl *PersistentVolumeController) provisionClaimOperation(
 	logger.V(4).Info("provisionClaimOperation", "PVC", klog.KObj(claim), "pluginName", pluginName, "provisionerName", provisionerName)
 
 	// Add provisioner annotation to be consistent with external provisioner workflow
+	// 给PVC打上注解
 	newClaim, err := ctrl.setClaimProvisioner(ctx, claim, provisionerName)
 	if err != nil {
 		// Save failed, the controller will retry in the next sync

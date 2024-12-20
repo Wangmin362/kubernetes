@@ -31,6 +31,7 @@ import (
 
 func main() {
 	command := app.NewAPIServerCommand()
+	// APIServer入口点
 	code := cli.Run(command)
 	os.Exit(code)
 }

@@ -32,6 +32,7 @@ import (
 func main() {
 	command := app.NewAPIServerCommand()
 	// APIServer入口点
+	// TODO TEST
 	code := cli.Run(command)
 	os.Exit(code)
 }

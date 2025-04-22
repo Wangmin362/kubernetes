@@ -21,6 +21,9 @@ option (gogoproto.goproto_unrecognized_all) = false;
 // Registration may fail when device plugin version is not supported by
 // Kubelet or the registered resourceName is already taken by another
 // active device plugin. Device plugin is expected to terminate upon registration failure
+// 1. DevicePlugin注册接口，用于注册设备插件
+// 2. Kubelet的DeviceManager启动之后，会启动GRPC服务端，监听/var/lib/kubelet/device-plugins/kubelet.sock文件,等待
+// DevicePlugin插件注册上来。与此同时DevicePlugin插件实现方在启动服务器之后，就需要调用这个接口进行注册。
 service Registration {
 	rpc Register(RegisterRequest) returns (Empty) {}
 }
